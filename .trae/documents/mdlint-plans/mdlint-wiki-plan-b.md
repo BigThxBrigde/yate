@@ -342,3 +342,117 @@ published as-is` 警告并返回原文：
 | `_LANG_CHOICES` 与 `rules._VALID_LANGS` 两份语言清单 | `rules.LANGS` 单点定义，CLI 直接复用 |
 | `--fix` 的后端失败分支无测试 | 新增 `test_cli_fix_backend_failure_exits_2` |
 | hook 注释仍指向已删除的 grep 过滤器 | 注释改为 `case` 过滤 |
+
+## 九、增量：wiki 全量 lint 并行化（2026-10-27）
+
+### 9.1 需求
+
+`python -m tools.pack wiki --translate-cmd ... --push` 的 lint 阶段原本**逐页串行**
+（`_prepare_pages` 每篇读盘后立刻 `_lint_page_bytes`，翻译结果也在 `as_completed`
+循环里逐页 lint）。全量实测约 660s，与并行化的 mdlint CLI（plan_a §9）不成比例，
+要求在 wiki 内复用同一进程池并行 fix。
+
+### 9.2 方案：两相位 + 池化 fix
+
+| 项 | 实现 |
+|---|---|
+| 池 API | `tools/mdlint/batch.py` 新增 `TextOutcome` / `fix_texts`（`(lang, text)` 进、结果按**输入顺序**出），与 `iter_batches` 共用 `_engine` 惰性缓存与 worker 数策略 |
+| 任务粒度 | `TEXT_BATCH_SIZE = 1`（"longest processing time" 调度），因 pymarkdown 的 `fix` 对单篇是**超线性**的（实测 78 KiB 手册 67s，小页几十毫秒），粗粒度会把几篇大的捆进同一个任务 |
+| 调度 | 父进程按文本长度降序分发，回收后按原索引还原顺序 |
+| wiki 读段 | `_prepare_pages` 改为两相位：先读全部源 + 收集 lint 请求，再一次性并行 fix，最后统一落盘；`_PagePlan` 与 manifest 语义不变 |
+| wiki 译段 | `_publish_translations` 在翻译池排干后对全部落地页做一次并行 fix + 落盘（原先逐页 lint，等价但不可并行）；中断分支先发布已落地页再抛出，避免 Ctrl+C 丢掉已完成的译页 |
+| 小批量 | 双阈值：篇数 `PARALLEL_LINT_MIN_TEXTS = 2 * BATCH_SIZE`（20）与文本量 `PARALLEL_LINT_MIN_CHARS = 128 KiB`。池启动约 0.5s（spawn + 后端 import），单页约 75ms，所以小仓库仍走进程内 `_lint_page_text`；而 `fix` 对单篇超线性（78 KiB 手册 67s），几篇大文档即可越过文本阈值并行 |
+| 失败语义 | 完全沿用 serial 路径：引擎构造失败 → `error[WIKI-0109]`；单页 lint 崩溃 → `published as-is` 警告；剩余违规 → 每页最多 5 条 warning。worker 侧异常折叠为 `TextOutcome.error` 值，不炸池 |
+
+否决路线：① 线程池 —— pymarkdown 是纯 Python CPU 密集，GIL 下无加速；
+② 每页起一次池 —— 启动成本高于单页 lint；③ 只并行翻译阶段 —— 中文页在 `_prepare_pages`
+就已全部 lint，那才是耗时大头。
+
+### 9.3 实测（本机 8 逻辑核，语料 454 篇文本）
+
+| 模式 | 耗时 |
+|---|---|
+| 串行（按篇长分层抽样 35 篇外推） | ≈660s |
+| 池化（`TEXT_BATCH_SIZE = 4`，无 LPT） | 330s |
+| 池化（LPT，一篇一任务） | **252s**（≈2.6×；受单篇 67s 下界与物理核数限制） |
+
+结论：全量 wiki 发布的 lint 阶段从"约 11 分钟"降到"约 4 分钟"；单篇巨文档的
+超线性开销是剩余下界，属 pymarkdown 自身特性，不在本轮范围。
+
+### 9.4 测试适配与新增
+
+| 用例 | 处理 |
+|---|---|
+| `test_pack_wiki_parallel.py::test_interrupt_leaves_the_queued_batches_untranslated` | 该用例只关注中断延迟，25 篇会触发池化 lint（约 +1s），改为把 `tools.mdlint.batch.fix_texts` 换成透传（原来换的是 `wiki._lint_page_text`） |
+| `test_pack_wiki_lint.py::test_bulk_lint_runs_through_the_process_pool` | 新增：加宽仓库越过阈值，断言请求确实进了池，且池的修复结果落盘 |
+| `test_pack_wiki_lint.py::test_pool_lint_failure_publishes_page_as_is` | 新增：worker 报错（`TextOutcome.error`）时单页原样发布 + 一条 warning |
+
+`test_lint_backend_crash_publishes_page_as_is` 仍覆盖串行路径（fixture 4 篇 < 阈值）。
+
+### 9.5 收尾验收
+
+| 命令 | 结果 |
+|---|---|
+| `python -m pyright yate/ tests/ tools/` | 0 errors |
+| `python -m pytest tests/test_pack_wiki_lint.py tests/test_pack_wiki_parallel.py tests/test_pack_wiki.py tests/test_pack_wiki_errors.py tests/test_mdlint.py tests/test_mdlint_parallel.py tests/test_mdlint_plugins.py tests/test_architecture.py -q` | 全绿（1 skip 为既有用例） |
+
+### 9.6 评审修复（2026-10-27，pr-review 预评审）
+
+| 级别 | 发现 | 处置 |
+|---|---|---|
+| MAJOR | 译页改为池排干后统一落盘，Ctrl+C 会丢弃本轮已完成的译页 | 中断分支先 `_publish_translations(landed, target)`（尽力而为，失败只记 warning）再 `raise outcome.error`；新增 `test_interrupt_publishes_the_pages_that_already_landed` |
+| MAJOR | 并行门槛只看篇数，几篇大文档仍串行（单篇 67s → 数分钟） | 追加文本阈值 `PARALLEL_LINT_MIN_CHARS = 128 KiB`（篇数**与**文本量都低于下限才串行）；新增 `test_text_size_floor_lints_in_the_pool_below_the_count_floor` |
+| MAJOR | `fix_texts` 用 `with ProcessPoolExecutor(...)`，lint 期间 Ctrl+C 会等队列排干（分钟级） | 改为显式 `shutdown(wait=False, cancel_futures=True)` 的 `except BaseException` 分支（与翻译池 R-15 同形）；新增 `test_fix_texts_cancels_queued_work_when_the_pool_fails` |
+| MINOR | `_translate_pending` 的 `translated = 0` / `digests = {}` 是死初始化 | 删除（返回值在 `try` 内唯一赋值） |
+| MINOR | `_landed_pages` 返回 `(page, digest, english)` 位置元组 | 改为冻结 dataclass `_LandedPage` |
+| MINOR | 本文件 §8.5 用例名笔误、`_PagedPlan` 笔误、文末残留重复表格行 | 已订正 |
+
+残余取舍：中断时的发布仍会跑一次 lint，因此 Ctrl+C 后最长要等"已落地页的一次
+lint"（全量上限约 4 分钟）。这是为保住"发布的页一定 lint 过"这条质量线——若中断时
+跳过 lint 直接落盘，manifest 不记录这些页，下一次运行会按 adopted（`FRESH`）保留，
+未 lint 的正文会静默留在被推送的 wiki 里。控制台会先打印
+`publishing N finished page(s) before the interrupt propagates` 说明这段等待。
+
+### 9.7 增量：进度显示、中断静默、池注入（2026-10-28）
+
+用户三条需求（附 Ctrl+C 后子进程打印堆栈的截图）：
+
+1. **wiki 内 lint 要有与独立 CLI 一致的进度条与信息输出**。新增 `_LintBar`
+   （rich `Progress`，列布局与独立 CLI 相同：Spinner/描述/Bar/百分比/耗时；TTY
+   门控与独立 CLI 一致，非 TTY 只出汇总行），串行路径逐页 `step()`，池路径由
+   `fix_texts` 的 `progress` 回调回放真实完成数；每轮 lint 结束打一行
+   `wiki lint: N page(s) in X.Xs`。salvage 发布（中断打捞）传
+   `show_bar=False`——翻译 bar 还在该 console 上，两个 live Progress 会打架；
+   尾部发布移到 `finally` 之后，lint bar 与翻译 bar 依次独占 console。
+2. **Ctrl+C 不打印错误堆栈**。三层噪音来源与处置：
+   - 子进程 worker 各自打印 `KeyboardInterrupt` 堆栈（Windows 把 CTRL_C_EVENT
+     发给整组进程）→ `tools.mdlint.batch.worker_initializer()`
+     （`ProcessPoolExecutor(initializer=...)`，worker 内
+     `signal.signal(SIGINT, SIG_IGN)`）：worker 无视信号做完当前任务，
+     父进程拥有中断语义；
+   - 排队任务排干 → `fix_texts` 的 `except BaseException` 分支
+     `cancel_futures=True`（9.6 已有）；
+   - 退出时 `Exception ignored on threading shutdown` → 池干净关闭后消失。
+   实测（烟雾脚本：TEMP 建 40 篇大文档，真实 CLI 跑 wiki，8s 后
+   `GenerateConsoleCtrlEvent(0, 0)` 广播整组）：输出仅
+   `tools.pack: interrupted`，exit 130，无 Traceback / SpawnProcess 堆栈 /
+   threading 噪音。注意脚本细节：`CREATE_NEW_PROCESS_GROUP` 的子进程默认
+   禁用 Ctrl+C，烟雾里需 `SetConsoleCtrlHandler(None, False)` 恢复才是真实
+   前台场景。
+3. **lint 工具开放线程池（实为进程池）API**：`fix_texts(items, *, pool=None,
+   progress=None)` —— `pool=None` 自建自关（独立 CLI 与一次性调用）；
+   注入的池归所有者，`fix_texts` 只取消本轮 pending、从不 shutdown。
+   wiki 侧新增 `_LintPool`（惰性 `ensure()`：`ProcessPoolExecutor` 对象创建
+   不 spawn，串行小运行零成本；`shutdown(wait=False, cancel_futures=True)`），
+   `run()` 创建一个实例贯穿 rebuild / salvage / publish 全部 lint 相位，
+   `try/finally` 统一 teardown。`submit` 阶段也纳入 `except BaseException`
+   保护（中断打中 submit 时不泄漏已提交的 future）。
+
+测试：`test_fix_texts_pool_ownership_contract`（注入池不关 / 自建池关闭）、
+`test_progress_reports_each_landed_document`（回调逐文档到达 `(total, total)`）、
+`test_worker_initializer_ignores_sigint`、`test_one_lint_pool_serves_the_whole_run`
+（rebuild 与 publish 两相位收到同一池对象）、
+`test_main_thread_interrupt_salvages_the_landed_pages`（主线程直收 Ctrl+C
+同样打捞已落地页）；三个既有 fake（`recording` / `failing` / `passthrough_fix`）
+签名补齐 `pool` / `progress` 形参。`wiki.py` 复测 2149 行（`splitlines()` 口径），
+维持豁免。

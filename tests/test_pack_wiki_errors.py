@@ -728,6 +728,7 @@ def test_empty_translation_stage_reports_nothing(
         target=tmp_path / "wiki",
         jobs=None,
         console=wiki.Console(file=StringIO()),
+        lint_pool=getattr(wiki, "_LintPool")(),
     )
     assert report.translated == 0
     assert report.missing == []

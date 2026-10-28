@@ -42,6 +42,14 @@ and up to ``jobs * 10`` translators may therefore run at the same time.
 Every failure carries a stable ``WIKI-*`` code from
 :mod:`tools.pack.errors` -- a vanished Chinese source aborts the run with
 ``error[WIKI-0102]`` instead of a traceback.
+
+Every page text passes through the ``tools.mdlint`` fix pass right before
+it is written (the ``zh`` profile for Chinese pages, ``en`` for English
+ones).  Larger runs fan that pass out over the mdlint process pool --
+pymarkdown is CPU-bound, so a thread pool would only serialise on the GIL --
+while a handful of small pages stays in this process, where starting a pool
+costs more than the linting itself (see :data:`PARALLEL_LINT_MIN_TEXTS` and
+:data:`PARALLEL_LINT_MIN_CHARS`).
 """
 
 from __future__ import annotations
@@ -56,8 +64,13 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Sequence
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import (
+    Future,
+    ProcessPoolExecutor,
+    ThreadPoolExecutor,
+    as_completed,
+)
 from dataclasses import dataclass
 from enum import StrEnum
 from itertools import islice
@@ -140,6 +153,18 @@ _INTERRUPT_EXIT_CODES: Final[frozenset[int]] = frozenset(
 #: Documents per translation task.  A task is the unit handed to a pool
 #: worker, so a pool failure costs at most this many translations.
 BATCH_SIZE: Final[int] = 10
+
+#: In-memory documents below this count are linted in this process.  A fresh
+#: process pool costs ~0.5 s to start (spawn plus the pymarkdown import)
+#: while one page costs ~75 ms, so the pool only pays off past the break-even
+#: of roughly seven pages; twice that keeps a small run off the spawn path.
+PARALLEL_LINT_MIN_TEXTS: Final[int] = 2 * BATCH_SIZE
+
+#: Text floor that overrides :data:`PARALLEL_LINT_MIN_TEXTS`.  The count alone
+#: is a poor proxy: the fix pass is superlinear in document size (a 78 KiB
+#: manual costs ~67 s), so a handful of big pages can burn minutes serially
+#: while the pool would have paid for its start-up many times over.
+PARALLEL_LINT_MIN_CHARS: Final[int] = 128 * 1024
 
 #: Sentinel hook for :func:`needs_translation`: the preview is only asked
 #: when a translator is wired up, so any non-``None`` value says "present".
@@ -237,37 +262,44 @@ def _get_lint_engine(lang: str):
     :class:`tools.mdlint.lint.LintEngine` -- a module-level annotation
     would defeat the lazy import.
 
-    The cache is safe without a lock because every lint call happens on the
-    main thread: the translation workers only run the external command, and
-    the page writes (the only lint sites) happen in ``_prepare_pages`` and in
-    the ``as_completed`` loop.
+    The cache needs no lock: the parent-side lint calls all happen on the
+    main thread (the pool's workers build their own engines in their own
+    processes), and :func:`_lint_texts` uses this copy only to validate the
+    environment before a pool starts.
     """
     from tools.mdlint.lint import LintEngine
 
     return LintEngine(lang)
 
 
-def _lint_page_text(text: str, lang: str, *, label: str) -> str:
-    """Run the mdlint fix pass on *text* and return the cleaned version.
+def _require_lint_engine(lang: str):
+    """Return the engine for *lang*, reporting a broken backend as ``WIKI-0109``.
 
-    Remaining violations (not auto-fixable) are logged as warnings capped
-    at five per page; they never abort the wiki run.  An engine that
-    cannot even be constructed (missing dependency, plugin load failure)
-    aborts with ``error[WIKI-0109]`` instead of silently publishing
-    unlinted pages, but a document the linter chokes on publishes as-is:
-    pymarkdown's own assertions fire on a few pathological inputs, and a
-    single odd page must not fail the whole publish.
+    Engine construction covers the pymarkdownlnt import and every plugin
+    load; both are environment breakages worth a coded abort instead of
+    silently publishing unlinted pages.
     """
     try:
-        engine = _get_lint_engine(lang)
+        return _get_lint_engine(lang)
     except Exception as exc:
-        # pymarkdownlnt import or plugin loading failed; both are
-        # environment breakages worth a coded abort, not a traceback.
         raise WikiError(
             f"markdown lint engine unavailable: {exc}",
             code=Code.WIKI_LINT_FAILED,
             hint="install the dev extras (pip install -e .[dev])",
         ) from exc
+
+
+def _lint_page_text(text: str, lang: str, *, label: str) -> str:
+    """Run the mdlint fix pass on *text* and return the cleaned version.
+
+    Remaining violations (not auto-fixable) are logged as warnings capped
+    at five per page; they never abort the wiki run.  A document the linter
+    chokes on publishes as-is: pymarkdown's own assertions fire on a few
+    pathological inputs, and a single odd page must not fail the whole
+    publish.  This is the one-document path (the navigation pages); page
+    bodies go through :func:`_lint_texts`, which batches them in parallel.
+    """
+    engine = _require_lint_engine(lang)
     try:
         fixed, remaining = engine.fix(text)
     except Exception as exc:  # noqa: BLE001 - one odd page must not fail the run
@@ -291,19 +323,227 @@ def _lint_page_text(text: str, lang: str, *, label: str) -> str:
     return fixed
 
 
-def _lint_page_bytes(data: bytes, lang: str, *, label: str) -> bytes:
-    """Decode *data* as UTF-8, lint it, and re-encode.
+def _decode_page_text(data: bytes, *, label: str) -> str | None:
+    """Decode page bytes as UTF-8; undecodable bytes warn and return ``None``.
 
-    Bytes that are not valid UTF-8 are passed through untouched (with a
-    warning): a lossy ``errors="replace"`` round-trip would silently
-    corrupt page content, and linting must never damage it.
+    A lossy ``errors="replace"`` round-trip would silently corrupt page
+    content, so such a page is published untouched and never linted.
     """
     try:
-        text = data.decode("utf-8")
+        return data.decode("utf-8")
     except UnicodeDecodeError as exc:
         errors.log.warning("wiki lint: %s is not UTF-8 (%s); skipped", label, exc)
-        return data
-    return _lint_page_text(text, lang, label=label).encode("utf-8")
+        return None
+
+
+@dataclass(frozen=True)
+class _LintRequest:
+    """One in-memory document waiting for the mdlint fix pass.
+
+    *label* is the wiki target name the warnings are reported under, so a
+    reader can map a warning back to the page it concerns.  Labels are
+    unique across a run (every zh and en target appears once), which is what
+    lets :func:`_lint_texts` hand the cleaned texts back as a mapping.
+    """
+
+    label: str
+    lang: str
+    text: str
+
+
+@dataclass
+class _LintPool:
+    """The run's single mdlint process pool, created on first pooled lint.
+
+    One pool serves every lint pass of a run (the page pass in
+    :func:`_prepare_pages` and the publish pass in
+    :func:`_publish_translations`): the workers pay the pymarkdown import
+    once and stay warm for the whole run.  Creating the pool object spawns
+    nothing -- workers start lazily on the first submitted task -- so small
+    in-process runs never pay for it, and :meth:`shutdown` in :func:`run`'s
+    teardown is a no-op for them.
+    """
+
+    pool: ProcessPoolExecutor | None = None
+
+    def ensure(self) -> ProcessPoolExecutor:
+        """Create the pool on first use; its workers ignore ``Ctrl+C``."""
+        if self.pool is None:
+            from tools.mdlint.batch import worker_initializer
+
+            self.pool = ProcessPoolExecutor(
+                max_workers=cpu_count(), initializer=worker_initializer
+            )
+        return self.pool
+
+    def shutdown(self) -> None:
+        """Cancel queued lint jobs and release the workers, if any."""
+        if self.pool is not None:
+            # ``wait=False``: idle workers exit through the sentinels within
+            # milliseconds on the clean path, and an interrupted run must not
+            # drain its queue (the same guard as the translation pool).
+            self.pool.shutdown(wait=False, cancel_futures=True)
+
+
+@dataclass
+class _LintBar:
+    """One lint pass's live bar; a no-op off a terminal (like the tool's).
+
+    The standalone ``mdlint`` CLI shows a rich progress bar on interactive
+    runs and plain report lines otherwise; the publisher mirrors that on its
+    stderr console.  The serial path advances page by page from its own
+    loop (:meth:`step`); the pool path replays the completion count that
+    :func:`tools.mdlint.batch.fix_texts` reports (:meth:`advance`).
+    """
+
+    progress: Progress | None
+    task: TaskID | None
+
+    @classmethod
+    def start(cls, console: Console, total: int) -> _LintBar:
+        """Start a live bar, or return the inert one for piped output."""
+        if not console.is_terminal:
+            return cls(None, None)
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            console=console,
+        )
+        task = progress.add_task(f"linting {total} page(s)", total=total)
+        progress.start()
+        return cls(progress, task)
+
+    @classmethod
+    def off(cls) -> _LintBar:
+        """The inert bar (piped output, or a nested pass that must not
+        fight the caller's live bar for the console)."""
+        return cls(None, None)
+
+    def step(self) -> None:
+        """Advance one page (serial path)."""
+        if self.progress is not None and self.task is not None:
+            self.progress.update(self.task, advance=1)
+
+    def advance(self, done: int, total: int) -> None:
+        """Replay the pool path's completion count (one call per page)."""
+        del total
+        if self.progress is not None and self.task is not None:
+            self.progress.update(self.task, completed=done)
+
+    def stop(self) -> None:
+        """Take the bar down (a no-op when it never started)."""
+        if self.progress is not None:
+            self.progress.stop()
+
+
+def _lint_texts(
+    requests: Sequence[_LintRequest],
+    *,
+    lint_pool: _LintPool,
+    console: Console,
+    show_bar: bool = True,
+) -> dict[str, str]:
+    """Lint *requests* and return ``label -> cleaned text``.
+
+    Large runs fan out over the mdlint process pool
+    (:func:`tools.mdlint.batch.fix_texts`); a run stays in this process while
+    it holds fewer than :data:`PARALLEL_LINT_MIN_TEXTS` documents *and* less
+    than :data:`PARALLEL_LINT_MIN_CHARS` of text, where starting a pool would
+    cost more than the linting itself.  Both paths report identically: a page
+    the linter chokes on is published as-is with a warning, remaining
+    violations warn (capped at five per page), and a backend that cannot even
+    be constructed aborts with ``WIKI-0109``.
+
+    The pass reports like the standalone tool: a live bar on a terminal
+    (piped output skips it, as does ``show_bar=False``) plus one summary
+    line with the page count and the elapsed time.
+    """
+    if not requests:
+        return {}
+    started = time.monotonic()
+    bar = _LintBar.start(console, len(requests)) if show_bar else _LintBar.off()
+    fixed: dict[str, str] = {}
+    try:
+        text_size = sum(len(request.text) for request in requests)
+        if (
+            len(requests) < PARALLEL_LINT_MIN_TEXTS
+            and text_size < PARALLEL_LINT_MIN_CHARS
+        ):
+            for request in requests:
+                fixed[request.label] = _lint_page_text(
+                    request.text, request.lang, label=request.label
+                )
+                bar.step()
+        else:
+            fixed = _lint_texts_in_pool(requests, lint_pool, bar.advance)
+    finally:
+        bar.stop()
+    console.print(
+        f"wiki lint: {len(requests)} page(s) in {time.monotonic() - started:.1f}s",
+        markup=False,
+    )
+    return fixed
+
+
+def _lint_texts_in_pool(
+    requests: Sequence[_LintRequest],
+    lint_pool: _LintPool,
+    advance: Callable[[int, int], None],
+) -> dict[str, str]:
+    """Lint every request through the run's mdlint process pool (input order)."""
+    for lang in sorted({request.lang for request in requests}):
+        # Validate the backend in the parent: a missing dependency must
+        # abort once with a coded error, not once per pooled page.
+        _require_lint_engine(lang)
+    from tools.mdlint.batch import fix_texts
+
+    try:
+        outcomes = fix_texts(
+            [(request.lang, request.text) for request in requests],
+            pool=lint_pool.ensure(),
+            progress=advance,
+        )
+    except Exception as exc:  # pool start-up failure: interpreter, plugins
+        raise WikiError(
+            f"markdown lint pool failed: {exc}",
+            code=Code.WIKI_LINT_FAILED,
+            hint=(
+                "install the dev extras (pip install -e .[dev]); on Windows a "
+                "script embedding run() needs an `if __name__ == '__main__':` "
+                "guard (start the publisher with `python -m tools.pack`)"
+            ),
+        ) from exc
+    fixed: dict[str, str] = {}
+    for request, outcome in zip(requests, outcomes, strict=True):
+        if outcome.error is not None:
+            errors.log.warning(
+                "wiki lint: %s could not be linted (%s); published as-is",
+                request.label,
+                outcome.error,
+            )
+            fixed[request.label] = request.text
+            continue
+        # The same capped report as the single-document path above.
+        for violation in outcome.violations[:5]:
+            errors.log.warning(
+                "wiki lint: %s:%d:%d %s %s",
+                request.label,
+                violation.line,
+                violation.column,
+                violation.rule_id,
+                violation.message,
+            )
+        fixed[request.label] = outcome.fixed
+    return fixed
+
+
+def _linted_bytes(data: bytes, fixed: dict[str, str], label: str) -> bytes:
+    """Return the linted form of *data* (the raw bytes when it was not linted)."""
+    text = fixed.get(label)
+    return data if text is None else text.encode("utf-8")
 
 
 def reset_lint_engine_cache() -> None:
@@ -1349,6 +1589,29 @@ def _run_batch(
     return outcomes
 
 
+@dataclass(frozen=True)
+class _PreparedPage:
+    """One page whose sources are read and whose lint jobs are decided."""
+
+    page: WikiPage
+    digest: str
+    zh_bytes: bytes
+    en_bytes: bytes | None
+
+
+def _lint_requests(
+    page: WikiPage, zh_bytes: bytes, en_bytes: bytes | None
+) -> Iterator[_LintRequest]:
+    """The lint jobs one page contributes: its zh text, plus its en twin."""
+    zh_text = _decode_page_text(zh_bytes, label=page.zh_target)
+    if zh_text is not None:
+        yield _LintRequest(page.zh_target, "zh", zh_text)
+    if en_bytes is not None:
+        en_text = _decode_page_text(en_bytes, label=page.en_target)
+        if en_text is not None:
+            yield _LintRequest(page.en_target, "en", en_text)
+
+
 def _prepare_pages(
     pages: Sequence[WikiPage],
     target: Path,
@@ -1356,6 +1619,8 @@ def _prepare_pages(
     *,
     translate_cmd: str | None,
     translate_all: bool,
+    lint_pool: _LintPool,
+    console: Console,
 ) -> tuple[int, list[_PagePlan], list[str], list[str]]:
     """Rebuild Chinese pages and decide what still needs translating.
 
@@ -1367,29 +1632,47 @@ def _prepare_pages(
     copies also record the digest of the en bytes this tool wrote, while
     adopted English pages are never recorded; translations are recorded by
     the caller once they actually succeed.
+
+    Every source is read first and every page text is linted in one pass
+    (:func:`_lint_texts`, which fans out over the mdlint process pool)
+    before anything is written: linting is the CPU-bound half of this stage
+    and reading a few hundred files costs far less than linting them.
     """
-    kept = 0
-    plans: list[_PagePlan] = []
-    missing: list[str] = []
-    stale: list[str] = []
+    prepared: list[_PreparedPage] = []
+    requests: list[_LintRequest] = []
     for page in pages:
         zh_bytes = _read_source_bytes(page.zh_source)
-        digest = hashlib.sha256(zh_bytes).hexdigest()
-        zh_bytes = _lint_page_bytes(zh_bytes, "zh", label=page.zh_target)
-        _write_page_bytes(target / page.zh_target, zh_bytes)
-        en_path = target / page.en_target
         en_bytes: bytes | None = None
         if page.en_source is not None:
             # TOCTOU: _collect_bilingual verified en_source with exists()
             # at collection time, but the file may be deleted before this
-            # read; treat the failure as a missing page (translation path
-            # below) instead of crashing the whole run.
+            # read; treat the failure as a missing page (translation path)
+            # instead of crashing the whole run.
             try:
                 en_bytes = page.en_source.read_bytes()
             except OSError:
                 en_bytes = None
-        if en_bytes is not None:
-            en_bytes = _lint_page_bytes(en_bytes, "en", label=page.en_target)
+        prepared.append(
+            _PreparedPage(
+                page=page,
+                digest=hashlib.sha256(zh_bytes).hexdigest(),
+                zh_bytes=zh_bytes,
+                en_bytes=en_bytes,
+            )
+        )
+        requests.extend(_lint_requests(page, zh_bytes, en_bytes))
+    fixed = _lint_texts(requests, lint_pool=lint_pool, console=console)
+    kept = 0
+    plans: list[_PagePlan] = []
+    missing: list[str] = []
+    stale: list[str] = []
+    for item in prepared:
+        page = item.page
+        zh_bytes = _linted_bytes(item.zh_bytes, fixed, page.zh_target)
+        _write_page_bytes(target / page.zh_target, zh_bytes)
+        en_path = target / page.en_target
+        if item.en_bytes is not None:
+            en_bytes = _linted_bytes(item.en_bytes, fixed, page.en_target)
             _write_page_bytes(en_path, en_bytes)
             # This tool wrote the en copy (en_bytes is exactly what landed
             # on disk), so it is recorded for prune: a page the tool never
@@ -1403,13 +1686,13 @@ def _prepare_pages(
         state = _translation_state(
             has_en=has_en,
             recorded=recorded,
-            digest=digest,
+            digest=item.digest,
             translate_cmd=translate_cmd,
             translate_all=translate_all,
         )
         if state is _PageState.FRESH:
             # Fresh or externally maintained (e.g. agent-translated).
-            manifest[page.zh_target] = digest
+            manifest[page.zh_target] = item.digest
             kept += 1
             continue
         if translate_cmd is None and state in (_PageState.MISSING, _PageState.STALE):
@@ -1426,12 +1709,117 @@ def _prepare_pages(
         plans.append(
             _PagePlan(
                 page=page,
-                digest=digest,
+                digest=item.digest,
                 text=zh_bytes.decode("utf-8", errors="replace"),
                 has_en=has_en,
             )
         )
     return kept, plans, missing, stale
+
+
+@dataclass(frozen=True)
+class _LandedPage:
+    """One translation a run really produced, waiting for lint and write."""
+
+    page: WikiPage
+    digest: str
+    english: str
+
+
+def _publish_translations(
+    outcomes: Sequence[_PageOutcome],
+    target: Path,
+    *,
+    lint_pool: _LintPool,
+    console: Console,
+    show_bar: bool,
+) -> tuple[int, dict[str, str]]:
+    """Lint, write and digest the pages a translation run landed.
+
+    Returns ``(translated, digests)``: the count of pages actually written
+    and the manifest entries for them -- the zh digest that records the
+    source the translation belongs to, and the en digest of the bytes this
+    tool put on disk.  Those on-disk bytes are the ones hashed because
+    ``Path.write_text`` translates newlines on Windows, so the linted text
+    is not necessarily what landed.
+
+    *show_bar* is false on the interrupt salvage path, where the
+    translation run's own bar is still live on this console and a second
+    rich ``Progress`` would fight it for the display.
+    """
+    landed = _landed_pages(outcomes)
+    fixed = _lint_texts(
+        [_LintRequest(item.page.en_target, "en", item.english) for item in landed],
+        lint_pool=lint_pool,
+        console=console,
+        show_bar=show_bar,
+    )
+    translated = 0
+    digests: dict[str, str] = {}
+    for item in landed:
+        page = item.page
+        _write_page_text(
+            target / page.en_target, fixed.get(page.en_target, item.english)
+        )
+        digests[page.zh_target] = item.digest
+        digests[page.en_target] = hashlib.sha256(
+            (target / page.en_target).read_bytes()
+        ).hexdigest()
+        translated += 1
+    return translated, digests
+
+
+def _landed_pages(outcomes: Sequence[_PageOutcome]) -> list[_LandedPage]:
+    """The pages a run really landed.
+
+    A page whose translation failed carries ``english=None``; the caller
+    already reported it as missing/stale, so it is skipped here.
+    """
+    landed: list[_LandedPage] = []
+    for outcome in outcomes:
+        english = outcome.english
+        if english is None:
+            continue
+        landed.append(
+            _LandedPage(
+                page=outcome.plan.page, digest=outcome.plan.digest, english=english
+            )
+        )
+    return landed
+
+
+def _salvage_landed(
+    landed: Sequence[_PageOutcome],
+    target: Path,
+    *,
+    lint_pool: _LintPool,
+    console: Console,
+) -> None:
+    """Best-effort publish of the pages a cancelled run already translated.
+
+    An interrupt (a failed worker, or a direct ``Ctrl+C`` in the main
+    thread) must not throw finished translations away: the pages that
+    landed are linted and written exactly as in a clean run before the
+    exception leaves.  A salvage failure is logged, never raised -- the
+    original interrupt wins.
+    """
+    if not landed:
+        return
+    console.print(
+        f"wiki: publishing {len(landed)} finished page(s)"
+        " before the interrupt propagates",
+        markup=False,
+    )
+    try:
+        _publish_translations(
+            landed, target, lint_pool=lint_pool, console=console, show_bar=False
+        )
+    except Exception as exc:  # noqa: BLE001 - the interrupt wins
+        errors.log.warning(
+            "wiki: could not publish %d finished page(s) after the interrupt: %s",
+            len(landed),
+            exc,
+        )
 
 
 def _translate_pending(
@@ -1441,6 +1829,7 @@ def _translate_pending(
     target: Path,
     jobs: int | None,
     console: Console,
+    lint_pool: _LintPool,
 ) -> _TranslationReport:
     """Translate *plans* through a bounded thread pool, writing into *target*.
 
@@ -1454,6 +1843,13 @@ def _translate_pending(
     :func:`_emit_translate_failure` and nudges the progress rows (which rich
     serialises internally) -- so no lock is needed and page completion order
     is irrelevant (every page owns its target path and manifest key).
+
+    Translated pages are written after the pool is drained, not page by
+    page: :func:`_publish_translations` lints the whole landed set in one
+    pass (parallel processes, see :func:`_lint_texts`), which costs far less
+    than starting a pool per page.  An interrupt publishes the pages that
+    already landed before it propagates, so a cancelled run never throws
+    finished translations away.
     """
     if not plans:
         # ``min(resolve_jobs(...), 0)`` would hand ``max_workers=0`` to the
@@ -1478,10 +1874,9 @@ def _translate_pending(
         f" {workers} worker(s) at most ({BATCH_SIZE} documents per task)",
         markup=False,
     )
-    translated = 0
-    digests: dict[str, str] = {}
     missing: list[str] = []
     stale: list[str] = []
+    landed: list[_PageOutcome] = []
     progress = Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -1560,18 +1955,7 @@ def _translate_pending(
                     else:
                         missing.append(page.en_target)
                     continue
-                _write_page_text(
-                    target / page.en_target,
-                    _lint_page_text(outcome.english, "en", label=page.en_target),
-                )
-                digests[page.zh_target] = outcome.plan.digest
-                # The en digest must come from the bytes actually on disk:
-                # Path.write_text translates newlines on Windows, so the
-                # linted text is not necessarily what landed.
-                digests[page.en_target] = hashlib.sha256(
-                    (target / page.en_target).read_bytes()
-                ).hexdigest()
-                translated += 1
+                landed.append(outcome)
             board.batch_finished()
             console.print(
                 f"wiki: batch {index}/{len(batches)} done"
@@ -1579,6 +1963,14 @@ def _translate_pending(
                 f" {failed_here} failed)",
                 markup=False,
             )
+    except BaseException:
+        # A failed worker or a direct ``Ctrl+C`` in the main thread: publish
+        # what already landed before the exception leaves (best effort; a
+        # second ``Ctrl+C`` during the salvage aborts it immediately).  The
+        # lint pass runs without its own bar -- the translation bar above is
+        # still live on this console.
+        _salvage_landed(landed, target, lint_pool=lint_pool, console=console)
+        raise
     finally:
         # The main thread stops waiting -- queued batches are cancelled and
         # the in-flight translators are told to stop: a child that ignores
@@ -1595,6 +1987,12 @@ def _translate_pending(
         _emit_mode = "print"
         for message in _drain_collected_failures():
             console.print(message, markup=False, highlight=False)
+    # The publish pass runs after the translation bar came down: its lint
+    # pass then owns the console and shows the same live bar as the page
+    # pass (a second live ``Progress`` on one console would fight the first).
+    translated, digests = _publish_translations(
+        landed, target, lint_pool=lint_pool, console=console, show_bar=True
+    )
     return _TranslationReport(translated, digests, missing, stale)
 
 
@@ -1658,78 +2056,94 @@ def run(
         )
     console = Console(file=sys.stderr)
     run_started = time.monotonic()
-    kept, plans, missing, stale = _prepare_pages(
-        pages,
-        target,
-        manifest,
-        translate_cmd=translate_cmd,
-        translate_all=translate_all,
-    )
-    translated = 0
-    if translate_cmd is not None:
-        if plans:
-            console.print(f"wiki: {len(plans)} page(s) to translate", markup=False)
-        else:
-            console.print(
-                f"wiki: nothing to translate ({len(pages)} pages up to date)",
-                markup=False,
-            )
-        if plans:
-            outcome = _translate_pending(
-                plans, translate_cmd, target=target, jobs=jobs, console=console
-            )
-            # Only a translation that really landed is blessed in the manifest.
-            manifest.update(outcome.digests)
-            translated = outcome.translated
-            missing.extend(outcome.missing)
-            stale.extend(outcome.stale)
-    collected = {page.zh_target for page in pages}
-    generated = {page.en_target for page in pages}
-    # Keep both zh records and the en records this tool wrote for the
-    # still-collected pages; dropping an en key here would make the next
-    # run treat its page as never-written (adopted) and keep it forever.
-    manifest = {
-        key: value
-        for key, value in manifest.items()
-        if key in collected or key in generated
-    }
-    # Sources that vanished must not leave dead links behind in the wiki.
-    expected = {page.zh_target for page in pages} | {page.en_target for page in pages}
-    orphans = prune_orphan_pages(target, expected, recorded)
-    if orphans:
-        print(f"wiki: removed {orphans} orphan page(s) with no source document")
+    # One lazy pool serves every lint pass of this run (rebuild, salvage,
+    # publish).  It is created on the first submit -- small serial runs never
+    # pay for it -- and torn down once here, after the last pass.  Workers
+    # ignore ``Ctrl+C``; the parent owns the interrupt and cancels queued
+    # batches, so a cancelled run does not wait for workers to drain.
+    lint_pool = _LintPool()
+    try:
+        kept, plans, missing, stale = _prepare_pages(
+            pages,
+            target,
+            manifest,
+            translate_cmd=translate_cmd,
+            translate_all=translate_all,
+            lint_pool=lint_pool,
+            console=console,
+        )
+        translated = 0
+        if translate_cmd is not None:
+            if plans:
+                console.print(f"wiki: {len(plans)} page(s) to translate", markup=False)
+            else:
+                console.print(
+                    f"wiki: nothing to translate ({len(pages)} pages up to date)",
+                    markup=False,
+                )
+            if plans:
+                outcome = _translate_pending(
+                    plans,
+                    translate_cmd,
+                    target=target,
+                    jobs=jobs,
+                    console=console,
+                    lint_pool=lint_pool,
+                )
+                # Only a translation that really landed is blessed in the manifest.
+                manifest.update(outcome.digests)
+                translated = outcome.translated
+                missing.extend(outcome.missing)
+                stale.extend(outcome.stale)
+        collected = {page.zh_target for page in pages}
+        generated = {page.en_target for page in pages}
+        # Keep both zh records and the en records this tool wrote for the
+        # still-collected pages; dropping an en key here would make the next
+        # run treat its page as never-written (adopted) and keep it forever.
+        manifest = {
+            key: value
+            for key, value in manifest.items()
+            if key in collected or key in generated
+        }
+        # Sources that vanished must not leave dead links behind in the wiki.
+        expected = {page.zh_target for page in pages} | {page.en_target for page in pages}
+        orphans = prune_orphan_pages(target, expected, recorded)
+        if orphans:
+            print(f"wiki: removed {orphans} orphan page(s) with no source document")
 
-    home_zh, sidebar_zh, home_en, sidebar_en = _nav_documents(pages)
-    _write_page_text(
-        target / "Home.md", _lint_page_text(home_zh, "zh", label="Home.md")
-    )
-    _write_page_text(
-        target / "_Sidebar.md", _lint_page_text(sidebar_zh, "zh", label="_Sidebar.md")
-    )
-    _write_page_text(
-        target / "Home.en.md", _lint_page_text(home_en, "en", label="Home.en.md")
-    )
-    _write_page_text(
-        target / "_Sidebar.en.md",
-        _lint_page_text(sidebar_en, "en", label="_Sidebar.en.md"),
-    )
-    store_manifest(target, manifest)
+        home_zh, sidebar_zh, home_en, sidebar_en = _nav_documents(pages)
+        _write_page_text(
+            target / "Home.md", _lint_page_text(home_zh, "zh", label="Home.md")
+        )
+        _write_page_text(
+            target / "_Sidebar.md", _lint_page_text(sidebar_zh, "zh", label="_Sidebar.md")
+        )
+        _write_page_text(
+            target / "Home.en.md", _lint_page_text(home_en, "en", label="Home.en.md")
+        )
+        _write_page_text(
+            target / "_Sidebar.en.md",
+            _lint_page_text(sidebar_en, "en", label="_Sidebar.en.md"),
+        )
+        store_manifest(target, manifest)
 
-    print(
-        f"wiki: {len(pages)} pages -> {target} "
-        f"(en kept {kept} / translated {translated} / "
-        f"missing {len(missing)} / stale {len(stale)}) in {time.monotonic() - run_started:.1f}s"
-    )
-    for name in sorted(missing):
-        print(f"  missing en: {name}")
-    for name in sorted(stale):
-        print(f"  stale en: {name}")
-    exit_code = 0
-    if missing or stale:
-        exit_code = 1 if check else 0
-    if push:
-        if exit_code == 0:
-            exit_code = push_wiki(target, github_url=_github_wiki_url(root))
-        else:
-            print("wiki: push skipped (--check found missing/stale pages)", file=sys.stderr)
-    return exit_code
+        print(
+            f"wiki: {len(pages)} pages -> {target} "
+            f"(en kept {kept} / translated {translated} / "
+            f"missing {len(missing)} / stale {len(stale)}) in {time.monotonic() - run_started:.1f}s"
+        )
+        for name in sorted(missing):
+            print(f"  missing en: {name}")
+        for name in sorted(stale):
+            print(f"  stale en: {name}")
+        exit_code = 0
+        if missing or stale:
+            exit_code = 1 if check else 0
+        if push:
+            if exit_code == 0:
+                exit_code = push_wiki(target, github_url=_github_wiki_url(root))
+            else:
+                print("wiki: push skipped (--check found missing/stale pages)", file=sys.stderr)
+        return exit_code
+    finally:
+        lint_pool.shutdown()

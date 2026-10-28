@@ -12,9 +12,13 @@ from __future__ import annotations
 import hashlib
 import logging
 import sys
+from collections.abc import Sequence
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
+from tools.mdlint import batch as mdlint_batch
+from tools.mdlint.batch import ProgressFn, TextOutcome
 from tools.pack import wiki
 from tools.pack.errors import Code
 
@@ -34,6 +38,12 @@ def repo(tmp_path: Path) -> Path:
     _touch(root, "yate/docs/topic.zh.md", "# topic zh\n")
     _touch(root, "yate/docs/topic.en.md", "# topic en\n")
     return root
+
+
+def _widen(repo: Path) -> None:
+    """Add enough pages that the run takes the parallel lint path."""
+    for index in range(wiki.PARALLEL_LINT_MIN_TEXTS):
+        _touch(repo, f".trae/documents/bulk-{index:02d}.md")
 
 
 def test_zh_page_written_with_lint_fix(repo: Path, tmp_path: Path) -> None:
@@ -185,3 +195,138 @@ def test_existing_wiki_tests_unaffected(repo: Path, tmp_path: Path) -> None:
     )
     assert (target / "topic.zh.md").read_text(encoding="utf-8") == "# topic zh\n"
     assert (target / "topic.en.md").read_text(encoding="utf-8") == "# topic en\n"
+
+
+def test_bulk_lint_runs_through_the_process_pool(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A run past the threshold really hands its pages to the mdlint pool.
+
+    Small fixtures lint in this process (see
+    :data:`tools.pack.wiki.PARALLEL_LINT_MIN_TEXTS`), so the pool path needs
+    a widened checkout; the fake pool delegates to the real one, which keeps
+    the write contract under test instead of only the wiring.
+    """
+    _widen(repo)
+    _touch(repo, ".trae/documents/messy-bulk.md", "# heading\n\n\n\nbody\n")
+    real = mdlint_batch.fix_texts
+    seen: list[tuple[str, str]] = []
+
+    def recording(
+        items: Sequence[tuple[str, str]],
+        *,
+        pool: ProcessPoolExecutor | None,
+        progress: ProgressFn | None,
+    ) -> list[TextOutcome]:
+        seen.extend(items)
+        return real(items, pool=pool, progress=progress)
+
+    monkeypatch.setattr(mdlint_batch, "fix_texts", recording)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert len(seen) >= wiki.PARALLEL_LINT_MIN_TEXTS
+    # The pool's fixes are what lands on disk, exactly as in the serial path.
+    assert (target / "messy-bulk.zh.md").read_text(encoding="utf-8") == (
+        "# heading\n\nbody\n"
+    )
+
+
+def test_one_lint_pool_serves_the_whole_run(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The page pass and the publish pass share one lazily created pool.
+
+    The lint tool's API accepts an injected pool: the publisher creates one
+    for the whole run and hands it to every pass, so the workers pay the
+    pymarkdown import once instead of per pass (user directive).  Both pooled
+    passes must receive the very same pool object.
+    """
+    _widen(repo)
+    real = mdlint_batch.fix_texts
+    pools: list[ProcessPoolExecutor | None] = []
+
+    def fake_translate(text: str, translate_cmd: str) -> str | None:
+        return "# alpha en\n\ntranslated"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", fake_translate)
+
+    def recording(
+        items: Sequence[tuple[str, str]],
+        *,
+        pool: ProcessPoolExecutor | None,
+        progress: ProgressFn | None,
+    ) -> list[TextOutcome]:
+        pools.append(pool)
+        return real(items, pool=pool, progress=progress)
+
+    monkeypatch.setattr(mdlint_batch, "fix_texts", recording)
+    # The publish pass lints a single (small) page; the lowered char floor
+    # routes it through the pool too, so the reuse assertion has two passes.
+    monkeypatch.setattr(wiki, "PARALLEL_LINT_MIN_CHARS", 1)
+    target = tmp_path / "wiki"
+    assert wiki.run(target, "fake-cmd", repo_root=repo) == 0
+    assert len(pools) >= 2
+    assert pools[0] is not None
+    assert pools[0] is pools[1]
+
+
+def test_pool_lint_failure_publishes_page_as_is(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A page the pooled worker chokes on publishes unchanged, not fatal.
+
+    The worker returns failures as values (``TextOutcome.error``); the
+    publisher must log one warning and keep the page, mirroring the
+    in-process crash path covered by
+    ``test_lint_backend_crash_publishes_page_as_is``.
+    """
+    _widen(repo)
+    _touch(repo, ".trae/documents/broken-page.md", "# keep me\n")
+
+    def failing(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
+        return [
+            TextOutcome(text, [], error="rehydrate index mismatch")
+            if "keep me" in text
+            else TextOutcome(text, [])
+            for _lang, text in items
+        ]
+
+    monkeypatch.setattr(mdlint_batch, "fix_texts", failing)
+    target = tmp_path / "wiki"
+    with caplog.at_level(logging.WARNING, logger="yate.pack"):
+        assert wiki.run(target, None, repo_root=repo) == 0
+    assert (target / "broken-page.zh.md").read_text(encoding="utf-8") == "# keep me\n"
+    assert any(
+        "could not be linted" in record.getMessage() for record in caplog.records
+    )
+
+
+def test_text_size_floor_lints_in_the_pool_below_the_count_floor(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A few *large* pages fan out even though their count is tiny.
+
+    The count floor (``PARALLEL_LINT_MIN_TEXTS``) alone would keep a small
+    repository of big documents on the serial path, where the fix pass --
+    superlinear in document size -- costs minutes; the text floor
+    (``PARALLEL_LINT_MIN_CHARS``) is what overrides it.  The floor is lowered
+    here so the fixture stays tiny and the assertion is about routing only.
+    """
+    seen: list[tuple[str, str]] = []
+
+    def recording(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
+        seen.extend(items)
+        return [TextOutcome(text, []) for _lang, text in items]
+
+    monkeypatch.setattr(wiki, "PARALLEL_LINT_MIN_CHARS", 1)
+    monkeypatch.setattr(mdlint_batch, "fix_texts", recording)
+    target = tmp_path / "wiki"
+
+    assert wiki.run(target, None, repo_root=repo) == 0
+    assert seen
+    assert len(seen) < wiki.PARALLEL_LINT_MIN_TEXTS
