@@ -17,8 +17,13 @@ from typing import cast
 
 from yate.editor_view.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import StateQuery
-from yate.flows.whichkey_flows import WINDOW_CHORDS, WhichKeyFlows
-from yate.flows.window_flows import WINDOW_CHORD_HINT
+from yate.flows.whichkey_flows import WhichKeyFlows, WindowChordHintsFn
+from yate.flows.window_flows import (
+    WINDOW_CHORD_HINT,
+    WINDOW_CHORD_TABLE,
+    WINDOW_KEY_ALIASES,
+    WINDOW_SECOND_KEYS,
+)
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import RESERVED_KEYS, VimKeymap
 from yate.keymaps.vsc import VscKeymap
@@ -48,6 +53,7 @@ class _PanelRecorder:
 def _make_flows(
     keymaps: KeymapSet,
     window_pending: StateQuery = lambda: False,
+    window_chord_hints: WindowChordHintsFn = lambda: WINDOW_CHORD_TABLE,
     which_key_enabled: Callable[[], bool] = lambda: True,
 ) -> tuple[WhichKeyFlows, _PanelRecorder]:
     """Build the flow over a recording panel (message line kept inert)."""
@@ -55,6 +61,7 @@ def _make_flows(
     flows = WhichKeyFlows(
         keymaps=keymaps,
         window_pending=window_pending,
+        window_chord_hints=window_chord_hints,
         panel=cast(WhichKeyPanel, panel),
         message=lambda _text, _kind: None,
         which_key_enabled=which_key_enabled,
@@ -112,9 +119,9 @@ def test_refresh_shows_window_chords_while_ctrlw_pending() -> None:
     flows.refresh()
     header, entries = panel.shown[-1]
     assert header == "ctrl+w"
-    assert len(entries) == len(WINDOW_CHORDS) == 14
+    assert len(entries) == len(WINDOW_CHORD_TABLE) == 14
     keys = {e.key for e in entries}
-    assert {"q", "s", "v", "ctrl+w"} <= keys
+    assert keys == {key for key, _ in WINDOW_CHORD_TABLE}
 
 
 def test_candidates_exclude_completed_and_unrelated_specs() -> None:
@@ -228,15 +235,32 @@ def test_flow_holds_no_app_handle() -> None:
 
 
 def test_window_chord_hint_covers_whichkey_rows() -> None:
-    """Every WINDOW_CHORDS description keyword appears in the arm hint.
+    """Every WINDOW_CHORD_TABLE description keyword appears in the arm hint.
 
-    Drift guard: the ctrl+w panel rows and the message line posted by
-    ``WindowFlows.try_window_prefix`` must read the same words (the
-    whichkey_flows module note pins the pairing).  Rewording either side
-    without the other fails here.
+    Single-source check: the hint is derived from the same table that feeds
+    the which-key panel rows, so every description word must surface in the
+    message line posted by ``WindowFlows.try_window_prefix``.
     """
-    descs = {entry.desc for entry in WINDOW_CHORDS}
+    descs = {desc for _, desc in WINDOW_CHORD_TABLE}
     assert all(desc in WINDOW_CHORD_HINT for desc in descs)
+
+
+def test_window_dispatch_keys_match_panel_rows() -> None:
+    """Non-alias dispatch keys == panel rows (one-to-one); aliases stay off-panel."""
+    canonical = {key for key, _ in WINDOW_CHORD_TABLE}
+    aliases = frozenset(WINDOW_KEY_ALIASES)
+    # Table keys are unique, so every non-alias dispatch key maps to
+    # exactly one panel row.
+    assert len(WINDOW_CHORD_TABLE) == len(canonical)
+    # Every canonical key appears in dispatch set.
+    assert canonical <= WINDOW_SECOND_KEYS
+    # Aliases appear in dispatch set.
+    assert aliases <= WINDOW_SECOND_KEYS
+    # No alias leaks into the panel rows.
+    panel_keys = {key for key, _ in WINDOW_CHORD_TABLE}
+    assert panel_keys & aliases == frozenset()
+    # Dispatch set is exactly canonical + aliases (no stray keys).
+    assert WINDOW_SECOND_KEYS == canonical | aliases
 
 
 def test_reserved_keys_come_from_the_active_keymap() -> None:

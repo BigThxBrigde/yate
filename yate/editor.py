@@ -355,6 +355,7 @@ def _build_pane_stack(ed: Editor) -> None:
     ed.whichkey = WhichKeyFlows(
         keymaps=ed.keymaps,
         window_pending=lambda: ed.window_flows.window_pending,
+        window_chord_hints=ed.window_flows.window_chord_hints,  # IKQ3IT
         panel=ed.which_key_panel,
         message=ed.message,
         which_key_enabled=lambda: ed.config.which_key,
