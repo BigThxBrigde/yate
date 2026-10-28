@@ -43,7 +43,7 @@
 在 docstring 末尾（第 48 行 "import only from here." 之后）追加一段：
 
 ```text
-Package-root re-export exception note (architecture rules §3.5): UI and
+Package-root re-export exception note (architecture rules section 3.5): UI and
 service packages normally must not re-export; this facade is the single
 registered exception for service packages -- the plugin import path is
 frozen by R14 and guarded by
