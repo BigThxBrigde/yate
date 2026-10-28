@@ -280,3 +280,17 @@ register_theme(Theme(
 
 - 运行时：`:theme` 不带参数，在消息栏列出所有已注册主题名。
 - 命令面板：搜索 `theme` 可找到 `:theme` 命令并按 `Tab` 补全主题名。
+
+---
+
+## 7. 工作区主题与信任
+
+打开一个仓库绝不应执行该仓库自身的代码，因此项目内的 `./themes/` 目录只在
+你显式信任（`:trust`）该工作区后才自动加载——机制与 `./extensions/` 相同
+（见扩展指南"工作区信任"一节）。启动时若在工作区发现未信任的 `./themes/`，
+会跳过该目录并在消息栏提示
+`themes: skipped untrusted <path> (run :trust to load them)`；运行 `:trust`
+信任当前工作区后即可加载其主题。
+
+用户级 `~/.yate/themes/` 与显式声明——yaterc 的 `theme_dirs`、命令行的
+`--theme-dir`——都是刻意的用户动作，不受门控。

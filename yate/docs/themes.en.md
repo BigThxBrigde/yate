@@ -298,3 +298,19 @@ Maps to the token kinds produced by the `editor_syntax` layer (see
   the message bar.
 - Command palette: search for `theme` to find the `:theme` command and complete
   theme names with `Tab`.
+
+---
+
+## 7. Workspace themes and trust
+
+Opening a repository must never execute that repository's own code, so the
+project `./themes/` directory auto-loads only in workspaces you have
+explicitly trusted -- the same mechanism as `./extensions/` (see the
+extensions guide, "Workspace trust"). When startup finds `./themes/` in an
+untrusted workspace it skips the directory and reports
+`themes: skipped untrusted <path> (run :trust to load them)` on the message
+bar; run `:trust` to trust the current workspace and load its themes.
+
+User-level `~/.yate/themes/` and explicit declarations -- `theme_dirs` in
+yaterc and `--theme-dir` on the command line -- are deliberate user actions
+and are not gated.

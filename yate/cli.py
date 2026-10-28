@@ -410,10 +410,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Theme load priority (later wins on name collision, like rc files):
     # built-ins < default dirs < yaterc theme_dirs < explicit --theme-dir.
     default_errors: list[str] = []
-    theme_mod.load_theme_paths(
-        [Path.cwd() / "themes", Path.home() / ".yate" / "themes"],
-        default_errors,
-    )
+    theme_mod.load_theme_paths(theme_mod.default_theme_dirs(default_errors), default_errors)
     # Theme callbacks are injected (N30): the L0 config loader must not
     # import the L2 UI package itself.
     config = load_config(
