@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import signal
+from concurrent.futures import Future, ProcessPoolExecutor
 from pathlib import Path
+from typing import cast
 
 import pytest
 
-from tools.mdlint import cli
-from tools.mdlint.batch import FileOutcome, chunk, collect_markdown, worker_count
+from tools.mdlint import batch, cli
+from tools.mdlint.batch import (
+    FileOutcome,
+    TextOutcome,
+    chunk,
+    collect_markdown,
+    worker_count,
+)
 from tools.mdlint.cli import main
 
 
@@ -115,6 +124,124 @@ def test_parallel_file_failure_is_reported(
     err = capsys.readouterr().err
     assert "cannot lint" in err
     assert "Traceback" not in err
+
+
+def test_fix_texts_cancels_queued_work_when_the_pool_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``Ctrl+C`` inside the text pool must not drain the queue.
+
+    ``shutdown(wait=True)`` would keep the user waiting for every queued
+    document (minutes on a full wiki run), so the failure path closes the
+    pool with ``cancel_futures=True`` and lets the interrupt propagate.
+    """
+    shutdowns: list[tuple[bool, bool]] = []
+
+    class _FailingPool:
+        def __init__(self, max_workers: int, **kwargs: object) -> None:
+            self.max_workers = max_workers
+
+        def submit(self, *args: object) -> object:
+            raise KeyboardInterrupt
+
+        def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+            shutdowns.append((wait, cancel_futures))
+
+    monkeypatch.setattr(batch, "ProcessPoolExecutor", _FailingPool)
+    with pytest.raises(KeyboardInterrupt):
+        batch.fix_texts([("en", "# a\n")])
+    assert shutdowns == [(False, True)]
+
+
+def test_fix_texts_pool_ownership_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An injected pool stays running; a run-local pool is closed on exit.
+
+    The wiki publisher shares one pool across several lint passes, so
+    :func:`~tools.mdlint.batch.fix_texts` must leave a pool it did not start
+    alone -- shutting it down is the owner's job.  A pool of its own is shut
+    down with ``wait=True`` (all work is done) before the results return.
+    """
+    shutdowns: list[tuple[bool, bool]] = []
+
+    class _InstantPool:
+        def __init__(self, max_workers: int = 0, **kwargs: object) -> None:
+            pass
+
+        def submit(
+            self, fn: object, batch: list[tuple[str, str]]
+        ) -> Future[list[TextOutcome]]:
+            future: Future[list[TextOutcome]] = Future()
+            future.set_result([TextOutcome(text, []) for _lang, text in batch])
+            return future
+
+        def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+            shutdowns.append((wait, cancel_futures))
+
+    items = [("en", "# a\n"), ("en", "# b\n"), ("zh", "# c\n")]
+    expected = [TextOutcome(text, []) for _lang, text in items]
+
+    injected = _InstantPool()
+    assert batch.fix_texts(items, pool=cast(ProcessPoolExecutor, injected)) == expected
+    assert shutdowns == []
+
+    monkeypatch.setattr(batch, "ProcessPoolExecutor", _InstantPool)
+    assert batch.fix_texts(items) == expected
+    assert shutdowns == [(True, False)]
+
+
+def test_progress_reports_each_landed_document(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The progress callback fires once per document, ending at ``(total, total)``.
+
+    Results are collected as they finish, so the callback tracks real
+    completion instead of stalling behind the longest document -- what an
+    in-order ``pool.map`` would do on a run of mixed page sizes.
+    """
+
+    class _InstantPool:
+        def __init__(self, max_workers: int = 0, **kwargs: object) -> None:
+            pass
+
+        def submit(
+            self, fn: object, batch: list[tuple[str, str]]
+        ) -> Future[list[TextOutcome]]:
+            future: Future[list[TextOutcome]] = Future()
+            future.set_result([TextOutcome(text, []) for _lang, text in batch])
+            return future
+
+        def shutdown(self, wait: bool = True, cancel_futures: bool = False) -> None:
+            pass
+
+    monkeypatch.setattr(batch, "ProcessPoolExecutor", _InstantPool)
+    calls: list[tuple[int, int]] = []
+    items = [("en", "# a\n"), ("en", "# b\n"), ("zh", "# c\n")]
+    outcomes = batch.fix_texts(
+        items, progress=lambda done, total: calls.append((done, total))
+    )
+    assert outcomes == [TextOutcome(text, []) for _lang, text in items]
+    assert calls == [(1, 3), (2, 3), (3, 3)]
+
+
+def test_worker_initializer_ignores_sigint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pool workers register ``SIG_IGN`` for ``SIGINT`` (the parent owns Ctrl+C).
+
+    On Windows a console ``Ctrl+C`` reaches the whole process group; without
+    this hook every worker would print its own ``KeyboardInterrupt``
+    traceback over the parent's coded ``interrupted`` line.
+    """
+    registered: list[tuple[int, int]] = []
+
+    def fake_signal(num: int, handler: int) -> None:
+        registered.append((num, handler))
+
+    monkeypatch.setattr(batch.signal, "signal", fake_signal)
+    batch.worker_initializer()
+    assert registered == [(signal.SIGINT, signal.SIG_IGN)]
 
 
 def test_progress_bar_is_not_drawn_without_a_tty(

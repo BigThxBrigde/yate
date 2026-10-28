@@ -315,7 +315,12 @@ flowchart TD
      `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
      2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
      复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
-     复测 1735 行，新增 en 页哈希记录与内容比对，维持豁免；
+     复测 1735 行，新增 en 页哈希记录与内容比对；wiki-lint-parallel 波
+     2026-10-27 复测 1966 行，lint 改为"先读后并行 fix 再落盘"两相位
+     （同轮预评审修复：中断先发布已落地译页、双阈值池化、`_LandedPage`）；
+     lint-progress 波 2026-10-28 复测 2149 行，新增 `_LintPool`（run 单池
+     贯穿各 lint 相位）与 `_LintBar`（lint 进度条/汇总行）、`run` try/finally
+     teardown，维持豁免；
      pack wiki 站点生成/翻译/进度单一职责，#29/#31/#33 三轮评审均在该文件收敛，
      拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据

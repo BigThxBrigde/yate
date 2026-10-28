@@ -21,7 +21,8 @@ import sys
 import threading
 import time
 import types
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator, Sequence
+from concurrent.futures import Future
 from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
@@ -38,6 +39,8 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
+from tools.mdlint import batch as mdlint_batch
+from tools.mdlint.batch import TextOutcome
 from tools.pack import cli, wiki
 
 #: Documents per batch the issue mandates; the constant itself is asserted
@@ -389,12 +392,16 @@ def test_interrupt_leaves_the_queued_batches_untranslated(
 
     monkeypatch.setattr(wiki, "translate_via_cmd", interrupting)
     # This guard is about interrupt latency, not lint throughput: the wiki
-    # lint pass costs a fixed ~50 ms of backend setup per page, which would
-    # otherwise dominate the wall-clock budget below.
-    def passthrough(text: str, lang: str, *, label: str) -> str:
-        return text
+    # lint pass spawns the mdlint process pool for a run this size (~1 s of
+    # spawn plus backend import), which would otherwise dominate the
+    # wall-clock budget below.  The seam is the pool call itself, so the
+    # pages pass through exactly as if the linter found nothing to fix.
+    def passthrough_fix(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
+        return [TextOutcome(text, []) for _lang, text in items]
 
-    monkeypatch.setattr(wiki, "_lint_page_text", passthrough)
+    monkeypatch.setattr(mdlint_batch, "fix_texts", passthrough_fix)
     target = tmp_path / "wiki"
     # Called straight through the library, the interrupt propagates (the CLI
     # boundary is what maps it to exit code 130).
@@ -412,6 +419,79 @@ def test_interrupt_leaves_the_queued_batches_untranslated(
     # so the interrupt appeared to hang.  Only the pages already in flight
     # may still be waited for -- at most two more here, i.e. ~0.4s.
     assert elapsed < 8 * PAGE_DELAY_S
+
+
+def test_interrupt_publishes_the_pages_that_already_landed(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cancelled run keeps the translations it already finished.
+
+    Pages land after the pool drains (one lint pass instead of a pool per
+    page), so the interrupt branch has to publish what already landed before
+    it re-raises; otherwise ``Ctrl+C`` threw away hours of finished work.
+    """
+    def interrupting(text: str, translate_cmd: str) -> str | None:
+        if "page03" in text:
+            raise KeyboardInterrupt
+        return "# en\n"
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", interrupting)
+    target = tmp_path / "wiki"
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(target, "fake-cmd", repo_root=repo, jobs=1)
+    # page01 and page02 finished inside the batch that then hit the
+    # interrupt: both must be on disk, and nothing after them.
+    assert (target / "page01.en.md").read_text(encoding="utf-8") == "# en\n"
+    assert (target / "page02.en.md").read_text(encoding="utf-8") == "# en\n"
+    assert not (target / "page03.en.md").exists()
+
+
+def test_main_thread_interrupt_salvages_the_landed_pages(
+    repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A ``Ctrl+C`` that hits the main thread keeps finished pages too.
+
+    The worker path carries its interrupt back as a value
+    (``test_interrupt_publishes_the_pages_that_already_landed``); a direct
+    ``KeyboardInterrupt`` in the collection loop takes the same salvage
+    branch, so both interrupt shapes publish what already landed instead of
+    throwing finished translations away.
+    """
+    real_as_completed = wiki.as_completed
+
+    def interrupting_as_completed(
+        futures: Sequence[Future[object]],
+    ) -> Iterator[Future[object]]:
+        # Let the first batch (pages that already translated) land, then
+        # raise exactly where a console ``Ctrl+C`` would: in the main
+        # thread's wait loop.
+        for future in real_as_completed(futures):
+            yield future
+            raise KeyboardInterrupt
+
+    def translating(text: str, translate_cmd: str) -> str | None:
+        return _english_for(text)
+
+    monkeypatch.setattr(wiki, "translate_via_cmd", translating)
+    monkeypatch.setattr(wiki, "as_completed", interrupting_as_completed)
+    # The rebuild pass lints more than PARALLEL_LINT_MIN_TEXTS pages, which
+    # would start the real mdlint pool (~1 s of spawn); the seam keeps the
+    # test about the salvage, not about lint throughput.
+    def passthrough_fix(
+        items: Sequence[tuple[str, str]], **kwargs: object
+    ) -> list[TextOutcome]:
+        return [TextOutcome(text, []) for _lang, text in items]
+
+    monkeypatch.setattr(mdlint_batch, "fix_texts", passthrough_fix)
+    target = tmp_path / "wiki"
+    with pytest.raises(KeyboardInterrupt):
+        wiki.run(target, "fake-cmd", repo_root=repo, jobs=1)
+    # The first batch (the first BATCH_SIZE pages) translated and landed
+    # before the interrupt hit the wait loop: those pages are on disk,
+    # linted like a clean run; nothing after them is.
+    assert (target / "page01.en.md").read_text(encoding="utf-8") == "# en of page01\n"
+    assert (target / "page10.en.md").is_file()
+    assert not (target / "page11.en.md").exists()
 
 
 class _HangingProc:
