@@ -1,6 +1,12 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-28 · yate 0.2.15
+> 由 git 历史自动生成于 2026-10-29 · yate 0.2.15
+
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...HEAD)
+
+### 问题修复
+
+- reset the global theme state after every test [缺中文] ([`c4cb554`](https://gitee.com/jermaine/yate/commit/c4cb5547dd7b25d2452d3fabb349479671d3431e))
 
 ## [0.2.15] - 2026-10-28 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.14...v0.2.15)
 
