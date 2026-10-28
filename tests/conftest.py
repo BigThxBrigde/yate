@@ -41,6 +41,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core import Document
+from yate.editor_view import theme
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.session import EditorSession
 
@@ -127,6 +128,27 @@ def isolated_os_clipboard(
     monkeypatch.setattr(pyperclip, "copy", _copy)
     monkeypatch.setattr(pyperclip, "paste", _paste)
     yield
+
+
+@pytest.fixture(autouse=True)
+def reset_theme_state() -> Iterator[None]:
+    """Reset the process-global theme state after every test.
+
+    The active theme is intentionally global (like vim's colorscheme), so a
+    test switching themes leaks into every later test of the same xdist
+    worker whenever its manual restore line is skipped -- a failed
+    assertion before the restore leaks too (observed as flaky
+    ``theme.active().dark`` failures in worker-parallel runs).  Teardown
+    clears the subscriber list first (a leaked widget must not observe the
+    reset) and then restores the built-in default without broadcasting.
+
+    The theme *registry* (``THEMES``) is intentionally left untouched:
+    ``tests/test_cli.py`` registers a custom theme at module import time and
+    later tests assert its presence.
+    """
+    yield
+    theme._listeners.clear()  # pyright: ignore[reportPrivateUsage]
+    theme._active = theme.THEMES[theme.DEFAULT_THEME]  # pyright: ignore[reportPrivateUsage]
 
 
 async def wait_until(  # noqa: Any - Textual pilot probe; no stubs
