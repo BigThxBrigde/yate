@@ -9,6 +9,7 @@
 
 - lint progress output, silent Ctrl+C and a shared lint pool ([`92e8b8e`](https://gitee.com/jermaine/yate/commit/92e8b8e011f621cf5d2702a1d7bec2597b8dd304))
 - parallelize the mdlint fix pass in the publish pipeline ([`c415e87`](https://gitee.com/jermaine/yate/commit/c415e87b0382c739d07bba737ec6a14836893372))
+- single-source the ctrl+w chord rows and hint ([`742d297`](https://gitee.com/jermaine/yate/commit/742d2977f2bdf76ce6080583ad7f82e3aa61f8f7))
 - feed the incremental ts session through highlight passes ([`5c0f761`](https://gitee.com/jermaine/yate/commit/5c0f7615125c6b757b72edb82c985a92674f04b8))
 - add incremental tree-sitter parsing with a differential guard ([`1821664`](https://gitee.com/jermaine/yate/commit/18216646b58e0d0f725369a55bc15cc25882f788))
 - branch didChange sends by the negotiated sync kind ([`a4b3359`](https://gitee.com/jermaine/yate/commit/a4b33596cf1e14e67d30b2e5ed43ad72bbc19cbe))
@@ -68,6 +69,7 @@
 ### Documentation
 
 - reflow review records to the mdlint list style ([`6bccd3a`](https://gitee.com/jermaine/yate/commit/6bccd3af8e1c8be2807de156d4131554a66f9cd8))
+- add whichkey chord single-source plan ([`d8bc3ba`](https://gitee.com/jermaine/yate/commit/d8bc3ba1d661e5f094a26b3fad4e702e280d15cf))
 - record the CI py3.12 explorer race fix wave ([`f2d181c`](https://gitee.com/jermaine/yate/commit/f2d181cdb44f39a7316cf39259bcaf28621ba500))
 - record the pr-review fix wave (IKQQNQ) ([`5aed927`](https://gitee.com/jermaine/yate/commit/5aed9278f17d00167c7e3d6ed6680bf5b445f1ca))
 - note the repaint timing for out-of-dispatch edits (IKQQNQ) ([`2af0d24`](https://gitee.com/jermaine/yate/commit/2af0d246d4ea9eb7513bb96adae7b207d9a6349e))
