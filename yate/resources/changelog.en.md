@@ -4,12 +4,21 @@
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...HEAD)
 
+### Features
+
+- single-source the ctrl+w chord rows and hint ([`742d297`](https://gitee.com/jermaine/yate/commit/742d2977f2bdf76ce6080583ad7f82e3aa61f8f7))
+
 ### Bug Fixes
 
 - reset the global theme state after every test ([`c4cb554`](https://gitee.com/jermaine/yate/commit/c4cb5547dd7b25d2452d3fabb349479671d3431e))
 
+### Documentation
+
+- add whichkey chord single-source plan ([`d8bc3ba`](https://gitee.com/jermaine/yate/commit/d8bc3ba1d661e5f094a26b3fad4e702e280d15cf))
+
 ### Tooling
 
+- update changelog ([`002db38`](https://gitee.com/jermaine/yate/commit/002db3893d57ca4bcdb8adbfd370ed58d8c6ef5e))
 - update changelog ([`7365026`](https://gitee.com/jermaine/yate/commit/736502661661737d7abeeb9ca4f9f54b82942ca5))
 
 ## [0.2.15] - 2026-10-28 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.14...v0.2.15)
