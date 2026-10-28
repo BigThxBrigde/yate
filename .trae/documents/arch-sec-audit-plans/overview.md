@@ -70,7 +70,7 @@
 
 | 子计划 | 主题 | 独占文件（产品/文档/测试） | 波次 |
 |---|---|---|---|
-| plan-a | S1 主题信任门控 + 主题手册信任段落 | yate/cli.py、yate/docs/themes.{en,zh}.md、tests/test_theme_trust.py | wave-1 |
+| plan-a | S1 主题信任门控 + 主题手册信任段落 | yate/editor_view/theme_files.py、yate/editor_view/theme.py、yate/cli.py（仅调用行）、yate/docs/themes.{en,zh}.md、tests/test_theme_trust.py | wave-1 |
 | plan-b | S7/A1 扩展信任边界文档 + 门面 §三.5 注记 + 规则登记 | yate/docs/extensions.{en,zh}.md、yate/services/extensions/__init__.py、.trae/rules/architecture-boundaries.md | wave-1 |
 | plan-c | S3 CI 最小权限 + A3 文档锚点与统计 | .github/workflows/test.yml、README.md、README.zh.md、yate/docs/README.md、tests/README.md | wave-1 |
 | plan-d | A2 yate_home 收敛 + S5 数据目录 0700 | yate/paths.py、yate/yaterc.py、yate/services/trust.py、yate/services/data_store.py、yate/services/extensions/loader.py、yate/logs.py、yate/diagnostics.py、yate/cli.py、tests/test_paths.py | wave-2 |
