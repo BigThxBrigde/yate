@@ -41,7 +41,9 @@
 修复轮 code-review-expert 0 blocker / 2 major / 5 minor，迭代波 F1–F3 全部销账，
 随 PR !104 并入 master）。
 **2026-10-29 arch-sec-audit 增量**：新增 #48（全仓库架构 / 结构 / 安全性审查并迭代修复，
-三轮评审 major 归零；F4–F7 等余项登记待办，分支 `enh/arch-sec-audit` 17 笔提交已推送）。
+三轮评审 major 归零；F4–F7 等余项登记待办，分支 `enh/arch-sec-audit` 已推送）。
+**2026-10-29 pr-review 增量**：新增 #49（arch-sec-audit 分支合并前 pr-review，
+0 BLOCKER / 2 MAJOR / 7 MINOR；2 MAJOR + 2 MINOR 当轮修复，余项登记）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -98,6 +100,7 @@
 | 46 | 2026-10-22 | **全仓全局代码评审**（master `f7adf9d`；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），双 skill 框架 + 强制自我批判；覆盖 `yate/` 约 140 + `tools/` 约 70 个 `.py`） | 👀 待处置（0 CRITICAL / 18 WARNING / 20 SUGGESTION；四道门禁全绿） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
 | 47 | 2026-10-26 | 全仓库性能审计 21 条（9 major / 12 minor，P1–P21：每击键 O(文档) 工作与无节流全应用刷新链两类） | ✅ 已修（2026-10-26，PR !104 `cdb4e0b` 并入 master：四波修复 + code-review-expert 0 blocker / 2 major / 5 minor 迭代销账；门禁 pyright 0 + 3093 passed/9 skipped + 架构 37 + 覆盖率 92.03% + 冒烟 117/117；方案见 [perf-audit-fixes-plans/overview.md](../documents/perf-audit-fixes-plans/overview.md)） | [2026-10-26-perf-audit.md](2026-10-26-perf-audit.md) |
 | 48 | 2026-10-29 | arch-sec-audit wave-3 修复评审（主题信任门控 / yxp 符号链接端到端 / yate_home 单源）：初版 1 major（yxp 父目录符号链接写穿）+ 8 minor，三轮迭代后 major 归零 | ✅ 已修（F1/F2/F3/F8、N1–N5、M1/M2 全部销账；F4–F7 与 uninstall OSError 存量、yxp.py:398-399 既有缺口登记待办；yxp.py 830 行登记尺寸豁免；门禁 pyright 0 + 架构 37 + 覆盖率 92.22% + 冒烟 117/117·1407 checks） | [2026-10-29-arch-sec-audit.md](2026-10-29-arch-sec-audit.md) |
+| 49 | 2026-10-29 | arch-sec-audit 分支合并前 pr-review（35 文件 +1367−64）2 MAJOR：`:help` 手册未同步主题信任门控（计划范围漏项）；yxp manifest 大小写变体成员在大小写不敏感文件系统互相覆盖，record↔disk 不变量破坏（探针实证） | ✅ 已修（2 MAJOR + 2 MINOR 当轮修：`eebc5f8` 手册双语同步 / `181f179` casefold 去重 + 回滚跳过用例 / `6f58ee2` 主题路径 resolved 统一；空目录噪声提示、F6 新证据、logs mkdir mode 窗口、cli.py:413 排版登记；收尾门禁 pyright 0 + 3173 passed/10 skipped + 架构 37 + 覆盖率 92.22% + 冒烟 117/117，全 exit 0） | [2026-10-29-pr-review-enh-arch-sec-audit.md](2026-10-29-pr-review-enh-arch-sec-audit.md) |
 
 ---
 
@@ -190,7 +193,8 @@
 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理；主代理亲跑门禁 + 运行时探针） | ⚠️ 不通过（3 BLOCKER 正常使用即触发：三方合并单侧插入崩溃、vim `5G` 越界、wiki prune 误删源文档） | 3 BLOCKER / 9 MAJOR / 27 MINOR（20 条 2/2 确认，19 条 MINOR 单验证） | ✅ 已处置（五波修复 + 两轮 code-review-expert 复核 APPROVE；m-21 登记不修，m-28 追加修复；方案见 [trae-review-fixes-plan.md](../documents/trae-review-fixes-plan.md)） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
 | 2026-10-22 | **全仓库全局代码评审**（master `f7adf9d`，v0.2.12；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），`python-code-review` + `TRAE-code-review` 双框架 + 强制自我批判） | ✅ 通过（0 CRITICAL，无阻断；门禁 pyright 0/0/0 + 架构 36 + 2858 passed/9 skipped + 覆盖率 91.96% + 冒烟 112/112，全 exit 0） | 0 CRITICAL / 18 WARNING / 20 SUGGESTION | 👀 登记待处置（只读事实文档，修复另立计划） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
 | 2026-10-26 | **全仓库性能审计**（`enh/perf-audit` @ master `f8c1b73`；3 只读并行审计分区（editor_core+editor_syntax / editor_view+flows+editor+app+session / editor_lsp+services+keyproto+editor_term+keymaps+启动路径）+ 主代理逐条读码复核） | ✅ 通过（分块加载原语 / regex 预编译 / 高亮后台 worker / cells 缓存 / 启动懒导入实现正确；问题集中于每击键 O(文档) 工作与无节流全应用刷新链两类） | 9 major / 12 minor（P1–P21） | ✅ 已全修（修复轮 code-review-expert 0 blocker / 2 major / 5 minor → Wave f F1–F3 迭代销账；PR !104 `cdb4e0b` 21 条全部并入 master；门禁 pyright 0 + 3093 passed/9 skipped + 架构 37 + 覆盖率 92.03% + 冒烟 117/117；方案与执行记录见 [perf-audit-fixes-plans/overview.md](../documents/perf-audit-fixes-plans/overview.md) §六） | [2026-10-26-perf-audit.md](2026-10-26-perf-audit.md) |
-| 2026-10-29 | **全仓库架构 / 结构 / 安全性审查并迭代修复**（`enh/arch-sec-audit` @ master `98963be`，17 笔提交；总纲 + 子计划 a–e：主题信任门控 / yxp 符号链接端到端加固 / yate_home 单源；wave-3 `code-review-expert` 三轮评审） | ✅ 通过（三轮迭代后 0 major，探针实证：F1 写穿场景被拒、N1 多成员 stale 状态自洽） | 初版 1 major + 8 minor → 第 2 轮 1 major（N1，修复引入）+ 4 minor → 第 3 轮 0 major（余 M1/M2 minor，均已修） | ✅ 已闭环（F1/F2/F3/F8、N1–N5、M1/M2 已修；F4–F7 与 uninstall 中途 OSError 存量、yxp.py:398-399 既有缺口登记待办；yxp.py 830 行经 `SIZE_EXEMPT_FILES` 登记豁免（`8d7d5eb`）；收尾门禁 pyright 0 + pytest 全量 exit 0 + 架构 37 + 覆盖率 92.22% + 冒烟 117/117（1407 checks）+ changelog 0；方案见 [arch-sec-audit-plans/overview.md](../documents/arch-sec-audit-plans/overview.md)） | [2026-10-29-arch-sec-audit.md](2026-10-29-arch-sec-audit.md) |
+| 2026-10-29 | **全仓库架构 / 结构 / 安全性审查并迭代修复**（`enh/arch-sec-audit` @ master `98963be`；总纲 + 子计划 a–e：主题信任门控 / yxp 符号链接端到端加固 / yate_home 单源；wave-3 `code-review-expert` 三轮评审） | ✅ 通过（三轮迭代后 0 major，探针实证：F1 写穿场景被拒、N1 多成员 stale 状态自洽） | 初版 1 major + 8 minor → 第 2 轮 1 major（N1，修复引入）+ 4 minor → 第 3 轮 0 major（余 M1/M2 minor，均已修） | ✅ 已闭环（F1/F2/F3/F8、N1–N5、M1/M2 已修；F4–F7 与 uninstall 中途 OSError 存量、yxp.py:398-399 既有缺口登记待办；yxp.py 830 行经 `SIZE_EXEMPT_FILES` 登记豁免（`8d7d5eb`）；收尾门禁 pyright 0 + pytest 全量 exit 0 + 架构 37 + 覆盖率 92.22% + 冒烟 117/117（1407 checks）+ changelog 0；方案见 [arch-sec-audit-plans/overview.md](../documents/arch-sec-audit-plans/overview.md)） | [2026-10-29-arch-sec-audit.md](2026-10-29-arch-sec-audit.md) |
+| 2026-10-29 | **pr-review · `enh/arch-sec-audit` 分支审查**（合并前预评审 @ `5beb95a`，19 笔 / 35 文件 +1367−64；pr-review 技能 review 模式六维度 + 硬门禁；`code-review-expert` 只读 + 主代理复核迭代） | ✅ 通过（0 BLOCKER；2 MAJOR 属文档同步/归档校验面缺口，无安全提权；评审者门禁六项全绿） | 0 BLOCKER / 2 MAJOR / 7 MINOR | ✅ 已修（2 MAJOR + 2 MINOR 当轮修复 `181f179` / `6f58ee2` / `eebc5f8` / `2ed0cbc`；余项登记待办；主代理收尾门禁 pyright 0 + 3173 passed/10 skipped + 架构 37 + 覆盖率 92.22% + 冒烟 117/117 + changelog check，全 exit 0） | [2026-10-29-pr-review-enh-arch-sec-audit.md](2026-10-29-pr-review-enh-arch-sec-audit.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
