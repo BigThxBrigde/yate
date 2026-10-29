@@ -328,7 +328,11 @@ flowchart TD
      拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
+     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，.yxp 包生命周期
+     单一职责——归档校验/解包/安装/卸载/记录存储一体；F1/N1 symlink 端到端加固
+     （两阶段 stale 清理 + uninstall/records 守卫）越线，刚完成两轮评审加固的
+     安全模块不当场拆分，拆分另行立项）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
