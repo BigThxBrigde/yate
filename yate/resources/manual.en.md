@@ -980,13 +980,14 @@ register_theme(replace(
 ```
 
 Themes can also be placed in the default locations without any
-configuration: `./themes` next to the working directory and
-`~/.yate/themes` are scanned automatically, or pass one-off directories on
-the command line with `--theme-dir DIR` (repeatable). Load precedence when
-the same name is registered more than once (later wins):
+configuration: `./themes` next to the working directory (**trusted**
+workspaces only -- run `:trust` and restart; see section 7 of the themes
+guide) and `~/.yate/themes` are scanned automatically, or pass one-off
+directories on the command line with `--theme-dir DIR` (repeatable). Load
+precedence when the same name is registered more than once (later wins):
 
 1. built-in themes (lowest)
-2. `./themes`, `~/.yate/themes`
+2. `./themes` (trusted workspaces only), `~/.yate/themes`
 3. `theme_dirs` in yaterc (user rc first, project rc after)
 4. `--theme-dir` on the command line (highest)
 

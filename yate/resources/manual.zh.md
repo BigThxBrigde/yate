@@ -894,12 +894,13 @@ register_theme(replace(
 ))
 ```
 
-不做任何配置也有默认扫描位置：工作目录下的 `./themes` 和 `~/.yate/themes`；
-临时目录可用命令行 `--theme-dir DIR`（可重复）指定。同名主题被多次注册时，
-后加载者覆盖先加载者，优先级从低到高为：
+不做任何配置也有默认扫描位置：工作目录下的 `./themes`（**仅受信任**的工作区
+加载——`:trust` 后重启；见主题指南第 7 节）和 `~/.yate/themes`；临时目录可用
+命令行 `--theme-dir DIR`（可重复）指定。同名主题被多次注册时，后加载者覆盖
+先加载者，优先级从低到高为：
 
 1. 内置主题（最低）
-2. `./themes`、`~/.yate/themes`
+2. `./themes`（仅受信任工作区）、`~/.yate/themes`
 3. yaterc 中的 `theme_dirs`（先用户 rc、后项目 rc）
 4. 命令行 `--theme-dir`（最高）
 
