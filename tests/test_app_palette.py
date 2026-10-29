@@ -194,7 +194,16 @@ def test_command_palette_searches_descriptions() -> None:
             assert top[2] == ("command", "theme")
             await pilot.press("enter")
             await pilot.pause()
-            assert len(app.screen_stack) == 1
+            # :theme is parameterized: enter stays inside the palette and
+            # switches to argument selection instead of running it bare
+            assert isinstance(app.screen, PaletteScreen)
+            assert cast(Any, app.screen)._arg_mode == "theme"
+            assert cast(Any, app.screen).filtered_count > 0
+            await pilot.press("escape")
+            await pilot.pause()
+            # escape steps back to the command list (still not dismissed)
+            assert isinstance(app.screen, PaletteScreen)
+            assert cast(Any, app.screen)._arg_mode is None
 
     asyncio.run(scenario())
 
@@ -340,9 +349,14 @@ def test_tab_cycles_and_single_match_auto_chooses() -> None:
                 await pilot.press(ch)
             await pilot.pause()
             assert screen.filtered_count == 1
+            single = cast(Any, screen)._entries[cast(Any, screen)._filtered[0][2]]
             await pilot.press("tab")
             await pilot.pause()
-            # palette dismissed and :theme ran (prints theme info)
-            assert not isinstance(app.screen, PaletteScreen)
+            # a parameterized command (matched via its description text):
+            # the auto-choose enters argument selection inside the palette
+            # instead of running it bare
+            assert isinstance(app.screen, PaletteScreen)
+            assert single[2][0] == "command"
+            assert cast(Any, app.screen)._arg_mode == single[2][1]
 
     asyncio.run(scenario())

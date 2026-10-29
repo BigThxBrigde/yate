@@ -339,14 +339,20 @@ def test_tab_cycles_multiple_command_matches() -> None:
                 session=app.editor.session, workspace=app.editor.workspace,
             )
             assert len(matches) > 1
+            # first tab: two-phase completion lists the candidates and the
+            # value stays untouched
             await pilot.press("tab")
             await pilot.pause()
-            first = inp.value
-            assert first in matches
+            assert inp.value == "w"
+            # second tab: apply the first candidate ("w" itself here)
+            await pilot.press("tab")
+            await pilot.pause()
+            assert inp.value == matches[0]
+            # third tab: cycle to the next match
             await pilot.press("tab")
             await pilot.pause()
             assert inp.value in matches
-            assert inp.value != first
+            assert inp.value != matches[0]
 
     asyncio.run(scenario())
 

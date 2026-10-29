@@ -71,6 +71,8 @@ def prefix_spec(mode: str) -> tuple[str, str]:
 OWNER_APP: str = "app"
 OWNER_LSP: str = "lsp"
 OWNER_IDLE: str = "idle"
+#: The tab-completion candidate string shown by ``show_candidates``.
+OWNER_CANDIDATES: str = "candidates"
 
 
 class CommandInput(Input):
@@ -117,11 +119,13 @@ class CommandInput(Input):
         return first
 
     def _do_tab_completion(self) -> None:
-        """Bash-style tab completion on the current prompt value.
+        """Emacs-style two-phase tab completion on the current prompt value.
 
-        First Tab: complete to the longest common prefix of all matches; with
-        a single match it is applied at once.  Repeated Tabs (while the value
-        has not been edited) cycle through every match.
+        First Tab: complete to the longest common prefix of all matches and
+        list the remaining candidates on the message line instead of applying
+        one right away (a single match is still applied at once).  The next
+        Tab applies the first candidate, and further Tabs cycle through every
+        match.  Any edit key / escape resets the round.
         """
         current = self.value
         mode = self.bar.active_mode
@@ -130,26 +134,43 @@ class CommandInput(Input):
         matches = self.bar.completer(current, mode)
         if not matches:
             self._reset_tab_state()
+            self.bar.clear_candidates()
             return
         if len(matches) == 1:
             self._apply_value(matches[0])
             self._reset_tab_state()
+            self.bar.clear_candidates()
             return
-        # Repeated Tab with the value still at one of the matches -> cycle.
-        if self._tab_matches and current in self._tab_matches:
+        # Repeated Tab with the value still at one of the applied matches ->
+        # cycle to the next one.
+        if self._tab_matches and self._tab_index >= 0 \
+                and current in self._tab_matches:
             self._tab_index = (self._tab_index + 1) % len(self._tab_matches)
             self._apply_value(self._tab_matches[self._tab_index])
+            self.bar.clear_candidates()
+            return
+        # Candidates from the first phase are still pending: this Tab applies
+        # the first one and starts cycling from there.
+        if self._tab_matches and self._tab_index == -1:
+            self._tab_index = 0
+            self._apply_value(self._tab_matches[0])
+            self.bar.clear_candidates()
             return
         # New completion round: extend to the common prefix if it is longer
-        # than what the user typed, otherwise start cycling from the first.
+        # than what the user typed, show the remaining candidates and wait
+        # for the next Tab instead of applying a value right away.
         lcp = self._common_prefix(matches)
         self._tab_matches = matches
+        self._tab_index = -1
         if len(lcp) > len(current):
             self._apply_value(lcp)
-            self._tab_index = -1
+            remaining = [m for m in matches if m != lcp]
+            if remaining:
+                self.bar.show_candidates(remaining)
+            else:
+                self.bar.clear_candidates()
         else:
-            self._tab_index = 0
-            self._apply_value(matches[0])
+            self.bar.show_candidates(matches)
 
     def on_key(self, event: Key) -> None:
         """Handle cancel/tab-completion/history keys; leave the rest to Input."""
@@ -172,8 +193,10 @@ class CommandInput(Input):
             event.prevent_default()
             self._do_tab_completion()
             return
-        # any other key ends an active tab-completion round
+        # any other key ends an active tab-completion round and drops the
+        # candidate string shown on the message line
         self._reset_tab_state()
+        self.bar.clear_candidates()
         if event.key == "up":
             event.stop()
             event.prevent_default()
@@ -327,6 +350,34 @@ class PromptBar(Horizontal):
         """Replace the prompt line with the message *text*."""
         self.owner = owner
         self._show_message(text, MESSAGE_COLORS.get(kind, "fg_bright"))
+
+    def show_candidates(self, candidates: list[str]) -> None:
+        """List tab-completion *candidates* on the message slot (Emacs style).
+
+        Formatted as ``{opt1, opt2}`` and truncated to the input width with a
+        ``...`` hint when it does not fit.  The prompt stays active: the
+        message slot is only shown while the candidates are pending (cleared
+        by :meth:`clear_candidates`, escape or any edit key).
+        """
+        bar = ", ".join(candidates)
+        display = "{" + bar
+        max_width = self.input.size.width if self.input.size.width else 40
+        if len(display) > max_width:
+            display = display[: max_width - 3] + "..."
+        display += "}"
+        self.message.update(display)
+        self.message.display = True
+        self.owner = OWNER_CANDIDATES
+
+    def clear_candidates(self) -> None:
+        """Drop the candidate string shown by :meth:`show_candidates`.
+
+        The message slot goes back to hidden: while a prompt is active the
+        bar shows either the prompt or a message, never both.
+        """
+        if self.owner == OWNER_CANDIDATES:
+            self.message.display = False
+            self.owner = OWNER_IDLE
 
     def idle(self, text: str = " Ready. Press F1 for help.") -> None:
         """Back to the idle hint line."""
