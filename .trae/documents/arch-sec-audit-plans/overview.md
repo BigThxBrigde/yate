@@ -102,6 +102,13 @@ flowchart LR
   非常规前置态拒绝，常规重装路径有正向用例守护。回滚：revert。
 - 风险 3：paths 收敛触碰 8 个文件——机械替换 + 全量门禁；pyright strict 兜底。回滚：revert。
 
-## 执行记录（回填区）
+## 执行记录（回填，2026-10-29）
 
-- [待回填] wave-1 / wave-2 / 评审 / 门禁结果与偏离记录。
+- **wave-1**（plan-a/b/c 并行）：全部验收通过并提交——0723e95（主题信任门控 + 双语手册）、176da1f（扩展信任模型文档 + 门面 §三.5 例外登记）、9ea0746 + a144ec7（CI 最小权限 + README 锚点/统计）。plan-a 执行中按用户裁决修订 v2：门控下沉 `editor_view/theme_files.default_theme_dirs` 并经 `theme.py` 门面再导出，cli 零新增导入。
+- **wave-2**（plan-d/e 并行，提前派发偏差见上）：e01d07d（`yate_home()` 收敛 9 处 + 数据目录 0700，含 v3 追加 user_setup 收敛与 logs docstring 修正）、0a95bd3（yxp 符号链接拒写 + 无校验告警）。
+- **wave-3 评审**（code-review-expert，DeepSeek-V4.1-Flash，只读）：0 blocker / 1 major（F1 yxp 父目录符号链接写穿，临时目录实证）/ 8 minor + 自我批判剔除 10 条误报；三轮记录见
+  [`../../reviews/2026-10-29-arch-sec-audit.md`](../../reviews/2026-10-29-arch-sec-audit.md)。
+- **迭代（3 波，至 major 归零）**：F2/F3/F8 → 82bf6a7；F1 父链两阶段 + N2 uninstall/records 守卫 + N3 改名 + N4/N5 → dcd8ee7、6c6713a；M1/M2 用例补齐与检查前移 → 6c6713a 同批。评审放行判定：**major = 0**。F4-F7 等存量 minor 登记待办（见评审记录处置节）。
+- **结构处置**：yxp.py 830 行越线 → `SIZE_EXEMPT_FILES` + 规则 §三.7 同步登记豁免、拆分另行立项（8d7d5eb）。
+- **收尾门禁（主代理亲测，与 CI 同口径）**：pyright 0 诊断 exit 0；pytest 全量 exit 0（中断发现 yxp 越线 1 例 → 豁免登记后复跑全绿）；架构 37 passed；覆盖率 **92.22%** exit 0（基线 92.31%）；冒烟 117/117（1407 checks）exit 0；`tools.changelog check` exit 0。
+- **提交清单**：master..HEAD 共 **14 笔**（273e78c…8d7d5eb），全部符合 `type(scope): subject` 英文规范；未推送。
