@@ -17,8 +17,10 @@ surface -- ``from yate.editor_view import theme`` and
 unchanged.
 
 Import direction (acyclic): ``cells`` depends on nothing; ``themes`` on
-:mod:`yate.editor_syntax.tokens`; ``theme_files`` on ``themes``; this module
-on all three; everybody else imports this module.
+:mod:`yate.editor_syntax.tokens`; ``theme_files`` on ``themes``,
+:mod:`yate.paths` and :mod:`yate.services.trust` (the last an L0 down edge
+for the workspace-theme trust gate); this module on all of them; everybody
+else imports this module.
 """
 
 from __future__ import annotations

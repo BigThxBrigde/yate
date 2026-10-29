@@ -79,8 +79,9 @@ scope; regular `import` statements work as well.
 
 Without any configuration, yate automatically scans:
 
-- `./themes/` in the working directory
-- `~/.yate/themes/`
+- `./themes/` in the working directory (only in a **trusted** workspace --
+  see section 7; after `:trust`, restart yate to load it)
+- `~/.yate/themes/` (always)
 
 Just drop `*.py` theme files in (files starting with an underscore are
 skipped).
@@ -152,7 +153,8 @@ overrides the earlier one**. Precedence from low to high:
 
 1. Built-in themes (`mocha` / `macchiato` / `frappe` / `latte` /
    `onedark` / `onelight` / `gruvbox-dark` / `gruvbox-light`)
-2. Default directories `./themes`, `~/.yate/themes`
+2. Default directories `~/.yate/themes`, and `./themes` in trusted
+   workspaces (see section 7)
 3. `theme_dirs` in yaterc (user rc first, project rc after)
 4. `--theme-dir` on the command line
 
@@ -308,8 +310,9 @@ project `./themes/` directory auto-loads only in workspaces you have
 explicitly trusted -- the same mechanism as `./extensions/` (see the
 extensions guide, "Workspace trust"). When startup finds `./themes/` in an
 untrusted workspace it skips the directory and reports
-`themes: skipped untrusted <path> (run :trust to load them)` on the message
-bar; run `:trust` to trust the current workspace and load its themes.
+`yaterc: themes: skipped untrusted <path> (trust it and restart yate to
+load them)` on the message bar. Theme directories are resolved once at
+startup, so after trusting the workspace, restart yate to load its themes.
 
 User-level `~/.yate/themes/` and explicit declarations -- `theme_dirs` in
 yaterc and `--theme-dir` on the command line -- are deliberate user actions

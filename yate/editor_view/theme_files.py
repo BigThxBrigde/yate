@@ -8,7 +8,9 @@ problem string and :func:`load_theme_paths` collects those into an error list.
 
 Split from :mod:`yate.editor_view.theme` (big-module-split wave d); import
 direction is one-way: this module depends on
-:mod:`yate.editor_view.themes` only.
+:mod:`yate.editor_view.themes`, :mod:`yate.paths` and
+:mod:`yate.services.trust` (the last an L0 down edge for the
+workspace-theme trust gate).
 """
 
 from __future__ import annotations
@@ -58,8 +60,10 @@ def default_theme_dirs(errors: list[str]) -> list[Path]:
     The user-level ``~/.yate/themes`` is the user's own data and loads
     unconditionally.  ``./themes`` inside the opened workspace executes
     workspace-authored Python, so it auto-loads only in workspaces trusted
-    via :command:`:trust` -- mirroring the ``./extensions`` gate in
-    :mod:`yate.services.extensions.loader`.  A skipped workspace directory
+    via :command:`:trust` -- theme directories are resolved once at
+    startup, so a fresh ``:trust`` takes effect on the next start
+    (mirroring the ``./extensions`` gate in
+    :mod:`yate.services.extensions.loader`).  A skipped workspace directory
     appends a ``"themes: skipped untrusted ..."`` note to *errors*, the
     same user-visible channel as rc discovery notes.
     """
@@ -70,7 +74,8 @@ def default_theme_dirs(errors: list[str]) -> list[Path]:
             theme_dirs.append(cwd_themes)
         else:
             errors.append(
-                f"themes: skipped untrusted {cwd_themes} (run :trust to load them)"
+                f"themes: skipped untrusted {cwd_themes} "
+                "(trust it and restart yate to load them)"
             )
     theme_dirs.append(yate_home() / "themes")
     return theme_dirs

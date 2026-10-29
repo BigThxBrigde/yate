@@ -55,8 +55,12 @@ def test_workspace_themes_skipped_when_untrusted(
     monkeypatch.chdir(ws)
     errors: list[str] = []
     dirs = default_theme_dirs(errors)
-    assert ws / "themes" not in dirs
-    assert any("themes: skipped untrusted" in e and ":trust" in e for e in errors)
+    # Resolved spelling on both sides: a casing/join variant of the same
+    # directory must not slip through an exact string comparison (F8).
+    assert (ws / "themes").resolve() not in {d.resolve() for d in dirs}
+    assert any(
+        "themes: skipped untrusted" in e and "restart yate" in e for e in errors
+    )
 
 
 def test_workspace_themes_loaded_when_trusted(
