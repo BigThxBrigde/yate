@@ -153,8 +153,9 @@ overrides the earlier one**. Precedence from low to high:
 
 1. Built-in themes (`mocha` / `macchiato` / `frappe` / `latte` /
    `onedark` / `onelight` / `gruvbox-dark` / `gruvbox-light`)
-2. Default directories `~/.yate/themes`, and `./themes` in trusted
-   workspaces (see section 7)
+2. Default directories: first `./themes` (trusted workspaces only, see
+   section 7), then `~/.yate/themes` (loaded last, so it wins on a name
+   collision)
 3. `theme_dirs` in yaterc (user rc first, project rc after)
 4. `--theme-dir` on the command line
 
@@ -162,7 +163,8 @@ So a project-level yaterc's `theme_dirs` can override user-level themes, and
 `--theme-dir` can temporarily override everything for a single launch.
 
 A broken theme file never aborts startup: the error shows in the startup
-message bar as `<path>: <problem>` while the remaining files load normally.
+message bar as `yaterc: <path>: <problem>` while the remaining files load
+normally.
 
 ---
 

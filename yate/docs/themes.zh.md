@@ -139,15 +139,16 @@ Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\theme
 
 1. 内置主题（`mocha` / `macchiato` / `frappe` / `latte` / `onedark` /
    `onelight` / `gruvbox-dark` / `gruvbox-light`）
-2. 默认目录 `~/.yate/themes`，及已信任工作区的 `./themes`（见第 7 节）
+2. 默认目录：先 `./themes`（仅受信任的工作区，见第 7 节），再
+   `~/.yate/themes`（最后加载，同名时胜出）
 3. yaterc 中的 `theme_dirs`（先用户 rc、后项目 rc）
 4. 命令行 `--theme-dir`
 
 因此可以用一个项目级 yaterc 的 `theme_dirs` 覆盖用户级主题，或用
 `--theme-dir` 在单次启动中临时覆盖全部。
 
-主题文件出错不会中断启动：错误以 `<路径>: <问题>` 的形式显示在启动
-消息栏，其余文件照常加载。
+主题文件出错不会中断启动：错误以 `yaterc: <路径>: <问题>` 的形式显示在
+启动消息栏，其余文件照常加载。
 
 ---
 
