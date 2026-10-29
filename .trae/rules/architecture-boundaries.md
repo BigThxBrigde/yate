@@ -129,7 +129,11 @@ flowchart TD
   `whichkey_flows.py` / `chunked_flows.py`；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_view`（存量耦合，冻结；其中 `extension_flows.py` 实测不
-  import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对）；
+  import `editor_view`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
+  其中 `prompt_completion.py` 自 2026-10-30 起不再 import `editor_view`
+  （arg-completion 波 a 退役集中式参数 if/else 后改读注册元数据，路径匹配改依赖
+  L0 `services/workspace.path_matches`），`UI_FROZEN_FILES` 白名单条目同步移除，
+  其在 flows 枚举清单中的地位不变）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_view` 导入必须先在
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
   相对路径，flows/ 迁移后带 `flows/` 前缀；

@@ -228,6 +228,6 @@ def test_changelog_command_registered() -> None:
     assert "changelog" in registry.names()
     entry = registry.get("changelog")
     assert entry is not None
-    assert "changelog" in entry[1]
-    entry[0]("zh")
+    assert "changelog" in entry.description
+    entry.func("zh")
     assert forwarded == ["zh"]

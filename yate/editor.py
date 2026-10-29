@@ -1194,7 +1194,7 @@ class Editor:
             self.message(f"not an editor command: {name} (try :help)", kind="warn")
             return
         log.debug("command: %s (args=%r)", name, args)
-        entry[0](args)
+        entry.func(args)
 
     def quit(self, force: bool = False) -> None:
         """``:q``: leave yate (blocked while a buffer is modified)."""

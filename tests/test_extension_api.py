@@ -208,7 +208,7 @@ def test_command_decorator_registers_raw_args_command() -> None:
 
     registered = commands.get("ext_cmd")
     assert registered is not None
-    registered[0]("with args")
+    registered.func("with args")
     assert received == ["with args"]
 
 
@@ -222,7 +222,54 @@ def test_register_command_default_description_applies() -> None:
     api.register_command("ext_cmd2", _fn)
     registered = commands.get("ext_cmd2")
     assert registered is not None
-    assert registered[1] == "extension command"
+    assert registered.description == "extension command"
+
+
+def test_register_command_with_arg_completer() -> None:
+    """``register_command`` passes the completer through to the registry."""
+    api, _actions, commands, _keymaps = _extension_api()
+
+    def _fn(_args: str) -> None:
+        pass
+
+    def _completer(prefix: str) -> list[str]:
+        return [prefix]
+
+    api.register_command("ext_cmd3", _fn, "with completer",
+                         arg_completer=_completer)
+    registered = commands.get("ext_cmd3")
+    assert registered is not None
+    assert registered.arg_completer is _completer
+
+
+def test_command_decorator_with_arg_completer() -> None:
+    """``@api.command`` accepts and stores an ``arg_completer``."""
+    api, _actions, commands, _keymaps = _extension_api()
+
+    def _completer(prefix: str) -> list[str]:
+        return [prefix]
+
+    @api.command("ext_cmd4", "decorated", arg_completer=_completer)
+    def _handler(_args: str) -> None:
+        pass
+
+    registered = commands.get("ext_cmd4")
+    assert registered is not None
+    assert registered.description == "decorated"
+    assert registered.arg_completer is _completer
+
+
+def test_register_command_without_arg_completer_backward_compatible() -> None:
+    """The old positional forms keep ``arg_completer`` None."""
+    api, _actions, commands, _keymaps = _extension_api()
+
+    def _fn(_args: str) -> None:
+        pass
+
+    api.register_command("ext_cmd5", _fn)
+    registered = commands.get("ext_cmd5")
+    assert registered is not None
+    assert registered.arg_completer is None
 
 
 def test_register_action_default_description_applies() -> None:

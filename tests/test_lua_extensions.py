@@ -143,8 +143,8 @@ def test_lua_extension_registers_command_and_receives_args(
     assert record.error is None
     entry = bundle.commands.get("lua-echo")
     assert entry is not None
-    assert entry[1] == "echo cmd"
-    entry[0]("hi")
+    assert entry.description == "echo cmd"
+    entry.func("hi")
     assert "echo:hi" in bundle.messages
 
 

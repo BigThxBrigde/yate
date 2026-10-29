@@ -22,7 +22,14 @@ from yate.editor_lsp.manager import LspManager
 from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
-from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
+from yate.registries import (
+    Action,
+    ActionRegistry,
+    ArgCompleter,
+    Command,
+    CommandFunc,
+    CommandRegistry,
+)
 from yate.services.extensions.bridges import (
     ActionExtensionBridge,
     CanvasControls,
@@ -208,12 +215,14 @@ class ExtensionAPI:
         previous = self._ctx.commands.get(name)
 
         def undo(
-            name: str = name, previous: tuple[CommandFunc, str] | None = previous
+            name: str = name, previous: Command | None = previous
         ) -> None:
             if previous is None:
                 self._ctx.commands.unregister(name)
             else:
-                self._ctx.commands.register(name, previous[0], previous[1])
+                self._ctx.commands.register(
+                    name, previous.func, previous.description, previous.arg_completer
+                )
 
         self._scope.append(undo)
 
@@ -501,7 +510,8 @@ class ExtensionAPI:
         return removed
 
     def command(
-        self, name: str, description: str = "extension command"
+        self, name: str, description: str = "extension command",
+        arg_completer: ArgCompleter | None = None,
     ) -> CommandDecorator:
         """Decorator registering a ``:`` command.
 
@@ -511,19 +521,24 @@ class ExtensionAPI:
         def _decorator(func: CommandFunc) -> CommandFunc:
             self._record_command_snapshot(name)
             self._ctx.commands.register(
-                name, self._guarded_callback(f"command {name}", func), description
+                name, self._guarded_callback(f"command {name}", func),
+                description, arg_completer,
             )
             return func
 
         return _decorator
 
-    def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
+    def register_command(
+        self, name: str, func: CommandFunc, description: str = "",
+        arg_completer: ArgCompleter | None = None,
+    ) -> None:
         """Register a ``:`` command (the non-decorator form)."""
         self._record_command_snapshot(name)
         self._ctx.commands.register(
             name,
             self._guarded_callback(f"command {name}", func),
             description or "extension command",
+            arg_completer,
         )
 
     # -------------------------------------------------------------- services

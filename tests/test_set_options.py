@@ -1,8 +1,8 @@
 """Guards for the single ``:set`` option table (audit A8).
 
 The table in :mod:`yate.config` is the one source of option knowledge:
-``commands._set`` dispatches through it and
-:mod:`yate.flows.prompt_completion` derives its candidates from it.
+``commands._set`` dispatches through it and the ``:set`` arg completer
+registered in :mod:`yate.commands` derives its candidates from it.
 These tests pin the table <-> dispatch and table <-> completion
 contracts so a new option cannot drift apart between the three sides.
 """
@@ -13,7 +13,6 @@ from typing import Any, cast
 
 from yate.commands import SET_APPLY, SET_OPTION_INDEX, register_commands
 from yate.config import SET_OPTION_SPECS, OptionParser, YateConfig, set_option_names
-from yate.flows.prompt_completion import SET_OPTIONS
 from yate.registries import CommandRegistry
 
 
@@ -44,8 +43,13 @@ def test_terminal_height_parser_rejects_out_of_range() -> None:
 
 
 def test_set_option_names_feed_prompt_completion() -> None:
-    """The completion candidates are exactly the table's spellings."""
-    assert SET_OPTIONS == set_option_names()
+    """The ``:set`` completer candidates are exactly the table's spellings."""
+    registry, _editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("") == list(set_option_names())
 
 
 def test_set_dispatch_survives_a_missing_apply(
@@ -71,7 +75,7 @@ def test_set_dispatch_survives_a_missing_apply(
     assert entry is not None
 
     monkeypatch.delitem(SET_APPLY, "keymap")
-    entry[0]("keymap=vsc")
+    entry.func("keymap=vsc")
 
     assert ("internal error: no handler for keymap", "warn") in notes
 
@@ -127,10 +131,10 @@ def test_set_support_mouse_on_off_roundtrip() -> None:
     entry = registry.get("set")
     assert entry is not None
 
-    entry[0]("support_mouse=off")
+    entry.func("support_mouse=off")
     assert editor.config.support_mouse is False
     assert editor.mouse_state_canceled == 1
-    entry[0]("support_mouse=on")
+    entry.func("support_mouse=on")
     assert editor.config.support_mouse is True
     # the sweep only fires on disable: enabling drops no in-flight state
     assert editor.mouse_state_canceled == 1
@@ -142,7 +146,7 @@ def test_set_support_mouse_invalid_value_reports() -> None:
     entry = registry.get("set")
     assert entry is not None
 
-    entry[0]("support_mouse=maybe")
+    entry.func("support_mouse=maybe")
     assert any(
         "support_mouse must be on|off" in text for text, _ in editor.notes
     )
@@ -158,12 +162,12 @@ def test_set_which_key_on_off_roundtrip() -> None:
     entry = registry.get("set")
     assert entry is not None
 
-    entry[0]("which_key=off")
+    entry.func("which_key=off")
     assert editor.config.which_key is False
     assert editor.whichkey.clears == 1
     assert editor.refresh_calls == 1
 
-    entry[0]("which_key=on")
+    entry.func("which_key=on")
     assert editor.config.which_key is True
     # only the disable path hides the panel; enabling repaints instead
     assert editor.whichkey.clears == 1
@@ -176,7 +180,7 @@ def test_set_which_key_invalid_value_reports() -> None:
     entry = registry.get("set")
     assert entry is not None
 
-    entry[0]("which_key=maybe")
+    entry.func("which_key=maybe")
     assert any(
         "which_key must be on|off" in text for text, _ in editor.notes
     )

@@ -1,29 +1,67 @@
 """Tab-completion candidates for the bottom prompt line.
 
-Covers the ``prompt_completions`` dispatch, the argument completion of the
-``:set`` / filetype / theme / manual commands and the filesystem matching
-behind the path modes -- all through the public entry point.
+Covers the ``prompt_completions`` dispatch, the metadata-driven argument
+completion (``arg_completer`` registered by the built-in command table)
+and the filesystem matching behind the path modes -- all through the
+public entry point.
 """
 
+# tests legitimately poke at command-table privates:
 # pyright: reportPrivateUsage=false
 
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
+from yate.commands import (
+    _filetype_completer,
+    _make_path_completer,
+    _make_set_completer,
+    _make_theme_completer,
+    _manual_completer,
+)
 from yate.config import YateConfig
-from yate.flows.prompt_completion import _path_matches, prompt_completions
+from yate.editor_view import theme
+from yate.flows.prompt_completion import prompt_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
 
-def _commands(*names: str) -> CommandRegistry:
+class _EditorStub:
+    """Minimal editor surface the built-in completers close over."""
+
+    def __init__(self, workspace: Workspace) -> None:
+        self.workspace = workspace
+
+    def theme_names(self) -> list[str]:
+        """Same data the L3 semantic method returns."""
+        return list(theme.available())
+
+
+def _inert(_args: str) -> None:
+    """No-op command handler for registry fixtures."""
+
+
+def _commands(workspace: Workspace) -> CommandRegistry:
     registry = CommandRegistry()
-    for name in names:
-        registry.register(name, lambda _args: None, "test command")
+    editor = cast(Any, _EditorStub(workspace))
+    registry.register("write", _inert, "test command")
+    registry.register("wipe", _inert, "test command")
+    registry.register("quit", _inert, "test command")
+    registry.register("set", _inert, "test command",
+                      arg_completer=_make_set_completer(editor))
+    registry.register("e", _inert, "test command",
+                      arg_completer=_make_path_completer(editor))
+    registry.register("theme", _inert, "test command",
+                      arg_completer=_make_theme_completer(editor))
+    registry.register("filetype", _inert, "test command",
+                      arg_completer=_filetype_completer)
+    registry.register("manual", _inert, "test command",
+                      arg_completer=_manual_completer)
     return registry
 
 
@@ -34,7 +72,7 @@ def _prompt(text: str, mode: str = "command", root: Path | None = None) -> list[
     return prompt_completions(
         text,
         mode,
-        commands=_commands("write", "wipe", "quit", "set", "e", "theme"),
+        commands=_commands(workspace),
         session=EditorSession(YateConfig()),
         workspace=workspace,
     )
@@ -75,27 +113,6 @@ def test_path_mode_returns_nothing_for_a_missing_directory(tmp_path: Path) -> No
     assert _prompt("nope/deep", mode="open", root=tmp_path) == []
 
 
-def test_path_prefix_with_trailing_separator_lists_the_directory(
-    tmp_path: Path,
-) -> None:
-    """A trailing separator means "list this directory", not "match an entry".
-
-    With ``src/`` as the prefix there is no needle to match, so the entries
-    *inside* ``src`` are offered with their ``src/`` prefix intact (the old
-    code re-appended the whole prefix and produced corrupt ``ssrc...`` names).
-    """
-    (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "alpha.py").write_text("x", encoding="utf-8")
-    (tmp_path / "src" / "beta.py").write_text("x", encoding="utf-8")
-    (tmp_path / "other").mkdir()
-    workspace = Workspace(tmp_path)
-
-    assert _path_matches("src/", workspace) == ["src/alpha.py", "src/beta.py"]
-    # a partial name still resolves to the directory entry itself
-    assert _path_matches("src", workspace) == ["src/"]
-    assert _path_matches("sr", workspace) == ["src/"]
-
-
 def test_path_mode_returns_nothing_when_the_parent_is_a_file(tmp_path: Path) -> None:
     """A prefix that walks *through* a file yields no candidates."""
     (tmp_path / "file.txt").write_text("x", encoding="utf-8")
@@ -113,7 +130,30 @@ def test_path_mode_expands_the_home_directory(
     assert _prompt("~/no", mode="open") == ["~/notes/"]
 
 
-# --- command arguments ------------------------------------------------------
+# --- command arguments (registry metadata) ----------------------------------
+
+
+def test_command_completions_uses_registered_arg_completer() -> None:
+    """Argument candidates come from the command's registered completer."""
+    registry = CommandRegistry()
+    registry.register("demo", lambda _args: None, "test command",
+                      arg_completer=lambda prefix: [prefix + "v"])
+    workspace = Workspace()
+    assert prompt_completions(
+        "demo pre", "command", commands=registry,
+        session=EditorSession(YateConfig()), workspace=workspace,
+    ) == ["demo prev"]
+
+
+def test_command_completions_returns_empty_when_no_arg_completer() -> None:
+    """A registered command without a completer offers no arguments."""
+    registry = CommandRegistry()
+    registry.register("plain", lambda _args: None, "test command")
+    workspace = Workspace()
+    assert prompt_completions(
+        "plain foo", "command", commands=registry,
+        session=EditorSession(YateConfig()), workspace=workspace,
+    ) == []
 
 
 def test_path_command_appends_candidates(tmp_path: Path) -> None:

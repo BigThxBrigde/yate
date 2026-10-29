@@ -15,7 +15,7 @@ import pytest
 from yate.config import YateConfig
 from yate.keymaps.base import ActionContext, Keymap, KeyUi
 from yate.keymaps.registry import KeymapSet
-from yate.registries import Action, ActionRegistry, CommandRegistry
+from yate.registries import Action, ActionRegistry, Command, CommandRegistry
 from yate.session import EditorSession
 
 
@@ -130,12 +130,11 @@ def test_command_registry_round_trip() -> None:
 
     entry = registry.get("write")
     assert entry is not None
-    func, description = entry
-    assert description == "write the file"
+    assert entry.description == "write the file"
     assert registry.names() == ["write"]
     assert registry.describe("write") == "write the file"
 
-    func("notes.txt")
+    entry.func("notes.txt")
     assert calls == ["notes.txt"]
 
 
@@ -163,8 +162,8 @@ def test_command_reregistration_replaces_the_handler() -> None:
 
     entry = registry.get("dup")
     assert entry is not None
-    assert entry[0]("") == "new"
-    assert entry[1] == "new"
+    assert entry.func("") == "new"
+    assert entry.description == "new"
     assert registry.names() == ["dup"]
 
 
@@ -180,7 +179,53 @@ def test_command_registry_accepts_arbitrary_callables() -> None:
 
     entry = registry.get("thing")
     assert entry is not None
-    assert entry[0]("") is marker
+    assert entry.func("") is marker
+
+
+def test_command_dataclass_has_arg_completer_field() -> None:
+    """The Command dataclass carries the optional arg_completer metadata."""
+    command = Command("name", lambda _args: None, "desc")
+    assert command.name == "name"
+    assert command.description == "desc"
+    assert command.arg_completer is None
+
+
+def test_command_registry_get_returns_command_dataclass() -> None:
+    """``get`` returns the Command dataclass, not a bare tuple."""
+    registry = CommandRegistry()
+    registry.register("cmd", lambda _args: None, "desc")
+
+    entry = registry.get("cmd")
+    assert isinstance(entry, Command)
+    assert entry.name == "cmd"
+    assert entry.func is not None
+    assert entry.description == "desc"
+
+
+def test_command_registry_register_with_arg_completer() -> None:
+    """A registered completer round-trips through the registry."""
+    registry = CommandRegistry()
+
+    def completer(prefix: str) -> list[str]:
+        return [prefix]
+
+    registry.register("cmd", lambda _args: None, "desc", arg_completer=completer)
+
+    entry = registry.get("cmd")
+    assert entry is not None
+    assert entry.arg_completer is completer
+    assert entry.arg_completer is not None
+    assert entry.arg_completer("x") == ["x"]
+
+
+def test_command_registry_register_without_arg_completer_defaults_none() -> None:
+    """The three-argument register form keeps arg_completer None."""
+    registry = CommandRegistry()
+    registry.register("cmd", lambda _args: None, "desc")
+
+    entry = registry.get("cmd")
+    assert entry is not None
+    assert entry.arg_completer is None
 
 
 # --- KeymapSet --------------------------------------------------------------

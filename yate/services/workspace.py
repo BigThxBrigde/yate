@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -456,3 +457,43 @@ class Workspace:
             return b"\x00" not in chunk
         except (OSError, UnicodeDecodeError):
             return False
+
+
+def path_matches(prefix: str, workspace: Workspace) -> list[str]:
+    """Filesystem entries whose path starts with *prefix*.
+
+    Relative paths are resolved against the workspace root (falling back to
+    the process cwd), mirroring how ``:e`` and the open prompt treat paths.
+    """
+    expanded = os.path.expanduser(prefix)
+    try:
+        p = Path(expanded)
+    except ValueError:
+        return []
+    if expanded.endswith(("/", os.sep)):
+        # ``Path("src/")`` normalizes the separator away and would look like
+        # the entry "src" inside its parent; with a trailing separator the
+        # prefix *is* the directory to list and there is no needle to match.
+        parent, base = p, ""
+    else:
+        parent, base = (p.parent if p.name else p), p.name
+    if not parent.is_absolute() and workspace.root is not None:
+        parent = workspace.root / parent
+    if not parent.exists() or not parent.is_dir():
+        return []
+    try:
+        entries = sorted(parent.iterdir(), key=lambda x: x.name.lower())
+    except OSError:
+        return []
+    needle = base.lower()
+    results: list[str] = []
+    for entry in entries:
+        if not entry.name.lower().startswith(needle):
+            continue
+        dir_part = prefix[: len(prefix) - len(base)] if base else prefix
+        candidate = dir_part + entry.name
+        if entry.is_dir():
+            candidate += "/"
+        if candidate != prefix:
+            results.append(candidate)
+    return results
