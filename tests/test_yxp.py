@@ -658,6 +658,61 @@ def test_stale_file_whose_backup_fails_is_kept(
     assert "old.py" not in report.stale_removed
 
 
+# ------------------------------------------ rollback / restore symlink skips
+
+
+def test_rollback_skips_symlinked_member(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A member resolving through a symlink is skipped, not unlinked."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    base.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_bytes(b"outside")
+    target = base / "x.py"
+    try:
+        os.symlink(outside, target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp._rollback_files(["x.py"], {}, base)
+    assert outside.read_bytes() == b"outside"  # not deleted through the link
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "skipping rollback" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_restore_stale_files_skips_symlinked_member(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale-file backup is not written through a symlinked member."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    base.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_bytes(b"outside")
+    target = base / "x.py"
+    try:
+        os.symlink(outside, target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp._restore_stale_files({"x.py": b"restored"}, base)
+    assert outside.read_bytes() == b"outside"  # not written through the link
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "skipping restore" in record.getMessage()
+        for record in caplog.records
+    )
+
+
 # ---------------------------------------------------------- uninstall_package
 
 

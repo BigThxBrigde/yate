@@ -263,8 +263,19 @@ def _parse_manifest(data: dict[str, Any], source: str) -> YxpManifest:
     files = tuple(cast(list[str], files_raw))
     if len(set(files)) != len(files):
         raise YxpError(f"{source}: manifest 'files' contains duplicates")
+    # On case-insensitive filesystems names differing only by letter case
+    # would silently overwrite each other on disk, so they are rejected too.
+    seen: set[tuple[str, ...]] = set()
     for entry in files:
         _check_member_name(entry)
+        key = tuple(part.casefold() for part in PurePosixPath(entry).parts)
+        if key in seen:
+            raise YxpError(
+                f"{source}: manifest 'files' contains case-colliding entries "
+                f"({entry!r}); a package must not ship names differing only "
+                "by letter case"
+            )
+        seen.add(key)
     return YxpManifest(
         name=name,
         version=version,
