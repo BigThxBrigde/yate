@@ -37,6 +37,11 @@
 3 BLOCKER / 9 MAJOR / 27 MINOR，待用户决策修复范围）。
 **2026-10-22 全局审核增量**：新增 #46（5 个 `code-review-expert` 代理分域全仓审核，
 0 CRITICAL / 18 WARNING / 20 SUGGESTION；全部 WARNING 经主代理回读复核，待处置）。
+**2026-10-26 perf-audit 增量**：新增 #47（全仓库性能审计，9 major / 12 minor；
+修复轮 code-review-expert 0 blocker / 2 major / 5 minor，迭代波 F1–F3 全部销账，
+随 PR !104 并入 master）。
+**2026-10-29 arch-sec-audit 增量**：新增 #48（全仓库架构 / 结构 / 安全性审查并迭代修复，
+三轮评审 major 归零；F4–F7 等余项登记待办，分支 `enh/arch-sec-audit` 17 笔提交已推送）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -91,6 +96,8 @@
 | 44 | 2026-10-17 | 找茬优化报告（分支 `enh/full-repo-audit` @ `cd2ca00` 全仓找茬；**0 缺陷，5 条建议级**）：① `current_screen` 查询链 `Screen[Any]` 可精化为 `Screen[object]`（上游 `App.screen` 即该类型）；② `handle_key` nul_keys 嵌套 if 可合并（评审自评现状更易读）；③ `on_unmount` 三段 teardown try/except 可提取辅助（评审自评现状可接受；且首段为同步调用，报告示意代码会把同步调用交给 await）；④ `cli.main` ~220 行可拆 `--diff` 校验与扩展管理辅助；⑤ `_set_theme` 适配闭包（评审自评无需修改） | ✅ 已处置（2026-10-17：① `7834da3` 查询链 `Screen[Any]`→`Screen[object]`（与上游 `App.screen` 同型，editor.py 的 `Any` 归零）+ ④ `d8d0248` cli.main 拆 `_validate_diff_args` / `_manage_extensions`；②③⑤ 评审自评维持现状（③ 报告示意代码会把同步调用交给 await，勘误见方案 §二）；门禁 pyright 0 + 全量 0 failures + 架构 32 + 覆盖率 91.95% + 冒烟 107/107·1304/1304 全 exit 0；pr-review 复审 **APPROVE 零 issue**（0 BLOCKER / 0 MAJOR / 0 MINOR），见 [full-repo-audit-optimization-fixes-plan.md](../documents/full-repo-audit-optimization-fixes-plan.md) §八） | [2026-10-17-full-repo-audit.md](2026-10-17-full-repo-audit.md) |
 | 45 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理，20 条候选 2/2 确认；覆盖 `yate/` 144 + `tools/` 60 个 `.py`） | ⚠️ 不通过（3 BLOCKER 正常使用即触发） | 3 BLOCKER / 9 MAJOR / 27 MINOR | ✅ 已修（W-A `148fa4a` / W-B `29a79d2` / W-C `b32bd5d` / W-D `41ae9fc` / W-E 收口；39 条已修 + m-21 登记不修 + m-28 追加已修） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
 | 46 | 2026-10-22 | **全仓全局代码评审**（master `f7adf9d`；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），双 skill 框架 + 强制自我批判；覆盖 `yate/` 约 140 + `tools/` 约 70 个 `.py`） | 👀 待处置（0 CRITICAL / 18 WARNING / 20 SUGGESTION；四道门禁全绿） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
+| 47 | 2026-10-26 | 全仓库性能审计 21 条（9 major / 12 minor，P1–P21：每击键 O(文档) 工作与无节流全应用刷新链两类） | ✅ 已修（2026-10-26，PR !104 `cdb4e0b` 并入 master：四波修复 + code-review-expert 0 blocker / 2 major / 5 minor 迭代销账；门禁 pyright 0 + 3093 passed/9 skipped + 架构 37 + 覆盖率 92.03% + 冒烟 117/117；方案见 [perf-audit-fixes-plans/overview.md](../documents/perf-audit-fixes-plans/overview.md)） | [2026-10-26-perf-audit.md](2026-10-26-perf-audit.md) |
+| 48 | 2026-10-29 | arch-sec-audit wave-3 修复评审（主题信任门控 / yxp 符号链接端到端 / yate_home 单源）：初版 1 major（yxp 父目录符号链接写穿）+ 8 minor，三轮迭代后 major 归零 | ✅ 已修（F1/F2/F3/F8、N1–N5、M1/M2 全部销账；F4–F7 与 uninstall OSError 存量、yxp.py:398-399 既有缺口登记待办；yxp.py 830 行登记尺寸豁免；门禁 pyright 0 + 架构 37 + 覆盖率 92.22% + 冒烟 117/117·1407 checks） | [2026-10-29-arch-sec-audit.md](2026-10-29-arch-sec-audit.md) |
 
 ---
 
@@ -182,6 +189,8 @@
 | 2026-10-18 | **pr-review · `ref/repo-audit-r2` 分支审查**（pr-review 技能六维框架，base = master `9e84e97`，44 文件 +3621−51；主代理亲跑全部门禁） | ⚠️ REQUEST_CHANGES（1 MAJOR：`poll_idle` 空屏幕栈竞态在覆盖率负载下 3/3 次全量运行致未改动文件的 pilot 用例失败） | 1 MAJOR / 5 MINOR | ✅ 已修复（当轮：poll_idle 卫语句 + 回归用例 / CI 注释与 smoke ubuntu 腿临时降级 / 规则补局部 `--cov-fail-under=0` 口径 / 3 个计划文档路径脱敏 / 本索引补录；修复方案见 [repo-audit-r2-review-fixes-plan.md](../documents/repo-audit-r2-review-fixes-plan.md)） | [2026-10-18-pr-review-ref-repo-audit-r2.md](2026-10-18-pr-review-ref-repo-audit-r2.md) |
 | 2026-10-20 | **全仓库 TRAE-code-review 审核**（`enh/full-repo-trae-review` @ master `d8c1dee`；5 只读分区子代理 + 2 交叉验证子代理；主代理亲跑门禁 + 运行时探针） | ⚠️ 不通过（3 BLOCKER 正常使用即触发：三方合并单侧插入崩溃、vim `5G` 越界、wiki prune 误删源文档） | 3 BLOCKER / 9 MAJOR / 27 MINOR（20 条 2/2 确认，19 条 MINOR 单验证） | ✅ 已处置（五波修复 + 两轮 code-review-expert 复核 APPROVE；m-21 登记不修，m-28 追加修复；方案见 [trae-review-fixes-plan.md](../documents/trae-review-fixes-plan.md)） | [2026-10-20-full-repo-trae-code-review.md](2026-10-20-full-repo-trae-code-review.md) |
 | 2026-10-22 | **全仓库全局代码评审**（master `f7adf9d`，v0.2.12；5 个 `code-review-expert` 代理分域（4 主域 + 1 补审盲区），`python-code-review` + `TRAE-code-review` 双框架 + 强制自我批判） | ✅ 通过（0 CRITICAL，无阻断；门禁 pyright 0/0/0 + 架构 36 + 2858 passed/9 skipped + 覆盖率 91.96% + 冒烟 112/112，全 exit 0） | 0 CRITICAL / 18 WARNING / 20 SUGGESTION | 👀 登记待处置（只读事实文档，修复另立计划） | [2026-10-22-global-review.md](2026-10-22-global-review.md) |
+| 2026-10-26 | **全仓库性能审计**（`enh/perf-audit` @ master `f8c1b73`；3 只读并行审计分区（editor_core+editor_syntax / editor_view+flows+editor+app+session / editor_lsp+services+keyproto+editor_term+keymaps+启动路径）+ 主代理逐条读码复核） | ✅ 通过（分块加载原语 / regex 预编译 / 高亮后台 worker / cells 缓存 / 启动懒导入实现正确；问题集中于每击键 O(文档) 工作与无节流全应用刷新链两类） | 9 major / 12 minor（P1–P21） | ✅ 已全修（修复轮 code-review-expert 0 blocker / 2 major / 5 minor → Wave f F1–F3 迭代销账；PR !104 `cdb4e0b` 21 条全部并入 master；门禁 pyright 0 + 3093 passed/9 skipped + 架构 37 + 覆盖率 92.03% + 冒烟 117/117；方案与执行记录见 [perf-audit-fixes-plans/overview.md](../documents/perf-audit-fixes-plans/overview.md) §六） | [2026-10-26-perf-audit.md](2026-10-26-perf-audit.md) |
+| 2026-10-29 | **全仓库架构 / 结构 / 安全性审查并迭代修复**（`enh/arch-sec-audit` @ master `98963be`，17 笔提交；总纲 + 子计划 a–e：主题信任门控 / yxp 符号链接端到端加固 / yate_home 单源；wave-3 `code-review-expert` 三轮评审） | ✅ 通过（三轮迭代后 0 major，探针实证：F1 写穿场景被拒、N1 多成员 stale 状态自洽） | 初版 1 major + 8 minor → 第 2 轮 1 major（N1，修复引入）+ 4 minor → 第 3 轮 0 major（余 M1/M2 minor，均已修） | ✅ 已闭环（F1/F2/F3/F8、N1–N5、M1/M2 已修；F4–F7 与 uninstall 中途 OSError 存量、yxp.py:398-399 既有缺口登记待办；yxp.py 830 行经 `SIZE_EXEMPT_FILES` 登记豁免（`8d7d5eb`）；收尾门禁 pyright 0 + pytest 全量 exit 0 + 架构 37 + 覆盖率 92.22% + 冒烟 117/117（1407 checks）+ changelog 0；方案见 [arch-sec-audit-plans/overview.md](../documents/arch-sec-audit-plans/overview.md)） | [2026-10-29-arch-sec-audit.md](2026-10-29-arch-sec-audit.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
