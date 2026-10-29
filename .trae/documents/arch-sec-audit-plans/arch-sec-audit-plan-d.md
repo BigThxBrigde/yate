@@ -1,5 +1,17 @@
 # arch-sec-audit plan-d：`~/.yate` 路径收敛到 `yate.paths.yate_home()`（A2）+ 数据目录 0700（S5）
 
+> **修订 v2（2026-10-29）**：plan-a 落地为 v2 后，cli.py 的
+> `Path.home() / ".yate" / "themes"` 字面量已移入
+> `yate/editor_view/theme_files.py::default_theme_dirs`——本计划对 cli.py 的触点
+> 随之取消，改为 `yate/editor_view/theme_files.py`（仅该一行）。cli.py 零改动。
+>
+> **修订 v3（2026-10-29，executor-d 上报后主代理裁决）**：
+> ① `yate/services/user_setup.py` 的 `USER_DIRNAME = ".yate"` 是同一拼写的第三处
+> 来源，一并收敛——先 grep 该名的全部引用；仅模块内使用则删除本地常量、改用
+> `yate.paths.YATE_HOME_DIRNAME`；若 tests/ 有外部引用，停下上报，不得擅自改
+> 清单外文件。② `yate/logs.py` 模块 docstring 的 "imports only the standard
+> library plus yate.__version__" 自述已因新增 `yate.paths` 导入过时，同步修正。
+
 ## 输入与依据
 
 - 取证 1（A2）：`Path.home() / ".yate" / ...` 手工拼接散布 9 处：
@@ -21,8 +33,9 @@
 5. `yate/services/extensions/loader.py`
 6. `yate/logs.py`
 7. `yate/diagnostics.py`
-8. `yate/cli.py`（仅 plan-a 已改区域内的 home themes 一行）
-9. `tests/test_paths.py`（若无则新建；先 `ls tests/test_paths*` 确认）
+8. `yate/editor_view/theme_files.py`（仅 `default_theme_dirs` 内的 home themes 一行；plan-a v2 后该字面量已移至此，cli.py 零改动）
+9. `yate/services/user_setup.py`（v3：`USER_DIRNAME` 同源字面量收敛）
+10. `tests/test_paths.py`（若无则新建；先 `ls tests/test_paths*` 确认）
 
 ## 具体修改
 
@@ -59,7 +72,7 @@ def yate_home() -> Path:
 | `loader.py:310` | `directories.append(Path.home()/".yate"/"extensions")` | `directories.append(yate_home() / "extensions")` |
 | `logs.py:190,197` | 两个 `Path.home()/".yate"/DATA_DIRNAME/...` | `yate_home() / DATA_DIRNAME / ...`（`DATA_DIRNAME` 来源不变） |
 | `diagnostics.py:230,363` | 两处拼接 | 同法替换（先读上下文确认行号在当前 HEAD 的准确位置） |
-| `cli.py` | plan-a 改后的 `Path.home()/".yate"/"themes"` | `yate_home() / "themes"` |
+| `theme_files.py` | `default_theme_dirs` 内 `Path.home()/".yate"/"themes"`（plan-a v2 移入） | `yate_home() / "themes"` |
 
 - import 规矩：统一 `from yate.paths import yate_home`；各文件按既有 import 分组插入。
 - 层级自查：paths.py 为 L0 叶子，所有消费方（L0-L4）向下引用合法；不新增任何向上边。
@@ -92,7 +105,7 @@ def yate_home() -> Path:
 
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/test_paths.py tests/test_logs.py tests/test_trust.py tests/test_data_store.py tests/test_yaterc.py -q
-.venv\Scripts\python.exe -m pyright yate/paths.py yate/logs.py yate/cli.py yate/diagnostics.py yate/yaterc.py yate/services/trust.py yate/services/data_store.py yate/services/extensions/loader.py
+.venv\Scripts\python.exe -m pyright yate/paths.py yate/logs.py yate/diagnostics.py yate/yaterc.py yate/editor_view/theme_files.py yate/services/trust.py yate/services/data_store.py yate/services/extensions/loader.py
 git grep -n 'Path.home() / ".yate"' -- yate/
 ```
 

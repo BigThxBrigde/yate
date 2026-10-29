@@ -73,7 +73,7 @@
 | plan-a | S1 主题信任门控 + 主题手册信任段落 | yate/editor_view/theme_files.py、yate/editor_view/theme.py、yate/cli.py（仅调用行）、yate/docs/themes.{en,zh}.md、tests/test_theme_trust.py | wave-1 |
 | plan-b | S7/A1 扩展信任边界文档 + 门面 §三.5 注记 + 规则登记 | yate/docs/extensions.{en,zh}.md、yate/services/extensions/__init__.py、.trae/rules/architecture-boundaries.md | wave-1 |
 | plan-c | S3 CI 最小权限 + A3 文档锚点与统计 | .github/workflows/test.yml、README.md、README.zh.md、yate/docs/README.md、tests/README.md | wave-1 |
-| plan-d | A2 yate_home 收敛 + S5 数据目录 0700 | yate/paths.py、yate/yaterc.py、yate/services/trust.py、yate/services/data_store.py、yate/services/extensions/loader.py、yate/logs.py、yate/diagnostics.py、yate/cli.py、tests/test_paths.py | wave-2 |
+| plan-d | A2 yate_home 收敛 + S5 数据目录 0700 | yate/paths.py、yate/yaterc.py、yate/services/trust.py、yate/services/data_store.py、yate/services/extensions/loader.py、yate/logs.py、yate/diagnostics.py、yate/editor_view/theme_files.py（仅 home themes 一行）、yate/services/user_setup.py（v3）、tests/test_paths.py | wave-2 |
 | plan-e | S4 yxp 符号链接拒写 + S6 无校验告警 | yate/services/yxp.py、tests/test_yxp.py | wave-2 |
 
 ```mermaid
@@ -85,7 +85,13 @@ flowchart LR
 ```
 
 - wave-1 三个子计划文件互不重叠，可并行（2~3 个一批纪律，3 个一批下发）。
-- `yate/cli.py` 由 plan-a（wave-1）与 plan-d（wave-2）先后触碰：波次串行保证独占。
+- ~~`yate/cli.py` 由 plan-a（wave-1）与 plan-d（wave-2）先后触碰~~（plan-a v2 后
+  plan-d 对 cli.py 的触点取消，改触 `editor_view/theme_files.py` 一行，见 plan-d 修订注）。
+- **执行偏差记录（2026-10-29）**：wave-2（plan-d/e）在 plan-c 验收关闭前提前派发。
+  实测依据：plan-a/b 已独立复核通过（exit 0）并提交；plan-c 名下在改文件
+  （.github/workflows/test.yml、README*、yate/docs/README.md、tests/README.md）与
+  plan-d/e 独占清单零重叠，无文件冲突；plan-c 的验收由主代理在其交付时独立重跑，
+  不受 wave-2 并行影响。
 - 每个子计划验收通过（验收命令 exit 0）后，由主代理按子计划单独提交一笔。
 
 ## 风险与回滚
