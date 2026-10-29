@@ -426,6 +426,128 @@ def test_install_refuses_symlinked_member_target(tmp_path: Path) -> None:
     assert _record_path(base, "hello").exists()  # record intact
 
 
+def test_install_refuses_symlinked_parent_directory(tmp_path: Path) -> None:
+    """A symlinked intermediate directory fails the install untouched."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/x.py": b"payload"})
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert list(outside.iterdir()) == []  # nothing written through
+    assert not _record_path(base, "hello").exists()  # no record either
+
+
+def test_install_refuses_symlinked_parent_on_stale_removal(
+    tmp_path: Path,
+) -> None:
+    """A symlinked parent of a stale member refuses the upgrade, intact."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"sub/x.py": b"v1"})
+    yxp.install_package(v1, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_bytes(b"keep")
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
+    (base / "sub" / "x.py").unlink()
+    (base / "sub").rmdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(v2, base)
+    assert (outside / "keep.txt").read_bytes() == b"keep"  # not deleted
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["sub/x.py"]  # v1 record intact
+    assert not (base / "hello.py").exists()  # v2 extraction rolled back
+
+
+def test_install_refuses_symlinked_stale_member_leaves_others(
+    tmp_path: Path,
+) -> None:
+    """A symlinked stale member refuses the upgrade without partial deletes."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"a.py": b"a", "b.py": b"b", "zz.py": b"z"})
+    yxp.install_package(v1, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    v2 = make_yxp(tmp_path / "v2.yxp", {"d.py": b"d"})
+    (base / "zz.py").unlink()
+    try:
+        os.symlink(outside, base / "zz.py")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(v2, base)
+    assert (base / "a.py").read_bytes() == b"a"  # stale, not deleted
+    assert (base / "b.py").read_bytes() == b"b"  # stale, not deleted
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["a.py", "b.py", "zz.py"]  # matches disk
+    assert not (base / "d.py").exists()  # v2 extraction rolled back
+
+
+def test_uninstall_refuses_symlinked_parent_directory(tmp_path: Path) -> None:
+    """Uninstall refuses to delete through a symlinked member parent."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/x.py": b"x"})
+    yxp.install_package(pkg, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_bytes(b"keep")
+    (base / "sub" / "x.py").unlink()
+    (base / "sub").rmdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.uninstall_package("hello", base)
+    assert (outside / "keep.txt").read_bytes() == b"keep"  # untouched
+    assert _record_path(base, "hello").exists()  # record intact
+
+
+def test_install_refuses_symlinked_records_directory(tmp_path: Path) -> None:
+    """A symlinked records directory fails the install before any write."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(
+            outside, base / yxp.RECORDS_DIRNAME, target_is_directory=True
+        )
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert list(outside.iterdir()) == []  # nothing written through
+    assert not (base / "hello.py").exists()  # no extraction either
+
+
+def test_uninstall_refuses_symlinked_records_directory(tmp_path: Path) -> None:
+    """A symlinked records directory fails the uninstall untouched."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(
+            outside, base / yxp.RECORDS_DIRNAME, target_is_directory=True
+        )
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.uninstall_package("hello", base)
+    assert list(outside.iterdir()) == []  # nothing written through
+
+
 def test_install_overwrites_regular_member_still_works(tmp_path: Path) -> None:
     """Reinstalling over a regular member file keeps overwriting."""
     base = tmp_path / "base"
