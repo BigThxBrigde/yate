@@ -18,7 +18,7 @@ from typing import Any, cast
 
 from yate.config import YateConfig
 from yate.logs import tracing
-from yate.paths import bundled_extensions_dir
+from yate.paths import bundled_extensions_dir, yate_home
 from yate.services.extensions.api import ExtensionAPI
 from yate.services.extensions.lua.library import (
     is_lua_available,
@@ -307,7 +307,7 @@ def load_startup_extensions(
                 f"extensions: skipped untrusted {cwd_extensions} "
                 "(run :trust to load them)"
             )
-    directories.append(Path.home() / ".yate" / "extensions")
+    directories.append(yate_home() / "extensions")
     for directory in directories:
         _report(loader.load_directory(directory))
     for file in ext_files:

@@ -26,10 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TextIO
 
-from yate.paths import bundled_extensions_dir, package_root
+from yate.paths import YATE_HOME_DIRNAME, bundled_extensions_dir, package_root
 
-#: Name of the user configuration directory (relative to the home dir).
-USER_DIRNAME: str = ".yate"
 RC_FILENAME: str = "yaterc"
 RC_TEMPLATE: str = "yaterc.example"
 RC_BACKUP: str = "yaterc.yate-bak"
@@ -87,7 +85,7 @@ class ConfirmationRequiredError(RuntimeError):
 
 def default_base_dir() -> Path:
     """The user configuration root (``~/.yate``)."""
-    return Path.home() / USER_DIRNAME
+    return Path.home() / YATE_HOME_DIRNAME
 
 
 def _template_sources() -> list[tuple[Path, str]]:

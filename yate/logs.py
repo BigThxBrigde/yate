@@ -29,9 +29,10 @@ other. Callers import them straight from this module::
 The two share nothing but the module-level helpers below them -- no base class,
 no cross-reference between the classes, no :mod:`yate.config` dependency (the
 yaterc values arrive as plain scalars). That keeps this module a *leaf*: it
-imports only the standard library plus :data:`yate.__version__`, so importing
-it is safe from anywhere, including modules pulled in while a package is still
-initializing.
+imports only the standard library plus :data:`yate.__version__` and the
+:func:`yate.paths.yate_home` resolver (the user-level ``~/.yate`` root), so
+importing it is safe from anywhere, including modules pulled in while a
+package is still initializing.
 
 Both services write the same process metadata in the same order
 (:func:`build_session_header`), so a crash report and a trace log are read the
@@ -42,6 +43,7 @@ warning on stderr and the editor still starts.
 from __future__ import annotations
 
 import atexit
+import contextlib
 import faulthandler
 import logging
 import os
@@ -54,6 +56,7 @@ from types import TracebackType
 from typing import Any, IO, override, TextIO
 
 from yate import __version__
+from yate.paths import yate_home
 
 #: ``sys.excepthook`` -- the crash service chains to the hook it replaced and
 #: restores it on uninstall, so it is kept as a callable of unknown shape.
@@ -187,15 +190,21 @@ def env_level() -> str | None:
 
 def logs_dir() -> Path:
     """Return (creating if needed) ``~/.yate/data/logs/``."""
-    directory = Path.home() / ".yate" / DATA_DIRNAME / LOG_DIRNAME
+    directory = yate_home() / DATA_DIRNAME / LOG_DIRNAME
     directory.mkdir(parents=True, exist_ok=True)
+    if os.name == "posix":
+        with contextlib.suppress(OSError):
+            os.chmod(directory, 0o700)
     return directory
 
 
 def crash_data_dir() -> Path:
     """Return (creating if needed) ``~/.yate/data/``."""
-    directory = Path.home() / ".yate" / DATA_DIRNAME
+    directory = yate_home() / DATA_DIRNAME
     directory.mkdir(parents=True, exist_ok=True)
+    if os.name == "posix":
+        with contextlib.suppress(OSError):
+            os.chmod(directory, 0o700)
     return directory
 
 

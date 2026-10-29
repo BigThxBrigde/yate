@@ -2,12 +2,33 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
 import pytest
 
-from yate import paths
+from yate import logs, paths
+
+
+# --- user home --------------------------------------------------------------
+
+
+def test_yate_home_under_os_home(isolated_home: Path) -> None:
+    # The per-user root is a single authoritative spelling under the OS home
+    # (the autouse ``isolated_home`` fixture patches Path.home to a temp dir).
+    assert paths.yate_home() == Path.home() / ".yate"
+    # The directory itself is not created by the resolver.
+    assert not paths.yate_home().exists()
+
+
+def test_logs_dirs_restrict_on_posix(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    if os.name != "posix":
+        pytest.skip("POSIX permission bits only")
+    assert logs.crash_data_dir().stat().st_mode & 0o777 == 0o700
+    assert logs.logs_dir().stat().st_mode & 0o777 == 0o700
 
 
 # --- package root -----------------------------------------------------------

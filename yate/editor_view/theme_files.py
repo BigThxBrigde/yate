@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from yate.editor_view.themes import Theme, register_theme
+from yate.paths import yate_home
 from yate.services.trust import is_trusted
 
 __all__ = [
@@ -71,7 +72,7 @@ def default_theme_dirs(errors: list[str]) -> list[Path]:
             errors.append(
                 f"themes: skipped untrusted {cwd_themes} (run :trust to load them)"
             )
-    theme_dirs.append(Path.home() / ".yate" / "themes")
+    theme_dirs.append(yate_home() / "themes")
     return theme_dirs
 
 

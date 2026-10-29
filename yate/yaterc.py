@@ -65,6 +65,7 @@ from typing import Any
 
 from yate.config import YateConfig
 from yate.logs import tracing
+from yate.paths import yate_home
 from yate.services.trust import is_trusted
 from yate.yaterc_options import (
     _extract_disabled_extensions,
@@ -81,7 +82,7 @@ log = tracing.get_logger(__name__)
 
 def user_config_path() -> Path:
     """The user-level rc location (``~/.yate/yaterc``)."""
-    return Path.home() / ".yate" / RC_FILENAME
+    return yate_home() / RC_FILENAME
 
 
 def find_project_config(start: Path | None = None) -> Path | None:
