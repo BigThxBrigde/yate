@@ -158,6 +158,26 @@ def test_read_package_rejects_unsafe_names(tmp_path: Path, rel: str) -> None:
         yxp.read_package(pkg)
 
 
+def test_read_package_rejects_case_colliding_names(tmp_path: Path) -> None:
+    # On case-insensitive filesystems these members would overwrite each
+    # other on disk, so the manifest must be rejected up front. Per-segment
+    # casefolding also catches nested pairs like sub/x.py vs SUB/X.py.
+    flat = make_yxp(
+        tmp_path / "flat.yxp",
+        {"a.py": b"1", "A.py": b"2"},
+        manifest={"name": "flat", "files": ["a.py", "A.py"]},
+    )
+    with pytest.raises(yxp.YxpError, match="case-colliding"):
+        yxp.read_package(flat)
+    nested = make_yxp(
+        tmp_path / "nested.yxp",
+        {"sub/x.py": b"1", "SUB/X.py": b"2"},
+        manifest={"name": "nested", "files": ["sub/x.py", "SUB/X.py"]},
+    )
+    with pytest.raises(yxp.YxpError, match="case-colliding"):
+        yxp.read_package(nested)
+
+
 def test_read_package_checksum_keys_mismatch(tmp_path: Path) -> None:
     pkg = make_yxp(
         tmp_path / "hello.yxp",
