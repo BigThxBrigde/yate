@@ -90,6 +90,9 @@ yxp 符号链接加固端到端六面覆盖（写/删/回滚/恢复/卸载/recor
 - **[MAJOR] yxp 大小写冲突 → 已修**（`181f179`）：`_parse_manifest` 保留精确重复
   快速路径，新增逐段 `casefold` 键去重（`PurePosixPath(entry).parts`，覆盖
   `sub/x.py` vs `SUB/X.py`），命中抛 `YxpError`（"case-colliding entries"）。
+  2026-10-30 补齐本条评审要求的回归用例
+  `test_read_package_rejects_case_colliding_names`（平面对 `a.py`/`A.py` + 嵌套对
+  `sub/x.py`/`SUB/X.py`；负向演练：禁用守卫先红、还原后绿，`57c7c90`）。
 - **[MINOR] 回滚/恢复跳过分支 → 已补直接用例**（`181f179`）：
   `test_rollback_skips_symlinked_member` /
   `test_restore_stale_files_skips_symlinked_member`（外部文件未动 + WARNING 告警
