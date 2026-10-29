@@ -68,9 +68,10 @@ def default_theme_dirs(errors: list[str]) -> list[Path]:
     same user-visible channel as rc discovery notes.
     """
     theme_dirs: list[Path] = []
-    cwd_themes = Path.cwd() / "themes"
+    cwd = Path.cwd().resolve()
+    cwd_themes = cwd / "themes"
     if cwd_themes.is_dir():
-        if is_trusted(Path.cwd().resolve()):
+        if is_trusted(cwd):
             theme_dirs.append(cwd_themes)
         else:
             errors.append(
