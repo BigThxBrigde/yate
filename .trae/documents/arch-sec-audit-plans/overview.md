@@ -12,7 +12,7 @@
 
 | 门禁 | 命令 | 结果 |
 |---|---|---|
-| pytest | `pytest tests/ -q -n auto` | exit 0（约 13 skipped，无失败） |
+| pytest | `pytest tests/ -q -n auto` | exit 0（10 skipped，无失败；2026-10-29 pr-review 实测校正，原记"约 13 skipped"失准） |
 | pyright | `pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations |
 | 架构 | `pytest tests/test_architecture.py -q` | 37 passed |
 | 覆盖率 | `pytest tests/ --cov=yate --cov-branch -n auto` | exit 0，**92.31%**（fail_under=75） |
@@ -124,6 +124,6 @@ flowchart LR
 > **交接闭环（2026-10-29，pr-review 前销账）**：上述唯一未竟事项已由 `d0afda5` 完成
 > （§一 #47/#48 + 两条增量段 + §二两行，结论取自各记录文档自身记载）；"共 44 条"
 > 计数句按交接注明的最小方案维持不动，漂移（表实为 48 行）已如实汇报。
-> 提交清单据此修正：master..HEAD 共 **18 笔**（273e78c…d0afda5，含 1b05db1 压缩交接
-> 与 d0afda5 索引补登记），且已推送 `origin/enh/arch-sec-audit`（上节"未推送"为
-> 回填时点快照，以本注为准）。
+> 提交数以 `git rev-list --count master..HEAD` 为准（本注落笔时 **19 笔**，HEAD 5beb95a，
+> 含 1b05db1 压缩交接、d0afda5 索引补登记、5beb95a 本注销账），且已推送
+> `origin/enh/arch-sec-audit`（上节"未推送"为回填时点快照，以本注为准）。
