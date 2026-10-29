@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+import os
 import zipfile
 from hashlib import sha256
 from pathlib import Path
@@ -402,6 +404,75 @@ def test_failed_record_replace_keeps_old_record_and_drops_temp(
     assert record["files"] == ["hello.py"]  # v1 record intact
     tmp_record = base / yxp.RECORDS_DIRNAME / "hello.json.tmp"
     assert not tmp_record.exists()  # temp residue dropped
+
+
+def test_install_refuses_symlinked_member_target(tmp_path: Path) -> None:
+    """A symlinked member target fails the whole install, untouched."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"packaged"})
+    yxp.install_package(pkg, base)
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"precious")
+    target = base / "hello.py"
+    target.unlink()
+    try:
+        os.symlink(outside, target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert outside.read_bytes() == b"precious"  # never written through
+    assert target.is_symlink()  # install dir state unchanged
+    assert _record_path(base, "hello").exists()  # record intact
+
+
+def test_install_overwrites_regular_member_still_works(tmp_path: Path) -> None:
+    """Reinstalling over a regular member file keeps overwriting."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"new content"})
+    yxp.install_package(pkg, base)
+    report = yxp.install_package(pkg, base)
+    assert isinstance(report, yxp.InstallReport)
+    assert report.files == ("hello.py",)
+    assert (base / "hello.py").read_bytes() == b"new content"
+
+
+def test_install_without_checksum_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Installing a checksum-less package logs a WARNING but succeeds."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp.install_package(pkg, base)
+    assert (base / "hello.py").read_bytes() == b"x"
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "without a checksum member" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_install_with_checksum_no_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A checksummed package installs without the unverifiable warning."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp.install_package(pkg, base)
+    assert (base / "hello.py").read_bytes() == b"x"
+    assert not any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "without a checksum member" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 # --------------------------------------------------------- member size caps

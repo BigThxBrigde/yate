@@ -17,8 +17,10 @@ Installing extracts the payload flat into the user extensions directory
 and records ownership in ``_manifests/<name>.json`` next to the files, so
 uninstalling removes exactly the installed files and reinstalling the same
 package upgrades in place while refusing to overwrite files it does not
-own.  This module is pure zip/hash/file logic: no Textual, no editor
-imports (R4 -- ``services/*`` stays UI-free).
+own.  A member target that is itself a symlink (which can only appear
+through external tampering) fails the whole install instead of being
+written through.  This module is pure zip/hash/file logic: no Textual,
+no editor imports (R4 -- ``services/*`` stays UI-free).
 """
 
 from __future__ import annotations
@@ -375,6 +377,12 @@ def install_package(
     """
     ext_dir = base_dir if base_dir is not None else default_extensions_dir()
     package = read_package(package_path)
+    if package.checksums is None:
+        log.warning(
+            "installing extension package %s without a checksum member: "
+            "contents cannot be verified",
+            package.manifest.name,
+        )
     manifest = package.manifest
     try:
         ext_dir.mkdir(parents=True, exist_ok=True)
@@ -432,7 +440,12 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
         with zipfile.ZipFile(package.path) as zf:
             for rel in package.manifest.files:
                 target = ext_dir / rel
-                if target.is_file() or target.is_symlink():
+                if target.is_symlink():
+                    raise YxpError(
+                        f"cannot install {package.manifest.name}: {rel!r} target "
+                        "is a symlink; refusing to write through it"
+                    )
+                if target.is_file():
                     previous[rel] = target.read_bytes()
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(_member_bytes(package, zf, rel))
