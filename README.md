@@ -245,8 +245,8 @@ yate/
   extensions/     # bundled extension: python_lsp (built-in LSP) + *.py.example templates
                   #   (example_ext and syntax templates for batch/ini/fsharp/git/diff;
                   #   the .example suffix is never auto-loaded)
-  docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes
-                  #   (*.zh.md / *.en.md)
+  docs/           # bilingual docs: yaterc config, extension API, themes, LSP recipes,
+                  #   games, which-key (*.zh.md / *.en.md)
   resources/      # manual.zh.md / manual.en.md bilingual manual, build-generated
                   #   changelog.en.md / changelog.zh.md, *.tcss stylesheets,
                   #   fonts/, theme_examples/ (copy-to-activate theme templates)
@@ -273,6 +273,10 @@ tools/            # maintenance tooling: changelog, release, smoke_test, pack (i
 pack/             # PyInstaller specs (yate*.spec) + build scripts: pack.ps1 / pack.bat (Windows), pack.sh (Linux)
                   #   + yate.ico: the executable icon, built by `python -m tools.pack icon`
 ```
+
+Out-of-tree guides live in `yate/docs/` too: [games](yate/docs/games.en.md)
+([中文](yate/docs/games.zh.md)) and [which-key](yate/docs/which-key.en.md)
+([中文](yate/docs/which-key.zh.md)).
 
 ## Packaging
 

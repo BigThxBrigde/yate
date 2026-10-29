@@ -263,8 +263,8 @@ yate/
   extensions/     # 随包扩展：python_lsp（内置 LSP）+ *.py.example 模板
                   #   （example_ext 与 batch/ini/fsharp/git/diff 语法模板，
                   #   .example 后缀不会自动加载）
-  docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱
-                  #   （*.zh.md / *.en.md）
+  docs/           # 中英双语文档：yaterc 配置、扩展 API、主题、LSP 配置食谱、
+                  #   games、which-key（*.zh.md / *.en.md）
   resources/      # manual.zh.md / manual.en.md 双语用户手册、构建期生成的
                   #   changelog.en.md / changelog.zh.md、*.tcss 样式表、
                   #   fonts/、theme_examples/（拷贝即用的主题模板）
@@ -291,6 +291,10 @@ tools/            # 维护工具：changelog、release、smoke_test、pack（图
 pack/             # PyInstaller spec（yate*.spec）与打包脚本：pack.ps1 / pack.bat（Windows）、pack.sh（Linux）
                   #   + yate.ico：可执行程序图标，由 `python -m tools.pack icon` 生成
 ```
+
+站外指南同样存放在 `yate/docs/`：[games](yate/docs/games.zh.md)
+（[English](yate/docs/games.en.md)）与 [which-key](yate/docs/which-key.zh.md)
+（[English](yate/docs/which-key.en.md)）。
 
 ## 打包
 
