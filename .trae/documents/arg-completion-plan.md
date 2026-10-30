@@ -776,6 +776,43 @@ stateDiagram-v2
 7. 观测到一次并行时序 flake：`test_live_search_debounces_rapid_typing`
    （0.3s 防抖断言）；随后两轮全量 `-n auto` 与单进程复跑均未复现，
    与本任务改动文件无交集，留待专项维护任务，不在本任务扩面。
+   ——已由 2026-10-30 闭环修复轮关闭（见下节，根因判定为测试竞态，
+   产品契约无缺陷）。
+8. 闭环修复轮门禁期间另行观测到两例同族 flake（均按
+   python-coding-style.md §4.7 就地修复，不留"重跑即过"）：
+   a. `test_palette_preview.py::test_update_preview_passes_worker_callable`
+      ——单次 `pilot.pause()` 与"按键→worker 产出"链路竞速，`-n auto`
+      下观测一次 captured 为空，单进程复跑通过；改为 `wait_until`
+      轮询 captured。
+   b. `test_app_find_replace.py::test_project_replace_end_to_end_open_edit_replace`
+      ——`wait_until` 谓词直接 `read_text` 与产品侧 `os.replace` 落盘竞速，
+      Windows 上读到 PermissionError 直接打断轮询；谓词改包
+      try/except OSError 视为"未落地、继续轮询"。
+
+### 闭环修复轮（2026-10-30，并行时序 flake 专项）
+
+- **根因取证**（`test_live_search_debounces_rapid_typing`）：产品契约是
+  "每键重臂防抖计时器，窗口流逝后扫一次"；载荷高的 `-n auto` 节点上
+  0.12s 窗口可在按键间隔内流逝，合法产生一次 mid-burst sweep，
+  随后再补一次终态 sweep，`call_count==2`。判为**测试竞态**而非产品缺陷；
+  `tests/test_app_render.py` 的 doc-search 防抖用例注释已记录同型事故
+  （"a loaded CI box once let the real 0.12s window elapse between
+  keystrokes"），修复先例即"冻结窗口 30s + 直接 flush"。
+- **修复**（仅 tests/，产品代码零改动）：
+  1. `test_live_search_debounces_rapid_typing`：按上述先例重写——
+     monkeypatch 冻结 `LIVE_SEARCH_DEBOUNCE_S=30.0`、爆发期断言 0 次扫、
+     断言计时器在臂、直调 `_flush_live_search()` 断言恰好 1 次最新查询扫；
+     删除固定 0.3s sleep。
+  2. `test_live_search_drop_after_prompt_cancel`：同法冻结窗口，
+     删除 0.3s sleep（30s 窗口下计时器不可能测试期内触发）。
+  3. 偏离记录 8.a / 8.b 两例同族修复。
+- **门禁**（worktree `enh/arg-completion`）：
+  | 门禁 | 结果 | 退出码 |
+  |---|---|---|
+  | `pyright yate/ tests/ tools/`（全部改动后复跑） | 0 errors, 0 warnings, 0 informations | 0 |
+  | `pytest tests/ -q -n auto` × 4 轮 | 第 1 轮暴露 8.a、第 2 轮暴露 8.b（均已修复），第 3、4 轮全绿（8 skipped，存量） | 0 |
+  | `pytest tests/test_architecture.py -q`（含于全量轮） | 37 passed | 0 |
+  | 冒烟 | 产品代码零改动，不适用 | — |
 
 ### 最终验收（2026-10-30 主代理亲自重跑）
 | 门禁 | 结果 | 退出码 |

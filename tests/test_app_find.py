@@ -1087,12 +1087,19 @@ def _seed_needles(app: YateApp) -> None:
     app.editor.session.buffer.set_cursor((0, 0))
 
 
-def test_live_search_debounces_rapid_typing(tmp_path: Path) -> None:
+def test_live_search_debounces_rapid_typing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A burst of keystrokes collapses into one full-document sweep.
 
     The synchronous per-key rescan (P8) is gone: while the debounce window
     is armed the engine must not run, and exactly one sweep of the newest
     query fires once the window elapses.
+
+    The window is frozen at 30s before the prompt opens (same precedent as
+    the doc-search debounce test): on a loaded CI box the real 0.12s window
+    can elapse between keystrokes, which legitimately records a mid-burst
+    sweep and races any wall-clock exact-count assertion.
     """
 
     async def scenario() -> None:
@@ -1101,17 +1108,26 @@ def test_live_search_debounces_rapid_typing(tmp_path: Path) -> None:
             await pilot.pause()
             _seed_needles(app)
             search = app.editor.session.search
+            flows = app.editor.prompt_flows
+            monkeypatch.setattr(
+                "yate.flows.prompt_flows.LIVE_SEARCH_DEBOUNCE_S", 30.0
+            )
+            await pilot.press("ctrl+f")
+            await pilot.pause()
             with patch.object(search, "update", wraps=search.update) as spy:
-                await pilot.press("ctrl+f")
-                await pilot.pause()
                 for ch in "needle":
                     await pilot.press(ch)
                 await pilot.pause()
-                # The window is still armed (or a mid-burst sweep fired);
-                # the engine did NOT run once per keystroke.
-                assert spy.call_count < 6
-                await asyncio.sleep(0.3)
-                await pilot.pause()
+                # With a 30s window no timer can fire mid-test: zero sweeps
+                # while typing -- not one per keystroke, not a mid-burst one.
+                assert spy.call_count == 0
+                # The trailing window really is armed and pending (the direct
+                # flush below only covers the callback body, not the arming).
+                assert flows._live_timer is not None
+                # Run the window callback: exactly one sweep of the newest
+                # query (the callback reads the Input live, not a captured
+                # text).
+                flows._flush_live_search()
                 assert spy.call_count == 1
             assert search.query == "needle"
             assert len(search.matches) == 2
@@ -1146,7 +1162,9 @@ def test_live_search_clears_immediately_on_empty(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_live_search_drop_after_prompt_cancel(tmp_path: Path) -> None:
+def test_live_search_drop_after_prompt_cancel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A pending sweep must not touch the engine after the prompt closes."""
 
     async def scenario() -> None:
@@ -1156,14 +1174,19 @@ def test_live_search_drop_after_prompt_cancel(tmp_path: Path) -> None:
             _seed_needles(app)
             flows = app.editor.prompt_flows
             search = app.editor.session.search
+            # Freeze the window beyond the test lifetime (same precedent as
+            # the debounce test above): no timer can fire mid-test, so a
+            # non-empty update could only be the post-close leak this test
+            # guards against.
+            monkeypatch.setattr(
+                "yate.flows.prompt_flows.LIVE_SEARCH_DEBOUNCE_S", 30.0
+            )
             with patch.object(search, "update", wraps=search.update) as spy:
                 await pilot.press("ctrl+f")
                 await pilot.pause()
                 await pilot.press("n")
                 await pilot.pause()
                 await pilot.press("escape")
-                await pilot.pause()
-                await asyncio.sleep(0.3)
                 await pilot.pause()
                 # The armed sweep was dropped, not run post-close.
                 assert flows._live_timer is None
