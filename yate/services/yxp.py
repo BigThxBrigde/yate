@@ -17,8 +17,11 @@ Installing extracts the payload flat into the user extensions directory
 and records ownership in ``_manifests/<name>.json`` next to the files, so
 uninstalling removes exactly the installed files and reinstalling the same
 package upgrades in place while refusing to overwrite files it does not
-own.  This module is pure zip/hash/file logic: no Textual, no editor
-imports (R4 -- ``services/*`` stays UI-free).
+own.  Neither a symlinked member target nor a symlinked intermediate
+directory is ever written through or deleted through: the install fails
+outright, and rollback skips such paths with a warning.  This module is
+pure zip/hash/file logic: no Textual, no editor imports (R4 --
+``services/*`` stays UI-free).
 """
 
 from __future__ import annotations
@@ -260,8 +263,19 @@ def _parse_manifest(data: dict[str, Any], source: str) -> YxpManifest:
     files = tuple(cast(list[str], files_raw))
     if len(set(files)) != len(files):
         raise YxpError(f"{source}: manifest 'files' contains duplicates")
+    # On case-insensitive filesystems names differing only by letter case
+    # would silently overwrite each other on disk, so they are rejected too.
+    seen: set[tuple[str, ...]] = set()
     for entry in files:
         _check_member_name(entry)
+        key = tuple(part.casefold() for part in PurePosixPath(entry).parts)
+        if key in seen:
+            raise YxpError(
+                f"{source}: manifest 'files' contains case-colliding entries "
+                f"({entry!r}); a package must not ship names differing only "
+                "by letter case"
+            )
+        seen.add(key)
     return YxpManifest(
         name=name,
         version=version,
@@ -368,17 +382,29 @@ def install_package(
     exists but is not owned by the same package refuses the install (the
     user's own hand-placed files are never clobbered).  Every payload file
     is on disk before the record is written; a failure anywhere after the
-    first file lands -- mid-extraction or while writing the record --
-    restores the previous installation exactly (overwritten files get
-    their old content back, stale-removed files reappear, fresh files are
-    dropped) and raises :class:`YxpError`.
+    first file lands -- mid-extraction, while pruning stale files, or
+    while writing the record -- restores the previous installation
+    exactly (overwritten files get their old content back, stale-removed
+    files reappear, fresh files are dropped) and raises
+    :class:`YxpError`.
     """
     ext_dir = base_dir if base_dir is not None else default_extensions_dir()
     package = read_package(package_path)
+    if package.checksums is None:
+        log.warning(
+            "installing extension package %s without a checksum member: "
+            "contents cannot be verified",
+            package.manifest.name,
+        )
     manifest = package.manifest
+    records = ext_dir / RECORDS_DIRNAME
+    if records.is_symlink():
+        raise YxpError(
+            f"cannot install {manifest.name}: {records} is a symlink; "
+            "refusing to operate through it"
+        )
     try:
         ext_dir.mkdir(parents=True, exist_ok=True)
-        records = ext_dir / RECORDS_DIRNAME
         records.mkdir(exist_ok=True)
     except OSError as exc:
         raise YxpError(f"cannot prepare {ext_dir} ({exc})") from exc
@@ -394,10 +420,11 @@ def install_package(
             f"belong to another package or to you: {', '.join(collisions)}"
         )
     previous = _extract_payload(package, ext_dir)
-    stale_removed, stale_previous = _remove_stale_files(
-        old_files, manifest, ext_dir
-    )
+    stale_previous: dict[str, bytes] = {}
     try:
+        stale_removed, stale_previous = _remove_stale_files(
+            old_files, manifest, ext_dir
+        )
         _write_record(records, package)
     except YxpError:
         _rollback_files(manifest.files, previous, ext_dir)
@@ -416,6 +443,21 @@ def install_package(
     )
 
 
+def _resolves_through_symlink(ext_dir: Path, rel: str) -> bool:
+    """Any component of *rel* (parents and leaf) under *ext_dir* is a link.
+
+    Only segments below *ext_dir* are inspected: a symlinked ``$HOME``
+    or user directory above the install root is a legitimate user
+    environment and must not fail every install.
+    """
+    probe = ext_dir
+    for part in PurePosixPath(rel).parts:
+        probe = probe / part
+        if probe.is_symlink():
+            return True
+    return False
+
+
 def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
     """Write every manifest file into *ext_dir*; roll back on failure.
 
@@ -432,7 +474,13 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
         with zipfile.ZipFile(package.path) as zf:
             for rel in package.manifest.files:
                 target = ext_dir / rel
-                if target.is_file() or target.is_symlink():
+                if _resolves_through_symlink(ext_dir, rel):
+                    raise YxpError(
+                        f"cannot install {package.manifest.name}: {rel!r} "
+                        "resolves through a symlink; refusing to write "
+                        "through it"
+                    )
+                if target.is_file():
                     previous[rel] = target.read_bytes()
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes(_member_bytes(package, zf, rel))
@@ -477,9 +525,20 @@ def _rollback_files(
     previous: dict[str, bytes],
     ext_dir: Path,
 ) -> None:
-    """Undo a partial extraction: restore overwritten files, drop new ones."""
+    """Undo a partial extraction: restore overwritten files, drop new ones.
+
+    A member whose path resolves through a symlink is skipped with a
+    warning: rollback runs while the original failure is propagating, so
+    it must never raise on its own.
+    """
     for rel in extracted:
         target = ext_dir / rel
+        if _resolves_through_symlink(ext_dir, rel):
+            log.warning(
+                "skipping rollback of %s: path resolves through a symlink",
+                target,
+            )
+            continue
         if rel not in previous:
             _unlink_quietly(target)
             _prune_empty_parents(target.parent, ext_dir)
@@ -491,9 +550,20 @@ def _rollback_files(
 
 
 def _restore_stale_files(previous: dict[str, bytes], ext_dir: Path) -> None:
-    """Put back files deleted by a stale-file cleanup that must be undone."""
+    """Put back files deleted by a stale-file cleanup that must be undone.
+
+    A member whose path resolves through a symlink is skipped with a
+    warning rather than written through.
+    """
     for rel, data in previous.items():
         target = ext_dir / rel
+        if _resolves_through_symlink(ext_dir, rel):
+            log.warning(
+                "skipping restore of stale file %s: path resolves through "
+                "a symlink",
+                target,
+            )
+            continue
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(data)
@@ -506,14 +576,25 @@ def _remove_stale_files(
 ) -> tuple[tuple[str, ...], dict[str, bytes]]:
     """Upgrade path: delete own files dropped from the new manifest.
 
-    Returns the removed names plus their content, so a later failure
-    (the install record) can put the files back.
+    Two phases: every stale path is validated first (one resolving
+    through a symlink refuses the whole install before anything is
+    touched), then the survivors are deleted -- no mid-set abort can
+    leave a partially deleted set behind.  Returns the removed names
+    plus their content, so a later failure (the install record) can put
+    the files back.
     """
     if old_files is None:
         return (), {}
+    stale = sorted(old_files - set(manifest.files))
+    for rel in stale:
+        if _resolves_through_symlink(ext_dir, rel):
+            raise YxpError(
+                f"cannot install {manifest.name}: {rel!r} resolves through "
+                "a symlink; refusing to delete through it"
+            )
     removed: list[str] = []
     previous: dict[str, bytes] = {}
-    for rel in sorted(old_files - set(manifest.files)):
+    for rel in stale:
         target = ext_dir / rel
         if target.is_file() or target.is_symlink():
             try:
@@ -570,17 +651,31 @@ def uninstall_package(name: str, base_dir: Path | None = None) -> UninstallRepor
 
     *name* must match :data:`NAME_RE` -- it becomes a file name under the
     records directory, so a loose name (``..``, separators) is rejected
-    before it can reach the filesystem.
+    before it can reach the filesystem.  The records directory and every
+    member path are validated first: one resolving through a symlink
+    refuses the whole uninstall before anything is removed.
     """
     if not NAME_RE.match(name):
         raise YxpError(
             f"invalid package name {name!r}: must match {NAME_RE.pattern!r}"
         )
     ext_dir = base_dir if base_dir is not None else default_extensions_dir()
-    record_path = ext_dir / RECORDS_DIRNAME / f"{name}{RECORD_SUFFIX}"
+    records = ext_dir / RECORDS_DIRNAME
+    if records.is_symlink():
+        raise YxpError(
+            f"cannot uninstall {name}: {records} is a symlink; refusing "
+            "to operate through it"
+        )
+    record_path = records / f"{name}{RECORD_SUFFIX}"
     if not record_path.is_file():
         raise YxpError(f"extension package not installed: {name}")
     record = _parse_record(record_path)
+    for rel in record.manifest.files:
+        if _resolves_through_symlink(ext_dir, rel):
+            raise YxpError(
+                f"cannot uninstall {name}: {rel!r} resolves through a "
+                "symlink; refusing to delete through it"
+            )
     removed: list[str] = []
     missing: list[str] = []
     for rel in record.manifest.files:

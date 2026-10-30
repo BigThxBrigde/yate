@@ -19,6 +19,10 @@ on:
   pull_request:
     branches: [master]
 
+# Least privilege: this workflow only checks out code and runs tests.
+permissions:
+  contents: read
+
 jobs:
   test:
     name: pytest (${{ matrix.os }}, py${{ matrix.python-version }})

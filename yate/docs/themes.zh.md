@@ -74,8 +74,9 @@ theme_dirs = [
 
 不做任何配置时，yate 会自动扫描：
 
-- 工作目录下的 `./themes/`
-- `~/.yate/themes/`
+- 工作目录下的 `./themes/`（仅在**已信任**的工作区加载——见第 7 节；
+  `:trust` 后需重启 yate）
+- `~/.yate/themes/`（始终加载）
 
 把 `*.py` 主题文件丢进去即可（下划线开头的文件会被跳过）。
 
@@ -138,15 +139,16 @@ Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\theme
 
 1. 内置主题（`mocha` / `macchiato` / `frappe` / `latte` / `onedark` /
    `onelight` / `gruvbox-dark` / `gruvbox-light`）
-2. 默认目录 `./themes`、`~/.yate/themes`
+2. 默认目录：先 `./themes`（仅受信任的工作区，见第 7 节），再
+   `~/.yate/themes`（最后加载，同名时胜出）
 3. yaterc 中的 `theme_dirs`（先用户 rc、后项目 rc）
 4. 命令行 `--theme-dir`
 
 因此可以用一个项目级 yaterc 的 `theme_dirs` 覆盖用户级主题，或用
 `--theme-dir` 在单次启动中临时覆盖全部。
 
-主题文件出错不会中断启动：错误以 `<路径>: <问题>` 的形式显示在启动
-消息栏，其余文件照常加载。
+主题文件出错不会中断启动：错误以 `yaterc: <路径>: <问题>` 的形式显示在
+启动消息栏，其余文件照常加载。
 
 ---
 
@@ -280,3 +282,18 @@ register_theme(Theme(
 
 - 运行时：`:theme` 不带参数，在消息栏列出所有已注册主题名。
 - 命令面板：搜索 `theme` 可找到 `:theme` 命令并按 `Tab` 补全主题名。
+
+---
+
+## 7. 工作区主题与信任
+
+打开一个仓库绝不应执行该仓库自身的代码，因此项目内的 `./themes/` 目录只在
+你显式信任（`:trust`）该工作区后才自动加载——机制与 `./extensions/` 相同
+（见扩展指南"工作区信任"一节）。启动时若在工作区发现未信任的 `./themes/`，
+会跳过该目录并在消息栏提示
+`yaterc: themes: skipped untrusted <path> (trust it and restart yate to
+load them)`。主题目录在启动时一次性解析，信任工作区后需重启 yate 才会
+加载其主题。
+
+用户级 `~/.yate/themes/` 与显式声明——yaterc 的 `theme_dirs`、命令行的
+`--theme-dir`——都是刻意的用户动作，不受门控。

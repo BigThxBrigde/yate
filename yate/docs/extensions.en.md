@@ -131,6 +131,31 @@ that declares them**, so project configs keep working when the project moves.
 A missing path or wrong type is shown as a config error in the message bar
 without affecting other options.
 
+### Trust model
+
+Extensions are **trusted code**: loading an extension means trusting its
+author with the full power of the host.
+
+- Python extensions run as **complete Python**: they can import any
+  installed library and access the file system and processes without
+  yate-level restrictions.
+- Lua extensions run on an **untrimmed Lua 5.4 runtime**: the standard
+  libraries `os`, `io`, `package` and `debug` are all available, and the
+  `api` object (including `api.app`) exposes yate's Python API surface as
+  lupa wrapper objects that Lua code can traverse.
+- The current version ships **no Lua sandbox and no API whitelist** -- do
+  not install extensions from sources you do not trust.
+
+Gating follows the loading source:
+
+- `./extensions/` in the working directory auto-loads only in a
+  **trusted workspace** (`:trust`; see the module docstring of
+  `yate/services/trust.py` for the trust-store semantics): opening an
+  unfamiliar repository never executes its bundled extensions;
+- The remaining channels are **deliberate user actions and are not
+  trust-gated**: the `extensions` option in yaterc, `--ext <file>` /
+  `--ext-dir <dir>`, and the user-level `~/.yate/extensions/`.
+
 ---
 
 ## 3. `setup(api)` and `teardown(api)`

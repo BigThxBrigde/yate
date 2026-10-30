@@ -79,8 +79,9 @@ scope; regular `import` statements work as well.
 
 Without any configuration, yate automatically scans:
 
-- `./themes/` in the working directory
-- `~/.yate/themes/`
+- `./themes/` in the working directory (only in a **trusted** workspace --
+  see section 7; after `:trust`, restart yate to load it)
+- `~/.yate/themes/` (always)
 
 Just drop `*.py` theme files in (files starting with an underscore are
 skipped).
@@ -152,7 +153,9 @@ overrides the earlier one**. Precedence from low to high:
 
 1. Built-in themes (`mocha` / `macchiato` / `frappe` / `latte` /
    `onedark` / `onelight` / `gruvbox-dark` / `gruvbox-light`)
-2. Default directories `./themes`, `~/.yate/themes`
+2. Default directories: first `./themes` (trusted workspaces only, see
+   section 7), then `~/.yate/themes` (loaded last, so it wins on a name
+   collision)
 3. `theme_dirs` in yaterc (user rc first, project rc after)
 4. `--theme-dir` on the command line
 
@@ -160,7 +163,8 @@ So a project-level yaterc's `theme_dirs` can override user-level themes, and
 `--theme-dir` can temporarily override everything for a single launch.
 
 A broken theme file never aborts startup: the error shows in the startup
-message bar as `<path>: <problem>` while the remaining files load normally.
+message bar as `yaterc: <path>: <problem>` while the remaining files load
+normally.
 
 ---
 
@@ -298,3 +302,20 @@ Maps to the token kinds produced by the `editor_syntax` layer (see
   the message bar.
 - Command palette: search for `theme` to find the `:theme` command and complete
   theme names with `Tab`.
+
+---
+
+## 7. Workspace themes and trust
+
+Opening a repository must never execute that repository's own code, so the
+project `./themes/` directory auto-loads only in workspaces you have
+explicitly trusted -- the same mechanism as `./extensions/` (see the
+extensions guide, "Workspace trust"). When startup finds `./themes/` in an
+untrusted workspace it skips the directory and reports
+`yaterc: themes: skipped untrusted <path> (trust it and restart yate to
+load them)` on the message bar. Theme directories are resolved once at
+startup, so after trusting the workspace, restart yate to load its themes.
+
+User-level `~/.yate/themes/` and explicit declarations -- `theme_dirs` in
+yaterc and `--theme-dir` on the command line -- are deliberate user actions
+and are not gated.

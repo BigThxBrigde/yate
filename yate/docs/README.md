@@ -7,6 +7,7 @@ GitHub / Gitee), each topic paired `*.en.md` / `*.zh.md`:
 - `games.*.md` -- the bundled game pack and the shared game engine;
 - `lsp.*.md` -- language server setup;
 - `themes.*.md` -- theme customization and the shipped templates;
+- `which-key.*.md` -- the which-key key hint panel;
 - `yaterc.*.md` -- the `yaterc` configuration reference.
 
 The in-app manual that `:help` renders lives in `yate/resources/manual.*.md`
@@ -22,6 +23,7 @@ note saying so.
 - `games.*.md` -- 随身游戏包与共享游戏引擎；
 - `lsp.*.md` -- 语言服务器配置；
 - `themes.*.md` -- 主题定制与随包模板；
+- `which-key.*.md` -- which-key 按键提示面板；
 - `yaterc.*.md` -- `yaterc` 配置参考。
 
 应用内 `:help` 渲染的手册在 `yate/resources/manual.*.md`（随 wheel 打包、

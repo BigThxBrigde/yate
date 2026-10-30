@@ -18,6 +18,7 @@ import tempfile
 from pathlib import Path
 
 from yate.logs import tracing
+from yate.paths import yate_home
 
 #: Trace logger ("yate.services.data_store"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -28,7 +29,7 @@ DATA_DIRNAME: str = "data"
 
 def data_root() -> Path:
     """Return ``~/.yate/data`` (the directory itself is not created here)."""
-    return Path.home() / ".yate" / DATA_DIRNAME
+    return yate_home() / DATA_DIRNAME
 
 
 def _has_drive_prefix(first: str) -> bool:

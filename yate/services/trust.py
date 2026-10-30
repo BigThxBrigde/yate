@@ -26,13 +26,14 @@ import os
 from pathlib import Path
 
 from yate.logs import tracing
+from yate.paths import yate_home
 
 #: Trace logger ("yate.services.trust"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
 
 #: Path of the per-user trust store, next to the yaterc file.  Read at
 #: call time, so tests can point it at a temporary file.
-TRUST_FILE: Path = Path.home() / ".yate" / "trusted_workspaces"
+TRUST_FILE: Path = yate_home() / "trusted_workspaces"
 
 
 def _has_symlink_component(path: Path) -> bool:

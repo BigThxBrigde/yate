@@ -20,8 +20,9 @@ editor_view.manual) and the ``docs`` guides plus the ``yaterc.example``
 template are plain shipped files users open/copy by their documented
 package-relative paths.
 
-Writable, user-edited data (``~/.yate/yaterc``, themes, user extensions) is
-*not* here; it is resolved by :mod:`yate.config` and the CLI.
+The root of the writable, user-edited data area is provided by this module
+(:func:`yate_home`); the subdirectory semantics still belong to their owner
+modules (config/yaterc, trust, data_store, the CLI).
 """
 
 from __future__ import annotations
@@ -33,6 +34,19 @@ from pathlib import Path
 
 #: Folder name of the bundled-extension directory inside the package.
 EXTENSIONS_DIRNAME: str = "extensions"
+
+#: Directory name of the per-user yate home under the OS home directory.
+YATE_HOME_DIRNAME: str = ".yate"
+
+
+def yate_home() -> Path:
+    """The per-user writable home (``~/.yate``); owners create subdirectories.
+
+    Single authoritative spelling of the user-level root: rc, trust store,
+    user extensions, data and themes all resolve under it.  The directory
+    itself is not created here.
+    """
+    return Path.home() / YATE_HOME_DIRNAME
 
 
 def package_root() -> Path:

@@ -265,7 +265,10 @@ flowchart TD
    ② UI / 服务包（`editor_view` / `services`）**禁止** re-export（现状惯例成文化，
    `editor_view/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
    声明为范本）；**唯一例外**：`editor_view/theme.py` 作为主题广播枢纽与门面再导出
-  （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），不视为本款禁止项；
+  （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），以及
+  `services/extensions/__init__.py` 门面（R14 冻结 14 名插件导入路径，
+  2026-10-29 arch-sec-audit 审计登记，docstring 已自述例外）同为登记例外，
+  不视为本款禁止项；
    ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term`）
    允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
    `from yate.editor_syntax import LangSpec`），且**重量级实现模块**（如
@@ -325,7 +328,11 @@ flowchart TD
      拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
+     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，.yxp 包生命周期
+     单一职责——归档校验/解包/安装/卸载/记录存储一体；F1/N1 symlink 端到端加固
+     （两阶段 stale 清理 + uninstall/records 守卫）越线，刚完成两轮评审加固的
+     安全模块不当场拆分，拆分另行立项）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后

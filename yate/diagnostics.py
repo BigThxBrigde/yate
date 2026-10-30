@@ -225,9 +225,9 @@ def _section_shell() -> list[str]:
 
 def _section_paths() -> list[str]:
     from yate.logs import crash, crash_data_dir
-    from yate.paths import bundled_extensions_dir, package_root
+    from yate.paths import bundled_extensions_dir, package_root, yate_home
 
-    user_dir = Path.home() / ".yate"
+    user_dir = yate_home()
     crash_dir = crash_data_dir()
     current_crash = crash.current_crash_file()
     all_crashes = sorted(crash_dir.glob("crash-*.err")) if crash_dir.is_dir() else []
@@ -342,7 +342,7 @@ def _section_syntax() -> list[str]:
 # -------------------------------------------------------------- extensions
 
 def _section_extensions(editor: Editor) -> list[str]:
-    from yate.paths import bundled_extensions_dir
+    from yate.paths import bundled_extensions_dir, yate_home
 
     lines: list[str] = ["  candidate dirs:"]
 
@@ -360,7 +360,7 @@ def _section_extensions(editor: Editor) -> list[str]:
     for d in editor.ext_dirs:
         _dir_line("ext-dir", d)
     _dir_line("project", Path.cwd() / "extensions")
-    _dir_line("user", Path.home() / ".yate" / "extensions")
+    _dir_line("user", yate_home() / "extensions")
     for f in editor.ext_files:
         if f.is_file():
             lines.append(f"    ext-file: {f}")

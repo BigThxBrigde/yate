@@ -8,7 +8,9 @@ problem string and :func:`load_theme_paths` collects those into an error list.
 
 Split from :mod:`yate.editor_view.theme` (big-module-split wave d); import
 direction is one-way: this module depends on
-:mod:`yate.editor_view.themes` only.
+:mod:`yate.editor_view.themes`, :mod:`yate.paths` and
+:mod:`yate.services.trust` (the last an L0 down edge for the
+workspace-theme trust gate).
 """
 
 from __future__ import annotations
@@ -18,6 +20,8 @@ from pathlib import Path
 from typing import Any
 
 from yate.editor_view.themes import Theme, register_theme
+from yate.paths import yate_home
+from yate.services.trust import is_trusted
 
 __all__ = [
     # ``_theme_namespace`` is private by naming convention but re-exported by
@@ -25,6 +29,7 @@ __all__ = [
     # shipped templates under exactly this namespace); listing it here marks
     # it as exported so the re-export stays pyright-clean (wave-a precedent).
     "_theme_namespace",
+    "default_theme_dirs",
     "load_theme_file",
     "load_theme_paths",
 ]
@@ -47,6 +52,34 @@ def _theme_namespace() -> dict[str, Any]:
         "Theme": Theme,
         "register_theme": register_theme,
     }
+
+
+def default_theme_dirs(errors: list[str]) -> list[Path]:
+    """Resolve the built-in theme directories, gating workspace themes on trust.
+
+    The user-level ``~/.yate/themes`` is the user's own data and loads
+    unconditionally.  ``./themes`` inside the opened workspace executes
+    workspace-authored Python, so it auto-loads only in workspaces trusted
+    via :command:`:trust` -- theme directories are resolved once at
+    startup, so a fresh ``:trust`` takes effect on the next start
+    (mirroring the ``./extensions`` gate in
+    :mod:`yate.services.extensions.loader`).  A skipped workspace directory
+    appends a ``"themes: skipped untrusted ..."`` note to *errors*, the
+    same user-visible channel as rc discovery notes.
+    """
+    theme_dirs: list[Path] = []
+    cwd = Path.cwd().resolve()
+    cwd_themes = cwd / "themes"
+    if cwd_themes.is_dir():
+        if is_trusted(cwd):
+            theme_dirs.append(cwd_themes)
+        else:
+            errors.append(
+                f"themes: skipped untrusted {cwd_themes} "
+                "(trust it and restart yate to load them)"
+            )
+    theme_dirs.append(yate_home() / "themes")
+    return theme_dirs
 
 
 def load_theme_file(path: Path | str) -> str | None:

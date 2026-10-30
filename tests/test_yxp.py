@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import io
 import json
+import logging
+import os
 import zipfile
 from hashlib import sha256
 from pathlib import Path
@@ -154,6 +156,26 @@ def test_read_package_rejects_unsafe_names(tmp_path: Path, rel: str) -> None:
     )
     with pytest.raises(yxp.YxpError):
         yxp.read_package(pkg)
+
+
+def test_read_package_rejects_case_colliding_names(tmp_path: Path) -> None:
+    # On case-insensitive filesystems these members would overwrite each
+    # other on disk, so the manifest must be rejected up front. Per-segment
+    # casefolding also catches nested pairs like sub/x.py vs SUB/X.py.
+    flat = make_yxp(
+        tmp_path / "flat.yxp",
+        {"a.py": b"1", "A.py": b"2"},
+        manifest={"name": "flat", "files": ["a.py", "A.py"]},
+    )
+    with pytest.raises(yxp.YxpError, match="case-colliding"):
+        yxp.read_package(flat)
+    nested = make_yxp(
+        tmp_path / "nested.yxp",
+        {"sub/x.py": b"1", "SUB/X.py": b"2"},
+        manifest={"name": "nested", "files": ["sub/x.py", "SUB/X.py"]},
+    )
+    with pytest.raises(yxp.YxpError, match="case-colliding"):
+        yxp.read_package(nested)
 
 
 def test_read_package_checksum_keys_mismatch(tmp_path: Path) -> None:
@@ -404,6 +426,197 @@ def test_failed_record_replace_keeps_old_record_and_drops_temp(
     assert not tmp_record.exists()  # temp residue dropped
 
 
+def test_install_refuses_symlinked_member_target(tmp_path: Path) -> None:
+    """A symlinked member target fails the whole install, untouched."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"packaged"})
+    yxp.install_package(pkg, base)
+    outside = tmp_path / "outside.txt"
+    outside.write_bytes(b"precious")
+    target = base / "hello.py"
+    target.unlink()
+    try:
+        os.symlink(outside, target)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert outside.read_bytes() == b"precious"  # never written through
+    assert target.is_symlink()  # install dir state unchanged
+    assert _record_path(base, "hello").exists()  # record intact
+
+
+def test_install_refuses_symlinked_parent_directory(tmp_path: Path) -> None:
+    """A symlinked intermediate directory fails the install untouched."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/x.py": b"payload"})
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert list(outside.iterdir()) == []  # nothing written through
+    assert not _record_path(base, "hello").exists()  # no record either
+
+
+def test_install_refuses_symlinked_parent_on_stale_removal(
+    tmp_path: Path,
+) -> None:
+    """A symlinked parent of a stale member refuses the upgrade, intact."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"sub/x.py": b"v1"})
+    yxp.install_package(v1, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_bytes(b"keep")
+    v2 = make_yxp(tmp_path / "v2.yxp", {"hello.py": b"v2"})
+    (base / "sub" / "x.py").unlink()
+    (base / "sub").rmdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(v2, base)
+    assert (outside / "keep.txt").read_bytes() == b"keep"  # not deleted
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["sub/x.py"]  # v1 record intact
+    assert not (base / "hello.py").exists()  # v2 extraction rolled back
+
+
+def test_install_refuses_symlinked_stale_member_leaves_others(
+    tmp_path: Path,
+) -> None:
+    """A symlinked stale member refuses the upgrade without partial deletes."""
+    base = tmp_path / "base"
+    v1 = make_yxp(tmp_path / "v1.yxp", {"a.py": b"a", "b.py": b"b", "zz.py": b"z"})
+    yxp.install_package(v1, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    v2 = make_yxp(tmp_path / "v2.yxp", {"d.py": b"d"})
+    (base / "zz.py").unlink()
+    try:
+        os.symlink(outside, base / "zz.py")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(v2, base)
+    assert (base / "a.py").read_bytes() == b"a"  # stale, not deleted
+    assert (base / "b.py").read_bytes() == b"b"  # stale, not deleted
+    record = json.loads(_record_path(base, "hello").read_text(encoding="utf-8"))
+    assert record["files"] == ["a.py", "b.py", "zz.py"]  # matches disk
+    assert not (base / "d.py").exists()  # v2 extraction rolled back
+
+
+def test_uninstall_refuses_symlinked_parent_directory(tmp_path: Path) -> None:
+    """Uninstall refuses to delete through a symlinked member parent."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"sub/x.py": b"x"})
+    yxp.install_package(pkg, base)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "keep.txt").write_bytes(b"keep")
+    (base / "sub" / "x.py").unlink()
+    (base / "sub").rmdir()
+    try:
+        os.symlink(outside, base / "sub", target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.uninstall_package("hello", base)
+    assert (outside / "keep.txt").read_bytes() == b"keep"  # untouched
+    assert _record_path(base, "hello").exists()  # record intact
+
+
+def test_install_refuses_symlinked_records_directory(tmp_path: Path) -> None:
+    """A symlinked records directory fails the install before any write."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(
+            outside, base / yxp.RECORDS_DIRNAME, target_is_directory=True
+        )
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.install_package(pkg, base)
+    assert list(outside.iterdir()) == []  # nothing written through
+    assert not (base / "hello.py").exists()  # no extraction either
+
+
+def test_uninstall_refuses_symlinked_records_directory(tmp_path: Path) -> None:
+    """A symlinked records directory fails the uninstall untouched."""
+    base = tmp_path / "base"
+    base.mkdir(parents=True)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(
+            outside, base / yxp.RECORDS_DIRNAME, target_is_directory=True
+        )
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    with pytest.raises(yxp.YxpError, match="symlink"):
+        yxp.uninstall_package("hello", base)
+    assert list(outside.iterdir()) == []  # nothing written through
+
+
+def test_install_overwrites_regular_member_still_works(tmp_path: Path) -> None:
+    """Reinstalling over a regular member file keeps overwriting."""
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"new content"})
+    yxp.install_package(pkg, base)
+    report = yxp.install_package(pkg, base)
+    assert isinstance(report, yxp.InstallReport)
+    assert report.files == ("hello.py",)
+    assert (base / "hello.py").read_bytes() == b"new content"
+
+
+def test_install_without_checksum_logs_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Installing a checksum-less package logs a WARNING but succeeds."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp.install_package(pkg, base)
+    assert (base / "hello.py").read_bytes() == b"x"
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "without a checksum member" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_install_with_checksum_no_warning(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A checksummed package installs without the unverifiable warning."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp.install_package(pkg, base)
+    assert (base / "hello.py").read_bytes() == b"x"
+    assert not any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "without a checksum member" in record.getMessage()
+        for record in caplog.records
+    )
+
+
 # --------------------------------------------------------- member size caps
 
 
@@ -463,6 +676,61 @@ def test_stale_file_whose_backup_fails_is_kept(
     monkeypatch.undo()
     assert (base / "old.py").read_bytes() == b"o1"  # kept, not deleted
     assert "old.py" not in report.stale_removed
+
+
+# ------------------------------------------ rollback / restore symlink skips
+
+
+def test_rollback_skips_symlinked_member(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A member resolving through a symlink is skipped, not unlinked."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    base.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_bytes(b"outside")
+    target = base / "x.py"
+    try:
+        os.symlink(outside, target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp._rollback_files(["x.py"], {}, base)
+    assert outside.read_bytes() == b"outside"  # not deleted through the link
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "skipping rollback" in record.getMessage()
+        for record in caplog.records
+    )
+
+
+def test_restore_stale_files_skips_symlinked_member(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale-file backup is not written through a symlinked member."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    base = tmp_path / "base"
+    base.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_bytes(b"outside")
+    target = base / "x.py"
+    try:
+        os.symlink(outside, target)
+    except OSError:
+        pytest.skip("symlink creation unavailable")
+    with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
+        yxp._restore_stale_files({"x.py": b"restored"}, base)
+    assert outside.read_bytes() == b"outside"  # not written through the link
+    assert any(
+        record.name == "yate.services.yxp"
+        and record.levelno == logging.WARNING
+        and "skipping restore" in record.getMessage()
+        for record in caplog.records
+    )
 
 
 # ---------------------------------------------------------- uninstall_package

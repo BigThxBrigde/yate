@@ -338,11 +338,19 @@ MAX_SOURCE_LINES: int = 800
 #: (spec table + word-list constants) whose two public test-seam accessors
 #: pushed it past the threshold; splitting it would touch the in-place
 #: patch semantics pinned by big-module-split plan-a for zero behavior gain.
+#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` registered at 830 lines.
+#: The .yxp package lifecycle (archive validation, extraction, install,
+#: uninstall, records store) is one duty; its end-to-end symlink hardening
+#: (audit F1/N1: two-phase stale pruning plus uninstall and records guards)
+#: pushed it past the threshold.  Splitting a freshly hardened security
+#: module mid-round is churn, so the split is registered as a follow-up
+#: candidate instead.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
+    "services/yxp.py",
     "tools/pack/wiki.py",
 })
 
