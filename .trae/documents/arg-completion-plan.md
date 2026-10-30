@@ -748,3 +748,40 @@ stateDiagram-v2
 ```
 
 通过标准：退出码 0，37 个架构守卫全绿，覆盖率不降。
+
+## 十、执行记录（2026-10-30 回填）
+
+### 闭环轮次
+- 方案：plan-architect-designer 落盘初版；主代理复核修正三处（见文首注记）。
+- 执行波 a：plan-executor 完成 a.1-a.7，commit `1ecb7fa`。
+- 执行波 b：plan-executor 完成 b.1-b.4，commit `67c3509`（含主代理适配 3 个断言旧行为的既有 pilot 用例）。
+- 审核：code-review-expert 结论"需修复"——1 blocker / 3 major / 2 minor，均有运行时/冒烟实证。
+- 迭代修复：plan-executor 按 B1/M1/M2/M3/m1/m2 清单修复并补回归测试；主代理独立重跑五项验收全绿。
+
+### 偏离计划的实测记录
+1. 计划引用的测试文件名与现实不符：`test_commands.py` 实际为 `test_command_path_args.py`；
+   扩展 API 用例实际为 `test_extension_api.py`；`path_matches` 直测就近落入
+   `test_workspace_filter.py`。按现实文件落位。
+2. 6 个以二元组消费 `commands.get()` 的既有测试文件机械适配
+   （`entry[0]→entry.func` / `entry[1]→entry.description`），零设计变更。
+3. M3 修复：扩展 completer 在注册边界包守卫（异常记日志返回 `[]`），
+   rollback 快照还原的是已包装版本（行为等价）；两处 `arg_completer is fn`
+   身份断言改为行为断言。
+4. m1 裁决：删除 `set` 值分支 `value.strip()`，严格对齐基线候选口径。
+5. B1 为计划缺口（未列 E2E 冒烟场景更新步骤）：本轮补修
+   `tools/smoke_test/scenarios/guards.py` 的 `prompt_tab_completion` /
+   `path_cycled` 场景至二段式语义（docstring 同步重写）。
+6. M1 修复为双保险：`activate()` 单点复位 + escape/ctrl+c 与 key_hook
+   消费路径显式复位；`_reset_tab_state` 升为公共方法（跨类消费者）。
+7. 观测到一次并行时序 flake：`test_live_search_debounces_rapid_typing`
+   （0.3s 防抖断言）；随后两轮全量 `-n auto` 与单进程复跑均未复现，
+   与本任务改动文件无交集，留待专项维护任务，不在本任务扩面。
+
+### 最终验收（2026-10-30 主代理亲自重跑）
+| 门禁 | 结果 | 退出码 |
+|---|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q -n auto` | 全绿（8 skipped，存量） | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| `pytest tests/ --cov=yate --cov-branch --cov-fail-under=0` | TOTAL 92%（门禁 75） | 0 |
+| `tools.smoke_test run --jobs 4` | 117/117 场景，1411/1411 checks | 0 |
