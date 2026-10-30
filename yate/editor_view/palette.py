@@ -44,6 +44,10 @@ from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scroll
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
 
+#: placeholder of the commands-mode query input; shared by ``compose`` and
+#: :meth:`PaletteScreen._exit_argument_mode` so the wording cannot drift.
+_COMMANDS_PLACEHOLDER: str = "search commands and actions by name…"
+
 log = tracing.get_logger(__name__)
 
 
@@ -550,7 +554,7 @@ class PaletteScreen(ModalScreen[None]):
         with Vertical(id="palette"):
             placeholder = (
                 "search files by name…" if self.mode == "files"
-                else "search commands and actions by name…"
+                else _COMMANDS_PLACEHOLDER
             )
             yield Input(placeholder=placeholder, id="palette-input")
             if self.mode == "files" and self.preview.enable:
@@ -691,7 +695,7 @@ class PaletteScreen(ModalScreen[None]):
         """Leave argument mode: restore the command list (Esc, not dismiss)."""
         self._arg_mode = None
         input_widget = self.query_one("#palette-input", Input)
-        input_widget.placeholder = "search commands and actions by name…"
+        input_widget.placeholder = _COMMANDS_PLACEHOLDER
         self._build_command_entries()
         input_widget.value = ""
         self.refilter(input_widget.value)

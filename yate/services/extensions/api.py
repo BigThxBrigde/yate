@@ -359,6 +359,25 @@ class ExtensionAPI:
 
         return guarded
 
+    def _guarded_completer(self, name: str, completer: ArgCompleter) -> ArgCompleter:
+        """Wrap an extension ``arg_completer`` so a raise degrades to none.
+
+        Unlike :meth:`_guarded_callback` the wrapper cannot report on the
+        message line -- it runs while the ex line / palette is mid-completion
+        -- so it logs the traceback and returns ``[]``: a failing candidate
+        source shows *no* candidates instead of crashing the Tab path
+        (``flows/prompt_completion.py``, ``editor_view/palette.py``).
+        """
+
+        def guarded(prefix: str) -> list[str]:
+            try:
+                return completer(prefix)
+            except Exception:  # noqa: BLE001 - user code, never crash the app
+                log.exception("extension command %s arg_completer raised", name)
+                return []
+
+        return guarded
+
     def register_action(self, name: str, func: AnyCallback, description: str = "") -> None:
         """Register a named action (usable from key maps / commands)."""
         self._record_action_snapshot(name)
@@ -520,9 +539,13 @@ class ExtensionAPI:
 
         def _decorator(func: CommandFunc) -> CommandFunc:
             self._record_command_snapshot(name)
+            guarded_completer = (
+                None if arg_completer is None
+                else self._guarded_completer(name, arg_completer)
+            )
             self._ctx.commands.register(
                 name, self._guarded_callback(f"command {name}", func),
-                description, arg_completer,
+                description, guarded_completer,
             )
             return func
 
@@ -534,11 +557,15 @@ class ExtensionAPI:
     ) -> None:
         """Register a ``:`` command (the non-decorator form)."""
         self._record_command_snapshot(name)
+        guarded_completer = (
+            None if arg_completer is None
+            else self._guarded_completer(name, arg_completer)
+        )
         self._ctx.commands.register(
             name,
             self._guarded_callback(f"command {name}", func),
             description or "extension command",
-            arg_completer,
+            guarded_completer,
         )
 
     # -------------------------------------------------------------- services

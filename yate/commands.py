@@ -202,7 +202,6 @@ def _make_set_completer(editor: Editor) -> ArgCompleter:
         if "=" in prefix:
             key, _, value = prefix.partition("=")
             key = key.strip()
-            value = value.strip()
             if key == "keymap":
                 vals: tuple[str, ...] = ("vsc", "vim")
             elif key == "theme":

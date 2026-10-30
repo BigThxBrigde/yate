@@ -33,6 +33,7 @@ from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, s
 from tools.smoke_test.scenarios._base import goto, message_text, run_command, type_text
 from yate.app import YateApp
 from yate.editor_view import theme
+from yate.editor_view.commandline import OWNER_CANDIDATES
 from yate.keymaps.base import Keymap
 from yate.keymaps.vsc import VscKeymap
 
@@ -191,27 +192,30 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
     """Tab completes command names, ``:set`` values and open-prompt paths.
 
     ``CommandInput._do_tab_completion`` (yate/editor_view/commandline.py)
-    drives bash-style completion: one match is applied at once, several
-    matches extend to the longest common prefix and further tabs cycle while
-    the value is one of the matches.  The candidates come from
-    ``prompt_completions`` (yate/prompt_completion.py): command names, the
-    ``:set`` option list, the per-option value enums and filesystem entries
-    for the open prompt.
-
-    Measured behaviour worth pinning (it is not what the code reads like):
-    the *value enum* does not cycle.  ``prompt_completions`` returns
-    ``"set theme=<name>"`` for every registered theme, so after the first tab
-    the value is that same ``"set theme="`` prefix plus the first sorted theme
-    name (``theme.available()[0]``); a second tab recomputes the candidates
-    from that completed value, the value filter ``v != value`` now excludes
-    the only prefix match, and the round restarts.  The *path* candidates do
-    cycle, because the completed value is still a directory prefix there.
+    drives two-phase bash-style completion: a single match is applied at
+    once; several matches extend to the longest common prefix and list the
+    remaining candidates on the message slot instead of applying one right
+    away, and the next tab applies the first candidate, with further tabs
+    cycling while the value is one of the matches.  The candidates come
+    from ``prompt_completions`` (yate/flows/prompt_completion.py): command
+    names, the ``:set`` option list, the per-option value enums and
+    filesystem entries for the open prompt.
 
     The theme expectations are derived from :func:`theme.available` rather
     than spelled out, so adding or removing a theme does not turn this
-    scenario into a registry snapshot: what is asserted is that the
-    completer offers exactly the registered themes and that the round starts
-    at the first of them, not *which* theme happens to sort first today.
+    scenario into a registry snapshot.  What is asserted is the two-phase
+    shape: the first tab leaves the typed ``set theme=`` value alone with
+    the candidate string owning the message slot, the second tab lands on
+    ``theme.available()[0]`` (the completer returns full
+    ``"set theme=<name>"`` strings, so the pending branch applies the
+    first of them), and enter applies that theme.
+
+    The path expectations are derived from the temporary tree, not from
+    this machine's layout: ``sub/`` and ``sub2.txt`` share the prefix
+    ``sub`` (longer than the typed ``su``), the pending tab applies
+    ``sub/`` -- the first candidate, not a cycle step -- and the next tab
+    descends, because a trailing separator makes the completer list the
+    directory contents and the single-match branch runs before cycling.
     """
     (tmp / "sub").mkdir()
     (tmp / "sub" / "inner.txt").write_text("inner", encoding="utf-8")
@@ -240,7 +244,7 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
         await pilot.pause()
         checks.append(Check("cancelled", None, bar.active_mode))
 
-        # --- value enum completion: "set theme=" takes the first theme name
+        # --- value enum completion: first tab lists, second tab takes [0]
         await pilot.press("f5")
         await pilot.pause()
         await type_text(pilot, "set theme=")
@@ -249,7 +253,16 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
         await pilot.press("tab")
         await pilot.pause()
         # Several themes match and their common prefix is not longer than
-        # what was typed, so the first tab starts the round at matches[0].
+        # what was typed, so the first tab starts the round: the value is
+        # untouched and the candidate string owns the message slot.
+        checks.append(Check("value_pending", "set theme=", bar.input.value))
+        checks.append(Check("candidates_shown", OWNER_CANDIDATES, bar.owner))
+        checks.append(Check("candidate_string", True,
+                            _message(app).startswith("{set theme=")))
+        await pilot.press("tab")
+        await pilot.pause()
+        # The value is none of the candidates, so they are still pending:
+        # this tab applies the first candidate of the round.
         checks.append(Check("first_value",
                             f"set theme={theme.available()[0]}",
                             bar.input.value))
@@ -261,24 +274,29 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
         await run_command(pilot, "set theme=mocha")
         checks.append(Check("theme_restored", "mocha", theme.active().name))
 
-        # --- path candidates in the open prompt: "su" -> "sub" then "sub/"
+        # --- path candidates in the open prompt: "su" -> "sub" -> descend
         await pilot.press("ctrl+o")
         await pilot.pause()
         checks.append(Check("open_mode", "open", bar.active_mode))
         await type_text(pilot, "su")
         await pilot.press("tab")
         await pilot.pause()
-        # Two candidates share the prefix "sub", which is longer than "su",
-        # so the common prefix is applied and the round is kept open.
+        # Two candidates share the prefix "sub" ("sub/" and "sub2.txt"),
+        # which is longer than "su": it is applied and the remaining
+        # candidates are listed instead of applying one right away.
         checks.append(Check("path_common_prefix", "sub", bar.input.value))
+        checks.append(Check("path_candidates_shown", "{sub/, sub2.txt}",
+                            _message(app)))
         await pilot.press("tab")
         await pilot.pause()
-        # The value is now a match, so the next tab cycles to it.
-        checks.append(Check("path_cycled", "sub/", bar.input.value))
+        # The applied prefix is not one of the candidates, so they are
+        # still pending: this tab applies the first one, not a cycle step.
+        checks.append(Check("path_pending_applied", "sub/", bar.input.value))
         await pilot.press("tab")
         await pilot.pause()
         # "sub/" is a directory prefix, so the candidates are its contents
-        # and the single entry is applied at once.
+        # and the single entry is applied at once (the single-match branch
+        # runs before the cycle branch could step to "sub2.txt").
         checks.append(Check("path_descended", "sub/inner.txt", bar.input.value))
         # Cancelled rather than submitted: the scenario is about the
         # candidates, and opening a path would re-root the workspace.

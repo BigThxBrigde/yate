@@ -239,7 +239,10 @@ def test_register_command_with_arg_completer() -> None:
                          arg_completer=_completer)
     registered = commands.get("ext_cmd3")
     assert registered is not None
-    assert registered.arg_completer is _completer
+    # The API wraps the completer in a guard callback, so identity does not
+    # hold; the behaviour does (same candidates as the original).
+    assert registered.arg_completer is not None
+    assert registered.arg_completer("x") == ["x"]
 
 
 def test_command_decorator_with_arg_completer() -> None:
@@ -256,7 +259,29 @@ def test_command_decorator_with_arg_completer() -> None:
     registered = commands.get("ext_cmd4")
     assert registered is not None
     assert registered.description == "decorated"
-    assert registered.arg_completer is _completer
+    # Guard-wrapped (see test_register_command_with_arg_completer), so this
+    # is a behaviour assertion, not an identity one.
+    assert registered.arg_completer is not None
+    assert registered.arg_completer("y") == ["y"]
+
+
+def test_raising_arg_completer_degrades_to_no_candidates() -> None:
+    """An extension completer that raises yields ``[]``, never a crash."""
+    api, _actions, commands, _keymaps = _extension_api()
+
+    def _fn(_args: str) -> None:
+        pass
+
+    def _boom(_prefix: str) -> list[str]:
+        raise RuntimeError("boom")
+
+    api.register_command("ext_cmd_boom", _fn, "raising completer",
+                         arg_completer=_boom)
+    registered = commands.get("ext_cmd_boom")
+    assert registered is not None
+    assert registered.arg_completer is not None
+    assert registered.arg_completer("") == []
+    assert registered.arg_completer("anything") == []
 
 
 def test_register_command_without_arg_completer_backward_compatible() -> None:

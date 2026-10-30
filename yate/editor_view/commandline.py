@@ -99,7 +99,13 @@ class CommandInput(Input):
         """Place the history cursor after the newest entry."""
         self._hist_index = len(self.history)
 
-    def _reset_tab_state(self) -> None:
+    def reset_tab_state(self) -> None:
+        """Drop any pending tab-completion round.
+
+        Public because :meth:`PromptBar.activate` (the single prompt entry
+        point) must also be able to clear a stale round left over from the
+        previous prompt.
+        """
         self._tab_matches = []
         self._tab_index = -1
 
@@ -133,12 +139,12 @@ class CommandInput(Input):
             return
         matches = self.bar.completer(current, mode)
         if not matches:
-            self._reset_tab_state()
+            self.reset_tab_state()
             self.bar.clear_candidates()
             return
         if len(matches) == 1:
             self._apply_value(matches[0])
-            self._reset_tab_state()
+            self.reset_tab_state()
             self.bar.clear_candidates()
             return
         # Repeated Tab with the value still at one of the applied matches ->
@@ -182,10 +188,14 @@ class CommandInput(Input):
         if hook is not None and hook(event.key):
             event.stop()
             event.prevent_default()
+            # A consumed key ends any pending completion round even though
+            # the hook swallows it before the tab branch can see it.
+            self.reset_tab_state()
             return
         if event.key in ("escape", "ctrl+c"):
             event.stop()
             event.prevent_default()
+            self.reset_tab_state()
             self.bar.cancel()
             return
         if event.key == "tab":
@@ -195,7 +205,7 @@ class CommandInput(Input):
             return
         # any other key ends an active tab-completion round and drops the
         # candidate string shown on the message line
-        self._reset_tab_state()
+        self.reset_tab_state()
         self.bar.clear_candidates()
         if event.key == "up":
             event.stop()
@@ -324,6 +334,11 @@ class PromptBar(Horizontal):
         if not self.is_mounted:
             return False
         log.debug("prompt activate: mode=%s", mode)
+        # A stale tab round from the previous prompt must not leak into this
+        # one: reset the completion state up front (activate is the single
+        # entry point, so every prompt starts from a clean round).
+        self.input.reset_tab_state()
+        self.clear_candidates()
         prefix, attr = prefix_spec(mode)
         self.active_mode = mode
         self._on_submit = on_submit
@@ -365,7 +380,10 @@ class PromptBar(Horizontal):
         if len(display) > max_width:
             display = display[: max_width - 3] + "..."
         display += "}"
-        self.message.update(display)
+        # escape(): candidates are external text (file names, command names)
+        # and may contain brackets -- without escaping, Rich would parse
+        # "[test].py" as a markup tag and mangle the shown string.
+        self.message.update(escape(display))
         self.message.display = True
         self.owner = OWNER_CANDIDATES
 

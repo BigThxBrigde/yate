@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 
+from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import override
 
@@ -140,6 +141,60 @@ def test_escape_clears_candidates() -> None:
             await pilot.press("escape")
             await pilot.pause()
             assert bar.owner != OWNER_CANDIDATES
+
+    asyncio.run(scenario())
+
+
+def test_escape_resets_tab_state_for_the_next_prompt() -> None:
+    """A stale tab round does not leak into the next prompt (review M1).
+
+    ``se`` + tab leaves candidates pending; escape then reopening a prompt
+    and tabbing at once must start a fresh round on the new value instead
+    of applying a leftover match from the cancelled one.
+    """
+    bar = _bar(["set", "shade"])
+
+    async def scenario() -> None:
+        app = _Host(bar)
+        async with app.run_test(size=(100, 10)) as pilot:
+            _prompt(bar, "se")
+            _tab(bar)
+            assert bar.input._tab_matches == ["set", "shade"]
+            await pilot.press("escape")
+            await pilot.pause()
+            # the escape branch itself drops the round
+            assert bar.input._tab_matches == []
+            assert bar.input._tab_index == -1
+            _prompt(bar, "sh")
+            # activate() resets again (single entry point, double safety)
+            assert bar.input._tab_matches == []
+            _tab(bar)
+            # first tab of a clean round: value untouched, new matches shown
+            assert bar.input.value == "sh"
+            assert bar.input._tab_matches == ["set", "shade"]
+            assert bar.owner == OWNER_CANDIDATES
+
+    asyncio.run(scenario())
+
+
+def test_candidates_with_brackets_render_verbatim() -> None:
+    """``[`` in a candidate is escaped, not parsed as a markup tag (M2)."""
+    bar = _bar(["[test].py", "foo"])
+
+    async def scenario() -> None:
+        app = _Host(bar)
+        async with app.run_test(size=(100, 10)):
+            _prompt(bar, "[")
+            _tab(bar)
+            assert bar.owner == OWNER_CANDIDATES
+            rendered = bar.message.content
+            assert isinstance(rendered, str)
+            # the source string carries the escape so Rich cannot eat the
+            # bracket as a tag (unescaped, "{[test].py, foo}" renders as
+            # "{.py, foo}")
+            assert rendered == "{\\[test].py, foo}"
+            # ... and the markup renders back to the verbatim candidate text
+            assert Text.from_markup(rendered).plain == "{[test].py, foo}"
 
     asyncio.run(scenario())
 
