@@ -894,6 +894,12 @@ class Editor:
         if event.key == "alt+shift+s":
             self.execute_action("toggle_screensaver")
             return True
+        # alt+shift+f opens the file manager overlay: same alt+shift shape
+        # as the two chords above (no raw byte form, keymap row is
+        # help-only), so the real dispatch is by key name here.
+        if event.key == "alt+shift+f":
+            self.filemanager_flows.open_overlay()
+            return True
         # vscode-style pane focus chords (CSI-u encodings, not in the raw
         # byte table)
         if event.key == "ctrl+shift+e":

@@ -233,6 +233,14 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="open a file in hex view (read-only hex dump)",
     )
+    parser.add_argument(
+        "--file-manager",
+        dest="file_manager",
+        nargs="?",
+        const=".",
+        metavar="PATH",
+        help="open the lf-style file manager ([PATH], default cwd)",
+    )
     return parser
 
 
@@ -270,6 +278,17 @@ def _validate_hex_args(
             parser.error("--hex cannot be combined with a startup path argument")
         if args.diff_files:
             parser.error("--hex cannot be combined with --diff")
+
+
+def _validate_file_manager_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Validate the ``--file-manager`` combination rules up front.
+
+    ``parser.error`` exits with code 2, like every other argparse rejection.
+    """
+    if args.file_manager is not None and args.path:
+        parser.error("--file-manager and positional PATH are mutually exclusive")
 
 
 def _manage_extensions(args: argparse.Namespace) -> int:
@@ -322,6 +341,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # with code 2, like every other argparse rejection).
     _validate_diff_args(parser, args)
     _validate_hex_args(parser, args)
+    _validate_file_manager_args(parser, args)
 
     # --version prints basic information without loading any configuration
     # or touching the terminal. Handle it first so it stays instant.
@@ -398,6 +418,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     from yate.editor_view import theme as theme_mod
 
     target = Path(args.path) if args.path else None
+    # CLI --file-manager request: resolved to an absolute directory here so
+    # the app receives a concrete Path ("." = the cwd, per the argparse const).
+    fm_dir = (
+        Path(args.file_manager).resolve() if args.file_manager is not None else None
+    )
     # user-visible notes from the rc discovery (an untrusted project rc skip)
     rc_notes: list[str] = []
     if args.yaterc == "NONE":
@@ -490,6 +515,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.diff_files
         else None,
         hex_file=Path(args.hex_file) if args.hex_file else None,
+        filemanager_dir=fm_dir,
     )
     app.run()
     return 0

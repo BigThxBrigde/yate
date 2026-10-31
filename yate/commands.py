@@ -330,6 +330,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _palette(args: str) -> None:
         editor.overlays.open_command_palette()
 
+    def _file_manager(args: str) -> None:
+        editor.filemanager_flows.open_overlay()
+
     def _project_replace(args: str) -> None:
         editor.overlays.open_project_replace()
 
@@ -352,6 +355,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         "promote the chunked document to a fully loaded editable buffer")
     reg("files", _files, "fuzzy quick file open (ctrl+p)")
     reg("palette", _palette, "command palette (alt+shift+p)")
+    reg("file-manager", _file_manager,
+        "open the lf-style file manager (Alt+Shift+F)")
     reg("project-replace", _project_replace,
         "find & replace in project (ctrl+h)")
     reg("trust", _trust,

@@ -78,6 +78,11 @@ _REVIEWED_DYNAMIC_IMPORTS: frozenset[str] = frozenset(
         # lupa is imported dynamically so a lupa-less install pays no import
         # cost and pyright stays stub-free (Any only at the bridge boundary).
         "services/extensions/lua/runtime.py:importlib.import_module('lupa')",
+        # POSIX identity modules are unavailable on Windows: loaded through
+        # importlib so the module import never fails there (workspace.py
+        # _load_posix_identity_modules, entry-stats owner/group display).
+        "services/workspace.py:importlib.import_module('pwd')",
+        "services/workspace.py:importlib.import_module('grp')",
     }
 )
 
