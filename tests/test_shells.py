@@ -40,18 +40,19 @@ def test_resolve_shell_windows_default_picks_pwsh(
 
 
 def test_resolve_shell_posix_default_picks_shell_env(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """On POSIX an empty config uses $SHELL when the file exists."""
     monkeypatch.setattr(sys, "platform", "linux")
-    monkeypatch.setenv("SHELL", "/usr/bin/zsh")
+    fake_zsh = tmp_path / "zsh"
+    fake_zsh.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.setenv("SHELL", str(fake_zsh))
+    assert resolve_shell("") == [str(fake_zsh)]
 
-    def _only_zsh_exists(self: Path) -> bool:
-        # WindowsPath str() uses backslashes; compare in posix form.
-        return self.as_posix() == "/usr/bin/zsh"
-
-    monkeypatch.setattr(Path, "is_file", _only_zsh_exists)
-    assert resolve_shell("") == ["/usr/bin/zsh"]
+    # a $SHELL pointing at a missing file falls through to the bash probe
+    monkeypatch.setenv("SHELL", str(tmp_path / "missing" / "zsh"))
+    monkeypatch.setattr("yate.editor_term.shells.shutil.which", _which_bash)
+    assert resolve_shell("") == ["/usr/bin/bash"]
 
 
 def test_resolve_shell_posix_default_falls_back_to_bash(
