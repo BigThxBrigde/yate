@@ -4,6 +4,7 @@
 GitHub / Gitee), each topic paired `*.en.md` / `*.zh.md`:
 
 - `extensions.*.md` -- writing yate extensions;
+- `file-manager.*.md` -- the lf-style terminal file manager;
 - `games.*.md` -- the bundled game pack and the shared game engine;
 - `lsp.*.md` -- language server setup;
 - `themes.*.md` -- theme customization and the shipped templates;
@@ -20,6 +21,7 @@ note saying so.
 `*.en.md` / `*.zh.md` 成对：
 
 - `extensions.*.md` -- 编写 yate 扩展；
+- `file-manager.*.md` -- lf 风格终端文件管理器；
 - `games.*.md` -- 随身游戏包与共享游戏引擎；
 - `lsp.*.md` -- 语言服务器配置；
 - `themes.*.md` -- 主题定制与随包模板；
