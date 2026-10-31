@@ -109,7 +109,7 @@ wave-3: plan_d                    # 补冒烟场景（依赖 wave-2 的覆盖测
 |---|---|---|---|
 | 提速改动改变测试语义 | 测试失去原有防护 | 每个提速用例保留原断言的等价形式 | `git revert` 对应子计划的提交 |
 | 新增覆盖测试暴露隐藏 bug | 阻塞合并 | 发现 bug 立即修复或登记 issue | 测试本身不回滚，bug 另案处理 |
-| 冒烟基线漂移 | 冒烟 compare 失败 | 用 `--update-baselines` 重新登记 | 基线 JSON 文件 `git checkout` |
+| 冒烟基线漂移 | 冒烟 compare 失败 | 用 `snapshot` 子命令重新登记（CLI 无 `--update-baselines` 旗标，见 plan-d 修订记录） | 基线 JSON 文件 `git checkout` |
 | 并行 flake 修复不彻底 | 仍偶发失败 | 连续跑 5 次验证 | 回退到 `-n 1` 串行（不推荐） |
 
 ## 六、验收门禁（与 CI 一致）
@@ -155,3 +155,89 @@ flowchart TD
     style W3 fill:#c8e6c9,color:#1b5e20
     style FIN fill:#bbdefb,color:#0d47a1
 ```
+
+## 九、执行记录（收尾回填，2026-10-31）
+
+### 9.1 实测前后对比
+
+| 指标 | 执行前基线 | 执行后实测 | 测量命令 |
+|---|---|---|---|
+| 单元测试总数 | 3208 | 3233 | `pytest tests/ --collect-only -q` |
+| 全量墙钟（`-n auto`） | ≈ 100s（master 同日对照 104.5s） | 87.1s（复测波动带 87-110s，含 25 个新增单测） | `pytest tests/ -q -n auto` |
+| 最慢 Top-3 可提速测试合计 | 33.19s | ≈ 3.7s | `pytest --durations` |
+| 覆盖率（branch 模式） | 92.24% | 92.75% | `pytest tests/ --cov=yate --cov-branch -n auto` |
+| 冒烟场景数 | 117 | 120 | `python -m tools.smoke_test run --jobs 4` |
+| 冒烟基线 JSON 数 | 81 | 120 | `git ls-tree HEAD --name-only tools/smoke_test/smoke_baselines/` |
+| 冒烟全量跑 | ≈ 24s（117 场景 / 81 基线） | 120/120 exit 0（21.6s / 120 基线） | `python -m tools.smoke_test run --jobs 4` |
+
+- **plan-b 提速明细**（`--durations` 实测，收尾复测）：`test_incremental_matches_full_reparse_over_random_edits`
+  14.67s → 3.33s（步数 20000 → 5000，环境变量可还原压测强度）、
+  `test_stale_is_reported_then_retranslated` 9.42s → 0.39s（mock lint 引擎）、
+  `test_output_buffer_overflow_drains_synchronously_without_loss` 9.10s → <0.05s
+  （monkeypatch `OUTPUT_BUFFER_LIMIT=1024`）。release tool 两用例维持不变
+  （真实 git 子进程属合理集成成本）。三项全部跌出常规跑 Top-10
+  （coverage 追踪开销使 ts_backend 用例回到 8.28s，属已知口径差）；
+- **plan-c 覆盖明细**（branch 模式实测）：`shell_flows.py` 63% → 93%、
+  `shells.py` 78% → 98%、`extension_flows.py` 81% → 100%、
+  `user_setup.py` 81% → 95%、`cli.py` 82% → 98%；新增 25 个单测；
+- **plan-d 冒烟明细**：新增 `which_key_toggle` / `which_key_ctrl_w_chord` /
+  `command_completion` 三个场景；同步登记 39 个基线 JSON（3 个新场景 +
+  36 个存量场景此前缺失的基线；6 个既有基线按 9.2 裁决保持 HEAD 原样）。
+
+### 9.2 偏离记录
+
+1. **plan-d 触发停止条件**：`snapshot` 改写 6 个既有基线，且 `stress.py` 的
+   rapid_toggles 场景在并行下全量 flake。git 祖先取证（`fdfa2a1` 是 `ee8ae14`
+   的祖先）证明基线漂移为 master 存量问题而非本分支引入。裁决：还原本分支对
+   6 个既有基线的改写；stress flake 纳入本分支修复（单点断言改 `wait_until`
+   收敛，单场景连跑 5 次全绿）；存量漂移登记为后续待办（见 9.4）；
+2. **plan-b 目标口径**：Top-5 合计 ≈52s → ≈24s 的目标由 Top-3 可提速测试超额
+   完成（33.19s → ≈3.7s），release tool 两用例按计划维持原样；
+3. **收尾 coverage 门禁复现存量 flake（计划外同族修复，`bbd147b`）**：
+   `tests/test_app_find_replace.py::test_replace_all_writes_unopened_files` 在
+   coverage + 8 worker 全量跑下 `PermissionError`——测试侧裸 `read_text` 轮询
+   撞上 worker `os.replace` 换文件窗口（Windows 共享违规映射 Errno 13；worker
+   侧 `find_replace.py:621` 已捕获 OSError，失败的是测试自己的读）。同文件
+   `_landed` 轮询已有既修先例，按「修同族不修单点」把守卫推广到全部 3 处裸
+   内容轮询，并让裸读先等完成消息（797 行既有范本模式）。plan 文件清单外的
+   偏离，经复跑定性为间歇竞态后修复。
+
+### 9.3 评审迭代（code-review-expert）
+
+- **1 个 major**：`test_pane_regions_stay_visible_after_split` 在 coverage + 并行
+  下 2 跑 1 败（同族 flake：`leaf_count` 收敛不等于 region 布局收敛）。按
+  「修同族不修单点」排查 `test_app_panes.py` 全部 4 处同族暴露（region 轮询
+  收敛 + divider press 前收敛），整文件 5 次 `-n auto` 全绿后提交（`3c6b7f3`）；
+- **2 个 minor** 不阻塞，登记为后续待办（见 9.4）；
+- **收尾复测新增调查（未复现，未改码）**：`test_vsplit_with_file_and_only` 在
+  同一轮 coverage 全量跑下报 `asyncio.CancelledError`（该轮输出被截断未留全
+  栈）。三次复现尝试均未成功（串行 coverage、整文件 coverage + 并行均
+  exit 0），机理未定位，不做盲改，登记 9.4 跟踪。
+
+### 9.4 登记的后续待办
+
+1. `tools/smoke_test/scenarios/completion.py` 的 `first_candidate_applied` 断言
+   弱于其名（未断言首候补确实回填）：补强断言或按实断言更名；
+2. `tests/test_shells.py` 的进程级 `Path.is_file` monkeypatch 改为探测点 patch
+   （缩小 patch 面，避免误伤同测试内其它路径判断）；
+3. master 上 5 个存量冒烟基线漂移重登（prompt_tab_completion /
+   vim_registers_text_objects / duplicate_delete_line / indent_outdent /
+   move_line_block）——本分支已还原不动，须在 master 另案登记；
+4. `tests/test_pack_wiki.py` 其余真实 lint 用例（8.75s / 6.87s / 6.56s /
+   6.26s / 5.71s）为下一批提速候选，需要引擎级 stub 设计，另行立项；
+5. `test_app_panes.py::test_vsplit_with_file_and_only` 的
+   `asyncio.CancelledError` 一次性失败（调查记录见 9.3）：后续全量 coverage
+   跑再遇时保留完整栈（勿截断输出），定位 App 侧机理后修复。
+
+### 9.5 最终门禁（统一并行口径，收尾复测）
+
+| 门禁 | 结果 |
+|---|---|
+| `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations |
+| `pytest tests/test_architecture.py -q` | 37 passed |
+| `pytest tests/ -q -n auto` | exit 0 全绿（3233 项，墙钟 87.1s） |
+| `pytest tests/ --cov=yate --cov-branch -n auto` | exit 0，92.75%（门槛 75%） |
+| `python -m tools.smoke_test run --jobs 4` | exit 0，120/120 场景（21.6s） |
+
+`tools.smoke_test compare` 复跑 1445/1445 检查全过，DRIFT 恰为 9.4 第 3 条
+登记的 5 个 master 存量项（compare 的 exit 1 即该已知清单的信号）。

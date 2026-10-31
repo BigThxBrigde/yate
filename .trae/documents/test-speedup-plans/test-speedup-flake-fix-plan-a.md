@@ -140,6 +140,14 @@ sy = left_view.region.y + left_view.region.height // 2
 
 ## 十、修订记录
 
+3. （第 3 轮，收尾复测调查）coverage + 8 worker 全量跑下
+   `test_vsplit_with_file_and_only` 一次性报 `asyncio.CancelledError`（该轮
+   输出被截断未留全栈）。三次复现尝试均未成功：串行 coverage 单测通过
+   （exit 1 仅为单测跑不满 75% 覆盖率门禁）、整文件 coverage + 并行复跑
+   exit 0。机理未定位，不做盲改；登记总纲 9.4 跟踪（再遇时保留完整栈）。
+   同轮同纪律外延：`tests/test_app_find_replace.py` 三处裸 `read_text` 轮询
+   的 `os.replace` 换文件窗口竞态已修（`bbd147b`，非本计划文件，记录见总纲
+   9.2 第 3 条）。
 2. （第 2 轮，评审迭代）code-review-expert 在 coverage+并行负载下实测复现同族
    flake：`test_pane_regions_stay_visible_after_split`
    （tests/test_app_panes.py:151）2 跑 1 败——`leaf_count==3` 为真时 view region
