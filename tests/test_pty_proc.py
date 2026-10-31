@@ -279,9 +279,11 @@ def test_first_io_failure_is_logged_exactly_once(
         proc, _impl = _stub_process(stub_pty)
         await proc.start(lambda _data: None, lambda _code: None)
         seen: list[str] = []
-        monkeypatch.setattr(
-            pty_proc.log, "debug", lambda msg, *args: seen.append(msg % args)
-        )
+
+        def _capture_debug(msg: str, *args: object) -> None:
+            seen.append(msg % args)
+
+        monkeypatch.setattr(pty_proc.log, "debug", _capture_debug)
         stub_pty.write_error = OSError("handle closed")
         proc.write(b"first")   # the transition is logged once ...
         proc.write(b"second")  # ... and every later failure stays silent
