@@ -536,7 +536,6 @@ def test_separator_click_does_not_move_cursor(pane_root: Path) -> None:
 
             await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
-            await pilot.pause()
             root = panes.root
             assert isinstance(root, PaneSplit)
 
@@ -544,6 +543,15 @@ def test_separator_click_does_not_move_cursor(pane_root: Path) -> None:
             assert host is not None
             box, _split = host._split_boxes[0]
             left_view, _right_view = box.children
+
+            # Wait for layout to converge: region width must be less than
+            # full screen width (Textual's layout calculation is async, so
+            # leaf_count==2 doesn't mean regions are updated yet). The screen
+            # width is 100 (from run_test(size=(100, 30))).
+            assert await wait_until(
+                pilot, lambda: left_view.region.width < 100, timeout=2.0
+            ), "left_view region did not converge after vsplit"
+
             sx = left_view.region.x + left_view.region.width - 1
             sy = left_view.region.y + left_view.region.height // 2
 
