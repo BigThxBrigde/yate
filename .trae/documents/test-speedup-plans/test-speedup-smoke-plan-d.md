@@ -231,6 +231,7 @@ SCENARIOS: list[Scenario] = [
 - `tools/smoke_test/scenarios/completion.py`（新增，视时间）
 - `tools/smoke_test/scenarios/__init__.py`（修改）
 - `tools/smoke_test/smoke_baselines/*.json`（新增基线文件）
+- `tools/smoke_test/scenarios/stress.py`（修订第 3 轮新增：修 `stress_rapid_toggles` 时序 flake）
 
 ## 九、预计影响
 
@@ -243,3 +244,22 @@ SCENARIOS: list[Scenario] = [
 1. （第 2 轮，主代理核验）冒烟 CLI 不存在 `--update-baselines` 旗标
    （tools/smoke_test/cli.py 参数面核验）：基线登记命令统一改为
    `python -m tools.smoke_test snapshot` 子命令，风险表同步修正。
+2. （第 3 轮，主代理裁决，执行中触发停止条件后取证定案）
+   - **存量基线漂移（6 个既有基线被全量 snapshot 改写）**：git 祖先关系取证
+     （`fdfa2a1` 基线登记是 `ee8ae14` 场景改动与 HEAD 的祖先）证明 master 上
+     `prompt_tab_completion` / `vim_registers_text_objects` /
+     `duplicate_delete_line` / `indent_outdent` / `move_line_block` /
+     `stress_rapid_toggles` 六个基线本就落后于场景代码与应用行为演进
+     （含 arg-completion 波场景改动与 IKQQNQ 脏标记门控行为变化），
+     属存量问题、非本任务引入。**裁决：本分支还原本 6 个基线文件到 HEAD，
+     保持分支 diff 只含本任务产物；存量漂移登记为后续事项（另行立项
+     在 master 上重登基线并核实行为变化合理性）。** 验收口径相应调整：
+     `compare` 全量的 DRIFT 集必须恰好等于该 6 个存量项（证明本任务零新增漂移），
+     新增 3 场景的 `compare --scenario` 必须 exit 0。
+   - **`stress_rapid_toggles` 真 flake 纳入修复**：10 连 `ctrl+b` 后单个
+     `pilot.pause()` 等不到 sidebar 刷新收敛（与 test_app_find_replace.py
+     中"单次按键风暴跑赢刷新"同族问题），全量并行下 `sidebar_matches_flag`
+     /`toggles` 值相对基线翻转。修复纳入本计划（独占文件清单追加
+     `tools/smoke_test/scenarios/stress.py`）：按键风暴后的单点断言改为
+     `wait_until` 轮询收敛（_base.wait_until），禁止裸 sleep；修复后该场景
+     基线用 `snapshot` 重登并单场景连跑 5 次验证。
