@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import fnmatch
+import importlib
 import os
+import shutil
+import stat
+import string
+import sys
 import time
+import types
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,6 +55,25 @@ TEXT_SUFFIXES: set[str] = {
 }
 
 
+def _load_posix_identity_modules() -> tuple[types.ModuleType | None, types.ModuleType | None]:
+    """Resolve the POSIX ``pwd`` / ``grp`` modules when they exist.
+
+    Both modules are unavailable on Windows, so they are loaded through
+    :func:`importlib.import_module` (never referenced statically) and the
+    pair degrades to ``(None, None)`` there instead of failing the import
+    of this module.
+    """
+    try:
+        return importlib.import_module("pwd"), importlib.import_module("grp")
+    except ImportError:
+        return None, None
+
+
+#: Resolved once at import time: ``pwd`` / ``grp`` on POSIX, ``None`` on
+#: Windows (see :func:`_load_posix_identity_modules`).
+_PWD_MODULE, _GRP_MODULE = _load_posix_identity_modules()
+
+
 @dataclass
 class Entry:
     """One file or directory shown in the explorer."""
@@ -61,6 +86,30 @@ class Entry:
     def hidden(self) -> bool:
         """True for dotfile names (hidden unless ``show_hidden`` is on)."""
         return self.name.startswith(".")
+
+
+@dataclass(frozen=True)
+class EntryStat:
+    """Immutable metadata snapshot for one file-system entry.
+
+    Produced by :meth:`Workspace.stat_entry` as a side channel next to
+    :class:`Entry`, so the explorer listing itself stays stat-free while
+    the file manager can decorate rows with size / mtime / ownership.
+    """
+
+    path: Path
+    #: File size in bytes; directories report 0 (the ``ls`` convention).
+    size: int
+    #: ``st_mtime_ns`` of the entry; 0 when the stat failed.
+    mtime_ns: int
+    #: ``st_mode`` of the entry; 0 when the stat failed.
+    mode: int
+    #: ``st_nlink`` of the entry; 0 when the stat failed.
+    nlink: int
+    #: Owner name expanded from the uid; ``None`` on Windows / unknown.
+    owner: str | None
+    #: Group name expanded from the gid; ``None`` on Windows / unknown.
+    group: str | None
 
 
 @dataclass
@@ -426,6 +475,36 @@ class Workspace:
         else:
             path.unlink()
 
+    def copy_entry(self, src: Path, dest_dir: Path) -> Path:
+        """Copy *src* into *dest_dir*; returns the created path.
+
+        Directories are copied recursively (``shutil.copytree``), files
+        with ``shutil.copy2`` (metadata preserved).  Raises
+        ``FileExistsError`` when the target name is already taken -- the
+        caller runs its confirm flow instead of overwriting.  The name
+        comes from an existing entry, so it is not re-validated here.
+        """
+        target = dest_dir / src.name
+        if target.exists():
+            raise FileExistsError(f"{target.name} already exists")
+        if src.is_dir():
+            return Path(shutil.copytree(src, target))
+        return Path(shutil.copy2(src, target))
+
+    def move_entry(self, src: Path, dest_dir: Path) -> Path:
+        """Move *src* into *dest_dir*; returns the new path.
+
+        ``shutil.move`` also covers cross-volume moves (its own copy +
+        delete path).  Raises ``FileExistsError`` before touching anything
+        when the target name is taken: ``shutil.move`` would otherwise
+        overwrite a file target silently or merge into an existing
+        directory.
+        """
+        target = dest_dir / src.name
+        if target.exists():
+            raise FileExistsError(f"{target.name} already exists")
+        return Path(shutil.move(str(src), str(target)))
+
     # ------------------------------------------------------------ file info
 
     @staticmethod
@@ -457,6 +536,96 @@ class Workspace:
             return b"\x00" not in chunk
         except (OSError, UnicodeDecodeError):
             return False
+
+    def stat_entry(self, path: Path) -> EntryStat:
+        """Collect size / mtime / ownership metadata for one entry.
+
+        Never raises: a failed ``stat()`` (an entry deleted by another
+        process while its directory is being browsed) degrades to an
+        all-zero :class:`EntryStat` instead of crashing the listing.
+        Directories report ``size == 0`` (the ``ls`` convention).
+        """
+        try:
+            st = path.stat()
+        except OSError:
+            return EntryStat(
+                path=path,
+                size=0,
+                mtime_ns=0,
+                mode=0,
+                nlink=0,
+                owner=None,
+                group=None,
+            )
+        owner, group = _owner_group_names(st.st_uid, st.st_gid)
+        size = 0 if stat.S_ISDIR(st.st_mode) else st.st_size
+        return EntryStat(
+            path=path,
+            size=size,
+            mtime_ns=st.st_mtime_ns,
+            mode=st.st_mode,
+            nlink=st.st_nlink,
+            owner=owner,
+            group=group,
+        )
+
+    def list_drives(self) -> list[Entry]:
+        """List drive letters as a virtual directory level (Windows).
+
+        Probes ``A:`` through ``Z:`` with ``Path.exists()`` and returns
+        the hits as directory entries in letter order; returns an empty
+        list on POSIX, where the caller shows a placeholder.  The probe
+        is cheap enough to stay uncached.
+        """
+        if sys.platform != "win32":
+            return []
+        drives: list[Entry] = []
+        for letter in string.ascii_uppercase:
+            drive_root = Path(f"{letter}:\\")
+            if drive_root.exists():
+                drives.append(Entry(drive_root, f"{letter}:", True))
+        return drives
+
+
+def _owner_group_names(st_uid: int, st_gid: int) -> tuple[str | None, str | None]:
+    """Expand a uid/gid pair into owner and group names.
+
+    Uses the POSIX-only ``pwd`` / ``grp`` modules (see
+    :func:`_load_posix_identity_modules`); returns ``(None, None)`` when
+    they are unavailable (Windows) or either lookup hits an unknown id,
+    so the metadata display degrades gracefully.
+    """
+    if _PWD_MODULE is None or _GRP_MODULE is None:
+        return None, None
+    try:
+        owner: str | None = _PWD_MODULE.getpwuid(st_uid).pw_name
+        group: str | None = _GRP_MODULE.getgrgid(st_gid).gr_name
+    except KeyError:
+        return None, None
+    return owner, group
+
+
+def human_size(n: int) -> str:
+    """Format *n* bytes in 1024-based binary units.
+
+    ``0`` renders as ``"0"`` and values below 1024 stay plain integers;
+    larger values use one decimal place with a ``K`` / ``M`` / ``G`` /
+    ``T`` suffix and the trailing ``.0`` trimmed (``1024 -> "1K"``).
+    Negative or oversized inputs follow the same scheme.
+    """
+    if n < 1024:
+        return str(n)
+    value = float(n)
+    unit = "T"
+    for candidate in ("K", "M", "G", "T"):
+        unit = candidate
+        value /= 1024
+        if value < 1024:
+            break
+    text = f"{value:.1f}"
+    if text.endswith(".0"):
+        text = text[:-2]
+    return f"{text}{unit}"
 
 
 def path_matches(prefix: str, workspace: Workspace) -> list[str]:
