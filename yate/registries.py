@@ -24,6 +24,9 @@ from yate.logs import tracing
 #: A ``:`` command handler: receives the raw argument string.
 type CommandFunc = Callable[[str], object]
 
+#: Argument completer: prefix -> pure value candidates (no command-name prefix).
+type ArgCompleter = Callable[[str], list[str]]
+
 log = tracing.get_logger(__name__)
 
 
@@ -34,6 +37,16 @@ class Action:
     name: str
     func: Callable[[ActionContext], object]
     description: str
+
+
+@dataclass
+class Command:
+    """A named ``:`` command registered in :class:`CommandRegistry`."""
+
+    name: str
+    func: CommandFunc
+    description: str
+    arg_completer: ArgCompleter | None = None
 
 
 class ActionRegistry:
@@ -83,16 +96,19 @@ class CommandRegistry:
     """``:`` commands, extendable by extensions."""
 
     def __init__(self) -> None:
-        self._commands: dict[str, tuple[CommandFunc, str]] = {}
+        self._commands: dict[str, Command] = {}
 
-    def register(self, name: str, func: CommandFunc, description: str) -> None:
+    def register(
+        self, name: str, func: CommandFunc, description: str,
+        arg_completer: ArgCompleter | None = None,
+    ) -> None:
         """Add (or replace) the ``:`` command *name*."""
         if name in self._commands:
             log.warning("command overwritten: %s", name)
-        self._commands[name] = (func, description)
+        self._commands[name] = Command(name, func, description, arg_completer)
 
-    def get(self, name: str) -> tuple[CommandFunc, str] | None:
-        """Return the ``(handler, description)`` pair for *name*, or ``None``."""
+    def get(self, name: str) -> Command | None:
+        """Return the :class:`Command` for *name*, or ``None``."""
         return self._commands.get(name)
 
     def unregister(self, name: str) -> bool:
@@ -110,4 +126,4 @@ class CommandRegistry:
     def describe(self, name: str) -> str:
         """The description of *name*; empty string when unknown."""
         entry = self._commands.get(name)
-        return entry[1] if entry else ""
+        return entry.description if entry else ""

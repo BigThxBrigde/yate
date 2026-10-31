@@ -34,7 +34,7 @@ from yate.editor_syntax.tokens import Token
 from yate.keymaps.base import ActionRunner
 from yate.logs import tracing
 from yate.paths import load_tcss
-from yate.registries import ActionRegistry, CommandRegistry
+from yate.registries import ActionRegistry, Command, CommandRegistry
 from yate.services.workspace import Workspace
 
 from yate.editor_view import theme
@@ -43,6 +43,10 @@ from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scroll
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
+
+#: placeholder of the commands-mode query input; shared by ``compose`` and
+#: :meth:`PaletteScreen._exit_argument_mode` so the wording cannot drift.
+_COMMANDS_PLACEHOLDER: str = "search commands and actions by name…"
 
 log = tracing.get_logger(__name__)
 
@@ -195,6 +199,9 @@ class PaletteScreen(ModalScreen[None]):
         # preview payloads keyed by path; validity is judged per record via
         # its mtime_ns/size pair (see _cache_current)
         self._preview_cache: dict[Path, _PreviewData] = {}
+        #: ``None`` = command list mode; the command name = argument mode for
+        #: that command (entered from a command whose ``arg_completer`` runs).
+        self._arg_mode: str | None = None
 
     @property
     def filtered_count(self) -> int:
@@ -547,7 +554,7 @@ class PaletteScreen(ModalScreen[None]):
         with Vertical(id="palette"):
             placeholder = (
                 "search files by name…" if self.mode == "files"
-                else "search commands and actions by name…"
+                else _COMMANDS_PLACEHOLDER
             )
             yield Input(placeholder=placeholder, id="palette-input")
             if self.mode == "files" and self.preview.enable:
@@ -599,6 +606,14 @@ class PaletteScreen(ModalScreen[None]):
 
     def on_key(self, event: Key) -> None:
         """Move the selection (a unique Tab match is chosen at once)."""
+        if event.key == "escape" and self._arg_mode is not None:
+            # In argument mode escape steps back to the command list instead
+            # of dismissing the palette; stopping the event keeps the
+            # screen's escape -> dismiss binding out of the way.
+            event.stop()
+            event.prevent_default()
+            self._exit_argument_mode()
+            return
         if event.key in ("up", "ctrl+p", "shift+tab"):
             event.stop()
             event.prevent_default()
@@ -626,19 +641,64 @@ class PaletteScreen(ModalScreen[None]):
             return
         _score, _hits, idx = self._filtered[self._cursor]
         _display, _hint, payload = self._entries[idx]
-        self.dismiss()
+        if self._arg_mode is not None:
+            # Argument mode: payload is ("arg", "<cmd> <value>"); submit the
+            # full command string at once.
+            self.dismiss()
+            _kind, full = payload
+            self.run_command(str(full))
+            return
         if self.mode == "files":
+            self.dismiss()
             self.open_path(payload)
             self.focus_editor()
         else:
             kind, name = payload
             if kind == "action":
+                self.dismiss()
                 self.execute_action(str(name))
                 # key dispatch refreshes the editor after an action; the
                 # palette bypasses the key path, so do it here too
                 self.refresh_ui()
             else:
+                cmd_entry = self.commands.get(str(name))
+                if cmd_entry is not None and cmd_entry.arg_completer is not None:
+                    # A parameterized command: pick its argument inside the
+                    # palette instead of running it bare.
+                    self._enter_argument_mode(cmd_entry)
+                    return
+                self.dismiss()
                 self.run_command(str(name))
+
+    def _enter_argument_mode(self, cmd_entry: Command) -> None:
+        """Switch the palette to argument selection for *cmd_entry*.
+
+        The query input is cleared and repurposed as an argument filter; the
+        entry list is replaced with the values the command's ``arg_completer``
+        offers for an empty prefix, each carrying the full ``"cmd value"``
+        payload for the final submission.
+        """
+        self._arg_mode = cmd_entry.name
+        completer = cmd_entry.arg_completer
+        if completer is None:  # pragma: no cover - guarded by _choose
+            return
+        values = completer("")
+        self._set_entries(
+            [(value, "", ("arg", f"{cmd_entry.name} {value}")) for value in values]
+        )
+        input_widget = self.query_one("#palette-input", Input)
+        input_widget.placeholder = f"argument for :{cmd_entry.name}"
+        input_widget.value = ""
+        self.refilter(input_widget.value)
+
+    def _exit_argument_mode(self) -> None:
+        """Leave argument mode: restore the command list (Esc, not dismiss)."""
+        self._arg_mode = None
+        input_widget = self.query_one("#palette-input", Input)
+        input_widget.placeholder = _COMMANDS_PLACEHOLDER
+        self._build_command_entries()
+        input_widget.value = ""
+        self.refilter(input_widget.value)
 
 
 def _walk(root: Path) -> list[Path]:

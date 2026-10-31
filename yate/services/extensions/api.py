@@ -22,7 +22,14 @@ from yate.editor_lsp.manager import LspManager
 from yate.keymaps.base import KeyBinding, Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.logs import tracing
-from yate.registries import Action, ActionRegistry, CommandFunc, CommandRegistry
+from yate.registries import (
+    Action,
+    ActionRegistry,
+    ArgCompleter,
+    Command,
+    CommandFunc,
+    CommandRegistry,
+)
 from yate.services.extensions.bridges import (
     ActionExtensionBridge,
     CanvasControls,
@@ -208,12 +215,14 @@ class ExtensionAPI:
         previous = self._ctx.commands.get(name)
 
         def undo(
-            name: str = name, previous: tuple[CommandFunc, str] | None = previous
+            name: str = name, previous: Command | None = previous
         ) -> None:
             if previous is None:
                 self._ctx.commands.unregister(name)
             else:
-                self._ctx.commands.register(name, previous[0], previous[1])
+                self._ctx.commands.register(
+                    name, previous.func, previous.description, previous.arg_completer
+                )
 
         self._scope.append(undo)
 
@@ -347,6 +356,25 @@ class ExtensionAPI:
             except Exception as exc:  # noqa: BLE001 - user code, never crash the app
                 log.exception("extension %s callback failed", what)
                 self._ctx.message(f"extension {what}: {type(exc).__name__}: {exc}")
+
+        return guarded
+
+    def _guarded_completer(self, name: str, completer: ArgCompleter) -> ArgCompleter:
+        """Wrap an extension ``arg_completer`` so a raise degrades to none.
+
+        Unlike :meth:`_guarded_callback` the wrapper cannot report on the
+        message line -- it runs while the ex line / palette is mid-completion
+        -- so it logs the traceback and returns ``[]``: a failing candidate
+        source shows *no* candidates instead of crashing the Tab path
+        (``flows/prompt_completion.py``, ``editor_view/palette.py``).
+        """
+
+        def guarded(prefix: str) -> list[str]:
+            try:
+                return completer(prefix)
+            except Exception:  # noqa: BLE001 - user code, never crash the app
+                log.exception("extension command %s arg_completer raised", name)
+                return []
 
         return guarded
 
@@ -501,7 +529,8 @@ class ExtensionAPI:
         return removed
 
     def command(
-        self, name: str, description: str = "extension command"
+        self, name: str, description: str = "extension command",
+        arg_completer: ArgCompleter | None = None,
     ) -> CommandDecorator:
         """Decorator registering a ``:`` command.
 
@@ -510,20 +539,33 @@ class ExtensionAPI:
 
         def _decorator(func: CommandFunc) -> CommandFunc:
             self._record_command_snapshot(name)
+            guarded_completer = (
+                None if arg_completer is None
+                else self._guarded_completer(name, arg_completer)
+            )
             self._ctx.commands.register(
-                name, self._guarded_callback(f"command {name}", func), description
+                name, self._guarded_callback(f"command {name}", func),
+                description, guarded_completer,
             )
             return func
 
         return _decorator
 
-    def register_command(self, name: str, func: CommandFunc, description: str = "") -> None:
+    def register_command(
+        self, name: str, func: CommandFunc, description: str = "",
+        arg_completer: ArgCompleter | None = None,
+    ) -> None:
         """Register a ``:`` command (the non-decorator form)."""
         self._record_command_snapshot(name)
+        guarded_completer = (
+            None if arg_completer is None
+            else self._guarded_completer(name, arg_completer)
+        )
         self._ctx.commands.register(
             name,
             self._guarded_callback(f"command {name}", func),
             description or "extension command",
+            guarded_completer,
         )
 
     # -------------------------------------------------------------- services

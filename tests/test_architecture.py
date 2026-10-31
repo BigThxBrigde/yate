@@ -191,10 +191,6 @@ UI_FREE_FILES: tuple[str, ...] = (
 #: still may not depend upward, and their ``editor_view`` coupling is frozen
 #: here, so a new widget import fails until it is justified (R11).
 UI_FROZEN_FILES: dict[str, set[str]] = {
-    "flows/prompt_completion.py": {
-        "yate.editor_view",
-        "yate.editor_view.theme",
-    },
     "flows/document_flows.py": {
         "yate.editor_view",
         "yate.editor_view.commandline",

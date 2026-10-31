@@ -899,7 +899,7 @@ def test_install_extension_command_installs_and_reports(
     pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"})
     entry = registry.get("install-extension")
     assert entry is not None
-    entry[0](str(pkg))
+    entry.func(str(pkg))
     assert (base / "hello.py").exists()
     assert any(
         "installed hello 1.0.0" in text and kind == "ok"
@@ -914,9 +914,9 @@ def test_install_extension_command_reports_errors(
     registry, editor = _editor_with_commands()
     entry = registry.get("install-extension")
     assert entry is not None
-    entry[0](str(tmp_path / "missing.yxp"))
+    entry.func(str(tmp_path / "missing.yxp"))
     assert editor.messages[-1][1] == "warn"
-    entry[0]("")
+    entry.func("")
     assert "usage:" in editor.messages[-1][0]
 
 
@@ -930,12 +930,12 @@ def test_uninstall_extension_command_removes_and_reports(
     yxp.install_package(pkg, base)
     entry = registry.get("uninstall-extension")
     assert entry is not None
-    entry[0]("hello")
+    entry.func("hello")
     assert not (base / "hello.py").exists()
     assert any(
         "removed hello" in text and kind == "ok" for text, kind in editor.messages
     )
-    entry[0]("hello")
+    entry.func("hello")
     assert editor.messages[-1][1] == "warn"
 
 
@@ -943,7 +943,7 @@ def test_list_extension_command_empty_message() -> None:
     registry, editor = _editor_with_commands()
     entry = registry.get("list-extensions")
     assert entry is not None
-    entry[0]("")
+    entry.func("")
     assert editor.messages == [("no extension packages installed", "info")]
     assert editor.outputs == []
 
@@ -958,7 +958,7 @@ def test_list_extension_command_pushes_output_overlay(
     yxp.install_package(pkg, base)
     entry = registry.get("list-extensions")
     assert entry is not None
-    entry[0]("")
+    entry.func("")
     assert len(editor.outputs) == 1
     title, text = editor.outputs[0]
     assert title == "extension packages"

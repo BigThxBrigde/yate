@@ -20,6 +20,7 @@ from yate.services.workspace import (
     Entry,
     Workspace,
     _IgnorePattern,
+    path_matches,
 )
 
 
@@ -717,3 +718,27 @@ def test_visible_tree_does_not_expand_a_symlink_loop(ws: Workspace) -> None:
     assert names.count("loop") == 1
     assert names.count("plain.py") == 1
     assert max(depth for depth, _ in rows) == 1
+
+
+# --- path_matches (migrated from flows/prompt_completion, 2026-10-30) -------
+
+
+def test_path_prefix_with_trailing_separator_lists_the_directory(
+    tmp_path: Path,
+) -> None:
+    """A trailing separator means "list this directory", not "match an entry".
+
+    With ``src/`` as the prefix there is no needle to match, so the entries
+    *inside* ``src`` are offered with their ``src/`` prefix intact (the old
+    code re-appended the whole prefix and produced corrupt ``ssrc...`` names).
+    """
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "alpha.py").write_text("x", encoding="utf-8")
+    (tmp_path / "src" / "beta.py").write_text("x", encoding="utf-8")
+    (tmp_path / "other").mkdir()
+    workspace = Workspace(tmp_path)
+
+    assert path_matches("src/", workspace) == ["src/alpha.py", "src/beta.py"]
+    # a partial name still resolves to the directory entry itself
+    assert path_matches("src", workspace) == ["src/"]
+    assert path_matches("sr", workspace) == ["src/"]

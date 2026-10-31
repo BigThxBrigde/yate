@@ -12,12 +12,17 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from yate.config import SET_OPTION_SPECS, SetOption
+from yate.config import SET_OPTION_SPECS, SetOption, set_option_names
 from yate.editor import Editor
-from yate.editor_syntax import format_filetype_candidates, language_name
+from yate.editor_syntax import (
+    available_filetypes,
+    format_filetype_candidates,
+    language_name,
+)
 from yate.logs import tracing
-from yate.registries import CommandRegistry
+from yate.registries import ArgCompleter, CommandRegistry
 from yate.services import yxp
+from yate.services.workspace import path_matches
 
 __all__ = ["CommandRegistry", "register_commands"]
 
@@ -128,6 +133,11 @@ SET_APPLY.update(
     which_key=_apply_which_key,
 )
 
+#: ``:set`` keys whose values are filetype spellings (auto + registry).
+_FILETYPE_KEYS: frozenset[str] = frozenset({"filetype", "ft", "language", "lang"})
+#: Language codes accepted by ``:manual``.
+_MANUAL_LANGS: tuple[str, ...] = ("en", "zh")
+
 
 def _strip_quotes(text: str) -> str:
     """Strip one surrounding quote pair from *text* when present.
@@ -170,6 +180,55 @@ def _split_paths(args: str) -> list[str]:
     if buf:
         tokens.append("".join(buf))
     return tokens
+
+
+def _make_theme_completer(editor: Editor) -> ArgCompleter:
+    """Completer for ``:theme`` / ``:colorscheme`` (names via the editor)."""
+    def _complete(prefix: str) -> list[str]:
+        return [t for t in editor.theme_names() if t.startswith(prefix) and t != prefix]
+    return _complete
+
+
+def _filetype_completer(prefix: str) -> list[str]:
+    """Completer for ``:filetype`` and its aliases (``auto`` + registry)."""
+    vals = ("auto", *available_filetypes())
+    return [v for v in vals if v.startswith(prefix) and v != prefix]
+
+
+def _make_set_completer(editor: Editor) -> ArgCompleter:
+    """Completer for ``:set``: option names, or ``key=`` value candidates."""
+    options: tuple[str, ...] = set_option_names()
+    def _complete(prefix: str) -> list[str]:
+        if "=" in prefix:
+            key, _, value = prefix.partition("=")
+            key = key.strip()
+            if key == "keymap":
+                vals: tuple[str, ...] = ("vsc", "vim")
+            elif key == "theme":
+                vals = tuple(editor.theme_names())
+            elif key in _FILETYPE_KEYS:
+                vals = ("auto", *available_filetypes())
+            elif key == "show_hidden":
+                vals = ("on", "off")
+            elif key == "readonly":
+                vals = ("true", "false")
+            else:
+                return []
+            return [f"{key}={v}" for v in vals if v.startswith(value) and v != value]
+        return [opt for opt in options if opt.startswith(prefix) and opt != prefix]
+    return _complete
+
+
+def _manual_completer(prefix: str) -> list[str]:
+    """Completer for ``:manual`` (language codes)."""
+    return [lang for lang in _MANUAL_LANGS if lang.startswith(prefix) and lang != prefix]
+
+
+def _make_path_completer(editor: Editor) -> ArgCompleter:
+    """Completer for the path-taking commands (``:e`` / ``:split`` / ...)."""
+    def _complete(prefix: str) -> list[str]:
+        return path_matches(prefix, editor.workspace)
+    return _complete
 
 
 def register_commands(registry: CommandRegistry, editor: Editor) -> None:
@@ -224,10 +283,14 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _close(args: str) -> None:
         editor.window_flows.close_pane()
 
-    reg("split", _split, "split the window horizontally (:sp [file])")
-    reg("sp", _split, "alias for :split")
-    reg("vsplit", _vsplit, "split the window vertically (:vs [file])")
-    reg("vs", _vsplit, "alias for :vsplit")
+    reg("split", _split, "split the window horizontally (:sp [file])",
+        arg_completer=_make_path_completer(editor))
+    reg("sp", _split, "alias for :split",
+        arg_completer=_make_path_completer(editor))
+    reg("vsplit", _vsplit, "split the window vertically (:vs [file])",
+        arg_completer=_make_path_completer(editor))
+    reg("vs", _vsplit, "alias for :vsplit",
+        arg_completer=_make_path_completer(editor))
     reg("only", _only,
         "close every other pane, keep the active one")
     reg("close", _close,
@@ -273,8 +336,10 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _trust(args: str) -> None:
         editor.extension_flows.trust_cwd_extensions()
 
-    reg("e", _edit, "open a file or directory by path")
-    reg("edit", _edit, "open a file or directory by path")
+    reg("e", _edit, "open a file or directory by path",
+        arg_completer=_make_path_completer(editor))
+    reg("edit", _edit, "open a file or directory by path",
+        arg_completer=_make_path_completer(editor))
     reg("enew", _enew, "open a new empty buffer")
     reg("welcome", _welcome,
         "show the welcome page again (on an empty unnamed buffer)")
@@ -353,13 +418,19 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
 
     reg("set", _set,
         "set an option (keymap, theme, shell, terminal_height, filetype, "
-        "readonly)")
+        "readonly)",
+        arg_completer=_make_set_completer(editor))
     reg("filetype", _filetype,
-        "set syntax/filetype (:filetype python; auto = detect; no arg lists all)")
-    reg("ft", _filetype, "alias for :filetype")
-    reg("language", _filetype, "alias for :filetype")
-    reg("theme", _theme, "switch color theme by name (:theme lists all)")
-    reg("colorscheme", _theme, "alias for :theme")
+        "set syntax/filetype (:filetype python; auto = detect; no arg lists all)",
+        arg_completer=_filetype_completer)
+    reg("ft", _filetype, "alias for :filetype",
+        arg_completer=_filetype_completer)
+    reg("language", _filetype, "alias for :filetype",
+        arg_completer=_filetype_completer)
+    reg("theme", _theme, "switch color theme by name (:theme lists all)",
+        arg_completer=_make_theme_completer(editor))
+    reg("colorscheme", _theme, "alias for :theme",
+        arg_completer=_make_theme_completer(editor))
 
     # ---- keymap / help ----------------------------------------------------
 
@@ -383,7 +454,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("normal", _vsc, "alias for :vsc")
     reg("help", _help, "show key map help")
     reg("manual", _manual,
-        "open the user manual (:manual zh|en, default en)")
+        "open the user manual (:manual zh|en, default en)",
+        arg_completer=_manual_completer)
     reg("changelog", _changelog,
         "open the changelog (:changelog zh|en, default en)")
 

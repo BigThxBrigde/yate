@@ -484,6 +484,35 @@ def test_failed_setup_restores_overridden_builtin_registration(tmp_path: Path) -
     assert action.description == "builtin"
 
 
+def test_command_rollback_restores_arg_completer(tmp_path: Path) -> None:
+    """Overwriting a command with a completer rolls the metadata back."""
+    api, _actions, commands, _keymaps = _real_extension_api()
+
+    def original(_args: str) -> None:
+        pass
+
+    def completer(prefix: str) -> list[str]:
+        return [prefix]
+
+    commands.register("snap", original, "builtin", arg_completer=completer)
+    script = tmp_path / "snap.py"
+    script.write_text(
+        "def setup(api):\n"
+        "    api.register_command('snap', lambda args: None)\n"
+        "    raise RuntimeError('boom')\n",
+        encoding="utf-8",
+    )
+
+    record = ExtensionLoader(api).load_file(script)
+
+    assert record.error is not None
+    entry = commands.get("snap")
+    assert entry is not None
+    assert entry.func is original
+    assert entry.description == "builtin"
+    assert entry.arg_completer is completer
+
+
 def test_successful_setup_keeps_registrations(tmp_path: Path) -> None:
     """A successful setup keeps every registration (rollback must not fire)."""
     api, actions, commands, keymaps = _real_extension_api()
@@ -538,7 +567,7 @@ def test_failing_command_callback_reports_and_does_not_raise() -> None:
 
     registered = commands.get("boom")
     assert registered is not None
-    registered[0]("")  # must not raise
+    registered.func("")  # must not raise
 
     assert messages == ["extension command boom: ValueError: kaboom"]
 

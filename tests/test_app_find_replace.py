@@ -520,12 +520,20 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
             screen.query_one("#fr-results", Static).focus()
             await pilot.pause()
             await pilot.press("a")
-            assert await wait_until(
-                pilot,
-                lambda: two.read_text(encoding="utf-8") == "dog two\n"
-                and three.read_text(encoding="utf-8") == "three dog\n",
-                timeout=15.0,
-            )
+
+            # Windows: the replace lands via os.replace and a read racing
+            # the rename raises PermissionError -- treat that as "not landed
+            # yet" so the poll retries instead of aborting.
+            def _landed() -> bool:
+                try:
+                    return (
+                        two.read_text(encoding="utf-8") == "dog two\n"
+                        and three.read_text(encoding="utf-8") == "three dog\n"
+                    )
+                except OSError:
+                    return False
+
+            assert await wait_until(pilot, _landed, timeout=15.0)
             # the replaced total surfaces while the overlay is still open
             assert "replaced 3" in message_text(app)
             await pilot.press("escape")

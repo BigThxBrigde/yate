@@ -471,8 +471,11 @@ def test_update_preview_passes_worker_callable(
             # the preview spawns triggered from here on.
             monkeypatch.setattr(PaletteScreen, "run_worker", _recorder)
             await pilot.press("down")  # beta: cache miss -> _update_preview
-            await pilot.pause()
-            assert captured, "cursor move must spawn a preview worker"
+            # Poll instead of one fixed pause: under a loaded parallel runner
+            # the key-to-worker chain can outlive a single pause cycle.
+            assert await wait_until(
+                pilot, lambda: bool(captured)
+            ), "cursor move must spawn a preview worker"
             job = captured[0]
             assert callable(job)
             assert not asyncio.iscoroutine(job)
