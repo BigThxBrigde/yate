@@ -97,7 +97,7 @@ theme colors and slim scrollbars follow the active theme in both.
 | `R` | Rename the cursor entry (current name prefilled) |
 | `d` | Delete the cursor entry (confirm with `y`; directories are confirmed as "directory (recursive)") |
 | `y` / `x` | Copy (yank) / cut the cursor entry into the paste buffer |
-| `p` | Paste into the current directory (a cut is consumed by the move, a copy survives; a name conflict asks on the input line and is never silently overwritten) |
+| `p` | Paste into the current directory (a cut is consumed by the move, a copy survives; a name conflict fails the paste with a `paste failed:` message on the input line -- rename or delete the target first, then retry) |
 
 **Exit**
 
@@ -140,8 +140,8 @@ set to the workspace switch:
 * **Degradations** appear as a dim note instead of content:
   `(binary file)` for binary data, `file too large (> N bytes)` over
   the size cap, `cannot read: ...` for unreadable entries.
-* **Cache** -- the last 16 previews are kept (FIFO) and shared with the
-  palette, so revisiting an entry is instant; `r` re-reads anyway.
+* **Cache** -- each screen keeps its own cache of the last 16 previews
+  (FIFO), so revisiting an entry is instant; `r` re-reads anyway.
 
 ---
 
@@ -157,8 +157,9 @@ set to the workspace switch:
   hard-link count and the permission-mode string still display).
 * **Double click is a timing window** -- two clicks on the same row
   within 300 ms count as "open"; slower sequences just move the cursor.
-* **Same-volume transfers only** -- copy / cut / paste refuse to move
-  entries across drive boundaries.
+* **Cross-volume moves are handled transparently** -- copy / cut /
+  paste also work across drive boundaries (the source is copied and
+  then deleted internally; large files show no progress).
 * **Not implemented (P2)** -- hex preview, a `?` key cheat-sheet
   overlay, yaterc-configurable defaults (sort key, overlay size ratio)
   and click-to-sort on the status bar.
