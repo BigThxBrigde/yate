@@ -216,10 +216,14 @@ flowchart TD
 
 ### 9.4 登记的后续待办
 
-1. `tools/smoke_test/scenarios/completion.py` 的 `first_candidate_applied` 断言
-   弱于其名（未断言首候补确实回填）：补强断言或按实断言更名；
-2. `tests/test_shells.py` 的进程级 `Path.is_file` monkeypatch 改为探测点 patch
-   （缩小 patch 面，避免误伤同测试内其它路径判断）；
+1. [已处置 `5380d3f`] `tools/smoke_test/scenarios/completion.py` 的
+   `first_candidate_applied` 断言弱于其名：首候补恰为第一个 tab 已应用的前缀
+   "term"，值断言无判别力——追加第三个 tab 的 cycle 检查（须落到
+   "termclose"，证明 apply 分支确实推进了轮次索引），并重登该场景基线；
+2. [已处置 `611269a`] `tests/test_shells.py` 的进程级 `Path.is_file`
+   monkeypatch：改用真实 tmp 文件探测 `$SHELL`（彻底去掉宽 patch），并补
+   "$SHELL 指向不存在文件时回落 bash" 分支（`shutil.which` stub 沿用本文件
+   既有 PATH 探测约定）；
 3. master 上 5 个存量冒烟基线漂移重登（prompt_tab_completion /
    vim_registers_text_objects / duplicate_delete_line / indent_outdent /
    move_line_block）——本分支已还原不动，须在 master 另案登记；
@@ -235,9 +239,9 @@ flowchart TD
 |---|---|
 | `pyright yate/ tests/ tools/` | 0 errors, 0 warnings, 0 informations |
 | `pytest tests/test_architecture.py -q` | 37 passed |
-| `pytest tests/ -q -n auto` | exit 0 全绿（3233 项，墙钟 87.1s） |
+| `pytest tests/ -q -n auto` | exit 0 全绿（3233 项，墙钟波动带 87-110s） |
 | `pytest tests/ --cov=yate --cov-branch -n auto` | exit 0，92.75%（门槛 75%） |
-| `python -m tools.smoke_test run --jobs 4` | exit 0，120/120 场景（21.6s） |
+| `python -m tools.smoke_test run --jobs 4` | exit 0，120/120 场景 · 1446/1446 检查 |
 
-`tools.smoke_test compare` 复跑 1445/1445 检查全过，DRIFT 恰为 9.4 第 3 条
+`tools.smoke_test compare` 复跑全检查通过，DRIFT 恰为 9.4 第 3 条
 登记的 5 个 master 存量项（compare 的 exit 1 即该已知清单的信号）。
