@@ -11,7 +11,6 @@ DOM order, worker cache, degradation notes and legacy-DOM preservation.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,11 +22,13 @@ from textual.widgets import Static
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.tokens import SYNTAX_KINDS
 from yate.editor_view import theme
-from yate.editor_view.palette import (
+from yate.editor_view.palette import PaletteScreen
+from yate.editor_view.preview import (
     PREVIEW_CACHE_SIZE,
-    PaletteScreen,
+    PreviewCache,
+    PreviewData,
     PreviewLog,
-    _PreviewData,
+    load_preview,
 )
 from yate.editor_view.scrollbars import SlimScrollBarRender
 from yate.registries import ActionRegistry, CommandRegistry
@@ -76,6 +77,15 @@ def _preview_plain(screen: PaletteScreen) -> str:
     """Rendered plain text of the preview pane (strip text joined)."""
     pane = screen.query_one("#palette-preview", PreviewLog)
     return "\n".join(strip.text for strip in pane.lines)
+
+
+def _cache_hit(cache: PreviewCache, path: Path) -> PreviewData | None:
+    """Cache probe: the entry for *path* iff it matches the file on disk."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return cache.get(path, st.st_mtime_ns, st.st_size)
 
 
 ALPHA_SOURCE = "def hello():\n    return 'world'\n"
@@ -210,13 +220,14 @@ def test_preview_follows_cursor(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(alpha) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, alpha) is not None
             )
             await pilot.press("down")
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(beta) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, beta) is not None
             )
-            data = screen._preview_cache[beta]
+            data = _cache_hit(screen._preview_cache, beta)
+            assert data is not None
             assert data.path == beta
             assert data.lines == ["second file"]
             assert screen._selected_path() == beta
@@ -236,9 +247,10 @@ def test_preview_shows_syntax_tokens(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(alpha) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, alpha) is not None
             )
-            data = screen._preview_cache[alpha]
+            data = _cache_hit(screen._preview_cache, alpha)
+            assert data is not None
             assert data.tokens
             kinds = {tok.kind for row in data.tokens for tok in row}
             assert "keyword" in kinds
@@ -261,9 +273,10 @@ def test_preview_truncates_large_file(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(alpha) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, alpha) is not None
             )
-            data = screen._preview_cache[alpha]
+            data = _cache_hit(screen._preview_cache, alpha)
+            assert data is not None
             assert data.truncated
             assert len(data.lines) == screen.preview.max_lines
             assert "truncated" in screen._preview_text(data).plain
@@ -317,13 +330,15 @@ def test_preview_cache_hits_without_reread(
     beta.write_text("second file\n", encoding="utf-8")
 
     calls: list[Path] = []
-    original = PaletteScreen._load_preview
+    original = load_preview
 
-    def _counting(screen: PaletteScreen, path: Path) -> _PreviewData:
+    def _counting(path: Path, cfg: FilePreviewConfig) -> PreviewData:
         calls.append(path)
-        return original(screen, path)
+        return original(path, cfg)
 
-    monkeypatch.setattr(PaletteScreen, "_load_preview", _counting)
+    # patch the shared loader's module-level name: load_preview_worker
+    # resolves it from the preview module globals at worker run time
+    monkeypatch.setattr("yate.editor_view.preview.load_preview", _counting)
 
     async def scenario() -> None:
         app = _Host(_palette(tmp_path))
@@ -333,11 +348,11 @@ def test_preview_cache_hits_without_reread(
             assert isinstance(screen, PaletteScreen)
             # mount previews alpha; down selects beta; wrap + up revisit both
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(alpha) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, alpha) is not None
             )
             await pilot.press("down")
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(beta) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, beta) is not None
             )
             assert screen.cursor_index == 1
             await pilot.press("ctrl+n")  # wraps back to alpha: cache hit
@@ -381,43 +396,47 @@ def test_load_preview_reports_unreadable(
 
     monkeypatch.setattr(Path, "stat", denied)
     screen = _palette(tmp_path)
-    data = screen._load_preview(tmp_path / "secret.txt")
+    data = load_preview(tmp_path / "secret.txt", screen.preview)
     assert data.note is not None and "cannot read" in data.note
     assert data.lines == [] and data.tokens == []
 
 
 def test_cache_store_evicts_oldest(tmp_path: Path) -> None:
     """Insertion order is the eviction order; capacity stays at the cap."""
-    screen = _palette(tmp_path)
+    cache = PreviewCache()
     paths = [tmp_path / f"p{i}.txt" for i in range(PREVIEW_CACHE_SIZE + 1)]
 
-    def payload(i: int) -> _PreviewData:
-        return _PreviewData(
+    def payload(i: int) -> PreviewData:
+        return PreviewData(
             path=paths[i], lines=[], tokens=[], mtime_ns=i, size=0,
             truncated=False, note=None,
         )
 
     for i in range(len(paths)):
-        screen._cache_store(payload(i))
-    assert len(screen._preview_cache) == PREVIEW_CACHE_SIZE
-    assert paths[0] not in screen._preview_cache
-    assert paths[-1] in screen._preview_cache
+        cache.store(payload(i))
+    assert len(cache) == PREVIEW_CACHE_SIZE
+    assert paths[0] not in cache
+    assert paths[-1] in cache
     # re-storing an existing key must not evict anything
-    screen._cache_store(payload(PREVIEW_CACHE_SIZE))
-    assert len(screen._preview_cache) == PREVIEW_CACHE_SIZE
+    cache.store(payload(PREVIEW_CACHE_SIZE))
+    assert len(cache) == PREVIEW_CACHE_SIZE
 
 
 def test_cache_current_detects_stale(tmp_path: Path) -> None:
     """mtime/size probe validates entries; missing files read as stale."""
     target = tmp_path / "alpha.py"
     target.write_text(ALPHA_SOURCE, encoding="utf-8")
-    screen = _palette(tmp_path)
-    data = screen._load_preview(target)
+    data = load_preview(target, FilePreviewConfig())
     assert data.note is None
-    assert screen._cache_current(data)
+    cache = PreviewCache()
+    cache.store(data)
+    st = target.stat()
+    assert cache.get(target, st.st_mtime_ns, st.st_size) is not None
     target.write_text(ALPHA_SOURCE + "# touched\n", encoding="utf-8")
-    assert not screen._cache_current(data)
-    assert not screen._cache_current(replace(data, path=tmp_path / "gone.py"))
+    st = target.stat()
+    assert cache.get(target, st.st_mtime_ns, st.st_size) is None
+    # a path never stored (the old missing-file shape) reads as stale too
+    assert cache.get(tmp_path / "gone.py", 0, 0) is None
 
 
 def test_preview_renders_plain_lines_when_tokenize_fails(
@@ -428,8 +447,8 @@ def test_preview_renders_plain_lines_when_tokenize_fails(
     def boom(lines: list[str], filetype: str) -> object:
         raise RuntimeError("tokenizer exploded")
 
-    # patch the consumer-side name: palette.py from-imports tokenize_document
-    monkeypatch.setattr("yate.editor_view.palette.tokenize_document", boom)
+    # patch the consumer-side name: preview.py from-imports tokenize_document
+    monkeypatch.setattr("yate.editor_view.preview.tokenize_document", boom)
     alpha = tmp_path / "alpha.py"
     alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
 
@@ -440,7 +459,7 @@ def test_preview_renders_plain_lines_when_tokenize_fails(
             screen = app.screen
             assert isinstance(screen, PaletteScreen)
             assert await wait_until(
-                pilot, lambda: screen._preview_cache.get(alpha) is not None
+                pilot, lambda: _cache_hit(screen._preview_cache, alpha) is not None
             )
             plain = _preview_plain(screen)
             assert "def hello():" in plain
@@ -481,3 +500,38 @@ def test_update_preview_passes_worker_callable(
             assert not asyncio.iscoroutine(job)
 
     asyncio.run(scenario())
+
+
+# ------------------------------------------------------- PreviewCache units
+
+
+def test_preview_cache_fifo_evicts_oldest(tmp_path: Path) -> None:
+    """A capacity-2 cache drops its oldest entry when a third is stored."""
+    paths = [tmp_path / f"p{i}.txt" for i in range(3)]
+    cache = PreviewCache(capacity=2)
+
+    def payload(i: int) -> PreviewData:
+        return PreviewData(
+            path=paths[i], lines=[], tokens=[], mtime_ns=i, size=0,
+            truncated=False, note=None,
+        )
+
+    cache.store(payload(0))
+    cache.store(payload(1))
+    cache.store(payload(2))
+    assert cache.get(paths[0], 0, 0) is None
+    assert cache.get(paths[1], 1, 0) is not None
+    assert cache.get(paths[2], 2, 0) is not None
+
+
+def test_preview_cache_stale_entry_rejected_by_mtime(tmp_path: Path) -> None:
+    """A stored entry stops hitting once the probed mtime_ns moves on."""
+    target = tmp_path / "alpha.py"
+    data = PreviewData(
+        path=target, lines=[], tokens=[], mtime_ns=1, size=10,
+        truncated=False, note=None,
+    )
+    cache = PreviewCache()
+    cache.store(data)
+    assert cache.get(target, 1, 10) is not None
+    assert cache.get(target, 2, 10) is None
