@@ -124,6 +124,11 @@ class _FakePty:
                 return
             await asyncio.sleep(0.01)
 
+    def detach(self) -> None:
+        """Fake counterpart of :meth:`PtyProcess.detach` dropping callbacks."""
+        self._on_output = None
+        self._on_exit = None
+
 
 # ----------------------------------------------------------------- terminal UI
 
@@ -211,15 +216,21 @@ def test_ctrl_grave_toggles_focuses_and_forwards() -> None:
             assert proc.cols == 100
             assert proc.rows >= 8
 
-            # PTY output lands in the emulator and renders
+            # PTY output lands in the emulator and renders. Draining is
+            # coalesced to the next refresh frame, so poll for it: a
+            # single pause does not guarantee the drain has run.
             proc.emit_output(b"YATE_FAKE_OUTPUT\r\n")
-            await pilot.pause()
-            painted = "".join(
-                cell.char
-                for row in panel.view.emulator.view_lines(0)
-                for cell in row
+
+            def painted() -> str:
+                return "".join(
+                    cell.char
+                    for row in panel.view.emulator.view_lines(0)
+                    for cell in row
+                )
+
+            assert await wait_until(
+                pilot, lambda: "YATE_FAKE_OUTPUT" in painted()
             )
-            assert "YATE_FAKE_OUTPUT" in painted
 
             # keys typed in the panel are forwarded byte-for-byte
             await pilot.press("l", "s")
