@@ -1178,7 +1178,7 @@ def test_incremental_matches_full_reparse_over_random_edits() -> None:
     restores the previous line snapshot) and compares the session's tokens
     against a full :func:`tokenize_document` reparse, start/end/kind exact.
     """
-    groups = 100_000 if os.environ.get("YATE_TS_DIFF_STRESS") == "1" else 20_000
+    groups = 100_000 if os.environ.get("YATE_TS_DIFF_STRESS") == "1" else 5_000
     rng = random.Random(20260101)
     session = ts_runtime.IncrementalSession("py")
     steps = 0

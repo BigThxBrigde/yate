@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "palette_open",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "preview_widget",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "preview_note",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "preview_first_line",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "preview_tokens",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "doc.name",
+      "expected": "alpha.py",
+      "actual": "alpha.py",
+      "ok": true
+    },
+    {
+      "label": "palette_closed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "def greet():\n    return \"hi\"\n",
+      "actual": "def greet():\n    return \"hi\"\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

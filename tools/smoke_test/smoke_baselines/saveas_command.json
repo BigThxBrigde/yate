@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "readonly",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "dest_content",
+      "expected": "seed",
+      "actual": "seed",
+      "ok": true
+    },
+    {
+      "label": "doc_retargeted",
+      "expected": "renamed.txt",
+      "actual": "renamed.txt",
+      "ok": true
+    },
+    {
+      "label": "readonly_lifted",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "clean",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "source_untouched",
+      "expected": "seed",
+      "actual": "seed",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "seed",
+      "actual": "seed",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

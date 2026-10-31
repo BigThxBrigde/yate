@@ -619,3 +619,162 @@ def test_cleanup_confirmation_required_exits_two(
     rc, out, _, _ = _run_setup(["--cleanup-defaults"], capsys, cleanup=cleanup)
     assert rc == 2
     assert "non-tty" in out
+
+
+# --- --hex validation (coverage plan-c) --------------------------------------
+
+
+def test_cli_hex_rejects_startup_path(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--hex cannot be combined with a startup path argument."""
+    _expect_cli_error(["f.txt", "--hex", "dump.bin"])
+    assert "--hex cannot be combined with a startup path" in (
+        capsys.readouterr().err
+    )
+
+
+def test_cli_hex_rejects_diff_combination(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--hex cannot be combined with --diff."""
+    _expect_cli_error(["--diff", "a", "b", "--hex", "dump.bin"])
+    assert "--hex cannot be combined with --diff" in capsys.readouterr().err
+
+
+# --- extension package errors ------------------------------------------------
+
+
+def test_cli_uninstall_reports_yxp_error_and_fails(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failing uninstall prints 'error:' to stderr and exits 1."""
+    from yate.services.yxp import YxpError
+
+    with (
+        patch("yate.logs.crash.install"),
+        patch(
+            "yate.services.yxp.uninstall_package",
+            side_effect=YxpError("pkg missing"),
+        ),
+    ):
+        rc = main(["--uninstall-extension", "hello"])
+    assert rc == 1
+    assert "error: pkg missing" in capsys.readouterr().err
+
+
+# --- --install-font ----------------------------------------------------------
+
+
+def test_cli_install_font_success_and_failure(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--install-font reports an existing font and maps the result to rc."""
+    from yate.services.fonts import FontStatus
+
+    with (
+        patch("yate.logs.crash.install"),
+        patch(
+            "yate.services.fonts.font_status",
+            return_value=FontStatus(has_nerd_font=True, installed_fonts=["X NFM"]),
+        ),
+        patch(
+            "yate.services.fonts.ensure_font",
+            return_value=FontStatus(has_nerd_font=True, detail="installed"),
+        ),
+    ):
+        assert main(["--install-font"]) == 0
+    out = capsys.readouterr().out
+    assert "Nerd Font already available" in out
+    assert "installed" in out
+
+    with (
+        patch("yate.logs.crash.install"),
+        patch(
+            "yate.services.fonts.font_status",
+            return_value=FontStatus(has_nerd_font=False),
+        ),
+        patch(
+            "yate.services.fonts.ensure_font",
+            return_value=FontStatus(has_nerd_font=False, detail="no fonts bundled"),
+        ),
+    ):
+        assert main(["--install-font"]) == 1
+    out = capsys.readouterr().out
+    assert "Nerd Font already available" not in out
+    assert "no fonts bundled" in out
+
+
+# --- rc discovery ------------------------------------------------------------
+
+
+def test_cli_main_yaterc_explicit_path_and_default_discovery(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    """An explicit -u path wins; the default discovery feeds load_config."""
+    from yate.config import YateConfig
+
+    rc = tmp_path / "my.rc"
+    rc.write_text("", encoding="utf-8")
+    sentinel = [Path("discovered.rc")]
+    with (
+        patch("yate.app.YateApp", _FakeApp),
+        patch("yate.logs.crash.install"),
+        patch("yate.yaterc.load_config", return_value=YateConfig()) as load_cfg,
+    ):
+        assert main(["-u", str(rc)]) == 0
+        assert load_cfg.call_args.args[0] == [Path(rc)]
+
+        with patch("yate.yaterc.default_rc_paths", return_value=sentinel):
+            assert main([]) == 0
+        assert load_cfg.call_args.args[0] == sentinel
+    capsys.readouterr()
+
+
+def test_cli_main_logs_config_errors(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """config.errors are surfaced through the module logger as a warning."""
+    from yate.config import YateConfig
+
+    cfg = YateConfig()
+    cfg.errors = ["boom-a", "boom-b"]
+    fake_log = MagicMock()
+    with (
+        patch("yate.app.YateApp", _FakeApp),
+        patch("yate.logs.crash.install"),
+        patch("yate.yaterc.load_config", return_value=cfg),
+        patch("yate.cli.log", fake_log),
+    ):
+        assert main(["-u", "NONE"]) == 0
+    capsys.readouterr()
+    fake_log.warning.assert_called_once()
+    assert "config errors" in str(fake_log.warning.call_args.args[0])
+    assert "boom-a; boom-b" in str(fake_log.warning.call_args.args[1])
+
+
+def test_cli_main_keymap_normal_alias_maps_to_vsc(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--keymap normal is the documented alias for vsc."""
+    kwargs = _run_main(["--keymap", "normal", "-u", "NONE"], capsys)
+    assert kwargs["keymap"] == "vsc"
+    kwargs = _run_main(["--keymap", "vim", "-u", "NONE"], capsys)
+    assert kwargs["keymap"] == "vim"
+    kwargs = _run_main(["-u", "NONE"], capsys)
+    assert kwargs["keymap"] is None
+
+
+# --- module entry point ------------------------------------------------------
+
+
+def test_dunder_main_entry_exits_through_main() -> None:
+    """``python -m yate.cli`` raises SystemExit(main()) and honors --version."""
+    proc = subprocess.run(
+        [sys.executable, "-m", "yate.cli", "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.returncode == 0
+    assert f"yate {yate.__version__}" in proc.stdout

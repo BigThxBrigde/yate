@@ -58,6 +58,19 @@ def _type_query(screen: FindReplaceScreen, query: str) -> None:
     screen.query_one("#fr-find", Input).value = query
 
 
+def _disk_text(path: Path) -> str:
+    """Read a file from disk, treating the swap window as not-yet.
+
+    Windows: a project replace lands via os.replace and a read racing
+    the rename raises PermissionError -- return "" so poll predicates
+    retry instead of aborting (same guard as the _landed poll below).
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 def _results_plain(screen: FindReplaceScreen) -> str:
     """Plain text of the results pane renderable."""
     return plain_text(screen.query_one("#fr-results", Static).render())
@@ -167,13 +180,17 @@ def test_replace_all_writes_unopened_files(tmp_path: Path) -> None:
             screen.query_one("#fr-results", Static).focus()
             await pilot.pause()
             await pilot.press("a")
+            # the completion message is posted after every disk swap, so
+            # waiting for it first keeps the bare reads below out of the
+            # os.replace rename window (Windows PermissionError)
             assert await wait_until(
-                pilot, lambda: "dog" in alpha.read_text(encoding="utf-8")
+                pilot, lambda: any(
+                    "replaced 3" in text and kind == "ok"
+                    for text, kind in messages
+                )
             )
+            assert "dog" in alpha.read_text(encoding="utf-8")
             assert "dog" in beta.read_text(encoding="utf-8")
-            assert any(
-                "replaced 3" in text and kind == "ok" for text, kind in messages
-            )
 
     asyncio.run(scenario())
 
@@ -195,7 +212,7 @@ def test_empty_replacement_deletes_matches_on_disk(tmp_path: Path) -> None:
             await pilot.press("a")
             assert await wait_until(
                 pilot,
-                lambda: note.read_text(encoding="utf-8") == " x\nkeep y\n z\n",
+                lambda: _disk_text(note) == " x\nkeep y\n z\n",
             )
             assert any(
                 "replaced 2" in text and kind == "ok" for text, kind in messages
@@ -370,7 +387,7 @@ def test_replace_r_current_file_only(tmp_path: Path) -> None:
             # the cursor sits on the first (alpha) hit
             await pilot.press("r")
             assert await wait_until(
-                pilot, lambda: "dog" in alpha.read_text(encoding="utf-8")
+                pilot, lambda: "dog" in _disk_text(alpha)
             )
             assert "needle" in beta.read_text(encoding="utf-8")
 

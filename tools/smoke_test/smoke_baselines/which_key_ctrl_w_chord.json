@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "in_vim",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "starts_hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "chord_pending",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "chord_visible",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "chord_title",
+      "expected": "ctrl+w",
+      "actual": "ctrl+w",
+      "ok": true
+    },
+    {
+      "label": "chord_cancelled",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "hidden_after_cancel",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

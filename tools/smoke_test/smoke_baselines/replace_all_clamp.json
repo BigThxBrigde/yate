@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "cursor_at_end",
+      "expected": 8,
+      "actual": 8,
+      "ok": true
+    },
+    {
+      "label": "confirm_loop_mode",
+      "expected": "replace_confirm",
+      "actual": "replace_confirm",
+      "ok": true
+    },
+    {
+      "label": "replaced",
+      "expected": "aa\ntail",
+      "actual": "aa\ntail",
+      "ok": true
+    },
+    {
+      "label": "anchor_cleared",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "cursor_inside_line",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "no_matches_left",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "editable_after_replace",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

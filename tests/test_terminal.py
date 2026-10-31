@@ -25,7 +25,7 @@ from yate.editor_term import (
     shell_label,
 )
 from yate.editor_term import pty_proc
-from yate.editor_view.terminal import OUTPUT_BUFFER_LIMIT, TerminalView
+from yate.editor_view.terminal import TerminalView
 
 
 def _text(emu: TerminalEmulator) -> str:
@@ -629,8 +629,13 @@ def test_output_buffer_overflow_drains_synchronously_without_loss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Exceeding the limit drains at once; no byte is dropped or re-fed."""
+    # Shrink the limit so the test runs in milliseconds instead of seconds.
+    # OUTPUT_BUFFER_LIMIT is read at runtime from the module attribute
+    # (yate/editor_view/terminal.py:207), so monkeypatch works.
+    small_limit = 1024
+    monkeypatch.setattr("yate.editor_view.terminal.OUTPUT_BUFFER_LIMIT", small_limit)
     view, scheduled = _coalescing_view(monkeypatch)
-    big = b"x" * (OUTPUT_BUFFER_LIMIT + 1)
+    big = b"x" * (small_limit + 1)
     view._on_output(big)
     # The drain ran inline: nothing pending, buffer empty, all bytes parsed.
     assert not scheduled

@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "hex_screen_pushed",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "svg_shows_offset_row_10",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha\nalpha\nalpha\nalpha\nalpha\nalpha\nalpha\nalpha\n",
+      "actual": "alpha\nalpha\nalpha\nalpha\nalpha\nalpha\nalpha\nalpha\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

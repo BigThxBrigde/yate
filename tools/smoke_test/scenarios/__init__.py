@@ -12,6 +12,7 @@ from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, s
 from tools.smoke_test.scenarios._base import goto, run_command, type_text, wait_until
 from tools.smoke_test.scenarios.aliases import SCENARIOS as _ALIASES
 from tools.smoke_test.scenarios.chunkedview import SCENARIOS as _CHUNKEDVIEW
+from tools.smoke_test.scenarios.completion import SCENARIOS as _COMPLETION
 from tools.smoke_test.scenarios.core import SCENARIOS as _CORE
 from tools.smoke_test.scenarios.diffview import SCENARIOS as _DIFFVIEW
 from tools.smoke_test.scenarios.edit import SCENARIOS as _EDIT
@@ -30,6 +31,7 @@ from tools.smoke_test.scenarios.search import SCENARIOS as _SEARCH
 from tools.smoke_test.scenarios.stress import SCENARIOS as _STRESS
 from tools.smoke_test.scenarios.view import SCENARIOS as _VIEW
 from tools.smoke_test.scenarios.vim_advanced import SCENARIOS as _VIM_ADVANCED
+from tools.smoke_test.scenarios.whichkey import SCENARIOS as _WHICHKEY
 from tools.smoke_test.scenarios.workspace_nav import SCENARIOS as _WORKSPACE_NAV
 
 __all__ = [
@@ -58,6 +60,8 @@ SCENARIOS: list[Scenario] = [
     *_EXPLORER,
     *_WORKSPACE_NAV,
     *_VIEW,
+    *_WHICHKEY,
+    *_COMPLETION,
     *_CHUNKEDVIEW,
     *_DIFFVIEW,
     *_HEXVIEW,

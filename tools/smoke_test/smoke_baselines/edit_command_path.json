@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "label": "start_doc",
+      "expected": "main.txt",
+      "actual": "main.txt",
+      "ok": true
+    },
+    {
+      "label": "doc.name",
+      "expected": "edit-me.txt",
+      "actual": "edit-me.txt",
+      "ok": true
+    },
+    {
+      "label": "content",
+      "expected": "edited file",
+      "actual": "edited file",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "edited file\n",
+      "actual": "edited file\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

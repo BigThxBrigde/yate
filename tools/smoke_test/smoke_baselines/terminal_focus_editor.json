@@ -1,0 +1,65 @@
+{
+  "checks": [
+    {
+      "label": "terminal_shown",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "proc_started",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "terminal_focused",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "focus_back_to_editor",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "ctrl1_not_forwarded",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

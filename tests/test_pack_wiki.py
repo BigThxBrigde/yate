@@ -199,6 +199,21 @@ def test_existing_en_is_adopted_not_overwritten(
 def test_stale_is_reported_then_retranslated(
     repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Mock the lint engine to skip the pymarkdownlnt import and the
+    # per-page lint pass.  This test verifies stale detection and
+    # retranslation, not lint fixes; the stub implements the minimal
+    # engine surface consumed by _lint_page_text/_require_lint_engine
+    # (tools/pack/wiki.py:302-304) and the run stays on the serial lint
+    # path (fewer than PARALLEL_LINT_MIN_TEXTS small pages).
+    class _NoOpEngine:
+        def fix(self, text: str) -> tuple[str, list[object]]:
+            return text, []
+
+    def _stub_engine(lang: str) -> _NoOpEngine:
+        return _NoOpEngine()
+
+    monkeypatch.setattr(wiki, "_get_lint_engine", _stub_engine)
+
     def v1_translate(text: str, translate_cmd: str) -> str | None:
         return "# orphan en v1\n"
 

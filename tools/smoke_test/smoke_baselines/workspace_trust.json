@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "skipped_before_trust",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "skip_notice",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "marker_absent",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "loaded_after_trust",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "marker_registered",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "workspace_trusted",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "store_written",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "hello\n",
+      "actual": "hello\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

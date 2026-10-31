@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "hex_screen_pushed",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "screen_is_hex",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "svg_shows_offset_hex_ascii",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "q_closes",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "hex_reopens",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "escape_closes",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "back_to_editor",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha\nbravo\n",
+      "actual": "alpha\nbravo\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

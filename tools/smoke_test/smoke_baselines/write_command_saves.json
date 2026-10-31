@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "label": "dirty",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "clean",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "disk",
+      "expected": "seedmore",
+      "actual": "seedmore",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "seedmore",
+      "actual": "seedmore",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
