@@ -1,0 +1,207 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "cursor_col2",
+      "expected": [
+        0,
+        2
+      ],
+      "actual": [
+        0,
+        2
+      ],
+      "ok": true
+    },
+    {
+      "label": "points",
+      "expected": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "chip_vcolumn",
+      "expected": "V-COLUMN",
+      "actual": "V-COLUMN",
+      "ok": true
+    },
+    {
+      "label": "typed_all_rows",
+      "expected": [
+        "alXpha beta",
+        "gaXmma delta",
+        "epXsilon zeta"
+      ],
+      "actual": [
+        "alXpha beta",
+        "gaXmma delta",
+        "epXsilon zeta"
+      ],
+      "ok": true
+    },
+    {
+      "label": "chip_still_vcolumn",
+      "expected": "V-COLUMN",
+      "actual": "V-COLUMN",
+      "ok": true
+    },
+    {
+      "label": "esc_points_gone",
+      "expected": [],
+      "actual": [],
+      "ok": true
+    },
+    {
+      "label": "esc_label",
+      "expected": "NORMAL",
+      "actual": "NORMAL",
+      "ok": true
+    },
+    {
+      "label": "undo_restored",
+      "expected": [
+        "alpha beta",
+        "gamma delta",
+        "epsilon zeta"
+      ],
+      "actual": [
+        "alpha beta",
+        "gamma delta",
+        "epsilon zeta"
+      ],
+      "ok": true
+    },
+    {
+      "label": "points_reset",
+      "expected": [],
+      "actual": [],
+      "ok": true
+    },
+    {
+      "label": "points_rebuilt",
+      "expected": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "motion_cursor",
+      "expected": [
+        1,
+        2
+      ],
+      "actual": [
+        1,
+        2
+      ],
+      "ok": true
+    },
+    {
+      "label": "motion_points_kept",
+      "expected": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          1,
+          2
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha beta\ngamma delta\nepsilon zeta",
+      "actual": "alpha beta\ngamma delta\nepsilon zeta",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

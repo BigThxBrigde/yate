@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "opened_b",
+      "expected": "b.txt",
+      "actual": "b.txt",
+      "ok": true
+    },
+    {
+      "label": "index_b",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "bnext_name",
+      "expected": "a.txt",
+      "actual": "a.txt",
+      "ok": true
+    },
+    {
+      "label": "bnext_index",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "bprev_name",
+      "expected": "b.txt",
+      "actual": "b.txt",
+      "ok": true
+    },
+    {
+      "label": "bprev_index",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "bravo\n",
+      "actual": "bravo\n",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

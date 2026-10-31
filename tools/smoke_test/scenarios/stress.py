@@ -109,18 +109,30 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
         # editor takes focus back and one ctrl+b still flips the state.
         for _ in range(10):
             await pilot.press("ctrl+b")
-        await pilot.pause()
+        sidebar = app.editor.sidebar
+        # The storm outruns the sidebar repaint (one pause is not enough
+        # under a parallel full run): poll until the widget display has
+        # converged onto the flag, then read the assertion values.
+        await wait_until(
+            pilot,
+            lambda: (sidebar.display if sidebar else None)
+            == app.editor.explorer_visible,
+        )
         checks.append(Check("sidebar_matches_flag", app.editor.explorer_visible,
-                            app.editor.sidebar.display
-                            if app.editor.sidebar else None))
+                            sidebar.display if sidebar else None))
         await pilot.press("ctrl+1")
-        await pilot.pause()
+        # Same convergence rule after focusing the editor pane: wait for the
+        # active view to hold focus before reading the pre-toggle flag.
+        panes = app.editor.panes
+        view = panes.active_view if panes else None
+        await wait_until(pilot, lambda: app.focused is view)
         before = app.editor.explorer_visible
         await pilot.press("ctrl+b")
-        await pilot.pause()
+        await wait_until(
+            pilot, lambda: app.editor.explorer_visible == (not before))
         checks.append(Check("toggles", not before, app.editor.explorer_visible))
         await pilot.press("ctrl+b")
-        await pilot.pause()
+        await wait_until(pilot, lambda: app.editor.explorer_visible == before)
         checks.append(Check("toggles_back", before, app.editor.explorer_visible))
         checks.append(Check("still_no_crash", None, app.return_code))
         rows = snapshot_svg(app, tmp)

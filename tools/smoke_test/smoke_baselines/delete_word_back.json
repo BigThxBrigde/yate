@@ -1,0 +1,71 @@
+{
+  "checks": [
+    {
+      "label": "cursor_at_end",
+      "expected": [
+        0,
+        11
+      ],
+      "actual": [
+        0,
+        11
+      ],
+      "ok": true
+    },
+    {
+      "label": "word_removed",
+      "expected": "hello ",
+      "actual": "hello ",
+      "ok": true
+    },
+    {
+      "label": "cursor_at_word_start",
+      "expected": [
+        0,
+        6
+      ],
+      "actual": [
+        0,
+        6
+      ],
+      "ok": true
+    },
+    {
+      "label": "modified",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

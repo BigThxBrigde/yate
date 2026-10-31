@@ -1,0 +1,83 @@
+{
+  "checks": [
+    {
+      "label": "goal_at_end",
+      "expected": 14,
+      "actual": 14,
+      "ok": true
+    },
+    {
+      "label": "clamped_on_short_line",
+      "expected": 3,
+      "actual": 3,
+      "ok": true
+    },
+    {
+      "label": "goal_column_restored",
+      "expected": 14,
+      "actual": 14,
+      "ok": true
+    },
+    {
+      "label": "back_on_first_row",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "goal_kept_after_up",
+      "expected": 14,
+      "actual": 14,
+      "ok": true
+    },
+    {
+      "label": "edited",
+      "expected": "long line hereX\nabc\nanother long line",
+      "actual": "long line hereX\nabc\nanother long line",
+      "ok": true
+    },
+    {
+      "label": "undo_restores_text",
+      "expected": "long line here\nabc\nanother long line",
+      "actual": "long line here\nabc\nanother long line",
+      "ok": true
+    },
+    {
+      "label": "redo_reapplies",
+      "expected": "long line hereX\nabc\nanother long line",
+      "actual": "long line hereX\nabc\nanother long line",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

@@ -1,0 +1,77 @@
+{
+  "checks": [
+    {
+      "label": "prompt_open",
+      "expected": "command",
+      "actual": "command",
+      "ok": true
+    },
+    {
+      "label": "common_prefix_applied",
+      "expected": "term",
+      "actual": "term",
+      "ok": true
+    },
+    {
+      "label": "candidates_shown",
+      "expected": "candidates",
+      "actual": "candidates",
+      "ok": true
+    },
+    {
+      "label": "candidates_text",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "first_candidate_applied",
+      "expected": "term",
+      "actual": "term",
+      "ok": true
+    },
+    {
+      "label": "candidates_hidden",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "cancelled",
+      "expected": null,
+      "actual": null,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

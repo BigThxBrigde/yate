@@ -1,0 +1,53 @@
+{
+  "checks": [
+    {
+      "label": "visible_on_dir_open",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "hidden_by_command",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "shown_again",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

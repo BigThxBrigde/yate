@@ -1,0 +1,95 @@
+{
+  "checks": [
+    {
+      "label": "query",
+      "expected": "one",
+      "actual": "one",
+      "ok": true
+    },
+    {
+      "label": "match_count",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "index_after_search",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "row_after_search",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "index_after_next",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "row_after_next",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
+      "label": "index_after_prev",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "row_after_prev",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "one\ntwo\none",
+      "actual": "one\ntwo\none",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

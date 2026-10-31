@@ -1,0 +1,87 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vim",
+      "actual": "vim",
+      "ok": true
+    },
+    {
+      "label": "mode_insert",
+      "expected": "INSERT",
+      "actual": "INSERT",
+      "ok": true
+    },
+    {
+      "label": "cursor_at_line_end",
+      "expected": [
+        0,
+        7
+      ],
+      "actual": [
+        0,
+        7
+      ],
+      "ok": true
+    },
+    {
+      "label": "line_cleared",
+      "expected": [
+        ""
+      ],
+      "actual": [
+        ""
+      ],
+      "ok": true
+    },
+    {
+      "label": "cursor_at_start",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "keymap_restored",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

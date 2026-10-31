@@ -1,0 +1,159 @@
+{
+  "checks": [
+    {
+      "label": "keymap",
+      "expected": "vsc",
+      "actual": "vsc",
+      "ok": true
+    },
+    {
+      "label": "points",
+      "expected": [
+        [
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "chip_vcolumn",
+      "expected": "V-COLUMN",
+      "actual": "V-COLUMN",
+      "ok": true
+    },
+    {
+      "label": "typed_all_points",
+      "expected": "xalxpha beta\ngaxmma delta\nepsilon zeta",
+      "actual": "xalxpha beta\ngaxmma delta\nepsilon zeta",
+      "ok": true
+    },
+    {
+      "label": "esc_points_gone",
+      "expected": [],
+      "actual": [],
+      "ok": true
+    },
+    {
+      "label": "esc_label",
+      "expected": "VSC",
+      "actual": "VSC",
+      "ok": true
+    },
+    {
+      "label": "undo_restored",
+      "expected": "alpha beta\ngamma delta\nepsilon zeta",
+      "actual": "alpha beta\ngamma delta\nepsilon zeta",
+      "ok": true
+    },
+    {
+      "label": "undo_points_restored",
+      "expected": [
+        [
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          0,
+          2
+        ],
+        [
+          1,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "point_readded",
+      "expected": [
+        [
+          0,
+          2
+        ]
+      ],
+      "actual": [
+        [
+          0,
+          2
+        ]
+      ],
+      "ok": true
+    },
+    {
+      "label": "plain_click_cleared",
+      "expected": [],
+      "actual": [],
+      "ok": true
+    },
+    {
+      "label": "plain_click_moved",
+      "expected": [
+        1,
+        5
+      ],
+      "actual": [
+        1,
+        5
+      ],
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "alpha beta\ngamma delta\nepsilon zeta",
+      "actual": "alpha beta\ngamma delta\nepsilon zeta",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}

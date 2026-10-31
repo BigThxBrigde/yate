@@ -1,0 +1,143 @@
+{
+  "checks": [
+    {
+      "label": "line_end_selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "line_end_text",
+      "expected": "hello world",
+      "actual": "hello world",
+      "ok": true
+    },
+    {
+      "label": "line_end_anchor",
+      "expected": [
+        0,
+        0
+      ],
+      "actual": [
+        0,
+        0
+      ],
+      "ok": true
+    },
+    {
+      "label": "line_start_selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "line_start_text",
+      "expected": "hello world",
+      "actual": "hello world",
+      "ok": true
+    },
+    {
+      "label": "line_start_anchor",
+      "expected": [
+        0,
+        11
+      ],
+      "actual": [
+        0,
+        11
+      ],
+      "ok": true
+    },
+    {
+      "label": "word_left_selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "word_left_text",
+      "expected": "world",
+      "actual": "world",
+      "ok": true
+    },
+    {
+      "label": "word_left_anchor",
+      "expected": [
+        0,
+        11
+      ],
+      "actual": [
+        0,
+        11
+      ],
+      "ok": true
+    },
+    {
+      "label": "select_left_selected",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "select_left_text",
+      "expected": "d",
+      "actual": "d",
+      "ok": true
+    },
+    {
+      "label": "select_left_anchor",
+      "expected": [
+        0,
+        11
+      ],
+      "actual": [
+        0,
+        11
+      ],
+      "ok": true
+    },
+    {
+      "label": "cleared",
+      "expected": false,
+      "actual": false,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    },
+    {
+      "label": "invariant:saved_matches_disk",
+      "expected": "hello world",
+      "actual": "hello world",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
