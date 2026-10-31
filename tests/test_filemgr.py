@@ -12,19 +12,20 @@ tests assert on the DOM, screen state and the file system.
 from __future__ import annotations
 
 import asyncio
+import sys
 from pathlib import Path
 
 import pytest
 from textual.app import App
 from textual.color import Color
-from textual.widgets import Input, Static
+from textual.widgets import Input, ListView, Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_view import theme
 from yate.editor_view import filemgr
 from yate.editor_view.filemgr import FileManagerScreen, _FileListView
 from yate.editor_view.preview import PreviewLog
-from yate.services.workspace import Workspace
+from yate.services.workspace import EntryStat, Workspace
 
 from conftest import plain_text, wait_until
 
@@ -49,13 +50,26 @@ def _screen(
     *,
     fullscreen: bool = False,
     initial_dir: Path | None = None,
+    renamed_calls: list[tuple[Path, Path]] | None = None,
+    deleted_calls: list[Path] | None = None,
+    hidden_calls: list[bool] | None = None,
 ) -> FileManagerScreen:
-    """A FileManagerScreen over *tmp_path* with recording stub callbacks."""
+    """A FileManagerScreen over *tmp_path* with recording stub callbacks.
+
+    The three sync callbacks (M2 / m5) record into the given lists when
+    provided, otherwise into throwaway ones.
+    """
+    renamed = renamed_calls if renamed_calls is not None else []
+    deleted = deleted_calls if deleted_calls is not None else []
+    hidden = hidden_calls if hidden_calls is not None else []
     return FileManagerScreen(
         workspace=Workspace(tmp_path),
         preview=FilePreviewConfig(),
         open_selected=open_calls.append,
         close=lambda: close_calls.append(True),
+        on_renamed=lambda old, new: renamed.append((old, new)),
+        on_deleted=deleted.append,
+        on_show_hidden_changed=hidden.append,
         fullscreen=fullscreen,
         initial_dir=initial_dir,
     )
@@ -74,6 +88,17 @@ def _entry_names(screen: FileManagerScreen) -> list[str]:
 def _status_text(screen: FileManagerScreen) -> str:
     """Plain text of the status bar."""
     return plain_text(screen.query_one("#filemgr-status", Static).content)
+
+
+def _parent_texts(screen: FileManagerScreen) -> list[str]:
+    """Plain texts of the left-pane rows."""
+    pane = screen.query_one("#filemgr-parent", ListView)
+    texts: list[str] = []
+    for item in pane.children:
+        for child in item.children:
+            if isinstance(child, Static):
+                texts.append(plain_text(child.content))
+    return texts
 
 
 def _input_visible(screen: FileManagerScreen) -> bool:
@@ -465,5 +490,360 @@ def test_filemgr_fullscreen_css_class_switches_layout(tmp_path: Path) -> None:
             assert await wait_until(
                 pilot, lambda: container.region.size == (100, 30)
             )
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_half_page_scrolls_cursor_down_and_up(tmp_path: Path) -> None:
+    """ctrl+d / ctrl+u move the cursor by half a viewport, clamped."""
+    for i in range(20):
+        (tmp_path / f"f{i:02}.txt").write_text("x\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 20)
+            assert _list(screen).index == 0
+            await pilot.press("ctrl+d")
+            down = _list(screen).index
+            assert down is not None and down > 0
+            await pilot.press("ctrl+u")
+            assert _list(screen).index == 0
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_gg_prefix_jumps_to_top(tmp_path: Path) -> None:
+    """``g`` ``g`` within the timeout jumps to the first row (lf semantics)."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 4)
+            await pilot.press("G")
+            assert _list(screen).index == 3
+            await pilot.press("g")
+            await pilot.press("g")
+            assert _list(screen).index == 0
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_toggle_hidden_notifies_show_hidden_changed(tmp_path: Path) -> None:
+    """``H`` flips the flag and reports every change to the injected hook (m5)."""
+    (tmp_path / "visible.txt").write_text("v\n", encoding="utf-8")
+    hidden_calls: list[bool] = []
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], hidden_calls=hidden_calls))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == ["visible.txt"]
+            )
+            await pilot.press("H")
+            assert hidden_calls == [True]
+            assert screen.workspace.show_hidden is True
+            await pilot.press("H")
+            assert hidden_calls == [True, False]
+            assert screen.workspace.show_hidden is False
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_yank_then_paste_copies_entry(tmp_path: Path) -> None:
+    """``y`` + ``p`` copies into the entered directory: source kept."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            await pilot.press("j")  # cursor onto alpha.txt
+            await pilot.press("y")  # yank
+            await pilot.press("k")  # back onto sub
+            await pilot.press("l")  # enter sub
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
+            await pilot.press("p")
+            assert await wait_until(
+                pilot, lambda: (tmp_path / "sub" / "alpha.txt").exists()
+            )
+            assert (tmp_path / "alpha.txt").read_text(encoding="utf-8") == "alpha\n"
+            assert (
+                (tmp_path / "sub" / "alpha.txt").read_text(encoding="utf-8")
+                == "alpha\n"
+            )
+            # a copy buffer survives the paste
+            assert screen._clipboard is not None
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_yank_paste_copies_directory_recursively(tmp_path: Path) -> None:
+    """Pasting a yanked directory copies the whole tree (copytree)."""
+    (tmp_path / "srcdir").mkdir()
+    (tmp_path / "srcdir" / "inner.txt").write_text("inner\n", encoding="utf-8")
+    (tmp_path / "sub").mkdir()
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            # cursor starts on srcdir (dirs first, name asc)
+            await pilot.press("y")  # yank srcdir
+            await pilot.press("j")  # onto sub
+            await pilot.press("l")  # enter sub
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
+            await pilot.press("p")
+            assert await wait_until(
+                pilot, lambda: (tmp_path / "sub" / "srcdir" / "inner.txt").exists()
+            )
+            assert (
+                (tmp_path / "sub" / "srcdir" / "inner.txt").read_text(
+                    encoding="utf-8"
+                )
+                == "inner\n"
+            )
+            assert (tmp_path / "srcdir" / "inner.txt").exists()
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_cut_then_paste_moves_entry_and_consumes_buffer(
+    tmp_path: Path,
+) -> None:
+    """``x`` + ``p`` moves the source; the second paste reports an empty buffer."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "alpha.txt").write_text("alpha\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            await pilot.press("j")  # cursor onto alpha.txt
+            await pilot.press("x")  # cut
+            await pilot.press("k")  # back onto sub
+            await pilot.press("l")  # enter sub
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
+            await pilot.press("p")
+            assert await wait_until(
+                pilot,
+                lambda: (tmp_path / "sub" / "alpha.txt").exists()
+                and not (tmp_path / "alpha.txt").exists(),
+            )
+            # the cut buffer was consumed by the move
+            assert screen._clipboard is None
+            await pilot.press("p")
+            assert await wait_until(pilot, lambda: _input_visible(screen))
+            input_widget = screen.query_one("#filemgr-input", Input)
+            assert "clipboard is empty" in input_widget.placeholder
+            await pilot.press("escape")
+            assert not _input_visible(screen)
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_paste_conflict_reports_and_keeps_both_files(tmp_path: Path) -> None:
+    """A name conflict surfaces ``paste failed:`` and changes neither file."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "alpha.txt").write_text("from\n", encoding="utf-8")
+    (tmp_path / "sub" / "alpha.txt").write_text("existing\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            await pilot.press("j")  # cursor onto alpha.txt
+            await pilot.press("y")  # yank
+            await pilot.press("k")  # back onto sub
+            await pilot.press("l")  # enter sub
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
+            await pilot.press("p")
+            assert await wait_until(pilot, lambda: _input_visible(screen))
+            input_widget = screen.query_one("#filemgr-input", Input)
+            assert "paste failed:" in input_widget.placeholder
+            assert "already exists" in input_widget.placeholder
+            # neither side was touched by the failed paste
+            assert (tmp_path / "alpha.txt").read_text(encoding="utf-8") == "from\n"
+            assert (
+                (tmp_path / "sub" / "alpha.txt").read_text(encoding="utf-8")
+                == "existing\n"
+            )
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_rename_conflict_keeps_input_and_retries(tmp_path: Path) -> None:
+    """A rename error keeps the typed value and the pending op (m2)."""
+    (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
+    (tmp_path / "beta.txt").write_text("b\n", encoding="utf-8")
+    renamed_calls: list[tuple[Path, Path]] = []
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], renamed_calls=renamed_calls))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            input_widget = screen.query_one("#filemgr-input", Input)
+            await pilot.press("R")  # rename alpha.txt (cursor starts there)
+            assert input_widget.value == "alpha.txt"
+            await pilot.press("ctrl+u")  # clear the prefilled name
+            for ch in "beta.txt":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            # the error keeps the input open, value and kind intact
+            assert await wait_until(
+                pilot, lambda: "already exists" in input_widget.placeholder
+            )
+            assert _input_visible(screen)
+            assert input_widget.value == "beta.txt"
+            assert screen._prompt_kind == "rename"
+            # retrying with a free name goes through and reports the rename
+            await pilot.press("ctrl+u")
+            for ch in "gamma.txt":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            assert await wait_until(pilot, lambda: (tmp_path / "gamma.txt").exists())
+            assert not (tmp_path / "alpha.txt").exists()
+            assert renamed_calls == [(tmp_path / "alpha.txt", tmp_path / "gamma.txt")]
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_delete_cancel_then_confirm_reports_deleted(tmp_path: Path) -> None:
+    """Non-``y`` input cancels; ``y`` deletes and reports to the hook (M2)."""
+    (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
+    deleted_calls: list[Path] = []
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], deleted_calls=deleted_calls))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: _entry_names(screen) == ["alpha.txt"])
+            # cancel: anything but y keeps the file and closes the line
+            await pilot.press("d")
+            assert _input_visible(screen)
+            await pilot.press("n")
+            await pilot.press("enter")
+            assert await wait_until(pilot, lambda: not _input_visible(screen))
+            assert (tmp_path / "alpha.txt").exists()
+            assert deleted_calls == []
+            # confirm: y deletes the file and reports the deleted path
+            await pilot.press("d")
+            await pilot.press("y")
+            await pilot.press("enter")
+            assert await wait_until(
+                pilot, lambda: not (tmp_path / "alpha.txt").exists()
+            )
+            assert deleted_calls == [tmp_path / "alpha.txt"]
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_filter_keystrokes_reuse_cached_counts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Filter edits reuse cached stats and child counts; ``r`` resets (M3)."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "inner.txt").write_text("i\n", encoding="utf-8")
+    (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
+    calls = {"counts": 0, "stats": 0}
+    real_counts = filemgr.count_children
+    real_stats = Workspace.stat_entry
+
+    def counting(path: Path) -> int:
+        """Counting stand-in for the consumer-module binding."""
+        calls["counts"] += 1
+        return real_counts(path)
+
+    def stat_counting(self: Workspace, path: Path) -> EntryStat:
+        """Counting stand-in for the class-level ``stat_entry``."""
+        calls["stats"] += 1
+        return real_stats(self, path)
+
+    monkeypatch.setattr(filemgr, "count_children", counting)
+    monkeypatch.setattr(Workspace, "stat_entry", stat_counting)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            # initial listing: 1 dir counted, 2 entries stat'ed
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            assert calls == {"counts": 1, "stats": 2}
+            # filter keystrokes neither rescan children nor re-stat
+            await pilot.press("slash")
+            await pilot.press("u")  # matches "sub" only
+            assert await wait_until(pilot, lambda: _entry_names(screen) == ["sub"])
+            assert calls == {"counts": 1, "stats": 2}
+            await pilot.press("escape")  # clear the filter: still cached
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
+            assert calls == {"counts": 1, "stats": 2}
+            # ``r`` drops the cache: one recount and a full re-stat
+            await pilot.press("r")
+            assert await wait_until(pilot, lambda: calls["counts"] == 2)
+            assert calls["stats"] == 4
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="drive letters are Windows-only")
+def test_filemgr_drive_level_lists_drives_and_enters(tmp_path: Path) -> None:
+    """A root start lands on the drive level; ``l`` enters, ``h`` returns (Q4)."""
+    (tmp_path / "marker.txt").write_text("m\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], initial_dir=Path(tmp_path.anchor)))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            drive_names = [entry.name for entry in Workspace(tmp_path).list_drives()]
+            assert drive_names
+            # the drive level: drives in the middle pane, placeholder left
+            assert screen._cwd is None
+            assert await wait_until(pilot, lambda: _entry_names(screen) == drive_names)
+            assert _parent_texts(screen) == ["(no parent directory)"]
+            # ``l`` enters the first drive like a normal directory
+            drive_root = Path(f"{drive_names[0]}\\")
+            await pilot.press("l")
+            assert await wait_until(pilot, lambda: screen._cwd == drive_root)
+            assert await wait_until(
+                pilot,
+                lambda: _entry_names(screen)
+                == [e.name for e in Workspace(tmp_path).list_dir(drive_root)],
+            )
+            # ``h`` from a file-system root returns to the drive level
+            await pilot.press("h")
+            assert await wait_until(pilot, lambda: screen._cwd is None)
+            assert await wait_until(pilot, lambda: _entry_names(screen) == drive_names)
 
     asyncio.run(scenario())

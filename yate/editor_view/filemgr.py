@@ -135,6 +135,9 @@ class FileManagerScreen(ModalScreen[None]):
         preview: FilePreviewConfig,
         open_selected: Callable[[list[Path]], None],
         close: Callable[[], None],
+        on_renamed: Callable[[Path, Path], None],
+        on_deleted: Callable[[Path], None],
+        on_show_hidden_changed: Callable[[bool], None],
         fullscreen: bool = False,
         initial_dir: Path | None = None,
     ) -> None:
@@ -142,18 +145,26 @@ class FileManagerScreen(ModalScreen[None]):
 
         *open_selected* receives the selected path collection (Q1/Q2
         semantics stay with the flows layer); *close* pops the overlay
-        or exits the app.  *initial_dir* defaults to the workspace root,
-        then the cwd; *fullscreen* adds the ``.fullscreen`` class.
+        or exits the app.  *on_renamed* / *on_deleted* / *on_show_hidden_changed*
+        keep the editor session and the file tree in sync (M2 / m5);
+        *initial_dir* defaults to the workspace root, then the cwd;
+        *fullscreen* adds the ``.fullscreen`` class.
         """
         super().__init__()
         self.workspace = workspace
         self.preview = preview
         self.open_selected = open_selected
         self.close = close
+        self.on_renamed = on_renamed
+        self.on_deleted = on_deleted
+        self.on_show_hidden_changed = on_show_hidden_changed
         if fullscreen:
             self.add_class("fullscreen")
         root = workspace.root
-        self._cwd: Path = (initial_dir or root or Path.cwd()).resolve()
+        start = (initial_dir or root or Path.cwd()).resolve()
+        # A file-system root starts at the drive-letter virtual level (Q4):
+        # ``None`` marks that level, real directories browse normally.
+        self._cwd: Path | None = None if start.parent == start else start
         self._all: list[Entry] = []
         self._entries: list[Entry] = []
         self._stats: dict[Path, EntryStat] = {}
@@ -191,7 +202,29 @@ class FileManagerScreen(ModalScreen[None]):
             yield Static(id="filemgr-status")
 
     def on_mount(self) -> None:
-        """Wire scrollbars + theme, then build the initial listing (R15)."""
+        """Defer the mount wiring until the composed children exist.
+
+        Textual 8.2.8 mounts ``push_screen`` targets via ``call_next``, so
+        the screen's own ``Mount`` can fire before ``compose``'s children
+        are mounted (B1: NoMatches under load on the startup form).
+        """
+        self.call_after_refresh(self._wire_mount)
+
+    def _wire_mount(self) -> None:
+        """Wire scrollbars + theme, then build the initial listing (R15).
+
+        Retries via ``call_after_refresh`` until the three panes are
+        attached: a node present in the DOM is not enough.  ``is_attached``
+        mirrors the exact check Textual's own ``mount`` performs (8.2.8:
+        ``Widget.mount`` raises ``MountError`` on ``not is_attached``) --
+        ``is_mounted`` cannot be used here because it never resets to
+        ``False`` on unmount, so a teardown after ``q`` would pass the
+        guard and then fail the populate.
+        """
+        panes = self.query("#filemgr-parent, #filemgr-list, #filemgr-preview")
+        if len(panes) < 3 or not all(node.is_attached for node in panes):
+            self.call_after_refresh(self._wire_mount)  # children not attached yet
+            return
         apply_slim_scrollbars(self.query_one("#filemgr-parent", ListView))
         apply_slim_scrollbars(self.query_one("#filemgr-list", _FileListView))
         apply_slim_scrollbars(self.query_one("#filemgr-preview", PreviewLog))
@@ -240,7 +273,11 @@ class FileManagerScreen(ModalScreen[None]):
         list + stat + sort + render, then refresh preview and status.
         *keep* forces the cursor onto that entry (the ``h`` lf semantics)."""
         previous = self._cursor_path()
-        self._all = self.workspace.list_dir(self._cwd)
+        if self._cwd is None:
+            # drive-letter virtual level (Q4): drives listed in the middle
+            self._all = self.workspace.list_drives()
+        else:
+            self._all = self.workspace.list_dir(self._cwd)
         self._entries = filter_entries(self._all, self._filter or "")
         self._stats = {e.path: self.workspace.stat_entry(e.path) for e in self._entries}
         self._entries = sort_entries(
@@ -268,11 +305,17 @@ class FileManagerScreen(ModalScreen[None]):
         self._refresh_status()
 
     def _rebuild_rows(self) -> None:
-        """Recompute child counts and row texts from the current entries."""
+        """Recompute row texts from the current entries.
+
+        Child counts are computed once per directory and cached in
+        ``_child_counts`` (``setdefault`` semantics), so filter keystrokes
+        never rescan the file system; :meth:`action_refresh` drops the
+        cache (M3).
+        """
         accent = theme.active().accent
-        self._child_counts = {
-            e.path: count_children(e.path) for e in self._entries if e.is_dir
-        }
+        for entry in self._entries:
+            if entry.is_dir and entry.path not in self._child_counts:
+                self._child_counts[entry.path] = count_children(entry.path)
         self._rows = [
             build_row_text(
                 entry,
@@ -307,26 +350,29 @@ class FileManagerScreen(ModalScreen[None]):
             list_view.call_after_refresh(self._restore_index, index)
 
     def _render_parent(self) -> None:
-        """Rebuild the left pane (parent listing, drives, or placeholder)."""
-        parent, entries = parent_and_siblings(self._cwd, self.workspace)
+        """Rebuild the left pane (parent listing or placeholder).
+
+        The drive-letter virtual level lives in the middle pane (Q4), so
+        the left pane shows a placeholder both at the drive level and
+        while browsing a file-system root.
+        """
         pane = self.query_one("#filemgr-parent", ListView)
         pane.clear()
         t = theme.active()
         rows: list[Text] = []
-        if parent is None and entries:
-            # Windows drive-letter virtual level (Q4)
-            rows = [self._icon_text(e.name, e.is_dir, t.accent) for e in entries]
-        elif parent is None:
+        if self._cwd is None or self._cwd.parent == self._cwd:
             rows = [Text("(no parent directory)", style=t.fg_dim)]
-        elif not entries:
-            rows = [Text("(empty)", style=t.fg_dim)]
         else:
-            rows = [
-                self._icon_text(
-                    e.name, e.is_dir, t.accent if e.is_dir else t.fg
-                )
-                for e in entries
-            ]
+            _parent, entries = parent_and_siblings(self._cwd, self.workspace)
+            if not entries:
+                rows = [Text("(empty)", style=t.fg_dim)]
+            else:
+                rows = [
+                    self._icon_text(
+                        e.name, e.is_dir, t.accent if e.is_dir else t.fg
+                    )
+                    for e in entries
+                ]
         pane.extend(ListItem(Static(row)) for row in rows)
 
     @staticmethod
@@ -552,11 +598,22 @@ class FileManagerScreen(ModalScreen[None]):
         self.query_one("#filemgr-list", _FileListView).focus()
 
     def _show_input_error(self, message: str) -> None:
-        """Show *message* on the input line (errors surface there)."""
+        """Show *message* on the input line, keeping the prompt context.
+
+        With an active prompt (kind + target) the typed value and the
+        pending operation survive the error: the message only replaces
+        the placeholder, so the user can edit and retry or leave with
+        Esc.  Without prompt context the line becomes a read-only
+        notice -- Enter dismisses it (the ``kind is None`` branch of
+        :meth:`_submit_prompt`).
+        """
         self._mode = "prompt"
-        self._prompt_kind = None
-        self._prompt_target = None
-        self._show_input(message)
+        if self._prompt_kind is None:
+            self._show_input(message)
+            return
+        input_widget = self.query_one("#filemgr-input", Input)
+        input_widget.placeholder = message
+        input_widget.focus()
 
     def _begin_prompt(
         self, kind: _PromptKind, placeholder: str, value: str = ""
@@ -569,35 +626,55 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _submit_prompt(self, value: str) -> None:
         """Commit the pending prompt operation (errors stay on the line).
-        Errors keep the input open with the message shown; delete
-        expects ``y`` (anything else cancels, explorer semantics)."""
+
+        Errors keep the input open with the typed value and the pending
+        operation intact -- only the placeholder carries the message --
+        so the user can correct and retry or leave with Esc; delete
+        expects ``y`` (anything else cancels, explorer semantics).  A
+        successful rename / delete reports to the injected callbacks so
+        the editor session and file tree stay in sync (M2).
+        """
         kind = self._prompt_kind
         if kind is None:
             # error-display-only prompt: Enter just closes the line
             self._hide_input()
             return
         target = self._prompt_target
+        cwd = self._cwd
+        renamed: tuple[Path, Path] | None = None
+        deleted: Path | None = None
         try:
             if kind == "delete":
                 if value.strip().lower() not in ("y", "yes") or target is None:
                     self._hide_input()
                     return
                 self.workspace.remove_entry(target)
+                deleted = target
             elif kind == "rename":
                 if target is None:
                     self._hide_input()
                     return
-                self.workspace.rename_entry(target, value)
+                renamed = (target, self.workspace.rename_entry(target, value))
             elif kind == "new-dir":
-                self.workspace.create_entry(self._cwd, value, is_dir=True)
+                if cwd is None:
+                    self._hide_input()  # no directory at the drive level
+                    return
+                self.workspace.create_entry(cwd, value, is_dir=True)
             else:
-                self.workspace.create_entry(self._cwd, value, is_dir=False)
+                if cwd is None:
+                    self._hide_input()  # no directory at the drive level
+                    return
+                self.workspace.create_entry(cwd, value, is_dir=False)
         except (ValueError, FileExistsError, OSError) as exc:
             log.debug("filemgr %s failed: %s", kind, exc)
-            self._show_input(str(exc))
+            self._show_input_error(str(exc))
             return
         self.workspace.invalidate()
         self._hide_input()
+        if renamed is not None:
+            self.on_renamed(*renamed)
+        elif deleted is not None:
+            self.on_deleted(deleted)
         self._reload()
 
     def action_cursor_down(self) -> None:
@@ -634,9 +711,18 @@ class FileManagerScreen(ModalScreen[None]):
         list_view.index = list_view.index + step
 
     def action_up(self) -> None:
-        """``h`` / left / backspace: parent directory (lf cursor memory)."""
+        """``h`` / left / backspace: parent directory (lf cursor memory).
+
+        At the drive-letter virtual level there is nothing above (the
+        level stays put); at a file-system root ``h`` switches to the
+        drive level (Q4).
+        """
+        if self._cwd is None:
+            return  # already at the drive level
         if self._cwd.parent == self._cwd:
-            return  # at a file-system root: nowhere to go
+            self._cwd = None
+            self._reload()
+            return
         origin = self._cwd
         parent = self._cwd.parent
         self._dir_memory[memory_key(parent)] = origin
@@ -669,6 +755,7 @@ class FileManagerScreen(ModalScreen[None]):
     def action_toggle_hidden(self) -> None:
         """``H`` / ``.``: toggle dotfile visibility (explorer-synced flag)."""
         self.workspace.show_hidden = not self.workspace.show_hidden
+        self.on_show_hidden_changed(self.workspace.show_hidden)
         self._reload(keep=self._cursor_path())
 
     def action_cycle_sort(self) -> None:
@@ -679,6 +766,7 @@ class FileManagerScreen(ModalScreen[None]):
     def action_refresh(self) -> None:
         """``r`` / F5: drop the workspace cache and rebuild the listing."""
         self.workspace.invalidate()
+        self._child_counts = {}
         self._reload(keep=self._cursor_path())
 
     def action_mark(self) -> None:
@@ -746,15 +834,15 @@ class FileManagerScreen(ModalScreen[None]):
     def action_rename(self) -> None:
         """``R``: prompt to rename the cursor entry (name prefilled)."""
         entry = self._cursor_entry()
-        if entry is None:
-            return
+        if entry is None or entry.path.parent == entry.path:
+            return  # nothing selected, or a file-system root (Q4 level)
         self._begin_prompt("rename", f"rename {entry.name} to:", entry.name)
 
     def action_delete(self) -> None:
         """``d``: prompt for the delete confirmation (``y`` to confirm)."""
         entry = self._cursor_entry()
-        if entry is None:
-            return
+        if entry is None or entry.path.parent == entry.path:
+            return  # nothing selected, or a file-system root (Q4 level)
         kind = "directory (recursive)" if entry.is_dir else "file"
         self._begin_prompt(
             "delete", f"delete {entry.name} - {kind}: type y to confirm"
@@ -783,6 +871,8 @@ class FileManagerScreen(ModalScreen[None]):
         if self._clipboard is None:
             self._show_input_error("clipboard is empty")
             return
+        if self._cwd is None:
+            return  # no target directory at the drive-letter level (Q4)
         source, is_cut = self._clipboard
         try:
             if is_cut:
