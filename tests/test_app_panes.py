@@ -163,11 +163,27 @@ def test_pane_regions_stay_visible_after_split(pane_root: Path) -> None:
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.editor.run_command("vs")
             assert await wait_until(pilot, lambda: panes.leaf_count == 3)
-            await pilot.pause()
             host = panes.host
             assert host is not None
-            host_region = host.region
             views = panes.all_views()
+
+            # leaf_count converging does not mean the layout has: under
+            # parallel load the view regions can still reflect the previous
+            # split (pane outside host). Poll until every pane sits inside
+            # the host and keeps a sane size before asserting.
+            def regions_converged() -> bool:
+                hr = host.region
+                return all(
+                    v.region.width > 5
+                    and v.region.height > 2
+                    and hr.contains_region(v.region)
+                    for v in views
+                )
+
+            assert await wait_until(pilot, regions_converged, timeout=2.0), (
+                "pane regions did not converge after :sp/:vs"
+            )
+            host_region = host.region
             for view in views:
                 region = view.region
                 assert region.width > 5 and region.height > 2, (
@@ -417,7 +433,6 @@ def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
 
             await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
-            await pilot.pause()
             root = panes.root
             assert isinstance(root, PaneSplit)
             assert root.axis == "vertical"
@@ -427,6 +442,13 @@ def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
             box, split = host._split_boxes[0]
             assert split is root
             left_view, right_view = box.children
+            # leaf_count==2 doesn't mean regions are updated yet (same
+            # discipline as the separator-click guard below): wait until the
+            # left pane actually narrowed from the full screen width before
+            # aiming the divider press.
+            assert await wait_until(
+                pilot, lambda: left_view.region.width < 100, timeout=2.0
+            ), "left_view region did not converge after vsplit"
             # the separator cell is the left pane's right border column
             sx = left_view.region.x + left_view.region.width - 1
             sy = left_view.region.y + left_view.region.height // 2
@@ -437,7 +459,13 @@ def test_separator_drag_updates_split_sizes(pane_root: Path) -> None:
             await pilot._post_mouse_events(
                 [MouseMove, MouseUp], offset=(sx + 4, sy), button=1
             )
-            await pilot.pause()
+            # the resize re-applies layout asynchronously: wait for the
+            # width transfer to land before asserting the model and widgets
+            assert await wait_until(
+                pilot,
+                lambda: left_view.region.width > right_view.region.width,
+                timeout=2.0,
+            ), "split width transfer did not converge after drag"
 
             assert root.sizes[0] > 0.5
             assert left_view.region.width > right_view.region.width
@@ -458,12 +486,17 @@ def test_separator_drag_record_keeps_hit_box(pane_root: Path) -> None:
             assert panes is not None
             await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
-            await pilot.pause()
             host = panes.host
             assert host is not None
             box, split = host._split_boxes[0]
             left_view, _right_view = box.children
             assert isinstance(left_view, EditorView)
+            # leaf_count==2 doesn't mean regions are updated yet (same
+            # discipline as the separator-click guard): wait for the left
+            # pane to narrow before aiming the divider press.
+            assert await wait_until(
+                pilot, lambda: left_view.region.width < 100, timeout=2.0
+            ), "left_view region did not converge after vsplit"
             sx = left_view.region.x + left_view.region.width - 1
             sy = left_view.region.y + left_view.region.height // 2
 
@@ -500,12 +533,17 @@ def test_toggle_off_mid_drag_cancels_separator_drag(pane_root: Path) -> None:
             assert panes is not None
             await pilot.press(":", "v", "s", "p", "l", "i", "t", "enter")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
-            await pilot.pause()
             host = panes.host
             assert host is not None
             box, _split = host._split_boxes[0]
             left_view, _right_view = box.children
             assert isinstance(left_view, EditorView)
+            # leaf_count==2 doesn't mean regions are updated yet (same
+            # discipline as the separator-click guard): wait for the left
+            # pane to narrow before aiming the divider press.
+            assert await wait_until(
+                pilot, lambda: left_view.region.width < 100, timeout=2.0
+            ), "left_view region did not converge after vsplit"
             sx = left_view.region.x + left_view.region.width - 1
             sy = left_view.region.y + left_view.region.height // 2
 

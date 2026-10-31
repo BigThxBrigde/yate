@@ -137,3 +137,26 @@ sy = left_view.region.y + left_view.region.height // 2
 
 - **测试时长**：该用例原耗时 ≈ 0.5s，修复后预计 ≈ 0.6s（增加 wait_until 轮询）；
 - **可信度**：修复后 `-n auto` 全量跑结果可信，不再需要 `-n 1` 复核。
+
+## 十、修订记录
+
+2. （第 2 轮，评审迭代）code-review-expert 在 coverage+并行负载下实测复现同族
+   flake：`test_pane_regions_stay_visible_after_split`
+   （tests/test_app_panes.py:151）2 跑 1 败——`leaf_count==3` 为真时 view region
+   仍是上一次 split 的旧布局（`pane outside host: Region(x=0, y=28) vs
+   Region(x=0, y=2)`），与本文档修复的"leaf_count 收敛≠布局收敛"假设同族。
+   处置：按「修同族不修单点」排查 tests/test_app_panes.py 全部
+   "leaf_count 收敛后直接读 region"模式，共 4 处同族暴露，全部追加收敛等待：
+   - `test_pane_regions_stay_visible_after_split`：`regions_converged`
+     轮询（每窗格 `width > 5 and height > 2 and
+     host.region.contains_region(view.region)`，timeout=2.0s）；
+   - `test_separator_drag_updates_split_sizes`：press 前
+     `left_view.region.width < 100` 收敛 + 拖拽后宽度转移
+     `wait_until` 收敛再断言 `sizes[0]` 与宽度比较；
+   - `test_separator_drag_record_keeps_hit_box` /
+     `test_toggle_off_mid_drag_cancels_separator_drag`：press 前
+     `left_view.region.width < 100` 收敛。
+   断言语义均不变（只等收敛后取值）。修复后验证：test_app_panes.py 整文件
+   `-n auto` 连跑 5 次全过、pyright 零诊断、架构守卫 37 项、全量 pytest
+   与 coverage 门禁（92.76%）复跑全绿。
+1. （首轮）初始版本。
