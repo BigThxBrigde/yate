@@ -30,8 +30,8 @@
 
 | # | 问题 | 裁决 | 理由 |
 |---|---|---|---|
-| Q1 | 未保存缓冲区 | 切换前检测 dirty：存在 dirty → **不切换、file manager 保持打开**，report 提示 `N unsaved changes — save or discard first`；用户回编辑器 `:w` 后再切换 | **修订裁决（plan-e 终稿）**：对齐 `:q` 既有「阻塞+提示+用户显式处理」语义（manual.en.md:331-333，issue Q1 原文倾向）；三态确认（save all/discard all）会引入新的批量丢弃语义面、`discard` 风险过高，否决。dirty 检测遍历 EditorSession 已开文档 dirty 标志（`editor_core/document.py` persist 段，executor 以实际属性为准） |
-| Q2 | 多选混合文件+目录 | 集合内含目录 → 仅进入**第一个**目录（按光标序），忽略文件与其余目录，状态栏提示；纯文件集合 → 按序全部开 tab | 行为可预期、实现简单；多目录设 root 语义不成立（一次只有一个 root） |
+| Q1 | 未保存缓冲区 | **终裁（wave-4 实测降级）**：存在 dirty → report 警告 `N unsaved changes - save or discard first` + 切换被拒；浮层此际已按 palette `_choose` 先例 dismiss（flows 侧无法保持打开，filemgr.py 回调类型为 fire-and-forget）。不静默丢弃满足 issue 验收 6；恢复「保持打开」需改 L2 回调签名为 `-> bool`，收益不抵时序返工，登记 P2 候选。dirty 检测 = `any(doc.modified for doc in session.docs)`（editor.py:1201 :q 同款） | issue Q1 倾向的「既有 :q 语义」即阻塞+提示+用户显式处理；三态确认引入批量丢弃语义面，plan-e 初稿已否决 |
+| Q2 | 多选混合文件+目录 | **终裁（wave-4）**：集合经 `sorted()` 字母序，取**字母序第一个**目录进入，其余忽略并 report 提示；纯文件集合按序全开 tab | 光标序在 L2 set 侧不可恢复（filemgr.py:658 `sorted(self._marked)`）；字母序行为确定、可测试；多选多目录为少见场景 |
 | Q3 | 浮层内选中文件 | **关闭并切换**（关闭浮层→按 R3 切换工作区），与全屏形态一致 | issue 字面语义；「保留 workspace 开新 tab」与 explorer 既有 open_path 无差异，无新价值 |
 | Q4 | Windows 盘符 | **做**：到达根层后 `h`/`Left` 列出盘符虚拟层（`Workspace.list_drives()`，POSIX 返回空列表显示占位） | Windows 上体验完整；探测 = 盘符字母 + `Path.exists()`，纯 stdlib |
 | Q5 | 预览缓存 | 沿用 palette 16 条 FIFO（`PREVIEW_CACHE_SIZE`），P0 不加配置 | 目录浏览局部性强，实测容量足够（test_palette_preview.py 已覆盖 FIFO 语义） |
