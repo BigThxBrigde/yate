@@ -5,7 +5,8 @@
 the first tab extends the typed prefix to the longest common prefix and
 lists the remaining candidates on the message slot
 (``OWNER_CANDIDATES``), the second tab applies the first candidate of
-the round.  The existing ``prompt_tab_completion`` guard covers the
+the round and a further tab cycles to the next match.  The existing
+``prompt_tab_completion`` guard covers the
 single-match and the ``:set`` value / path branches; this scenario
 covers the multi-match command-name round end to end.
 """
@@ -23,7 +24,7 @@ __all__ = ["SCENARIOS"]
 
 
 async def _command_completion(tmp: Path) -> ScenarioResult:
-    """F5 + "ter" + tab: common-prefix extension plus the candidate list."""
+    """F5 + "ter" + three tabs: extension, first-candidate apply, cycle."""
     app = new_app(target=tmp / "scratch.txt")
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
@@ -47,12 +48,19 @@ async def _command_completion(tmp: Path) -> ScenarioResult:
         rows = snapshot_svg(app, tmp)
         await pilot.press("tab")
         await pilot.pause()
-        # The applied prefix is not one of the listed candidates, so this
-        # tab applies the first candidate of the round ("term") and drops
-        # the candidate string from the message slot.
+        # This tab applies the first candidate of the round and drops the
+        # candidate string from the message slot.  The first candidate is
+        # "term" itself -- the value the first tab already applied -- so
+        # the value assertion alone cannot discriminate the apply branch;
+        # the cycle check below does: reaching "termclose" requires the
+        # round index to have advanced past the apply.
         checks.append(Check("first_candidate_applied", "term", bar.input.value))
         checks.append(Check("candidates_hidden", False,
                             bar.owner == OWNER_CANDIDATES))
+        await pilot.press("tab")
+        await pilot.pause()
+        checks.append(Check("cycle_next_candidate", "termclose",
+                            bar.input.value))
         await pilot.press("escape")
         await pilot.pause()
         checks.append(Check("cancelled", None, bar.active_mode))

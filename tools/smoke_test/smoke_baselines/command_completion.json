@@ -37,6 +37,12 @@
       "ok": true
     },
     {
+      "label": "cycle_next_candidate",
+      "expected": "termclose",
+      "actual": "termclose",
+      "ok": true
+    },
+    {
       "label": "cancelled",
       "expected": null,
       "actual": null,
