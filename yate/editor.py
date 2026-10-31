@@ -52,6 +52,7 @@ from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
+from yate.flows.filemanager_flows import FileManagerFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
@@ -297,6 +298,26 @@ def _build_pane_stack(ed: Editor) -> None:
     # exist only from the line above, so the callback is bound here (the
     # DocumentFlows construction happened earlier, without it).
     ed.document_flows.bind_hex_opener(ed.overlays.open_hex_view)
+    # The file manager flows: overlay/fullscreen open points plus the
+    # workspace-switch orchestration.  Its fullscreen exit verb is bound
+    # later by the app shell (Editor.bind_filemanager_exit -> flows.bind_exit,
+    # on_mount): the editor itself never holds App.exit (App handle boundary).
+    ed.filemanager_flows = FileManagerFlows(
+        spawn=ed.app.run_worker,
+        push_screen=ed.app.push_screen,
+        pop_screen=ed.app.pop_screen,
+        session=ed.session,
+        workspace=ed.workspace,
+        explorer_tree=ed.explorer_tree,
+        documents=ed.document_flows,
+        prompt_bar=ed.prompt_bar,
+        message=ed.message,
+        report=ed.report,
+        refresh_ui=ed.refresh_ui,
+        mounted=lambda: ed.mounted,
+        focus_editor=ed.focus_editor,
+        config=ed.config,
+    )
     ed.lsp_sync = LspSync(
         spawn=ed.app.run_worker,
         lsp=ed.lsp,
@@ -420,6 +441,7 @@ class Editor:
     completion: CompletionFlows
     prompt_flows: PromptFlows
     document_flows: DocumentFlows
+    filemanager_flows: FileManagerFlows
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
     mouse_flows: MouseFlows
@@ -453,7 +475,10 @@ class Editor:
         # session's on_opened attach hook fires for the startup document
         # in _open_startup_target); whichkey needs keymaps / window_flows /
         # which_key_panel ready; the window chord observer is bound right
-        # after WhichKeyFlows exists (see _build_pane_stack).
+        # after WhichKeyFlows exists (see _build_pane_stack).  The file
+        # manager flows are built with the pane stack (overlays precedent);
+        # their fullscreen exit verb is bound by the app shell on mount
+        # (bind_filemanager_exit).
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -461,6 +486,10 @@ class Editor:
         _build_key_ui(self)
 
     # ================================================================ wiring
+
+    def bind_filemanager_exit(self, exit_app: Callable[[], None]) -> None:
+        """Forward the app-exit verb to the file manager flows (L4 on_mount)."""
+        self.filemanager_flows.bind_exit(exit_app)
 
     def extension_context(self) -> ExtensionContext:
         """Build the :class:`ExtensionContext` handed to extensions."""

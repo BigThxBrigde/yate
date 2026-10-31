@@ -18,6 +18,7 @@ anyway.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from textual.screen import Screen
 from textual.worker import Worker
@@ -40,3 +41,7 @@ type OverlayPusher = Callable[[Screen[None]], None]
 #: ``has_modal_screen``, ``explorer_focused``.  Evaluated at call time, so the
 #: answer follows the shell instead of the construction moment.
 type StateQuery = Callable[[], bool]
+
+#: Open the selected path set handed over by the file manager screen
+#: (files vs directories are resolved by the flows layer, Q2 semantics).
+type OpenSelectedFn = Callable[[list[Path]], None]
