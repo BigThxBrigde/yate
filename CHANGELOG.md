@@ -7,18 +7,98 @@
 
 ### Features
 
+- wire the file manager entries into shell, CLI, and keymaps ([`ea5d1c5`](https://gitee.com/jermaine/yate/commit/ea5d1c55086faa8c809972c25f3c26837e3a8455))
+- add FileManagerFlows and wire the editor assembly ([`0f633b6`](https://gitee.com/jermaine/yate/commit/0f633b60cc00f3cc0c55542debe37d95c8e7bbd9))
+- add lf-style FileManagerScreen with three-pane layout ([`aa73c33`](https://gitee.com/jermaine/yate/commit/aa73c3353f1519bd39cc46d320d668d22c84bcd8))
+- add filemgr_model with sorting, filtering, rows, status ([`6bcfd5b`](https://gitee.com/jermaine/yate/commit/6bcfd5ba67ba87fa16d5028dd6218548adc5b6aa))
+- add entry stats, drive listing, and copy/move ops ([`8605e62`](https://gitee.com/jermaine/yate/commit/8605e62ee36d35b9d1f0740d51717127e1dd1888))
+- two-phase tab candidates on the ex line and a palette argument phase ([`67c3509`](https://gitee.com/jermaine/yate/commit/67c3509558efd7b405d20b1474dbb2cb926af26e))
+- declare arg_completer metadata for registered commands ([`1ecb7fa`](https://gitee.com/jermaine/yate/commit/1ecb7fa8880065249bc40661aa54ea7915e2bb53))
 - single-source the ctrl+w chord rows and hint ([`742d297`](https://gitee.com/jermaine/yate/commit/742d2977f2bdf76ce6080583ad7f82e3aa61f8f7))
 
 ### Bug Fixes
 
+- drop private-state access from the filemanager scenario ([`5eb134c`](https://gitee.com/jermaine/yate/commit/5eb134c5818dfd2dfb7034dd79dc86846602a10c))
+- sync file manager renames and deletes to session and tree ([`9497b8b`](https://gitee.com/jermaine/yate/commit/9497b8bbe988f07db744ee3f7684c11e290fcade))
+- harden FileManagerScreen per review F1 ([`3331c7a`](https://gitee.com/jermaine/yate/commit/3331c7a1292c890cecec0a5ca3c1060a7f5af8ff))
+- annotate the pty log capture closure ([`62f0bc8`](https://gitee.com/jermaine/yate/commit/62f0bc8ff41e57c55e9343e4ff68c9e89aa6e1e7))
+- freeze live-search window in the empty-clear test ([`0dded3a`](https://gitee.com/jermaine/yate/commit/0dded3ab9252fb23f7986fc5a1f70d4d0cd72e4a))
+- log first pty io failure once at debug level ([`05ec31f`](https://gitee.com/jermaine/yate/commit/05ec31f9bf93750de7247a3650b674773ed1a175))
+- poll for terminal output and add the fake PTY detach hook ([`4f011df`](https://gitee.com/jermaine/yate/commit/4f011dfb731162cc3cfc24ed29f09404fdd3bba0))
+- make debounce and worker tests deterministic ([`5ff6064`](https://gitee.com/jermaine/yate/commit/5ff606440138d3e9635c41222377a04a58b2217a))
+- address review findings for the arg-completion waves ([`ee8ae14`](https://gitee.com/jermaine/yate/commit/ee8ae1472a1a7a450b079607fe057ac476c557c4))
+- resolve the workspace path for gating and messaging ([`6f58ee2`](https://gitee.com/jermaine/yate/commit/6f58ee287189e1f657c12dcd7302d4a005d6dbac))
+- reject case-colliding manifest entries and cover rollback skips ([`181f179`](https://gitee.com/jermaine/yate/commit/181f17970c81ec78a1ef78c4447c64394bdc06b7))
+- refuse to operate through symlinked member paths end to end ([`6c6713a`](https://gitee.com/jermaine/yate/commit/6c6713abbcff212418e5ec93dd3b94678ba0b710))
+- refuse to write through symlinked member targets and warn on unverified packages ([`0a95bd3`](https://gitee.com/jermaine/yate/commit/0a95bd3e3a77472f39b09ef6223b3b13e5d6d42f))
+- gate workspace theme directories behind workspace trust ([`0723e95`](https://gitee.com/jermaine/yate/commit/0723e95f60e3e8874e30b45c13772c08d0914bec))
 - reset the global theme state after every test ([`c4cb554`](https://gitee.com/jermaine/yate/commit/c4cb5547dd7b25d2452d3fabb349479671d3431e))
+
+### Refactors
+
+- extract shared preview pipeline to preview.py ([`07c982a`](https://gitee.com/jermaine/yate/commit/07c982a0c63d44993ada92a33f4ae885b297f538))
+- single-source the ~/.yate root and restrict log dirs on POSIX ([`e01d07d`](https://gitee.com/jermaine/yate/commit/e01d07d971c9527ae2e11f59abbabc3e9cddc81c))
 
 ### Documentation
 
+- align non-goals with m4/M3 review outcomes ([`b4a54cf`](https://gitee.com/jermaine/yate/commit/b4a54cf88d80ae4cb80bfa9f75497a0ac8e4b76b))
+- align guide with actual cache, cross-volume, conflict behavior ([`a0505e7`](https://gitee.com/jermaine/yate/commit/a0505e7b6f722b88e44a2dc6c85655bd60616b9a))
+- add file-manager review record (1 blocker, 4 major, 6 minor) ([`0d5901a`](https://gitee.com/jermaine/yate/commit/0d5901afaaa780573ffd611c847c4a0009c6a1e8))
+- add bilingual file-manager guide and index entry ([`271294c`](https://gitee.com/jermaine/yate/commit/271294c11e094d2d8f7622276741b91acfa50243))
+- record wave-4 rulings for Q1 degrade and Q2 sort order ([`e643232`](https://gitee.com/jermaine/yate/commit/e6432320d4f4fcdc42fc8bc036d47b8c3d2137d5))
+- pin verified dirty and close contracts in plan-e ([`e690948`](https://gitee.com/jermaine/yate/commit/e6909485f8272a12ecb198ac7cca4c5146e6b425))
+- add file-manager implementation plans (IKRZ41) ([`58620e4`](https://gitee.com/jermaine/yate/commit/58620e4be31405e7f00cc7de11c77671b136308b))
+- widen multi-dim-review output contract ([`630b7e6`](https://gitee.com/jermaine/yate/commit/630b7e656cccd2fbc59b66387c5b0b850d5be812))
+- record review minor dispositions in test-speedup overview ([`881dcca`](https://gitee.com/jermaine/yate/commit/881dcca26dfacab38e493ec54c89a4626c1e4de3))
+- backfill measured results and follow-ups into test-speedup plans ([`3cfee30`](https://gitee.com/jermaine/yate/commit/3cfee3064f540dedeb78a47956d56ef2c0ce6acf))
+- record round-3 adjudication for smoke baseline drift and stress flake ([`4a90a19`](https://gitee.com/jermaine/yate/commit/4a90a19b4f6810e5438f53a19e4cafc5b022d936))
+- register multi-dim review fixes ([`9ffef7d`](https://gitee.com/jermaine/yate/commit/9ffef7daf18ce04d64ac2336c93958e506e101f2))
+- register full-repo multi-dim review ([`99ea6ea`](https://gitee.com/jermaine/yate/commit/99ea6ea6b27cad96d29373e370867bff6764cd71))
+- always prefer low time and space complexity algorithms ([`0ae1a64`](https://gitee.com/jermaine/yate/commit/0ae1a641418a942819f0d88b10ce16ce4372eb67))
+- split algorithm dimension and require cross-layer call logging ([`779164f`](https://gitee.com/jermaine/yate/commit/779164f4aabb1d4964846b9fbc5309febfe603f2))
+- add multi-dim-review skill ([`63cb791`](https://gitee.com/jermaine/yate/commit/63cb791259280ef68104969b3d62616233db127f))
+- backfill the arg-completion execution record ([`617fcb2`](https://gitee.com/jermaine/yate/commit/617fcb2a8b3a772f3b5b6a7c247ebd95b6f27c64))
+- add the arg-completion implementation plan ([`3c8a33a`](https://gitee.com/jermaine/yate/commit/3c8a33a8cc959aa1b458721b84a63aa189491422))
+- note the case-colliding regression test in the record ([`ae3838b`](https://gitee.com/jermaine/yate/commit/ae3838b8b2fbc5bdb788a86bf1a9c17138ff6747))
+- archive the arch-sec-audit branch pr-review round ([`5d0499e`](https://gitee.com/jermaine/yate/commit/5d0499e721de459dbec1052046338c45ed546258))
+- correct the baseline skip count and commit inventory ([`2ed0cbc`](https://gitee.com/jermaine/yate/commit/2ed0cbc93df58b2412a07b0538ff5b3ae7bc703a))
+- sync the theme trust gate into the in-app manuals ([`eebc5f8`](https://gitee.com/jermaine/yate/commit/eebc5f8597b425048fe64495bfe75cf9a4056495))
+- close the handoff note and align the commit inventory ([`5beb95a`](https://gitee.com/jermaine/yate/commit/5beb95abfcdff390fd1c6be7e4b7f7d8ed4a6528))
+- register the 2026-10-26 and 2026-10-29 audit rounds in the index ([`d0afda5`](https://gitee.com/jermaine/yate/commit/d0afda5fe44df45794beebc8d5e864be34f80d48))
+- record the compression handoff and fix the commit count ([`1b05db1`](https://gitee.com/jermaine/yate/commit/1b05db17718ea6763db098ab45b5f32c23f94d3b))
+- backfill the arch-sec-audit execution record ([`5eadb8f`](https://gitee.com/jermaine/yate/commit/5eadb8fcc04f5688e36679d5e71d34c03942cd62))
+- archive the arch-sec-audit review record ([`975f5b3`](https://gitee.com/jermaine/yate/commit/975f5b37b09557e2ef4c4ebac684f2e5f027b0ea))
+- fix the default-directory precedence order and error prefix ([`dcd8ee7`](https://gitee.com/jermaine/yate/commit/dcd8ee77aebdeb1183440d67a24408e15f3078bb))
+- correct the workspace-theme trust wording and self-descriptions ([`82bf6a7`](https://gitee.com/jermaine/yate/commit/82bf6a7ee9410f7061f30084cad95aedb5b8cb6a))
+- record the plan-d v2/v3 revisions ([`14d9522`](https://gitee.com/jermaine/yate/commit/14d9522b2b40a7f53479d533bdea39adbcf7a601))
+- link the games and which-key guides and refresh test stats ([`a144ec7`](https://gitee.com/jermaine/yate/commit/a144ec774208f7f488c9f7330fa07632da2ebae6))
+- declare the extension trust model and register the facade exception ([`176da1f`](https://gitee.com/jermaine/yate/commit/176da1f2731b1324404e92d5ec6549c5c3a17600))
+- replace the section sign in the plan-b template text ([`8dec0a9`](https://gitee.com/jermaine/yate/commit/8dec0a9e114ebdc81034f6f6cf5a0de1ed69aa4f))
+- revise plan-a to place the theme trust gate in the theme module ([`64ebe7c`](https://gitee.com/jermaine/yate/commit/64ebe7cd2807673860a810adb858ef315a5b8fc3))
+- add the arch-sec-audit master plan and sub-plans a-e ([`273e78c`](https://gitee.com/jermaine/yate/commit/273e78c0f9e517d6911518995e9c57af02bba523))
 - add whichkey chord single-source plan ([`d8bc3ba`](https://gitee.com/jermaine/yate/commit/d8bc3ba1d661e5f094a26b3fad4e702e280d15cf))
+
+### Tests
+
+- add filemanager startup and navigation scenario ([`74a5096`](https://gitee.com/jermaine/yate/commit/74a5096cf2cbcc2011cf993bd9b642557da697b7))
+- probe SHELL with a real temp file instead of patching Path.is_file ([`611269a`](https://gitee.com/jermaine/yate/commit/611269a80b799cfe06b1a3477b59d05054c39c6b))
+- prove the command_completion apply branch via cycle check ([`5380d3f`](https://gitee.com/jermaine/yate/commit/5380d3f43707d90afd9bafbbdbe11302cd6696d7))
+- retry disk polls across the os.replace swap window ([`bbd147b`](https://gitee.com/jermaine/yate/commit/bbd147b4637860fb3bf0f90109d4534dcbe72e5d))
+- wait for layout convergence in region and drag separator tests ([`3c6b7f3`](https://gitee.com/jermaine/yate/commit/3c6b7f3fa5dd36d7be6106446cac0d4e62b9d4be))
+- add which-key and completion scenarios, fix rapid-toggle flake, register baselines ([`4f4d99a`](https://gitee.com/jermaine/yate/commit/4f4d99a7d5506c63f7af24f81b765fe8edac34d3))
+- cover shell flows, shells, extension flows, user setup and cli gaps ([`3fcf71a`](https://gitee.com/jermaine/yate/commit/3fcf71abbc323c6c0bc14f0a3c80aa284da444cd))
+- speed up three slowest tests while keeping their semantics ([`1a377ef`](https://gitee.com/jermaine/yate/commit/1a377ef3c857df35e255cda2a737cd2db21bf39b))
+- wait for layout convergence before separator click in pane test ([`426781a`](https://gitee.com/jermaine/yate/commit/426781ae167b48539115e981c35d7891c640261b))
+- cover the case-colliding manifest rejection ([`57c7c90`](https://gitee.com/jermaine/yate/commit/57c7c90cae35e5fd12c22faf222f3057c807e310))
 
 ### Tooling
 
+- record measured 888-line count for the filemgr exemption ([`665eb13`](https://gitee.com/jermaine/yate/commit/665eb1326e21dc5bc10d86166e0cb40bbe1e70c2))
+- register filemgr.py in the size exemption list ([`3e964e7`](https://gitee.com/jermaine/yate/commit/3e964e750dbd10aa6786de0dd4cf0d91323a7a2a))
+- sync size-exempt line counts to current measurements ([`c41a9e4`](https://gitee.com/jermaine/yate/commit/c41a9e41f96a0d9fec0d122dab8e466bae086658))
+- register services/yxp.py in the size exemption list ([`8d7d5eb`](https://gitee.com/jermaine/yate/commit/8d7d5ebb457bd0e2ac9d5ea11e9c4f4b446e385c))
+- run the test workflow with a read-only token ([`9ea0746`](https://gitee.com/jermaine/yate/commit/9ea07464ef220204ef42a40a168744a481c238c9))
+- update changelog ([`bc1cdb6`](https://gitee.com/jermaine/yate/commit/bc1cdb62f62bd8035dd57a2de3ce4e1ed62ad18e))
 - update changelog ([`002db38`](https://gitee.com/jermaine/yate/commit/002db3893d57ca4bcdb8adbfd370ed58d8c6ef5e))
 - update changelog ([`7365026`](https://gitee.com/jermaine/yate/commit/736502661661737d7abeeb9ca4f9f54b82942ca5))
 

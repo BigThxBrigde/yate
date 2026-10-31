@@ -95,6 +95,9 @@
   "07b674c": {
     "summary": "vim 缩进绑定改用 shift 键集合"
   },
+  "07c982a": {
+    "summary": "编辑器视图：提取共享预览管线至 preview.py"
+  },
   "07fe1a6": {
     "summary": "每个新任务要求独立 worktree"
   },
@@ -161,6 +164,9 @@
   "0d4a2fe": {
     "summary": "冒烟脚本新增搜索与文件/标签场景（C/D 组）"
   },
+  "0d5901a": {
+    "summary": "文档：登记 file-manager 评审记录"
+  },
   "0db2aab": {
     "summary": "发布工具只更新单一动态版本源",
     "detail": "test_theme_palettes 的静态版本断言已在 P2 清理中移除，删除失效的第二 bump 目标"
@@ -179,6 +185,9 @@
   },
   "0f0252f": {
     "summary": "编辑器寄存器与系统剪贴板同步"
+  },
+  "0f633b6": {
+    "summary": "调度：新增 FileManagerFlows 并接线 editor 装配"
   },
   "0fb54d0": {
     "summary": "为评审发现 A1–A20 落盘 repo-audit-fixes 方案集"
@@ -421,6 +430,9 @@
   "26fc624": {
     "summary": "删除最后一条 regex 回退承诺并修正语言计数"
   },
+  "271294c": {
+    "summary": "文档：新增双语 file-manager 指南与索引"
+  },
   "271ba88": {
     "summary": "记录 dumb TERM 根因与复测通过结果"
   },
@@ -540,6 +552,9 @@
   },
   "331e281": {
     "summary": "手册测试改为加载完成后才断言内容"
+  },
+  "3331c7a": {
+    "summary": "编辑器视图：按评审 F1 加固 FileManagerScreen"
   },
   "333c95d": {
     "summary": "标记 SP5 门禁完成、矩阵待验证"
@@ -664,6 +679,9 @@
   },
   "3e8329a": {
     "summary": "将校准结果回填进日志计划"
+  },
+  "3e964e7": {
+    "summary": "架构：filemgr.py 登记体量豁免"
   },
   "3ea5911": {
     "summary": "批次大小上限规则对齐 6 代理并发上限"
@@ -916,6 +934,9 @@
   "58339d6": {
     "summary": "在评审 README 中索引 PR35 评审轮次"
   },
+  "58620e4": {
+    "summary": "文档：新增 file-manager 实施计划（总纲与子计划 a-g）"
+  },
   "58a1da9": {
     "summary": "新增支持行、词与三方合并的 L0 diff 引擎"
   },
@@ -971,6 +992,9 @@
   },
   "5e69220": {
     "summary": "新增 --theme 参数，修复 --theme-dir 的 ~ 展开"
+  },
+  "5eb134c": {
+    "summary": "冒烟：场景去除私有状态访问"
   },
   "5eb3c72": {
     "summary": "新增屏保发现项的评审修复方案"
@@ -1057,6 +1081,9 @@
   "6618a15": {
     "summary": "仿照模块加载器缓存守护 AST 解析"
   },
+  "665eb13": {
+    "summary": "架构：filemgr 豁免记录实测 888 行"
+  },
   "669f017": {
     "summary": "vscode 键位下 F5 打开 ex 命令行"
   },
@@ -1114,6 +1141,9 @@
   },
   "6bbe908": {
     "summary": "测试覆盖会话、注册表、外壳与补全模块"
+  },
+  "6bcfd5b": {
+    "summary": "编辑器视图：新增 filemgr_model（排序/过滤/行渲染/状态栏）"
   },
   "6c30674": {
     "summary": "守护组件默认 CSS 从随包 tcss 加载"
@@ -1211,6 +1241,9 @@
   "74202ac": {
     "summary": "冻结构建随包捆绑 tree-sitter 后端与 python/bash 语法",
     "detail": "spec 显式收集子模块、原生绑定与 *.scm 高亮查询"
+  },
+  "74a5096": {
+    "summary": "冒烟：新增 filemanager 启动与导航场景"
   },
   "74c8938": {
     "summary": "泛化 Markdown 文档屏，新增 :changelog 命令与 --changelog 参数"
@@ -1378,6 +1411,9 @@
   "85d5e77": {
     "summary": "在 keybinding-fix 子计划记录门禁结果"
   },
+  "8605e62": {
+    "summary": "工作区：新增条目元数据、盘符列举与复制/移动操作"
+  },
   "866bb45": {
     "summary": "全仓采用 PEP 604 联合类型",
     "detail": "pyupgrade 迁移 313 处 Optional/Union（53 文件），X | None 全面替代并归零旧写法"
@@ -1537,6 +1573,9 @@
   "944c0a5": {
     "summary": "覆盖只读缓冲区、命令与启动 flow"
   },
+  "9497b8b": {
+    "summary": "调度：重命名/删除同步会话与文件树"
+  },
   "949ed01": {
     "summary": "新增 GitHub Actions CI（Linux/Windows 矩阵）"
   },
@@ -1627,6 +1666,9 @@
   },
   "9ffc35b": {
     "summary": "记录评审结论与最终门禁数字"
+  },
+  "a0505e7": {
+    "summary": "文档：手册对齐缓存/跨卷/冲突的实际行为"
   },
   "a0cef14": {
     "summary": "回填 pack-wiki 计划执行记录"
@@ -1725,6 +1767,9 @@
   },
   "a9311bb": {
     "summary": "预览分词失败时优雅降级"
+  },
+  "aa73c33": {
+    "summary": "编辑器视图：新增 lf 风格三栏 FileManagerScreen"
   },
   "ab75198": {
     "summary": "更新开发方案文档"
@@ -1828,6 +1873,9 @@
   },
   "b3df11a": {
     "summary": "安抚树光标、扁平化缩进轨、弱化滚动条"
+  },
+  "b4a54cf": {
+    "summary": "文档：非目标段对齐 m4/M3 评审结论"
   },
   "b5520be": {
     "summary": "将扁平单文件夹布局限定在 Windows"
@@ -2276,6 +2324,12 @@
   "e5f847b": {
     "summary": "重命名 app_parts 为 controllers，去掉 *_ops 模块名"
   },
+  "e643232": {
+    "summary": "文档：记录 Q1 降级与 Q2 排序的裁决"
+  },
+  "e690948": {
+    "summary": "文档：plan-e 固化已验证的 dirty/关闭契约"
+  },
   "e6c9740": {
     "summary": "覆盖 wiki 生成器"
   },
@@ -2332,6 +2386,9 @@
   },
   "ea3a323": {
     "summary": "修复 replace_all 后光标越界并在冒烟中覆盖"
+  },
+  "ea5d1c5": {
+    "summary": "CLI：文件管理器入口接入命令/CLI/键位"
   },
   "eb4016e": {
     "summary": "命令面板列出全部命令与动作，可按全名搜索"
