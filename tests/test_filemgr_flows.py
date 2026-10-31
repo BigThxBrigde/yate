@@ -6,7 +6,8 @@ recording stand-ins for the session / workspace / document-flow
 collaborators (no Textual app is started).  Covered: the Q1 dirty gate
 that refuses a switch, closing the old workspace down to the scratch
 buffer, the Q2 first-directory rule for mixed selections, the pure-file
-open sequence, the fullscreen exit binding and the no-App-handle rule.
+open sequence, the fullscreen exit binding, the rename/delete/hidden-toggle
+tree-sync callbacks, the missing-directory guard and the no-App-handle rule.
 """
 
 from __future__ import annotations
@@ -18,7 +19,6 @@ from yate.config import YateConfig
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.filemgr import FileManagerScreen
-from yate.flows import SpawnFn
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.filemanager_flows import FileManagerFlows
 from yate.services.workspace import Workspace
@@ -44,6 +44,8 @@ class _StubSession:
         self.docs = docs
         self.index = 0
         self.close_calls = 0
+        self.retargets: list[tuple[Path, Path]] = []
+        self.closed_under: list[Path] = []
 
     def close_active(self) -> tuple[_StubDoc, _StubDoc]:
         """Pop the active tab; keep the session non-empty (scratch fallback)."""
@@ -53,6 +55,16 @@ class _StubSession:
             self.docs.append(_StubDoc(None))
         self.index = 0
         return closed, self.docs[self.index]
+
+    def retarget(self, old: Path, new: Path) -> list[_StubDoc]:
+        """Record a rename retarget (tabs follow the moved file)."""
+        self.retargets.append((old, new))
+        return []
+
+    def close_under(self, path: Path) -> list[_StubDoc]:
+        """Record a delete close-under (tabs under path are dropped)."""
+        self.closed_under.append(path)
+        return []
 
 
 class _StubDocuments:
@@ -86,6 +98,16 @@ class _PromptStub:
         self.idled += 1
 
 
+class _StubExplorerTree:
+    """Explorer-tree stand-in: counts refresh_tree calls."""
+
+    def __init__(self) -> None:
+        self.refresh_calls: list[int] = []
+
+    def refresh_tree(self) -> None:
+        self.refresh_calls.append(1)
+
+
 class _PushRecorder:
     """Records every pushed screen (overlay pusher stand-in)."""
 
@@ -94,11 +116,6 @@ class _PushRecorder:
 
     def __call__(self, screen: object) -> None:
         self.screens.append(screen)
-
-
-def _record_spawn(*args: object, **kwargs: object) -> object:
-    """Spawn-verb stand-in: records nothing, returns like run_worker would."""
-    return None
 
 
 class _FlowsFixture:
@@ -115,13 +132,13 @@ class _FlowsFixture:
         self.refresh_calls: list[int] = []
         self.messages: list[tuple[str, str]] = []
         self.mounted_state: dict[str, bool] = {"value": True}
+        self.explorer = _StubExplorerTree()
         self.flows = FileManagerFlows(
-            spawn=cast(SpawnFn, _record_spawn),
             push_screen=self.push,
             pop_screen=lambda: self.pops.append(1),
             session=cast(EditorSession, self.session),
             workspace=cast(Workspace, self.workspace),
-            explorer_tree=cast(ExplorerTree, object()),
+            explorer_tree=cast(ExplorerTree, self.explorer),
             documents=cast(DocumentFlows, self.documents),
             prompt_bar=cast(PromptBar, self.prompt),
             message=lambda text, kind: self.messages.append((text, kind)),
@@ -224,6 +241,62 @@ def test_bind_exit_wires_fullscreen_close(tmp_path: Path) -> None:
     assert isinstance(screen, FileManagerScreen)
     screen.close()
     assert exits == [1]
+
+
+def test_on_renamed_retargets_session_and_refreshes_tree() -> None:
+    """A rename retargets the session tabs and refreshes the tree (M2)."""
+    fx = _FlowsFixture()
+    old = Path("Z:/dir/old.txt")
+    new = Path("Z:/dir/new.txt")
+
+    fx.flows._on_renamed(old, new)
+
+    assert fx.session.retargets == [(old, new)]
+    assert fx.explorer.refresh_calls == [1]
+
+
+def test_on_deleted_closes_under_and_refreshes_tree() -> None:
+    """A delete closes the tabs under the path and refreshes the tree (M2)."""
+    fx = _FlowsFixture()
+    path = Path("Z:/dir/gone.txt")
+
+    fx.flows._on_deleted(path)
+
+    assert fx.session.closed_under == [path]
+    assert fx.explorer.refresh_calls == [1]
+
+
+def test_on_show_hidden_changed_refreshes_tree() -> None:
+    """The hidden-files toggle refreshes the shared tree view (m5)."""
+    fx = _FlowsFixture()
+
+    fx.flows._on_show_hidden_changed(True)
+    fx.flows._on_show_hidden_changed(False)
+
+    assert fx.explorer.refresh_calls == [1, 1]
+
+
+def test_open_fullscreen_missing_dir_reports_and_pushes_nothing(
+    tmp_path: Path,
+) -> None:
+    """A nonexistent initial dir reports an error and stays on the editor."""
+    missing = tmp_path / "does-not-exist"
+    fx = _FlowsFixture()
+
+    fx.flows.open_fullscreen(missing)
+
+    assert fx.push.screens == []
+    assert any("does not exist" in text for text, _kind in fx.messages)
+
+
+def test_open_fullscreen_existing_dir_pushes_screen(tmp_path: Path) -> None:
+    """An existing initial dir still pushes the fullscreen screen."""
+    fx = _FlowsFixture()
+
+    fx.flows.open_fullscreen(tmp_path)
+
+    assert len(fx.push.screens) == 1
+    assert isinstance(fx.push.screens[0], FileManagerScreen)
 
 
 def test_flows_hold_no_app_handle() -> None:

@@ -19,7 +19,7 @@ from yate.config import YateConfig
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.explorer import ExplorerTree
 from yate.editor_view.filemgr import FileManagerScreen
-from yate.flows import MessageFn, SpawnFn, StateQuery
+from yate.flows import MessageFn, OpenSelectedFn, StateQuery
 from yate.flows.document_flows import DocumentFlows
 from yate.logs import tracing
 from yate.services.workspace import Workspace
@@ -34,7 +34,6 @@ class FileManagerFlows:
     def __init__(
         self,
         *,
-        spawn: SpawnFn,
         push_screen: Callable[..., object],
         pop_screen: Callable[[], object],
         session: EditorSession,
@@ -55,7 +54,6 @@ class FileManagerFlows:
         # return awaitables, so a ``-> None`` shape would not fit).
         self._push_screen = push_screen
         self._pop_screen = pop_screen
-        self._spawn = spawn
         self._session = session
         self._workspace = workspace
         self._explorer_tree = explorer_tree
@@ -100,6 +98,9 @@ class FileManagerFlows:
         """
         if not self._mounted():
             return
+        if not initial_dir.exists():
+            self._message(f"path does not exist: {initial_dir}", "error")
+            return
         if self._exit_app is None:
             log.warning("filemanager exit verb not bound; closing pops instead")
             close: Callable[[], None] = self._pop_screen_call
@@ -118,14 +119,47 @@ class FileManagerFlows:
         close: Callable[[], None],
     ) -> FileManagerScreen:
         """Build the screen with the injected collaborators (R3)."""
+        open_selected: OpenSelectedFn = self._open_selected
         return FileManagerScreen(
             workspace=self._workspace,
             preview=self._config.file_preview,
-            open_selected=self._open_selected,
+            open_selected=open_selected,
             close=close,
+            on_renamed=self._on_renamed,
+            on_deleted=self._on_deleted,
+            on_show_hidden_changed=self._on_show_hidden_changed,
             fullscreen=fullscreen,
             initial_dir=initial_dir,
         )
+
+    def _on_renamed(self, old: Path, new: Path) -> None:
+        """Keep tabs and the file tree in sync after a rename (M2).
+
+        Mirrors the explorer precedent: retarget every session tab that
+        pointed at *old* onto *new*, then refresh the tree so it stops
+        listing the stale name (explorer.py ``submit_rename``).
+        """
+        self._session.retarget(old, new)
+        self._explorer_tree.refresh_tree()
+
+    def _on_deleted(self, path: Path) -> None:
+        """Keep tabs and the file tree in sync after a delete (M2).
+
+        Closes every session tab whose file lived under *path* so a later
+        save cannot resurrect the deleted file, then refreshes the tree
+        (explorer.py ``submit_delete`` precedent).
+        """
+        self._session.close_under(path)
+        self._explorer_tree.refresh_tree()
+
+    def _on_show_hidden_changed(self, value: bool) -> None:
+        """Refresh the file tree after the hidden-files toggle (m5).
+
+        The workspace-wide ``show_hidden`` flag is shared with the
+        explorer; *value* is the new state, the tree just needs a reload
+        to drop or pick up hidden entries.
+        """
+        self._explorer_tree.refresh_tree()
 
     def _pop_screen_call(self) -> None:
         """Call the injected pop verb, dropping its awaitable result."""

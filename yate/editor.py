@@ -303,7 +303,6 @@ def _build_pane_stack(ed: Editor) -> None:
     # later by the app shell (Editor.bind_filemanager_exit -> flows.bind_exit,
     # on_mount): the editor itself never holds App.exit (App handle boundary).
     ed.filemanager_flows = FileManagerFlows(
-        spawn=ed.app.run_worker,
         push_screen=ed.app.push_screen,
         pop_screen=ed.app.pop_screen,
         session=ed.session,
