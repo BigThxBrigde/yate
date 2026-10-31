@@ -4,8 +4,9 @@ description: >
   Multi-dimensional review framework for the yate repo. Consolidates the
   repo's review practice into one entry point: the six generic dimensions of
   python-code-review / pr-review, the twelve dimensions of the 2026-10-18
-  full-repo audit, a dedicated algorithm & complexity dimension, cross-layer
-  call logging, and this repo's hard gates. Scope-adaptive: single file,
+  full-repo audit, a dedicated algorithm & complexity dimension (always
+  prefer low time / space complexity), cross-layer call logging, and this
+  repo's hard gates. Scope-adaptive: single file,
   branch diff, module, or whole-repo audit. Use when the user asks for a
   "多维度 review / 多维度审核", "comprehensive review", "full review",
   "repo audit", or a post-refactor quality sweep. For one snippet or file
@@ -21,7 +22,8 @@ review practice into one checklist: the generic dimensions of
 `python-code-review` / `pr-review`, the twelve dimensions of the 2026-10-18
 full-repo audit (`../../reviews/2026-10-18-full-repo-audit-r3.md`), and the
 repo's hard gates — thirteen dimensions in total, with a dedicated algorithm
-& complexity dimension and cross-layer call observability. It produces
+& complexity dimension (lowest time / space complexity preferred by
+construction) and cross-layer call observability. It produces
 findings and verdicts only — it never edits
 product code; fixes go through the plan workflow (`plan-before-execute.md`).
 
@@ -90,20 +92,30 @@ registered exemption sets (Step 9) before flagging any of them.
   uninstall records; shell flows must not build commands by string concat
 
 ### D4 Algorithm & Complexity
-- Algorithmic choice matches the workload: O(n^2) / O(n^3) scans where a
-  dict/set index, sort, bisect, or incremental structure works; repeated
-  min/max scans where a heap fits; quadratic string building
+- **Always prefer the lowest time complexity and the lowest space complexity
+  implementation available.** This is a selection rule applied at
+  construction time and judged by reading the code — never deferred to
+  profiling:
+  - Time: O(n^2) / O(n^3) scans where a dict/set index, sort, bisect, or
+    incremental structure works; repeated min/max scans where a heap fits;
+    quadratic string building
+  - Space: O(n) auxiliary memory where O(1) / in-place works; materialized
+    collections mid-pipeline where a generator / streaming / lazy view works;
+    unbounded caches or lists that grow with usage and need a bound
+    (bounded-cache precedent)
 - Right data structure: list where membership testing needs a set; repeated
-  dict lookups that should bind one result; unbounded caches/lists that grow
-  with usage and need a bound (bounded-cache precedent)
+  dict lookups that should bind one result
 - Work recomputed per call that should be precomputed once or updated
   incrementally
 - Repo-specific: document / pane operations must not scale a full-document
   scan per keystroke; `editor_core/buffer.py` primitives and the
   `editor_view/*` render path are the benchmark (bisect interval-table
   precedent in `filled_rows`)
-- Complexity claims follow the D5 measurement discipline: suspects, not
-  defects, until profiled
+- Severity: a naive higher-complexity choice where a standard
+  lower-complexity alternative exists is a finding **by construction** —
+  MAJOR on hot or large-input paths, MINOR elsewhere; the D5 profiler
+  discipline governs constant-factor tuning only, never the complexity
+  class itself
 
 ### D5 Performance (I/O, Caching, Hot Paths)
 - Generic: I/O inside loops (N+1); recomputed values (missing cache);
@@ -111,9 +123,11 @@ registered exemption sets (Step 9) before flagging any of them.
   works; needless deep copies; sync work that could be deferred
 - Repo-specific hot paths: the Textual render loop — flag render-path work
   that runs on every key event
-- House rule: **no unmeasured optimization**. A performance finding without a
-  profiler measurement is reported as a suspect (疑点, needs profiler), not a
-  defect (r3 precedent: "0 defects, 2 suspects")
+- House rule for **constant-factor tuning**: no unmeasured optimization. A
+  tuning finding without a profiler measurement is reported as a suspect
+  (疑点, needs profiler), not a defect (r3 precedent: "0 defects, 2
+  suspects"). This does not apply to complexity-class findings (D4): the
+  class is established by construction and needs no profiler
 
 ### D6 Architecture Boundaries
 Run the §五 self-check of `../../rules/architecture-boundaries.md` on the
