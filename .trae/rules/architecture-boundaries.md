@@ -311,6 +311,12 @@ flowchart TD
      （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
      维持豁免，
      已登记为下一个 big-module-split 候选）、
+     `editor_view/filemgr.py`（LF 风格文件管理器三栏屏单一职责
+     （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
+     键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
+     2026-10-31 file-manager 任务（issue IKRZ41）评审修复波 F1 登记 882 行：
+     B1 启动竞态接线 + M1 盘符虚拟层状态机 + M4 会话同步回调注入越线；
+     拆预览段/ListView 会切断屏状态内聚，维持豁免）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked

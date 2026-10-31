@@ -351,6 +351,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
+    "editor_view/filemgr.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "services/yxp.py",
