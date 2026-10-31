@@ -270,6 +270,26 @@ def test_write_swallows_a_backend_oserror(stub_pty: type[_StubImpl]) -> None:
     asyncio.run(_scenario())
 
 
+def test_first_io_failure_is_logged_exactly_once(
+    stub_pty: type[_StubImpl], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The dead-PTY transition reaches the trace once, not per keystroke."""
+
+    async def _scenario() -> None:
+        proc, _impl = _stub_process(stub_pty)
+        await proc.start(lambda _data: None, lambda _code: None)
+        seen: list[str] = []
+        monkeypatch.setattr(
+            pty_proc.log, "debug", lambda msg, *args: seen.append(msg % args)
+        )
+        stub_pty.write_error = OSError("handle closed")
+        proc.write(b"first")   # the transition is logged once ...
+        proc.write(b"second")  # ... and every later failure stays silent
+        assert seen == ["pty write failed (child likely dead): handle closed"]
+
+    asyncio.run(_scenario())
+
+
 def test_resize_skips_the_backend_when_the_size_is_unchanged(
     stub_pty: type[_StubImpl],
 ) -> None:

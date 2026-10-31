@@ -66,6 +66,7 @@ class PtyProcess:
         self._thread: threading.Thread | None = None
         self._closing = False
         self._detached = False
+        self._io_failure_logged = False
         self._exit_future: asyncio.Future[int | None] | None = None
         self._impl = _UnixPty(self) if os.name == "posix" else _ConPty(self)
 
@@ -112,8 +113,8 @@ class PtyProcess:
         try:
             with self._lock:
                 self._impl.write(data)
-        except OSError:
-            pass
+        except OSError as exc:
+            self._note_io_failure("write", exc)
 
     def resize(self, cols: int, rows: int) -> None:
         """Update the stored size and propagate it to the PTY (best effort)."""
@@ -124,8 +125,8 @@ class PtyProcess:
         self.cols, self.rows = cols, rows
         try:
             self._impl.resize(cols, rows)
-        except (OSError, PtyProcessError):
-            pass
+        except (OSError, PtyProcessError) as exc:
+            self._note_io_failure("resize", exc)
 
     def terminate(self) -> None:
         """Politely kill the child (best effort); reader thread follows."""
@@ -134,8 +135,21 @@ class PtyProcess:
         self._closing = True
         try:
             self._impl.terminate()
-        except OSError:
-            pass
+        except OSError as exc:
+            self._note_io_failure("terminate", exc)
+
+    def _note_io_failure(self, op: str, exc: OSError | PtyProcessError) -> None:
+        """Log the first best-effort I/O failure once, then stay silent.
+
+        A dead child makes ``write`` fail on every keystroke, so per-failure
+        logging would flood the trace; a single debug line marks the
+        "dead" state transition without the noise.  The unsynchronized flag
+        may rarely emit a duplicate line across threads -- harmless.
+        """
+        if self._io_failure_logged:
+            return
+        self._io_failure_logged = True
+        log.debug("pty %s failed (child likely dead): %s", op, exc)
 
     # Called from the reader thread only.
     def _emit(self, data: bytes) -> None:
@@ -149,8 +163,8 @@ class PtyProcess:
     def _finished(self, code: int | None) -> None:
         try:
             self._impl.close()
-        except OSError:
-            pass
+        except OSError as exc:
+            self._note_io_failure("close", exc)
         if self._detached:
             return
         loop = self._loop
