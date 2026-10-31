@@ -306,7 +306,8 @@ flowchart TD
      perf-audit-fixes 波 2026-10-26 复测 1229 行
      （refresh_ui_soon 合帧 + cancel_prompt 挂接 live-search 取消），
      维持豁免，
-     refresh-views-dirty 波 2026-10-27 复测 1238 行
+     refresh-views-dirty 波 2026-10-27 复测 1238 行，multi-dim-review 波
+     2026-10-31 复测 1239 行
      （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
      维持豁免，
      已登记为下一个 big-module-split 候选）、
@@ -330,10 +331,12 @@ flowchart TD
      teardown，维持豁免；
      pack wiki 站点生成/翻译/进度单一职责，#29/#31/#33 三轮评审均在该文件收敛，
      拆分另行立项）、
-     `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，语言注册表声明式数据
+     `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，multi-dim-review 波
+     2026-10-31 复测 841 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
      big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
-     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，.yxp 包生命周期
+     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，multi-dim-review
+     波 2026-10-31 复测 841 行，.yxp 包生命周期
      单一职责——归档校验/解包/安装/卸载/记录存储一体；F1/N1 symlink 端到端加固
      （两阶段 stale 清理 + uninstall/records 守卫）越线，刚完成两轮评审加固的
      安全模块不当场拆分，拆分另行立项）。

@@ -1135,7 +1135,9 @@ def test_live_search_debounces_rapid_typing(
     asyncio.run(scenario())
 
 
-def test_live_search_clears_immediately_on_empty(tmp_path: Path) -> None:
+def test_live_search_clears_immediately_on_empty(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Backspacing to an empty query clears highlights synchronously."""
 
     async def scenario() -> None:
@@ -1145,11 +1147,18 @@ def test_live_search_clears_immediately_on_empty(tmp_path: Path) -> None:
             _seed_needles(app)
             flows = app.editor.prompt_flows
             search = app.editor.session.search
+            # Freeze the window beyond the test lifetime (same precedent as
+            # the debounce test above): no timer can fire mid-test, so the
+            # query is delivered by the explicit flush, not by real time.
+            monkeypatch.setattr(
+                "yate.flows.prompt_flows.LIVE_SEARCH_DEBOUNCE_S", 30.0
+            )
             await pilot.press("ctrl+f")
             await pilot.pause()
             await pilot.press(*"needle")
-            await asyncio.sleep(0.3)
             await pilot.pause()
+            assert flows._live_timer is not None
+            flows._flush_live_search()
             assert search.query == "needle"
             # Clear the input: no debounce, the sweep is dropped at once.
             for _ in range(6):

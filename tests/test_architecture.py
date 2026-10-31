@@ -330,11 +330,13 @@ MAX_SOURCE_LINES: int = 800
 #: in that one file; splitting it is a standalone structural task, not a
 #: review fix).
 #: 2026-10-12 full-review fixes: ``editor_syntax/langdefs.py`` is
-#: registered at 813 lines -- a single-duty declarative language registry
+#: registered at 813 lines (841 as of the 2026-10-31 multi-dim review) -- a
+#: single-duty declarative language registry
 #: (spec table + word-list constants) whose two public test-seam accessors
 #: pushed it past the threshold; splitting it would touch the in-place
 #: patch semantics pinned by big-module-split plan-a for zero behavior gain.
-#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` registered at 830 lines.
+#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` registered at 830 lines
+#: (841 as of the 2026-10-31 multi-dim review).
 #: The .yxp package lifecycle (archive validation, extraction, install,
 #: uninstall, records store) is one duty; its end-to-end symlink hardening
 #: (audit F1/N1: two-phase stale pruning plus uninstall and records guards)

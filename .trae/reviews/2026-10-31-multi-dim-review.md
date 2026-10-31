@@ -6,6 +6,8 @@
 **总裁定：APPROVE（0 BLOCKER / 0 MAJOR / 3 MINOR）**——三条 MINOR 均为登记级
 （健壮性观察 / 测试时序卫生 / 文档漂移），无合并阻断项。
 
+修复方案（互链）：[multi-dim-review-fixes-plan.md](../documents/multi-dim-review-fixes-plan.md)。
+
 - 评审对象：master `0ae1a64`（工作树 clean，与 origin/master 同步），覆盖 `yate/` +
   `tools/` + `tests/` 全量。
 - 评审方式：fan-out 5 名只读审查员（SA 正确性+健壮性 / SB 安全+算法+性能 /
