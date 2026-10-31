@@ -16,6 +16,8 @@ import contextlib
 from pathlib import Path
 from typing import Any
 
+from textual.widgets import ListView
+
 from tools.smoke_test import harness
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, snapshot_svg
 from tools.smoke_test.scenarios._base import wait_until
@@ -29,6 +31,11 @@ def _fm_screen(app: Any) -> FileManagerScreen | None:
     """The top screen when it is a :class:`FileManagerScreen`, else ``None``."""
     screen = getattr(app, "screen", None)
     return screen if isinstance(screen, FileManagerScreen) else None
+
+
+def _list(screen: FileManagerScreen) -> ListView:
+    """The current-directory pane (public DOM access, no private state)."""
+    return screen.query_one("#filemgr-list", ListView)
 
 
 def _panes_visible(screen: FileManagerScreen) -> bool:
@@ -52,7 +59,7 @@ async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
     # --file-manager argument); registered for the invariant sweep exactly
     # like harness.new_app does (the factory has no filemanager_dir knob).
     app = YateApp(filemanager_dir=tmp)
-    harness._apps.append(app)
+    harness.track(app)
     checks: list[Check] = []
     rows: dict[int, str] = {}
     async with app.run_test(size=(110, 32)) as pilot:
@@ -71,29 +78,30 @@ async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
             "three_panes_visible", True,
             await wait_until(pilot, lambda: _panes_visible(screen)),
         ))
-        # The listing is built in _wire_mount, also deferred (B1).
+        # The listing is built in _wire_mount, also deferred (B1): the pane
+        # gains one row per entry and the cursor parks on the first one.
         checks.append(Check(
             "listing_ready", True,
-            await wait_until(pilot, lambda: screen._cursor_path() is not None),
+            await wait_until(pilot, lambda: _list(screen).index is not None),
         ))
-        # Dirs-first sort: the cursor starts on sub/, j steps onto a.txt.
-        checks.append(Check("cursor_starts_on_dir", sub, screen._cursor_path()))
+        # Dirs-first sort: the cursor starts on sub/ (row 0), j steps onto
+        # a.txt (row 1) and k comes back.
+        checks.append(Check("cursor_starts_on_dir", 0, _list(screen).index))
         await pilot.press("j")
         await pilot.pause()
-        checks.append(Check(
-            "j_steps_to_file", tmp / "a.txt", screen._cursor_path()))
+        checks.append(Check("j_steps_to_file", 1, _list(screen).index))
         await pilot.press("k")
         await pilot.pause()
-        checks.append(Check("k_back_to_dir", sub, screen._cursor_path()))
-        # l on a directory navigates into it (listing swaps to its content).
+        checks.append(Check("k_back_to_dir", 0, _list(screen).index))
+        # l on a directory navigates into it: the listing swaps to its
+        # content (a single row here) and the SVG shows the inner file.
         await pilot.press("l")
         checks.append(Check(
             "l_enters_subdir", True,
-            await wait_until(pilot, lambda: screen._cwd == sub),
+            await wait_until(pilot, lambda: len(_list(screen).children) == 1),
         ))
         checks.append(Check(
-            "subdir_listed", ["inner.txt"],
-            [e.path.name for e in screen._entries],
+            "subdir_listed", 1, len(_list(screen).children),
         ))
         rows = snapshot_svg(app, tmp)
         checks.append(Check(

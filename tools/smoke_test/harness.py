@@ -373,6 +373,16 @@ def new_app(
     return app
 
 
+def track(app: YateApp) -> None:
+    """Register a scenario-built :class:`YateApp` for the invariant sweep.
+
+    Scenarios that need constructor knobs :func:`new_app` does not expose
+    build the app themselves and hand it here so the post-scenario
+    invariants still see it.
+    """
+    _apps.append(app)
+
+
 def current_app() -> YateApp | None:
     """The last app the running scenario created (``None`` before any)."""
     return _apps[-1] if _apps else None
