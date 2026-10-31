@@ -83,28 +83,18 @@ class FileManagerFlows:
      则逐个 open 也是目标形态，报告记录）；
   5. `focus_editor()` + `refresh_ui()`。
 - `_switch_workspace(target)`（Q1）：
-  1. dirty 检测：遍历 `session` 已开文档 dirty 标志（executor 以
-     `editor_core/document.py` persist 段实际 API 为准；dirty 集合非空 →
-     走三态确认——确认 UI 复用 screen 的 Input 行？**否**：编排侧不持有 screen
-     （已 dismiss）。定稿：确认交互由 FileManagerScreen 承担——screen 在
-     `action_open` 时先问 flows？循环依赖。
-     **最终定稿（简化且无循环）**：`_open_selected` 遇 dirty → 返回
-     `False` 并 `report("N unsaved changes — save or discard first")` + 保持
-     screen 开启（flows 不 dismiss；screen 的 `open_selected` 包装回调收到
-     False 时留在原位）。用户按 `s`（save all）/`d`（discard all）——
-     这两个动作注册为 screen BINDINGS，回调注入 flows：
-     `save_all_and_open` / `discard_all_and_open`——**契约改为**：screen 构造
-     多注入两个回调 `confirm_save: Callable[[list[Path]], None]` /
-     `confirm_discard: Callable[[list[Path]], None]`？——复杂化。
-     **再简化（对齐 :q 语义，最贴近 issue Q1 倾向）**：dirty 存在 →
-     不切换 + report 提示（file manager 保持打开），用户 `Esc` 回编辑器
-     `:w` / 放弃后再切换。**三态确认降级为提示阻塞**——理由：`s`/`d` 全局
-     动作引入新的批量保存/放弃语义面（`discard` 尤其危险），且 :q 既有语义
-     就是「阻塞+提示+用户自行处理」，issue Q1 原文倾向即此。
-     **标记：本裁决覆盖总纲 Q1 的三态确认行，改为「提示阻塞」**——总纲
-     Q1 行同步修订（回填 §三 裁决表）。
-  2. 无 dirty 或已处理 → 关旧工作区：循环 `session.close_active()` 至 fallback
-     （清 tab 面；dirty 已保证为空，无数据丢失）；`workspace.invalidate()`；
+  1. dirty 检测（**已验证事实，按此实现**）：`any(doc.modified for doc in
+     session.docs)`——`doc.modified` 是 Document 的既有 property（TabBar `●` /
+     statusbar / `:q` 三处消费），`session.docs` 是 `list[Document]`；
+     `Editor.quit` 的阻塞判定同款（editor.py:1201）。有 dirty →
+     `report(f"{n} unsaved changes - save or discard first", kind="warn")` +
+     返回 False（不切换、不关闭任何文档——绝不静默丢弃）；
+  2. 无 dirty → 关旧工作区：**已验证事实**——`close_active()` 返回
+     `(closed, fallback)` 且最后一个 tab 关闭时自动追加 scratch buffer
+     （session.py:201-213，session 恒有 active doc）。循环终止条件不能用
+     fallback（恒存在）：正确写法 = 关到只剩无路径 scratch
+     （`len(session.docs) == 1 and session.docs[0].path is None` 时停）；
+     随后 `workspace.invalidate()`；
   3. `documents.open_path(target)`（目录分支自带 set_root+refresh_tree+reveal；
      文件分支自带 root=parent+打开）——**复用既有编排，不自写 set_root**；
   4. 返回 True。
