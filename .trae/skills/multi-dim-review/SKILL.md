@@ -12,7 +12,7 @@ description: >
   "repo audit", or a post-refactor quality sweep. For one snippet or file
   prefer python-code-review; for a pre-merge PR pass prefer pr-review; for
   runtime UI evidence use textual-pilot-smoke.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Multi-Dimensional Review (yate)
@@ -24,7 +24,7 @@ full-repo audit (`../../reviews/2026-10-18-full-repo-audit-r3.md`), and the
 repo's hard gates — thirteen dimensions in total, with a dedicated algorithm
 & complexity dimension (lowest time / space complexity preferred by
 construction) and cross-layer call observability. It produces
-findings and verdicts only — it never edits
+findings, suspects, suggestions and verdicts only — it never edits
 product code; fixes go through the plan workflow (`plan-before-execute.md`).
 
 ## Step 1: Load the Normative Sources
@@ -37,7 +37,8 @@ Read before judging; never review from memory:
   pyright strict zero-diagnostics, §五 quick checklist
 - `../../rules/doc-conventions.md` — doc naming, relative paths, bilingual pairs
 - For audit scope also: `../../reviews/README.md` — open and deliberately
-  deferred items; do not re-raise closed or deferred findings without new evidence
+  deferred items; by default do not re-raise closed or deferred findings
+  without new evidence, but always re-check their current validity (Step 6.4)
 
 ## Step 2: Determine Scope and Route
 
@@ -61,8 +62,11 @@ whole-repo / module audit, or a post-refactor verification sweep.
 ## Step 3: The Thirteen Dimensions
 
 Apply every dimension. A dimension with nothing to flag is reported as
-"clean" in the summary table, never silently dropped. Repo-specific items
-are what separate a real finding from a generic false positive — check the
+"clean" in the summary table, never silently dropped — and a clean verdict
+must cite what was checked and list the candidates examined and dismissed
+(at least one representative dismissal per dimension; a bare "clean" with
+no evidence is itself a review defect). Repo-specific items are what
+separate a real finding from a generic false positive — check the
 registered exemption sets (Step 9) before flagging any of them.
 
 ### D1 Correctness
@@ -123,11 +127,12 @@ registered exemption sets (Step 9) before flagging any of them.
   works; needless deep copies; sync work that could be deferred
 - Repo-specific hot paths: the Textual render loop — flag render-path work
   that runs on every key event
-- House rule for **constant-factor tuning**: no unmeasured optimization. A
-  tuning finding without a profiler measurement is reported as a suspect
-  (疑点, needs profiler), not a defect (r3 precedent: "0 defects, 2
-  suspects"). This does not apply to complexity-class findings (D4): the
-  class is established by construction and needs no profiler
+- House rule for **constant-factor tuning**: tuning findings without a
+  profiler measurement land in the Suspects section (needs profiler)
+  instead of the severity tiers — they are always listed, never dropped
+  (r3 precedent: "0 defects, 2 suspects"). This does not apply to
+  complexity-class findings (D4): the class is established by construction
+  and needs no profiler
 
 ### D6 Architecture Boundaries
 Run the §五 self-check of `../../rules/architecture-boundaries.md` on the
@@ -227,11 +232,16 @@ state the exemption explicitly instead of skipping silently.
 
 1. Every finding carries `file:line` verified by re-reading the current file,
    never from memory.
-2. Adversarial self-check per finding: does context invalidate it (caller
-   guarantees, registered exemptions, existing guards, rule exception
-   clauses)? Is the severity inflated or deflated? Delete or downgrade with a
-   one-line reason; prefer withholding an uncertain claim over asserting
-   without evidence.
+2. Triage, never suppress. The adversarial self-check re-classifies each
+   candidate instead of discarding it: context that invalidates a candidate
+   (caller guarantees, registered exemptions, existing guards, rule
+   exception clauses) demotes it with a one-line reason — to `[SUGGESTION]`
+   when the concern is real but advisory, to Suspect when it rests on an
+   unverified assumption, and to deleted only when directly disproved by
+   counter-evidence on the same line (the counter-evidence is quoted).
+   An uncertain claim is reported as a Suspect with its uncertainty named;
+   it is never silently withheld. Severity inflation is corrected by moving
+   down a tier, not by deleting the finding.
 3. Miss sweep: re-walk all 13 dimensions for obvious gaps before finalizing.
 4. Gate numbers are real: run the commands yourself and report exit codes.
    Never quote a number you did not produce — subagent self-reports included;
@@ -259,12 +269,17 @@ For directory / repo audits (precedent:
    SD typing + style + runtime observability, SE tests + docs + gates —
    5 readers for 13 dimensions).
 2. Spawn read-only explorers in waves (batch <= 3, hard cap 6 concurrent);
-   each returns only `file:line -> evidence -> conclusion`; no file edits,
-   no gate runs by readers.
-3. The main agent re-verifies every reported finding (Step 4) and runs all
+   each returns every candidate it raised — `file:line -> evidence ->
+   candidate -> own triage verdict (keep / demote-to-suspect / kill with
+   reason)` — not only the survivors. Readers do not pre-filter; the main
+   agent makes the final tier call. No file edits, no gate runs by readers.
+3. The main agent re-verifies every reported candidate (Step 4) and runs all
    gates personally (Step 7).
-4. Registered / deferred items are re-checked for current validity, not
-   re-raised as new findings.
+4. Registered / deferred items are re-checked for current validity; by
+   default they stay out of the findings list, but the report must carry a
+   registry re-check list — one line per item: id, current state,
+   unchanged / new evidence. With an explicit `include-registry` argument,
+   re-raise them as full findings.
 
 ## Step 7: Gate Commands
 
@@ -295,6 +310,9 @@ Start with a one-line verdict:
 Overall: [APPROVE | REQUEST_CHANGES | BLOCKED — blocker(s) found]
 ```
 
+Only `[BLOCKER]` / `[MAJOR]` / `[MINOR]` findings move the verdict; Suspects
+and Suggestions never do.
+
 Then a per-dimension summary (omit nothing; "clean" is a result):
 
 | Dimension | Verdict | Key findings |
@@ -316,6 +334,28 @@ Fix:
 | `[MAJOR]` | edge-case bug, significant performance issue, swallowed exception, broken bilingual sync |
 | `[MINOR]` | style / readability / idiom, dead code, naming, doc drift |
 
+Then a **Suspects** section — concerns real enough to report but resting on
+an unverified assumption (profiler measurement needed, behavior depends on
+an unchecked caller guarantee, not reproducible by reading alone):
+
+```
+[SUSPECT] <file>:<line> — Short title
+Claim: what might be wrong.
+Uncertainty: exactly what evidence is missing and how to obtain it.
+```
+
+Then a **Suggestions** section — confirmed real but advisory (polish,
+consistency, nice-to-have hardening); they never affect the verdict:
+
+```
+[SUGGESTION] <file>:<line> — Short title
+Note: one to three lines; the Problem/Fix scaffolding is optional here.
+```
+
+Both sections are mandatory when non-empty: every candidate surviving Step 4
+triage lands in the severity tiers, Suspects, or Suggestions — silence is
+the only forbidden outcome.
+
 Then a **Deferred** section: findings confirmed real but deliberately not
 fixed now (登记不修), each with its reason — keep findings separate from
 scheduling, per the house review-record convention. End with a short
@@ -331,7 +371,11 @@ formal round (pre-merge review, audit round, or user-requested registration).
 ## Step 9: Registered Exemptions — Check Before Flagging
 
 These live in `tests/test_architecture.py` and the rule texts; a hit inside a
-registered set is compliant, a new hit outside them is a finding:
+registered set is compliant (not a finding), a new hit outside them is a
+finding. Either way the report carries an **exemption ledger**: every
+candidate absorbed by a registered set is listed with its `file:line` and
+the set that absorbed it, so a widening exemption stays visible instead of
+silent:
 
 - `SIZE_EXEMPT_FILES` — files over the 800-line threshold (D7)
 - `UI_FROZEN_FILES` — flows modules allowed to import `editor_view` (D6 R11)
