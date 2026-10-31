@@ -12,7 +12,7 @@ from __future__ import annotations
 import io
 from collections.abc import Iterator
 from pathlib import Path
-from typing import override
+from typing import TextIO, cast, override
 
 import pytest
 
@@ -337,3 +337,118 @@ def test_cleanup_reports_an_unreadable_base_directory(
 
     assert report.base_removed is False
     assert any("access denied" in e for e in report.errors)
+
+
+# --- confirmation prompt / report rendering (coverage plan-c) ----------------
+
+
+def test_interactive_returns_false_when_stdin_lacks_isatty() -> None:
+    """A stdin object without isatty() is treated as non-interactive."""
+
+    class _NoIsatty:
+        """Minimal stream stand-in that has no isatty at all."""
+
+    assert (
+        us._interactive(cast(TextIO, _NoIsatty()), cast(TextIO, io.StringIO()))
+        is False
+    )
+
+
+def test_interactive_returns_false_when_isatty_raises_os_error() -> None:
+    """A stream whose isatty() raises OSError is treated as non-interactive."""
+
+    class _BrokenTTY(io.StringIO):
+        @override
+        def isatty(self) -> bool:
+            raise OSError("closed stream")
+
+    assert us._interactive(_BrokenTTY(), _FakeTTY()) is False
+
+
+def test_confirmation_prompt_renders_non_directory_managed_entry(
+    tmp_path: Path,
+) -> None:
+    """A managed name occupied by a file prints bare, without a file count."""
+    blocker = tmp_path / "themes"
+    blocker.write_text("blocker", encoding="utf-8")
+    out = io.StringIO()
+
+    us._print_confirmation_prompt(
+        cast(TextIO, out), tmp_path, [], [blocker], ["data", "notes.txt"],
+        include_data=False,
+    )
+
+    text = out.getvalue()
+    assert "  themes\n" in text
+    assert "themes/  (" not in text
+    assert "data/  (crash logs; --include-data to remove)" in text
+    assert "notes.txt  (unknown, not created by yate)" in text
+    assert text.endswith("proceed? [y/N]: ")
+
+    # With no preserved entry and --include-data off, the data hint prints.
+    hint = io.StringIO()
+    us._print_confirmation_prompt(
+        cast(TextIO, hint), tmp_path, [], [], [], include_data=False
+    )
+    assert "(data/ kept unless --include-data)" in hint.getvalue()
+
+
+def test_format_setup_report_renders_every_field(tmp_path: Path) -> None:
+    """Every SetupReport field reaches the rendered summary."""
+    report = us.SetupReport(
+        base_dir=tmp_path,
+        created_dirs=["themes", "extensions"],
+        installed_rc=True,
+        rc_skipped=True,
+        rc_backup=tmp_path / us.RC_BACKUP,
+        refreshed_templates=["themes/dracula_theme.example"],
+        skipped_templates=["themes/missing.example"],
+        errors=["themes/: disk full"],
+    )
+    text = us.format_setup_report(report)
+
+    assert "created     themes/" in text
+    assert "replaced" in text
+    assert "(from yaterc.example)" in text
+    assert f"backed up   {us.RC_BACKUP}" in text
+    assert "skipped     yaterc already exists" in text
+    assert "refreshed   themes/dracula_theme.example" in text
+    assert "skipped     themes/missing.example" in text
+    assert "error       themes/: disk full" in text
+    # An error report carries no customize hint.
+    assert "edit yaterc" not in text
+
+
+def test_format_cleanup_report_renders_nothing_to_remove(tmp_path: Path) -> None:
+    """nothing_to_remove reports the bare finding, without the data hint."""
+    text = us.format_cleanup_report(
+        us.CleanupReport(base_dir=tmp_path, nothing_to_remove=True)
+    )
+
+    assert f"no yate-managed configuration found under {tmp_path}" in text
+    assert "data/ is recreated" not in text
+
+
+def test_format_cleanup_report_renders_removed_and_preserved(
+    tmp_path: Path,
+) -> None:
+    """removed / preserved / base-removed / error lines all render."""
+    text = us.format_cleanup_report(
+        us.CleanupReport(
+            base_dir=tmp_path,
+            removed_files=["yaterc"],
+            removed_dirs=["themes"],
+            preserved=["data", "notes.txt"],
+            base_removed=True,
+            errors=["yaterc: locked"],
+        )
+    )
+
+    assert "removed:" in text
+    assert "  yaterc\n" in text
+    assert "  themes/\n" in text
+    assert "data/ preserved (crash diagnostics)." in text
+    assert "notes.txt preserved (not created by yate)." in text
+    assert f"the now-empty {tmp_path} directory was removed." in text
+    assert "data/ is recreated automatically on the next launch." in text
+    assert "error: yaterc: locked" in text
