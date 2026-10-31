@@ -4,7 +4,8 @@ description: >
   Multi-dimensional review framework for the yate repo. Consolidates the
   repo's review practice into one entry point: the six generic dimensions of
   python-code-review / pr-review, the twelve dimensions of the 2026-10-18
-  full-repo audit, and this repo's hard gates. Scope-adaptive: single file,
+  full-repo audit, a dedicated algorithm & complexity dimension, cross-layer
+  call logging, and this repo's hard gates. Scope-adaptive: single file,
   branch diff, module, or whole-repo audit. Use when the user asks for a
   "多维度 review / 多维度审核", "comprehensive review", "full review",
   "repo audit", or a post-refactor quality sweep. For one snippet or file
@@ -19,7 +20,9 @@ A scope-adaptive, **read-only** review framework that unifies this repo's
 review practice into one checklist: the generic dimensions of
 `python-code-review` / `pr-review`, the twelve dimensions of the 2026-10-18
 full-repo audit (`../../reviews/2026-10-18-full-repo-audit-r3.md`), and the
-repo's hard gates. It produces findings and verdicts only — it never edits
+repo's hard gates — thirteen dimensions in total, with a dedicated algorithm
+& complexity dimension and cross-layer call observability. It produces
+findings and verdicts only — it never edits
 product code; fixes go through the plan workflow (`plan-before-execute.md`).
 
 ## Step 1: Load the Normative Sources
@@ -38,9 +41,9 @@ Read before judging; never review from memory:
 
 | `$ARGUMENTS` looks like | Scope | Depth |
 |---|---|---|
-| inline snippet or one `.py` path | single target | D1-D4, D7, D8 in depth; D5/D6 as a quick pass; D9-D12 only when behavior changed |
-| `diff`, branch name, or base ref | branch diff | all 12 dimensions on the diff + hard gates (Step 5) |
-| directory / module name / `repo` / `全仓库` | audit | all 12 dimensions; fan-out pattern (Step 6); review record (Step 8) |
+| inline snippet or one `.py` path | single target | D1-D5, D8, D9 in depth; D6/D7 as a quick pass; D10-D13 only when behavior changed |
+| `diff`, branch name, or base ref | branch diff | all 13 dimensions on the diff + hard gates (Step 5) |
+| directory / module name / `repo` / `全仓库` | audit | all 13 dimensions; fan-out pattern (Step 6); review record (Step 8) |
 
 Route instead of duplicating sibling skills:
 
@@ -53,7 +56,7 @@ Route instead of duplicating sibling skills:
 This skill is the right entry when the user wants all dimensions at once, a
 whole-repo / module audit, or a post-refactor verification sweep.
 
-## Step 3: The Twelve Dimensions
+## Step 3: The Thirteen Dimensions
 
 Apply every dimension. A dimension with nothing to flag is reported as
 "clean" in the summary table, never silently dropped. Repo-specific items
@@ -86,17 +89,33 @@ registered exemption sets (Step 9) before flagging any of them.
 - `.yxp` packaging: member-name casefold dedup, symlink guards, install /
   uninstall records; shell flows must not build commands by string concat
 
-### D4 Performance
-- Generic: O(n^2) where a set/dict lookup works; I/O inside loops (N+1);
-  recomputed values (missing cache); string `+=` in loops instead of join;
-  whole-file loads where streaming works; needless deep copies
-- Repo-specific hot paths: the Textual render loop and
-  `editor_core/buffer.py` primitives — flag per-keystroke work there
+### D4 Algorithm & Complexity
+- Algorithmic choice matches the workload: O(n^2) / O(n^3) scans where a
+  dict/set index, sort, bisect, or incremental structure works; repeated
+  min/max scans where a heap fits; quadratic string building
+- Right data structure: list where membership testing needs a set; repeated
+  dict lookups that should bind one result; unbounded caches/lists that grow
+  with usage and need a bound (bounded-cache precedent)
+- Work recomputed per call that should be precomputed once or updated
+  incrementally
+- Repo-specific: document / pane operations must not scale a full-document
+  scan per keystroke; `editor_core/buffer.py` primitives and the
+  `editor_view/*` render path are the benchmark (bisect interval-table
+  precedent in `filled_rows`)
+- Complexity claims follow the D5 measurement discipline: suspects, not
+  defects, until profiled
+
+### D5 Performance (I/O, Caching, Hot Paths)
+- Generic: I/O inside loops (N+1); recomputed values (missing cache);
+  string `+=` in loops instead of join; whole-file loads where streaming
+  works; needless deep copies; sync work that could be deferred
+- Repo-specific hot paths: the Textual render loop — flag render-path work
+  that runs on every key event
 - House rule: **no unmeasured optimization**. A performance finding without a
   profiler measurement is reported as a suspect (疑点, needs profiler), not a
   defect (r3 precedent: "0 defects, 2 suspects")
 
-### D5 Architecture Boundaries
+### D6 Architecture Boundaries
 Run the §五 self-check of `../../rules/architecture-boundaries.md` on the
 target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
 - R1: only `cli.py` imports `yate.app`; R3: `editor_view/*` never imports
@@ -118,7 +137,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
   `*Controller` (whitelist: `PaneHost`, `*Manager`; flow modules are
   `*Flows`, sync adapters named by verb such as `LspSync`)
 
-### D6 Project Structure & Module Responsibility
+### D7 Project Structure & Module Responsibility
 - Single file > 800 lines triggers a disposal review — check `SIZE_EXEMPT_FILES`
   (mirrors architecture-boundaries §三.7) before flagging; multi-responsibility
   mixing must split, single-responsibility long files may be exempt
@@ -130,7 +149,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
   collaborators, no App handle
 - No central interface / public-type layer; share concrete objects
 
-### D7 Typing & Static Discipline
+### D8 Typing & Static Discipline
 - `from __future__ import annotations` as the first executable line of every
   module; full annotations on public APIs; pyright strict zero diagnostics
 - Native lowercase generics (`list[str]`), `X | None` not `Optional`,
@@ -139,7 +158,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
   `Screen[None]` are the only precise forms; `@override` on overrides
 - Absolute imports everywhere — `from .x` is banned even inside a package
 
-### D8 Style & Idiom (PEP 8 + PEP 20)
+### D9 Style & Idiom (PEP 8 + PEP 20)
 - 4-space indent, lines <= 100 chars, house naming table; guard clauses and
   early returns, nesting <= 3; truthiness tests; comprehensions over
   append-loops where they stay readable
@@ -150,15 +169,20 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
   lazy `%` placeholders, never f-strings
 - Prose docstrings with Sphinx cross-refs; `#:` for module-level constants
 
-### D9 Concurrency & Textual Runtime
+### D10 Concurrency, Runtime & Observability
 - Async work via `App.run_worker` / `*_later` helpers; debounce via
   `asyncio.get_running_loop().call_later`; no cross-thread UI mutation
+- **Cross-module / cross-layer calls are observable**: significant
+  invocations across a module or layer boundary (flows reaching into
+  collaborators, worker threads, callbacks without App context) log via
+  `tracing.get_logger(__name__)` with lazy `%` placeholders — a cross-layer
+  call whose failure leaves no log record is a finding
 - Key paths must not double-dispatch (R10) and must fall through keys they do
   not consume; the `support_mouse` gate stays inside `YateApp.on_event`
 - Theme is process-global — tests and smokes that switch themes must restore
 - Timing-sensitive code paths must be tested without real sleeps
 
-### D10 Tests & Verification
+### D11 Tests & Verification
 - Touched behavior has tests; guard-worthy violations become
   `tests/test_architecture.py` cases, validated by a negative drill
   (revert the fix, watch the guard fail, restore)
@@ -170,7 +194,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
 - Coverage of touched modules in question → run the coverage gate (Step 7)
   and list uncovered lines
 
-### D11 Docs, Bilingual Sync & Commit Hygiene
+### D12 Docs, Bilingual Sync & Commit Hygiene
 - Bilingual pairs updated together: `yate/docs/*.en.md` + `*.zh.md`,
   `manual.{en,zh}.md` for user-visible behavior, `README.md` + `README.zh.md`
 - `CHANGELOG.md` / `CHANGELOG.zh.md` are generated by `tools.changelog` —
@@ -180,7 +204,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
 - Commit messages follow `../../rules/git-commit-message.md`:
   `type(scope): subject`, English throughout
 
-### D12 Hard Gates (run, don't guess)
+### D13 Hard Gates (run, don't guess)
 Run the commands in Step 7 and report real exit codes; a red gate is
 `[BLOCKER]`. Pure-docs changes are exempt from tests per `misc-rules.md` §三 —
 state the exemption explicitly instead of skipping silently.
@@ -194,7 +218,7 @@ state the exemption explicitly instead of skipping silently.
    clauses)? Is the severity inflated or deflated? Delete or downgrade with a
    one-line reason; prefer withholding an uncertain claim over asserting
    without evidence.
-3. Miss sweep: re-walk all 12 dimensions for obvious gaps before finalizing.
+3. Miss sweep: re-walk all 13 dimensions for obvious gaps before finalizing.
 4. Gate numbers are real: run the commands yourself and report exit codes.
    Never quote a number you did not produce — subagent self-reports included;
    re-run their scope independently (only landed, verifiable results count).
@@ -206,7 +230,7 @@ state the exemption explicitly instead of skipping silently.
   mention once as skipped, do not review their content.
 - Modes: `review` (default: all dimensions + verdict + action plan),
   `impact` (change overview + risk tiers, no verdict),
-  `dims=<list>` to restrict dimensions (e.g. `dims=sec,perf` → D3, D4).
+  `dims=<list>` to restrict dimensions (e.g. `dims=algo,perf` → D4, D5).
 - Every changed file is evaluated against all requested dimensions; verdict
   and finding format per Step 8.
 
@@ -215,10 +239,11 @@ state the exemption explicitly instead of skipping silently.
 For directory / repo audits (precedent:
 `../../reviews/2026-10-18-full-repo-audit-r3.md` §二):
 
-1. Group the 12 dimensions, <= 3 dimensions per reader (precedent: SA
-   correctness + robustness, SB security + performance, SC maintainability +
-   extensibility, SD structure + responsibility + architecture,
-   SE gates + docs + discipline — 5 readers for 12 dimensions).
+1. Group the 13 dimensions, <= 3 dimensions per reader (precedent shape,
+   r3 audit's 5 readers: SA correctness + robustness, SB security +
+   algorithms + performance, SC architecture + structure + responsibility,
+   SD typing + style + runtime observability, SE tests + docs + gates —
+   5 readers for 13 dimensions).
 2. Spawn read-only explorers in waves (batch <= 3, hard cap 6 concurrent);
    each returns only `file:line -> evidence -> conclusion`; no file edits,
    no gate runs by readers.
@@ -294,13 +319,13 @@ formal round (pre-merge review, audit round, or user-requested registration).
 These live in `tests/test_architecture.py` and the rule texts; a hit inside a
 registered set is compliant, a new hit outside them is a finding:
 
-- `SIZE_EXEMPT_FILES` — files over the 800-line threshold (D6)
-- `UI_FROZEN_FILES` — flows modules allowed to import `editor_view` (D5 R11)
+- `SIZE_EXEMPT_FILES` — files over the 800-line threshold (D7)
+- `UI_FROZEN_FILES` — flows modules allowed to import `editor_view` (D6 R11)
 - `NON_ASCII_COMMENT_EXEMPT` — frozen; new non-ASCII comments must be
-  rewritten, never registered (D8)
-- `PRINT_EXEMPT_SITES` — sanctioned `print()` hosts in `yate/` (D8)
-- R2 `Protocol` whitelist and naming-guard whitelists (D5)
-- `SCROLLBAR_EXEMPT` — scrollable widgets without the R15 scrollbar pair (D5)
+  rewritten, never registered (D9)
+- `PRINT_EXEMPT_SITES` — sanctioned `print()` hosts in `yate/` (D9)
+- R2 `Protocol` whitelist and naming-guard whitelists (D6)
+- `SCROLLBAR_EXEMPT` — scrollable widgets without the R15 scrollbar pair (D6)
 
 ## Step 10: Feedback Loop
 
