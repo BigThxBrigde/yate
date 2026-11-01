@@ -29,6 +29,7 @@ from yate.editor_view.preview import (
     PreviewData,
     PreviewLog,
     load_preview,
+    preview_text,
 )
 from yate.editor_view.scrollbars import SlimScrollBarRender
 from yate.registries import ActionRegistry, CommandRegistry
@@ -260,7 +261,8 @@ def test_preview_shows_syntax_tokens(tmp_path: Path) -> None:
 
 
 def test_preview_truncates_large_file(tmp_path: Path) -> None:
-    """A 3000-line file is cut at max_lines and flagged in the pane."""
+    """A 3000-line file is cut at max_lines, noted in the assembly and
+    painted into the pane."""
     alpha = tmp_path / "alpha.py"
     alpha.write_text(
         "\n".join(f"x{i} = {i}" for i in range(3000)), encoding="utf-8"
@@ -279,7 +281,14 @@ def test_preview_truncates_large_file(tmp_path: Path) -> None:
             assert data is not None
             assert data.truncated
             assert len(data.lines) == screen.preview.max_lines
-            assert "truncated" in screen._preview_text(data).plain
+            assert "truncated" in preview_text(
+                data, theme.active(), screen.preview.max_lines
+            ).plain
+            # the truncation note also reaches the pane through the
+            # worker -> render pipeline (end-to-end guard)
+            assert await wait_until(
+                pilot, lambda: "truncated" in _preview_plain(screen)
+            )
 
     asyncio.run(scenario())
 

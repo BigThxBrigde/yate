@@ -3,9 +3,10 @@
 Extracted from the command palette (file-manager plan-b) so the palette
 screen and the file manager screen consume one read+tokenize+cache
 pipeline instead of duplicating it.  The worker side (:func:`load_preview`
-/ :func:`load_preview_worker`) never touches widgets; rendering stays
-with the owning screen.  The import direction is one-way: consumer
-screens import this module, never the reverse.
+/ :func:`load_preview_worker`) never touches widgets; the pure Rich Text
+assembly (:func:`preview_text`) is shared too, while the pane write and
+the cache store stay with the owning screen.  The import direction is
+one-way: consumer screens import this module, never the reverse.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from itertools import islice
 from pathlib import Path
 from typing import override
 
+from rich.text import Text
 from textual.widgets import RichLog
 
 from yate.config import FilePreviewConfig
@@ -124,7 +126,7 @@ def load_preview(path: Path, cfg: FilePreviewConfig) -> PreviewData:
         tokens = tokenize_document(lines, filetype) if lines else []
     except Exception as exc:  # noqa: BLE001 - degrade to unhighlighted text
         # A tokenizer crash must never leave the pane stuck on
-        # "loading…"; align one empty token row per line so _preview_text's
+        # "loading…"; align one empty token row per line so preview_text's
         # zip still walks every line and renders it plain via t.fg.
         log.warning("palette preview tokenize failed for %s: %s", path, exc)
         tokens = [[] for _ in lines]
@@ -143,6 +145,30 @@ async def load_preview_worker(path: Path, cfg: FilePreviewConfig) -> PreviewData
     highlight worker).
     """
     return await asyncio.to_thread(load_preview, path, cfg)
+
+
+def preview_text(data: PreviewData, t: theme.Theme, max_lines: int) -> Text:
+    """Assemble the syntax-highlighted preview text (pure, UI-thread side).
+
+    Token columns are clamped to the line length (backends may lag the
+    source after the truncation cut); token-free spans render with the
+    plain foreground.
+    """
+    text = Text()
+    for line, row_tokens in zip(data.lines, data.tokens):
+        pos = 0
+        for tok in row_tokens:
+            start, end = min(tok.start, len(line)), min(tok.end, len(line))
+            if start > pos:
+                text.append(line[pos:start], style=t.fg)
+            text.append(line[start:end], style=t.syntax_style(tok.kind))
+            pos = max(pos, end)
+        if pos < len(line):
+            text.append(line[pos:], style=t.fg)
+        text.append("\n")
+    if data.truncated:
+        text.append(f"… truncated at {max_lines} lines", style=t.fg_dim)
+    return text
 
 
 class PreviewCache:

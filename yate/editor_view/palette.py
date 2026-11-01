@@ -35,7 +35,13 @@ from yate.services.workspace import Workspace
 
 from yate.editor_view import theme
 from yate.editor_view.icons import GEAR, KEYBOARD, icon_for_path
-from yate.editor_view.preview import PreviewCache, PreviewData, PreviewLog, load_preview_worker
+from yate.editor_view.preview import (
+    PreviewCache,
+    PreviewData,
+    PreviewLog,
+    load_preview_worker,
+    preview_text,
+)
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
@@ -219,12 +225,17 @@ class PaletteScreen(ModalScreen[None]):
 
     async def _index_files(self) -> None:
         """Build the file list in a thread so large workspaces do not
-        freeze the UI when the palette opens."""
+        freeze the UI when the palette opens.  The ``is_attached`` guard
+        below is defensive redundancy: unmount cancels the worker, so it
+        is not reachable in normal flow.
+        """
         try:
             entries = await asyncio.to_thread(self._collect_file_entries)
         except OSError:
             entries = []
-        if not self.is_mounted:
+        # is_mounted never resets on unmount; is_attached mirrors Textual's
+        # own mount check.
+        if not self.is_attached:
             return
         self._set_entries(entries)
         self._status_message = None
@@ -376,10 +387,13 @@ class PaletteScreen(ModalScreen[None]):
         :func:`load_preview_worker`; the cache store and the Rich Text
         assembly / widget write stay on the UI thread (same split as the
         editor's highlight worker).  When the cursor moved on while the
-        worker ran, the payload is cached but not painted.
+        worker ran, the payload is cached but not painted.  The
+        ``is_attached`` guard below is defensive redundancy: unmount
+        cancels the worker outright, so the ``return`` is not reachable
+        in normal flow and needs no direct test coverage.
         """
         data = await load_preview_worker(path, self.preview)
-        if not self.is_mounted:
+        if not self.is_attached:
             return
         self._preview_cache.store(data)
         if self._selected_path() != path:
@@ -394,33 +408,7 @@ class PaletteScreen(ModalScreen[None]):
         if data.note is not None:
             pane.write(Text(data.note, style=t.fg_dim))
             return
-        pane.write(self._preview_text(data))
-
-    def _preview_text(self, data: PreviewData) -> Text:
-        """Assemble the syntax-highlighted preview text (UI thread).
-
-        Token columns are clamped to the line length (backends may lag the
-        source after the truncation cut); token-free spans render with the
-        plain foreground.
-        """
-        t = theme.active()
-        text = Text()
-        for line, row_tokens in zip(data.lines, data.tokens):
-            pos = 0
-            for tok in row_tokens:
-                start, end = min(tok.start, len(line)), min(tok.end, len(line))
-                if start > pos:
-                    text.append(line[pos:start], style=t.fg)
-                text.append(line[start:end], style=t.syntax_style(tok.kind))
-                pos = max(pos, end)
-            if pos < len(line):
-                text.append(line[pos:], style=t.fg)
-            text.append("\n")
-        if data.truncated:
-            text.append(
-                f"… truncated at {self.preview.max_lines} lines", style=t.fg_dim
-            )
-        return text
+        pane.write(preview_text(data, theme.active(), self.preview.max_lines))
 
     # ------------------------------------------------------------- textual
 
