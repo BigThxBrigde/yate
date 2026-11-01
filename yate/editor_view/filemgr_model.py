@@ -11,7 +11,6 @@ direct ListView use.
 from __future__ import annotations
 
 import os
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -232,19 +231,13 @@ def format_status(
 
 def parent_and_siblings(
     current: Path, workspace: Workspace
-) -> tuple[Path | None, list[Entry]]:
-    """Left-pane model: parent dir entries; ``None`` parent at root.
+) -> tuple[Path, list[Entry]]:
+    """Left-pane model: the parent directory and its listing.
 
-    At the file-system root (``current.parent == current``) the parent is
-    ``None``: on Windows the returned entries form the drive-letter
-    virtual level (:meth:`Workspace.list_drives`), on POSIX they are an
-    empty list for the Screen to render as a placeholder.  Otherwise the
-    parent directory plus its listing is returned.
+    The only call site (:meth:`FileManagerScreen._render_parent`) guards
+    on ``_cwd`` not being a file-system root, so this never sees the
+    root itself (the drive-letter level lives in the middle pane, Q4).
     """
-    if current.parent == current:
-        if sys.platform == "win32":
-            return None, workspace.list_drives()
-        return None, []
     return current.parent, workspace.list_dir(current.parent)
 
 

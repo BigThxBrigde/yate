@@ -162,9 +162,11 @@ class FileManagerScreen(ModalScreen[None]):
             self.add_class("fullscreen")
         root = workspace.root
         start = (initial_dir or root or Path.cwd()).resolve()
-        # A file-system root starts at the drive-letter virtual level (Q4):
-        # ``None`` marks that level, real directories browse normally.
-        self._cwd: Path | None = None if start.parent == start else start
+        # The drive-letter virtual level (``None``) only exists where
+        # drives do: with an empty ``list_drives()`` (POSIX) a root
+        # start stays on the real root (M1), others browse normally.
+        at_root = start.parent == start
+        self._cwd: Path | None = None if at_root and workspace.list_drives() else start
         self._all: list[Entry] = []
         self._entries: list[Entry] = []
         self._stats: dict[Path, EntryStat] = {}
@@ -715,11 +717,15 @@ class FileManagerScreen(ModalScreen[None]):
 
         At the drive-letter virtual level there is nothing above (the
         level stays put); at a file-system root ``h`` switches to the
-        drive level (Q4).
+        drive level when drives exist (Q4) -- the drive level only
+        exists when ``list_drives()`` is non-empty (Windows; POSIX
+        stays on the real root, M1).
         """
         if self._cwd is None:
             return  # already at the drive level
         if self._cwd.parent == self._cwd:
+            if not self.workspace.list_drives():
+                return  # POSIX: no drive level, stay at the file-system root
             self._cwd = None
             self._reload()
             return

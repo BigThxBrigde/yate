@@ -16,9 +16,9 @@ entry. Unsaved buffers are never dropped silently.
 The screen has three panes and a status bar:
 
 * **Parent directory** (left) -- the listing of the current directory's
-  parent. At the file-system root on Windows this becomes the
-  drive-letter virtual level (`C:` `D:` …); on POSIX it shows an empty
-  placeholder.
+  parent; the file-system root shows the `(no parent directory)`
+  placeholder. On Windows, `h` at the file-system root enters the
+  drive-letter level, listed by the **middle** pane (`C:` `D:` …).
 * **Current directory** (middle) -- the browsable list: file icons,
   accent-colored directory names, child-count badges (`(12)`, `999+`
   once capped), right-aligned file sizes; marked rows carry a `* `
@@ -64,7 +64,7 @@ theme colors and slim scrollbars follow the active theme in both.
 | Key | Action |
 |---|---|
 | `j` / `Down`, `k` / `Up` | Move the cursor down / up |
-| `h` / `Left` / `Backspace` | Go to the parent directory (the cursor lands on the entry of the directory you came from) |
+| `h` / `Left` / `Backspace` | Go to the parent directory (the cursor lands on the entry of the directory you came from); at the file-system root, enter the drive-letter level (Windows only) |
 | `l` / `Enter` / `Right` | Enter a directory / open the selection (see section 4) |
 | `g` `g` / `Home` | Jump to the top (the second `g` must follow within a second) |
 | `G` / `End` | Jump to the bottom |

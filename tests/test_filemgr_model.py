@@ -3,12 +3,9 @@
 from __future__ import annotations
 
 import os
-import sys
 import time
 from pathlib import Path
 from stat import filemode
-
-import pytest
 
 from yate.editor_view.filemgr_model import (
     SORT_CYCLE,
@@ -209,26 +206,10 @@ def test_format_status_matches_lf_layout(tmp_path: Path) -> None:
     assert degraded.endswith(f"{_MID_DOT} 1/8 {_MID_DOT} name asc")
 
 
-def test_parent_and_siblings_root_behaviors(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_parent_and_siblings_returns_parent_listing(tmp_path: Path) -> None:
+    """Left-pane model: the parent directory plus its listing."""
     ws = Workspace(tmp_path)
     (tmp_path / "kid.txt").write_text("", encoding="utf-8")
     parent, siblings = parent_and_siblings(tmp_path, ws)
     assert parent == tmp_path.parent
     assert any(e.path == tmp_path for e in siblings)
-
-    root = Path(tmp_path.anchor)
-    assert root.parent == root
-
-    monkeypatch.setattr(sys, "platform", "posix")
-    posix_parent, posix_entries = parent_and_siblings(root, ws)
-    assert posix_parent is None
-    assert posix_entries == []
-
-    drives = [Entry(Path("Q:\\"), "Q:", True)]
-    monkeypatch.setattr(sys, "platform", "win32")
-    monkeypatch.setattr(ws, "list_drives", lambda: drives)
-    win_parent, win_entries = parent_and_siblings(root, ws)
-    assert win_parent is None
-    assert win_entries is drives

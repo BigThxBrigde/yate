@@ -25,7 +25,7 @@ from yate.editor_view import theme
 from yate.editor_view import filemgr
 from yate.editor_view.filemgr import FileManagerScreen, _FileListView
 from yate.editor_view.preview import PreviewLog
-from yate.services.workspace import EntryStat, Workspace
+from yate.services.workspace import Entry, EntryStat, Workspace
 
 from conftest import plain_text, wait_until
 
@@ -104,6 +104,16 @@ def _parent_texts(screen: FileManagerScreen) -> list[str]:
 def _input_visible(screen: FileManagerScreen) -> bool:
     """Whether the bottom input line is currently shown."""
     return screen.query_one("#filemgr-input", Input).has_class("active")
+
+
+def _no_drives(self: Workspace) -> list[Entry]:
+    """POSIX stand-in for ``Workspace.list_drives``: no drives (M1)."""
+    return []
+
+
+def _one_q_drive(self: Workspace) -> list[Entry]:
+    """``Workspace.list_drives`` stand-in listing a single fake ``Q:``."""
+    return [Entry(Path("Q:\\"), "Q:", True)]
 
 
 def _preview_text(screen: FileManagerScreen) -> str:
@@ -845,5 +855,83 @@ def test_filemgr_drive_level_lists_drives_and_enters(tmp_path: Path) -> None:
             await pilot.press("h")
             assert await wait_until(pilot, lambda: screen._cwd is None)
             assert await wait_until(pilot, lambda: _entry_names(screen) == drive_names)
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_root_without_drives_stays_at_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No drives (POSIX): the file-system root has no drive level (M1).
+
+    ``list_drives`` is patched empty, so the drive-letter virtual level
+    must not exist: a root start stays on the real root and ``h`` at the
+    root is a no-op, keeping the original listing.  With drives present
+    ``h`` at the root still enters the drive level (Q4, Windows).
+    """
+    (tmp_path / "marker.txt").write_text("m\n", encoding="utf-8")
+    monkeypatch.setattr(Workspace, "list_drives", _no_drives)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], initial_dir=Path(tmp_path.anchor)))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            # an empty drive list must not park the start on ``None``
+            assert screen._cwd == Path(tmp_path.anchor)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) > 0)
+            before = _entry_names(screen)
+            # ``h`` at the root without drives: stay and keep the listing
+            await pilot.press("h")
+            assert await wait_until(pilot, lambda: _entry_names(screen) == before)
+            assert screen._cwd == Path(tmp_path.anchor)
+            # drives exist: ``h`` at the root enters the drive level
+            monkeypatch.setattr(Workspace, "list_drives", _one_q_drive)
+            await pilot.press("h")
+            assert await wait_until(pilot, lambda: screen._cwd is None)
+            assert await wait_until(pilot, lambda: _entry_names(screen) == ["Q:"])
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_cut_paste_directory_into_itself_reports_failure(
+    tmp_path: Path,
+) -> None:
+    """Cut-pasting a directory into its own subtree fails (B1 companion).
+
+    The move raises ``shutil.Error`` ("Cannot move a directory ... into
+    itself"); the screen surfaces it as ``paste failed:`` on the input
+    line and the source tree stays untouched.
+    """
+    (tmp_path / "srcdir").mkdir()
+    (tmp_path / "srcdir" / "inner.txt").write_text("inner\n", encoding="utf-8")
+    (tmp_path / "srcdir" / "sub").mkdir()
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: _entry_names(screen) == ["srcdir"])
+            await pilot.press("x")  # cut srcdir
+            await pilot.press("l")  # enter srcdir
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "srcdir")
+            # the cursor rests on the top row: sub (dirs sort first)
+            await pilot.press("l")  # enter sub
+            assert await wait_until(
+                pilot, lambda: screen._cwd == tmp_path / "srcdir" / "sub"
+            )
+            await pilot.press("p")
+            assert await wait_until(pilot, lambda: _input_visible(screen))
+            input_widget = screen.query_one("#filemgr-input", Input)
+            assert "paste failed:" in input_widget.placeholder
+            # the source tree was left untouched by the failed move
+            assert (
+                (tmp_path / "srcdir" / "inner.txt").read_text(encoding="utf-8")
+                == "inner\n"
+            )
+            assert not (tmp_path / "srcdir" / "sub" / "srcdir").exists()
 
     asyncio.run(scenario())
