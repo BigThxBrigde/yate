@@ -129,6 +129,46 @@ def test_move_entry_renames_into_dir_and_rejects_existing(tmp_path: Path) -> Non
     assert source.exists()  # the source is untouched on rejection
 
 
+def test_copy_entry_rejects_copying_dir_into_own_subtree(tmp_path: Path) -> None:
+    """Copying a directory into its own subtree is refused via OSError.
+
+    Without the guard ``shutil.copytree`` would recurse into itself until
+    ``RecursionError`` (not caught by the paste handler) and leave a deep
+    garbage tree behind; the guard must raise before touching anything.
+    """
+    ws = Workspace()
+    src_dir = tmp_path / "A"
+    (src_dir / "sub").mkdir(parents=True)
+    make_source_file(src_dir)
+
+    with pytest.raises(OSError):
+        ws.copy_entry(src_dir, src_dir / "sub")
+
+    # The source tree is unchanged and no copy residue is left behind.
+    assert (src_dir / "file.txt").read_text() == "hello"
+    assert [entry.name for entry in (src_dir / "sub").iterdir()] == []
+
+
+def test_copy_entry_unrelated_destinations_unaffected(tmp_path: Path) -> None:
+    """The subtree guard does not over-block: a directory copied to an
+    unrelated destination still succeeds, and file-path behavior is
+    unchanged."""
+    ws = Workspace()
+    src_dir = tmp_path / "A"
+    src_dir.mkdir()
+    make_source_file(src_dir)
+    dest_dir = tmp_path / "B"
+    dest_dir.mkdir()
+
+    copied_dir = ws.copy_entry(src_dir, dest_dir)
+    assert copied_dir == dest_dir / "A"
+    assert (copied_dir / "file.txt").read_text() == "hello"
+
+    copied_file = ws.copy_entry(src_dir / "file.txt", dest_dir)
+    assert copied_file == dest_dir / "file.txt"
+    assert copied_file.read_text() == "hello"
+
+
 def test_copy_move_reject_escape_via_existing_target(tmp_path: Path) -> None:
     """A pre-existing same-named target blocks both copy and move."""
     ws = Workspace()

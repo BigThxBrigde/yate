@@ -481,10 +481,22 @@ class Workspace:
         Directories are copied recursively (``shutil.copytree``), files
         with ``shutil.copy2`` (metadata preserved).  Raises
         ``FileExistsError`` when the target name is already taken -- the
-        caller runs its confirm flow instead of overwriting.  The name
-        comes from an existing entry, so it is not re-validated here.
+        caller runs its confirm flow instead of overwriting.  Copying a
+        directory into its own subtree raises ``OSError`` instead:
+        ``shutil.copytree`` has no self-nesting guard and would otherwise
+        recurse into itself until ``RecursionError``.  The name comes from
+        an existing entry, so it is not re-validated here.
         """
         target = dest_dir / src.name
+        if src.is_dir():
+            try:
+                target.resolve().relative_to(src.resolve())
+            except ValueError:
+                pass
+            else:
+                # OSError, not ValueError: the screen's paste handler catches
+                # (FileExistsError, OSError) and reports on the input line.
+                raise OSError(f"cannot copy {src.name} into itself")
         if target.exists():
             raise FileExistsError(f"{target.name} already exists")
         if src.is_dir():
