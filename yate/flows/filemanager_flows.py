@@ -101,6 +101,16 @@ class FileManagerFlows:
         if not initial_dir.exists():
             self._message(f"path does not exist: {initial_dir}", "error")
             return
+        # ``_probe_is_dir`` semantics (document_flows): a path that exists
+        # but is not a directory (or hits an unreadable ACL / racing delete)
+        # must never become the browsing cwd -- report and stay put.
+        try:
+            is_dir = initial_dir.is_dir()
+        except OSError:
+            is_dir = False
+        if not is_dir:
+            self._message(f"not a directory: {initial_dir}", "error")
+            return
         if self._exit_app is None:
             log.warning("filemanager exit verb not bound; closing pops instead")
             close: Callable[[], None] = self._pop_screen_call

@@ -242,10 +242,10 @@ def _make_cd_completer(editor: Editor) -> ArgCompleter:
     """
     def _complete(prefix: str) -> list[str]:
         matches = path_matches(prefix, editor.workspace)
-        # ``:cd`` accepts directories only: path_matches marks every
-        # directory candidate with a trailing separator, so bare names --
-        # files -- are filtered out here (drive roots keep ``os.sep``).
-        dirs = [c for c in matches if c.endswith(("/", "\""))]
+        # ``:cd`` accepts directories only: ``path_matches`` marks every
+        # directory candidate with a trailing "/" on every platform; files
+        # never carry it.  Drive roots are appended separately below.
+        dirs = [c for c in matches if c.endswith("/")]
         lowered = prefix.lower()
         for drive in editor.workspace.list_drives():
             # Drive roots are ``Path("C:\\")``: ``str`` already carries the

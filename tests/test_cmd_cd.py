@@ -18,6 +18,7 @@ from typing import Any, cast
 
 import pytest
 
+import yate.commands
 from yate.commands import register_commands
 from yate.editor_view.explorer import ExplorerTree
 from yate.flows.document_flows import DocumentFlows
@@ -256,6 +257,9 @@ def test_cd_completer_lists_dirs_and_drives(tmp_path: Path, monkeypatch: Any) ->
     fx = _CdFixture(tmp_path)
     (tmp_path / "alpha").mkdir()
     (tmp_path / "data").mkdir()
+    # the file exists *before* any completion runs, so the dirs-only filter
+    # below is actually exercised (a no-op test would never catch a leak)
+    (tmp_path / "afile.txt").write_text("x", encoding="utf-8")
     drive = Entry(Path("D:\\"), "D:", True)
     monkeypatch.setattr(fx.workspace, "list_drives", lambda: [drive])
     completer = fx.entry.arg_completer
@@ -265,13 +269,13 @@ def test_cd_completer_lists_dirs_and_drives(tmp_path: Path, monkeypatch: Any) ->
     partial = completer("d")
     drive_prefix = completer("D:\\")
 
-    (tmp_path / "afile.txt").write_text("x", encoding="utf-8")
-
     assert "alpha/" in empty
     assert "data/" in empty
     assert "D:\\" in empty
     # ``:cd`` is directories-only: bare file names never surface.
     assert "afile.txt" not in empty
+    # partial prefixes are filtered the same way
+    assert "afile.txt" not in completer("a")
     assert "data/" in partial
     assert "D:\\" in partial
     # A prefix that already *is* a drive root is deduplicated, not offered
@@ -279,3 +283,32 @@ def test_cd_completer_lists_dirs_and_drives(tmp_path: Path, monkeypatch: Any) ->
     assert "D:\\" not in drive_prefix
     for candidates in (empty, partial, drive_prefix):
         assert len(candidates) == len(set(candidates))
+
+
+def test_cd_completer_rejects_quote_ending_filename(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A file candidate whose name ends with ``"`` is still filtered out.
+
+    POSIX allows double quotes inside file names, and ``path_matches``
+    appends a trailing "/" to *directory* candidates only (on every
+    platform), so a ``'foo"'`` candidate -- no trailing slash -- is exactly
+    such a file: the sole false-accept surface of the dirs-only filter
+    (the mis-typed ``"\""`` literal historically accepted it as a
+    directory).  ``path_matches`` is faked at the ``yate.commands``
+    namespace (the completer's import site, read as a module global at
+    call time) because Windows cannot create a quote-named file at all.
+    """
+    fx = _CdFixture(tmp_path)
+
+    def _fake_matches(prefix: str, workspace: Workspace) -> list[str]:
+        """Stand in for ``path_matches`` with one quote-ending file candidate."""
+        return ['foo"']
+
+    monkeypatch.setattr(yate.commands, "path_matches", _fake_matches)
+    completer = fx.entry.arg_completer
+    assert completer is not None
+
+    candidates = completer("f")
+
+    assert 'foo"' not in candidates

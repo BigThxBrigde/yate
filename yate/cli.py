@@ -287,8 +287,13 @@ def _validate_file_manager_args(
 
     ``parser.error`` exits with code 2, like every other argparse rejection.
     """
-    if args.file_manager is not None and args.path:
-        parser.error("--file-manager and positional PATH are mutually exclusive")
+    if args.file_manager is not None:
+        if args.path:
+            parser.error("--file-manager and positional PATH are mutually exclusive")
+        if args.diff_files:
+            parser.error("--file-manager cannot be combined with --diff")
+        if args.hex_file:
+            parser.error("--file-manager cannot be combined with --hex")
 
 
 def _manage_extensions(args: argparse.Namespace) -> int:

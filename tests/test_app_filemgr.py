@@ -13,12 +13,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from yate.app import YateApp
 from yate.cli import build_parser, main
+from yate.editor_view.commandline import MESSAGE_COLORS
 from yate.editor_view.filemgr import FileManagerScreen
 from yate.keymaps.base import parse_key
 from yate.keymaps.vim import VimKeymap
@@ -244,3 +245,56 @@ def test_cli_file_manager_defaults_to_cwd() -> None:
     args = build_parser().parse_args(["pos"])
     assert args.file_manager is None
     assert args.path == "pos"
+
+
+def test_fullscreen_startup_rejects_non_directory(tmp_path: Path) -> None:
+    """--file-manager on a file path reports the error and opens no screen."""
+
+    async def scenario() -> None:
+        file = tmp_path / "a.txt"
+        file.write_text("x\n", encoding="utf-8")
+        app = YateApp(target=tmp_path, filemanager_dir=file)
+        async with app.run_test(size=(120, 36)) as pilot:
+            assert await wait_until(
+                pilot,
+                lambda: app.editor.prompt_bar._message is not None
+                and "not a directory" in app.editor.prompt_bar._message[0],
+            )
+            assert not isinstance(app.screen, FileManagerScreen)
+            message = app.editor.prompt_bar._message
+            assert message is not None
+            assert str(file) in message[0]
+            # the report rides the error level (red theme attr)
+            assert message[1] == MESSAGE_COLORS["error"]
+
+    asyncio.run(scenario())
+
+
+def test_cli_file_manager_rejects_diff_combination() -> None:
+    """--file-manager cannot be combined with --diff."""
+
+    _expect_file_manager_cli_error(
+        ["-u", "NONE", "--file-manager", "--diff", "a", "b"]
+    )
+
+
+def test_cli_file_manager_rejects_hex_combination() -> None:
+    """--file-manager cannot be combined with --hex."""
+
+    _expect_file_manager_cli_error(["-u", "NONE", "--file-manager", "--hex", "x"])
+
+
+def _expect_file_manager_cli_error(argv: list[str]) -> None:
+    """main() rejects *argv* through ``parser.error`` (exit code 2).
+
+    ``YateApp`` is replaced by a mock so the pre-fix (red) state -- where
+    validation passes and ``main()`` would launch the TUI -- fails the
+    assertion instead of opening a real terminal app.
+    """
+    with (
+        patch("yate.app.YateApp", MagicMock()),
+        patch("yate.logs.crash.install"),
+        pytest.raises(SystemExit) as ctx,
+    ):
+        main(argv)
+    assert ctx.value.code == 2
