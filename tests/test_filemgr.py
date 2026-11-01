@@ -22,8 +22,8 @@ from textual.widgets import Input, ListView, Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_view import theme
-from yate.editor_view import filemgr
-from yate.editor_view.filemgr import FileManagerScreen, _FileListView
+import yate.editor_view.filemgr.screen as filemgr
+from yate.editor_view.filemgr.screen import FileManagerScreen, _FileListView
 from yate.editor_view.preview import PreviewLog
 from yate.services.workspace import Entry, EntryStat, Workspace
 
@@ -314,9 +314,10 @@ def test_filemgr_double_click_opens_via_selected(
     plan's on_click + monotonic fallback is under test (the 300ms window
     is patched wide to keep the test off real-sleep timing).
     """
-    # the screen compares against its own by-value import (filemgr.py does
-    # ``from filemgr_keys import DOUBLE_CLICK_WINDOW``), so the patch must
-    # target the consumer module binding, not the source module attribute.
+    # the screen compares against its own by-value import (screen.py does
+    # ``from yate.editor_view.filemgr.keys import DOUBLE_CLICK_WINDOW``), so
+    # the patch must target the consumer module binding, not the source
+    # module attribute.
     monkeypatch.setattr(filemgr, "DOUBLE_CLICK_WINDOW", 30.0)
     _make_tree(tmp_path)
     target = tmp_path / "alpha.txt"

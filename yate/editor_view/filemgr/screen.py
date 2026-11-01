@@ -32,13 +32,13 @@ from yate.paths import load_tcss
 from yate.services.workspace import Entry, EntryStat, Workspace
 
 from yate.editor_view import theme
-from yate.editor_view.filemgr_keys import (
+from yate.editor_view.filemgr.keys import (
     DOUBLE_CLICK_WINDOW,
     G_PENDING_TIMEOUT,
     LIST_BINDINGS,
     SCREEN_BINDINGS,
 )
-from yate.editor_view.filemgr_model import (
+from yate.editor_view.filemgr.model import (
     SortKey,
     build_row_text,
     count_children,

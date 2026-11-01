@@ -2,7 +2,7 @@
 
 Covers the ``--file-manager`` startup form end to end (the only surface
 the m6 review found unguarded): the app boots straight into the
-fullscreen :class:`~yate.editor_view.filemgr.FileManagerScreen`, whose
+fullscreen :class:`~yate.editor_view.filemgr.screen.FileManagerScreen`, whose
 mount wiring is deferred via ``call_after_refresh`` (B1 race), so every
 post-startup assertion is awaited through :func:`wait_until`.  The
 scenario then drives ``j`` / ``k`` / ``l`` navigation into a
@@ -22,7 +22,7 @@ from tools.smoke_test import harness
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, snapshot_svg
 from tools.smoke_test.scenarios._base import wait_until
 from yate.app import YateApp
-from yate.editor_view.filemgr import FileManagerScreen
+from yate.editor_view.filemgr.screen import FileManagerScreen
 
 __all__ = ["SCENARIOS"]
 
