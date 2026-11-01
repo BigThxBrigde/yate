@@ -53,12 +53,16 @@ SCREEN_BINDINGS: list[BindingType] = [
 
 #: Middle-pane list bindings: the inherited ``ScrollableContainer``
 #: scroll bindings would swallow these keys, so they are remapped to the
-#: screen's navigation actions via ``nav(name)``.
+#: screen's navigation actions via ``nav(name)``.  The action argument is
+#: a quoted string: Textual's action parser rejects bare identifiers
+#: (``nav(bottom)`` fails with "unable to parse 'bottom'"), which made
+#: every remapped key dead at dispatch time until m10's regression test
+#: caught it.
 LIST_BINDINGS: list[BindingType] = [
-    Binding("left", "nav(up)", "Parent directory", show=False),
-    Binding("right", "nav(open)", "Open", show=False),
-    Binding("home", "nav(top)", "Jump to top", show=False),
-    Binding("end", "nav(bottom)", "Jump to bottom", show=False),
-    Binding("pageup", "nav(half_page_up)", "Half page up", show=False),
-    Binding("pagedown", "nav(half_page_down)", "Half page down", show=False),
+    Binding("left", "nav('up')", "Parent directory", show=False),
+    Binding("right", "nav('open')", "Open", show=False),
+    Binding("home", "nav('top')", "Jump to top", show=False),
+    Binding("end", "nav('bottom')", "Jump to bottom", show=False),
+    Binding("pageup", "nav('half_page_up')", "Half page up", show=False),
+    Binding("pagedown", "nav('half_page_down')", "Half page down", show=False),
 ]

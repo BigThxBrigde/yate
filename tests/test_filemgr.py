@@ -935,3 +935,58 @@ def test_filemgr_cut_paste_directory_into_itself_reports_failure(
             assert not (tmp_path / "srcdir" / "sub" / "srcdir").exists()
 
     asyncio.run(scenario())
+
+
+def test_filemgr_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> None:
+    """The six remapped keys reach the screen via nav() (m10).
+
+    While the middle-pane list is focused, ``ScrollableContainer`` would
+    swallow these keys; the remapped ``LIST_BINDINGS`` must forward each
+    of them to the matching screen action: right enters the directory
+    under the cursor, left returns to the parent with the cursor on the
+    origin (lf), home/end jump to the first/last row and pageup/pagedown
+    half-page (clamped to the list bounds here).
+    """
+    _make_tree(tmp_path)  # dirs other/sub, files alpha.txt/beta.txt
+    (tmp_path / "sub" / "inner.txt").write_text("inner\n", encoding="utf-8")
+
+    async def scenario() -> None:
+        open_calls: list[list[Path]] = []
+        app = _Host(_screen(tmp_path, open_calls, []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 4)
+            _list(screen).focus()
+            await pilot.pause()
+            # end / home: cursor to the last / first row
+            await pilot.press("end")
+            assert _list(screen).index == 3
+            await pilot.press("home")
+            assert _list(screen).index == 0
+            # pagedown / pageup: half-page steps, clamped to the bounds
+            await pilot.press("pagedown")
+            assert _list(screen).index == 3
+            await pilot.press("pageup")
+            assert _list(screen).index == 0
+            # right on the directory "sub" enters it (no open_selected)
+            await pilot.press("j")  # cursor onto sub
+            assert _list(screen).index == 1
+            await pilot.press("right")
+            assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == ["inner.txt"]
+            )
+            # left returns to the parent, cursor lands on the origin (lf)
+            await pilot.press("left")
+            assert await wait_until(
+                pilot,
+                lambda: _entry_names(screen)
+                == ["other", "sub", "alpha.txt", "beta.txt"],
+            )
+            assert screen._cwd == tmp_path
+            assert _list(screen).index == 1
+            assert open_calls == []
+
+    asyncio.run(scenario())
