@@ -1,8 +1,8 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-11-01 · yate 0.2.15
+> 由 git 历史自动生成于 2026-11-02 · yate 0.2.16
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...HEAD)
+## [0.2.16] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...v0.2.16)
 
 ### 新功能
 
@@ -18,6 +18,11 @@
 
 ### 问题修复
 
+- quote nav binding args so remapped keys dispatch [缺中文] ([`2cd0a86`](https://gitee.com/jermaine/yate/commit/2cd0a86e091e3cd0df2a1620e1f2f3e3f3809294))
+- route alt+shift+f through the action registry [缺中文] ([`79a1f55`](https://gitee.com/jermaine/yate/commit/79a1f5579afbd4913e9edbe0e7c8ac3d7362090b))
+- directory completion literal and --file-manager validation [缺中文] ([`45626a0`](https://gitee.com/jermaine/yate/commit/45626a0f260f2cd99f107bad11a26e23bb2613c2))
+- remove empty POSIX drive level and dead root branch [缺中文] ([`49d9733`](https://gitee.com/jermaine/yate/commit/49d973369a6e6f7da14e2818a066bd332e9df9a3))
+- reject copying a directory into its own subtree [缺中文] ([`6895e51`](https://gitee.com/jermaine/yate/commit/6895e5153ed67f51b8134e351be3f07e76b18a71))
 - 命令：按评审加固 :cd（引号/盘符/仅目录补全） ([`986b6ad`](https://gitee.com/jermaine/yate/commit/986b6ad520958ae28c13edeb8aca8abfa69111d8))
 - 冒烟：场景去除私有状态访问 ([`5eb134c`](https://gitee.com/jermaine/yate/commit/5eb134c5818dfd2dfb7034dd79dc86846602a10c))
 - 调度：重命名/删除同步会话与文件树 ([`9497b8b`](https://gitee.com/jermaine/yate/commit/9497b8bbe988f07db744ee3f7684c11e290fcade))
@@ -37,11 +42,16 @@
 
 ### 重构
 
+- extract shared preview text assembly [缺中文] ([`0adc9fb`](https://gitee.com/jermaine/yate/commit/0adc9fb195cf2ba8d4c2c83151559d36e7750974))
 - 编辑器视图：提取共享预览管线至 preview.py ([`07c982a`](https://gitee.com/jermaine/yate/commit/07c982a0c63d44993ada92a33f4ae885b297f538))
 - single-source the ~/.yate root and restrict log dirs on POSIX [缺中文] ([`e01d07d`](https://gitee.com/jermaine/yate/commit/e01d07d971c9527ae2e11f59abbabc3e9cddc81c))
 
 ### 文档
 
+- add deferred-fixes wave plans for the file manager [缺中文] ([`82552ce`](https://gitee.com/jermaine/yate/commit/82552ce5c14d3bf80fd1d4da21349c952cfb77c8))
+- add pr-review fix wave plans for the file manager [缺中文] ([`31f65dc`](https://gitee.com/jermaine/yate/commit/31f65dc634dd41fa841e1a10b6e92609e724b504))
+- add pre-merge pr-review record (1 blocker, 1 major, 11 minor) [缺中文] ([`ec10ae1`](https://gitee.com/jermaine/yate/commit/ec10ae15077dbe1ce9cbcda6b2cd9616b89865a7))
+- regenerate for :cd with zh overrides [缺中文] ([`9acd2dc`](https://gitee.com/jermaine/yate/commit/9acd2dc4feb6af3ed68de14b18a67a09cce4e6a2))
 - regenerate for the file-manager feature set [缺中文] ([`1c66f03`](https://gitee.com/jermaine/yate/commit/1c66f03f450dfe0250a53b6c6de88af60664c017))
 - 文档：非目标段对齐 m4/M3 评审结论 ([`b4a54cf`](https://gitee.com/jermaine/yate/commit/b4a54cf88d80ae4cb80bfa9f75497a0ac8e4b76b))
 - 文档：手册对齐缓存/跨卷/冲突的实际行为 ([`a0505e7`](https://gitee.com/jermaine/yate/commit/a0505e7b6f722b88e44a2dc6c85655bd60616b9a))
