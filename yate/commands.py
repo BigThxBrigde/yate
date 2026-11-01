@@ -241,15 +241,19 @@ def _make_cd_completer(editor: Editor) -> ArgCompleter:
     quick-drive-switch entry point.
     """
     def _complete(prefix: str) -> list[str]:
-        candidates = path_matches(prefix, editor.workspace)
+        matches = path_matches(prefix, editor.workspace)
+        # ``:cd`` accepts directories only: path_matches marks every
+        # directory candidate with a trailing separator, so bare names --
+        # files -- are filtered out here (drive roots keep ``os.sep``).
+        dirs = [c for c in matches if c.endswith(("/", "\""))]
         lowered = prefix.lower()
         for drive in editor.workspace.list_drives():
             # Drive roots are ``Path("C:\\")``: ``str`` already carries the
             # trailing separator, so nothing is appended here.
             candidate = str(drive.path)
             if drive.name.lower().startswith(lowered) and candidate != prefix:
-                candidates.append(candidate)
-        return candidates
+                dirs.append(candidate)
+        return dirs
     return _complete
 
 
@@ -329,9 +333,11 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
             editor.document_flows.prompt_open()
 
     def _cd(args: str) -> None:
-        args = args.strip()
+        args = _strip_quotes(args.strip())
         if not args:
-            editor.message(f"workspace root: {editor.workspace.root}", kind="info")
+            root = editor.workspace.root
+            shown = "(none)" if root is None else str(root)
+            editor.message(f"workspace root: {shown}", kind="info")
             return
         editor.document_flows.open_directory(Path(args))
 

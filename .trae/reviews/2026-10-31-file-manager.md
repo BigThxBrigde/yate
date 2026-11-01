@@ -258,3 +258,172 @@ L4 `actions/commands/keymaps×2/cli/app` + `UI_FROZEN_FILES` 登记、双语手�
   M3/M4 可评估后置但须登记方案；m4（手册三处）建议与代码同轮改，避免用户按错误文档操作。
 - B1 与 M4 的修复应带回负向演练：先让用例变红（`-n auto` 下复现启动竞态、paste 断言失败），
   再转绿，避免"改完正好不红"。
+
+---
+
+## :cd command (2026-11-01)
+
+**范围**：`git show aeedd05` 单笔（6 文件 +343 / −0）：`yate/commands.py` +31（`_cd` +
+`_make_cd_completer` + 注册）· `yate/flows/document_flows.py` +18（`open_directory`）·
+`tests/test_cmd_cd.py` +228（7 用例）· 双语手册各 +1 行 · 方案 `cd-command-plan.md` +64。
+**框架**：`python-code-review` 六维度（正确性 / 安全 / 性能 / 风格 / 可维护性 / 异常处理）
+＋ 本角色强制自我批判（登记见 §三）。
+**结论**：REQUEST_CHANGES —— **0 blocker / 1 major / 7 minor**；六道门禁全绿（§四），
+M1 修完即可合并。
+
+### 一、发现清单（按严重度）
+
+#### [major] M1 — `:cd` 不剥引号：引号包裹的合法目录被判为「不是目录」
+
+- **位置**：`yate/commands.py:331-336`（`_cd`）；对照 `yate/commands.py:324-325`（`_edit`）。
+- **证据**：
+  - `yate/editor.py:1223-1231`：`run_command` 用 `text.split(maxsplit=1)` 切出命令名与
+    参数后**原样** `entry.func(args)` 下发 —— 引号不会被框架剥离，只能由各命令自行处理。
+  - 仓库内所有单路径命令都在第一行剥引号：`:e`（324-325）、`:saveas`（265-266）、
+    `:split` / `:vsplit`（294-300）、`:install-extension` / `:uninstall-extension`
+    （557-571）；`:diff` 的 usage 文案还直接教用户 `(quote paths with spaces)`（539-540）。
+  - `tests/test_command_path_args.py:1-8` 的模块 docstring 把这条约定写成契约
+    （"`_strip_quotes`（pair stripping for the single-path commands）"），并有
+    `:e "..."` 含空格真实路径的 pilot 用例。
+  - 本机实测：`Path(chr(34) + "C:/Program Files" + chr(34)).is_absolute()` → `False`，
+    于是 `resolve_input_path` 走相对分支（`document_flows.py:130-133`）拼到 workspace root
+    上，`is_dir()` 为假 → 告警文案变成 `not a directory: <root>\"C:\Program Files\"`。
+- **影响**：Windows 上 `C:\Program Files`、`D:\My Docs` 一类目录，用户按 `:e` 的既有习惯
+  加引号会被拒绝并看到拼接过 root 的怪异路径；`:cd "..."` 与 `:e "..."` 行为分裂。
+  缓解：仅 warn，root 与文档状态不变，且不加引号时反而可正常工作 —— 故定 major 而非 blocker。
+- **修法**：
+  ```python
+  def _cd(args: str) -> None:
+      args = _strip_quotes(args.strip())
+      if not args:
+          ...
+  ```
+  并补一条 `fx.entry.func(f'"{sub}"')` → `root == sub` 的用例（现有 7 例均未覆盖引号形态）。
+
+#### [minor] m1 — `:cd` 补全把**文件**也当候选
+
+- **位置**：`yate/commands.py:243-252`；`yate/services/workspace.py:659-667`。
+- **证据**：`path_matches` 只在 `entry.is_dir()` 时补尾 `/`（665），但**目录与文件都进结果**
+  （666-667）；`_make_cd_completer` 直接复用该结果、不做目录过滤。`:cd` 只接受目录
+  （`document_flows.py:299-301`），故 Tab 会把 `file.txt` 递进去，选中后必然得到
+  「not a directory」。
+- **测试盲区**：`tests/test_cmd_cd.py:205-228` 只造 `alpha` / `data` 两个目录，未造文件，
+  断言无法暴露。
+- **修法**：completer 内过滤（`if candidate.endswith("/")`）或给 `path_matches` 增加
+  `dirs_only: bool = False` 形参（默认不变，`:e` / `:split` 零影响）；补「文件不出现在
+  `:cd` 候选」用例。
+
+#### [minor] m2 — `is_dir` 探测逻辑出现第三份副本
+
+- **位置**：`yate/flows/document_flows.py:266-271`（`open_path`）、`294-298`（新增
+  `open_directory`）、`312-317`（`open_path_async`）。
+- **证据**：三段 `try: ...is_dir() / except OSError: is_dir = False` 逐字重复；
+  `open_directory` 还先 `resolve_input_path`（294），随后在被它调用的 `open_path` 里
+  二次 resolve（266）、二次探测（268）—— 正确但重复编排。
+- **修法**：私有 `_probe_is_dir(self, path: Path) -> bool`（语义不变：探测失败按非目录），
+  三处复用；`open_directory` 只保留门禁 + 转发。
+
+#### [minor] m3 — 新增的 `except OSError` 分支零覆盖
+
+- **位置**：`yate/flows/document_flows.py:297-298`。
+- **证据**：§四 覆盖率原文把 `297-298` 列为 missing 行（本次新增代码中唯一未覆盖行；
+  `_cd` 331-336 与 `_make_cd_completer` 234-253 全覆盖）。
+- **修法**：`patch.object(Path("…"), "is_dir", side_effect=OSError)`（或 monkeypatch 目标实例）
+  断言 warn 且 root 不变。
+
+#### [minor] m4 — 无工作区根时 bare `:cd` 打印 `workspace root: None`
+
+- **位置**：`yate/commands.py:334`；依据 `yate/editor.py:229-232`、`yate/services/workspace.py:127-128`。
+- **证据**：`Workspace()` 允许 `root is None`，`editor.py:232` 注释明确「不带参数启动时
+  workspace root is None」；此时 f-string 直接把 `None` 印到消息行。
+- **修法**：`root if root is not None else "(none)"`（或退化为 cwd），并补一条 root 为 None 的用例。
+
+#### [minor] m5 — 盘符形态两处不归一（分隔符混用 + 裸盘符被按「驱动相对路径」解析）
+
+- **位置**：`yate/commands.py:249-251`。
+- **证据 a（分隔符）**：`path_matches` 的目录候选恒用 `/`（`workspace.py:665`），盘符候选取
+  `str(Path("C:\\"))` → `C:\`（实测 `str(Path("C:/"))` 为单个尾反斜杠）；同一候选列表混用两种分隔符。
+- **证据 b（裸盘符）**：实测 `Path("D:").is_absolute()` → `False`，且
+  `Path("root") / Path("D:")` → `Path("D:")`（drive-relative 丢弃左侧）。故 `:cd D:`
+  （vim 用户自然写法）走 `resolve_input_path` 的相对分支，最终 `set_root` 解析到**该盘当前目录**
+  而非盘符根。补全给的是 `D:\` 正确形态，实际踩中率低，故 minor。
+- **修法**：候选形态统一（如 `drive.name + os.sep`）；`_cd` 对裸盘符（`len(args) == 2 and args[1] == ":"`）
+  补尾分隔符，或在手册/命令描述里注明需写 `D:\`。
+
+#### [minor] m6 — `test_cd_accepts_drive_root` 的 `list_drives` monkeypatch 是死设置
+
+- **位置**：`tests/test_cmd_cd.py:150-151`。
+- **证据**：执行链 `_cd`（`commands.py:331-336`）→ `open_directory` → `open_path`
+  （`document_flows.py:264-302`）全程不调用 `list_drives()`；它只被 `_make_cd_completer`
+  的闭包在**补全时**读取，而该用例不调用 completer —— monkeypatch 与断言
+  `root == Path(anchor)` 无关。
+- **修法**：删掉这两行；或把用例改成同时驱动 completer（与 m1 的新用例合并）。
+
+#### [minor] m7 — 方案文档与实现不一致（实现是对的，文档会误导后续）
+
+- **位置**：`.trae/documents/cd-command-plan.md:26-27`、`:32`。
+- **证据**：方案写 `editor.documents.open_directory(...)`，`Editor` 上并无 `documents`
+  属性（`editor.py:442` 声明的是 `document_flows: DocumentFlows`）；`:32` 写盘符候选
+  `f"{d.path}{os.sep}"`，而 `str(Path("C:\\"))` 已带尾分隔符（实测），照抄会得到双分隔符。
+- **结论**：实现两处都正确偏离方案（优点，见 §二），但留在仓库里的方案会误导同类改动；
+  建议按实现同步并注明偏离原因。
+
+### 二、契约与架构核对（通过项）
+
+| 核对点 | 结论 | 依据 |
+|---|---|---|
+| `open_directory` 与 `open_path` 语义正交 | ✅ 只给目录分支加门禁：非目录 warn 且**不动 root**，`:e` 的「文件回落」路径不进入 `:cd` | `document_flows.py:286-302` vs `264-284` |
+| 不重复编排 | ✅ 复用 `open_path` 的目录分支（`set_root` + `refresh_tree` + reveal + focus + 消息），未复制一套；仅探测逻辑重复（m2） | `document_flows.py:302` → `271-281` |
+| 无参/有参分支 | ✅ 无参只报告不改状态；有参剥空白后转 L3（引号问题见 M1） | `commands.py:331-336` |
+| 盘符尾分隔符契约 | ✅ `list_drives` 产出 `Path("C:\\")`（`workspace.py:584-586`），`str()` 自带尾分隔符，不再追加 → 无 `D:\\` 双分隔符 | `commands.py:246-251`；本机实测 `str` 形态 |
+| 去重 | ✅ `candidate != prefix` 使「prefix 已是盘符根」时不自荐；跨源重复不可达（`path_matches` 恒补 `/`，永不产出 `D:\`） | `commands.py:250`；用例 `test_cmd_cd.py:226-228` |
+| 属性名真实性（stub 是否掩盖） | ✅ 测试 stub 的 `document_flows` / `workspace.root` / `set_root` / `list_drives` / `message(text, kind=)` 均与真实编辑器一致 | `editor.py:442`（`document_flows`）、`editor.py:735`（`message` 签名）、`workspace.py:151,572` |
+| L4→L0 依赖方向 | ✅ `commands.py` 只用既有 `path_matches` / `Workspace` 接口，无新 `editor_view` 依赖；`document_flows.py` 无新增 import | 架构守卫 37 用例通过（§四） |
+| 并发安全 | ✅ `:cd` 同步走 UI 线程，与 `:e <目录>` 完全同路径（`open_path_async` 目录分支亦转同步 `open_path`）：无新增竞态、无 worker 生命周期变化 | `document_flows.py:304-319` |
+| 性能 | ✅ 补全每次击键 `list_drives()` 26 次 `Path.exists()`（`workspace.py:584-587`，未缓存），与既有 `:e` 补全的目录扫描同量级，可接受 | 读码 + `list_drives` docstring |
+| 双语手册一致性 | ✅ `manual.en.md:767` / `manual.zh.md:701` 一一对应，语义一致（含盘符根与无参行为） | 逐字比对 |
+| 有意偏离（不作发现） | 📌 无参 `:cd` 在 vim 里回 `$HOME`、此处改为报告当前根：手册与命令描述两处均已声明，属文档化偏离 | `manual.*.md`、`commands.py:375` |
+| 提交信息 / 方案先行 | ✅ `feat(commands): add :cd …` 符合 `git-commit-message`；`cd-command-plan.md` 在位，符合 `plan-before-execute` | `git show aeedd05` |
+
+### 三、强制自我批判登记
+
+| 条目 | 初判 | 复核实证（重读代码） | 结论 |
+|---|---|---|---|
+| M1 | major | `editor.py:1223-1231` 原文直传 + 6 处同类调用点约定 + `tests/test_command_path_args.py:1-8` 契约 + 本机探针 | **确认保留**（缓解存在但用户自然写法必踩、报错含拼接后怪路径，不足以降级） |
+| m1 | minor | `workspace.py:659-667` 确证文件入列；`test_cmd_cd.py:205-228` 无文件候选 | 确认保留 |
+| m2 | minor | 重读 266-271 / 294-298 / 312-317 三段逐字重复 | 确认保留 |
+| m3 | minor | 覆盖率输出原文列出 `297-298` | 确认保留 |
+| m4 | minor | `editor.py:232` 注释 + `workspace.py:127-128` | 确认保留 |
+| m5 | minor | 探针两项（分隔符、`Path("D:")` 与拼接结果）均已实测 | 确认保留（两证据合并为一条） |
+| m6 | minor | 重读 `_cd`→`open_directory`→`open_path` 链路，确认无 `list_drives` 调用 | 确认保留 |
+| m7 | minor | `cd-command-plan.md:26-27,32` 对 `editor.py:442` 与 `str()` 实测 | 确认保留 |
+| （初版）盘符候选未排序 | minor | `path_matches` 结果排序、盘符追加在尾；Tab 循环与分组显示无实证危害 | **删除**（风格挑剔、无实证） |
+| （初版）`open_directory` 二次 resolve 属性能问题 | minor | 单次 `Path` 拼接，O(1)，无实测影响 | **删除**（并入 m2 的去重建议，不单列为性能项） |
+
+**漏报自查**：正确性（无 blocker —— 目标路径全部经 `is_dir` 门禁、异常不外溢）、边界条件
+（M1 引号 / m4 无根 / m5 裸盘符）、异常处理（m2 / m3 的 `OSError` 探测面）、并发（§二已核，
+无新竞态）、性能（26 次 `exists()`，已判可接受）、类型（pyright 0，无缺口）、
+测试覆盖（m3 + M1 / m1 的用例空档）—— 各维度均已覆盖，无重大遗漏。
+
+### 四、门禁实测（本机亲自执行，退出码与数字均为原文）
+
+| # | 命令 | 结果 | 退出码 |
+|---|---|---|---|
+| 1 | `.venv\Scripts\python.exe -m pyright yate/flows/document_flows.py yate/commands.py tests/test_cmd_cd.py` | `0 errors, 0 warnings, 0 informations` | 0 |
+| 2 | `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | 全绿（本机 `-q` 无汇总行，按退出码判定；同批覆盖率运行给出 3300 passed / 10 skipped） | 0 |
+| 3 | `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-fail-under=75 -n auto` | **3300 passed / 10 skipped**；TOTAL 19209 stmts / 1112 missing / 6160 branches / 574 partial → **92.69%**（阈值 75 通过） | 0 |
+| 4 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 37 用例全通过 | 0 |
+| 5 | `.venv\Scripts\python.exe -m pytest tests/test_cmd_cd.py -q` | 7 passed | 0 |
+| 6 | `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4 --quiet` | **121/121 scenarios、1463/1463 checks（100%）**，79.60 s | 0 |
+
+**覆盖率口径**：全量分支覆盖率 92.69% 高于 75 门槛。本改动新增/修改代码的未覆盖行仅
+`document_flows.py:297-298`（新增 `except OSError` 分支，见 m3）；`commands.py` 未覆盖行
+（`66-67, 329, 366, 369, 401-405, 411-413, 432-439, 445-452, 477, 513, 531, 535-536, 551, 572-573, 600`）
+均为存量行，与本次改动无关；`_cd`（331-336）与 `_make_cd_completer`（234-253）全覆盖。
+
+### 五、合并建议
+
+- **M1 必修**（一行改动 + 一条引号用例，见 §一）；**m1 / m3 建议同轮补**（同属本次新增
+  代码的验收面：目录-only 候选、`OSError` 分支）；m2 / m4 / m5 / m6 / m7 可评估后置，但须
+  登记（m7 建议随本次一并勘误，避免方案文档继续误导）。
+- 结论：**REQUEST_CHANGES（1 major / 0 blocker）**；M1 修复后本笔可合并。

@@ -44,6 +44,8 @@
 三轮评审 major 归零；F4–F7 等余项登记待办，分支 `enh/arch-sec-audit` 已推送）。
 **2026-10-29 pr-review 增量**：新增 #49（arch-sec-audit 分支合并前 pr-review，
 0 BLOCKER / 2 MAJOR / 7 MINOR；2 MAJOR + 2 MINOR 当轮修复，余项登记）。
+**2026-11-01 :cd 增量**：新增 #52（`feat/file-manager` 的 `:cd` 命令单笔评审，
+0 blocker / 1 major / 7 minor；记录并入 #51 文档末章 `## :cd command (2026-11-01)`）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -103,6 +105,7 @@
 | 49 | 2026-10-29 | arch-sec-audit 分支合并前 pr-review（35 文件 +1367−64）2 MAJOR：`:help` 手册未同步主题信任门控（计划范围漏项）；yxp manifest 大小写变体成员在大小写不敏感文件系统互相覆盖，record↔disk 不变量破坏（探针实证） | ✅ 已修（2 MAJOR + 2 MINOR 当轮修：`eebc5f8` 手册双语同步 / `181f179` casefold 去重 + 回滚跳过用例 / `6f58ee2` 主题路径 resolved 统一；空目录噪声提示、F6 新证据、logs mkdir mode 窗口、cli.py:413 排版登记；收尾门禁 pyright 0 + 3173 passed/10 skipped + 架构 37 + 覆盖率 92.22% + 冒烟 117/117，全 exit 0） | [2026-10-29-pr-review-enh-arch-sec-audit.md](2026-10-29-pr-review-enh-arch-sec-audit.md) |
 | 50 | 2026-10-31 | **全仓库多维度评审**（multi-dim-review 13 维度；master `0ae1a64`；5 只读分区审查员两波 fan-out + 主代理逐条复核 + 主代理亲跑六道门禁）。唯一红灯为 lua lint 抓出 worktree 陈旧 CRLF 落盘态（`.gitattributes` eol=lf 于 `99f8158` 加入而检出早于它，clean-filter 判 clean 掩盖陈旧；linter 守卫行为正确），就地规范 10 个 `.lua` 为 LF 后全绿；CI 该用例因 lupa 缺装 skip 使守卫在 Linux 腿失效，登记为可立项建议 | ✅ 已修（3 MINOR 全修：pty 四处静默 pass 改一次性 debug 可观测 + exactly-once 单测 `05ec31f`；test_app_find.py:1151 冻结窗口 + 显式 flush 替代真实睡眠 `0dded3a`；豁免行数登记同步 1239/841/841 `c41a9e4`；修复方案与记录互链 `.trae/documents/multi-dim-review-fixes-plan.md`；收尾门禁 pyright 0 + 全量 exit 0 + 架构 37 + 冒烟 117/117，全 exit 0） | [2026-10-31-multi-dim-review.md](2026-10-31-multi-dim-review.md) |
 | 51 | 2026-10-31 | `feat/file-manager` 合并前评审（IKRZ41，`630b7e6..HEAD` 10 提交 / 36 文件 +4538−64）：1 blocker + 4 major + 6 minor。blocker = 全屏启动形态 `FileManagerScreen.on_mount` 在 compose 子节点未挂载时 `query_one` 抛 `NoMatches`（`-n auto` 带覆盖率 3 次运行 2 次失败、`-n 1` 6/6 通过，属负载触发的产品竞态）；major = 盘符虚拟层不可进入（Q4 裁决未落地）/ 屏幕内 rename·delete 不做 `session.retarget`·`close_under`（与 `explorer.py:518,535` 不一致）/ 每击键全量 stat+scandir+重建列表 / paste 段零用例 | 👀 待处置（门禁：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.45% + 冒烟 120/120·1446 checks；blocker 已实测复现并附修法） | [2026-10-31-file-manager.md](2026-10-31-file-manager.md) |
+| 52 | 2026-11-01 | `:cd` 命令单笔评审（`feat/file-manager` @ `aeedd05`，6 文件 +343）：1 major = `:cd` 未走 `_strip_quotes`，`:cd "C:\Program Files"` 被判「不是目录」（`:e` / `:saveas` / `:split` 等 6 处同类调用点均剥引号）；7 minor = 补全含文件候选 / `is_dir` 探测三份副本 / 新增 `OSError` 分支零覆盖 / 无根时打印 `None` / 盘符形态与分隔符不归一 / 死 monkeypatch / 方案文档两处与实现不符 | 👀 待处置（门禁六项：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.69% + 冒烟 121/121·1463 checks，全 exit 0） | [2026-10-31-file-manager.md](2026-10-31-file-manager.md)（末章 `## :cd command`） |
 
 ---
 

@@ -24,12 +24,12 @@
    目录 `self.open_path(resolved)`。零新注入（复用既有 resolve/_report）。
 2. **L4**：`commands.py`：
    - `_cd(args)`：无参 → `editor.message(f"workspace root: {editor.workspace.root}", kind="info")`；
-     有参 → `editor.documents.open_directory(Path(args.strip()))`；
+     有参 → `editor.document_flows.open_directory(Path(args.strip()))` (errata: real attribute is `document_flows`, editor.py:442)；
    - `reg("cd", _cd, "change the workspace root directory (:cd [dir]; bare :cd shows it)",
      arg_completer=_make_cd_completer(editor))`（注册在 `:e`/`:edit` 组之后）。
 3. **补全**：`_make_cd_completer(editor)`（commands.py，`_make_path_completer` 旁）——
    `path_matches(prefix, editor.workspace)` 结果 + 盘符候选
-   （`workspace.list_drives()`，wave-1 产物；`f"{d.path}{os.sep}"`，
+   （`workspace.list_drives()`，wave-1 产物；`str(d.path)` (errata: Path str already carries the trailing separator; appending `os.sep` would double it)，
    `d.name.lower().startswith(prefix.lower())` 且不等于 prefix 去重）。
    不改共享 `_make_path_completer`（:e/:split 零影响）。空 prefix →
    root 子项 + 全部盘符（「快速切换盘符」入口）。

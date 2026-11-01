@@ -142,18 +142,40 @@ def test_cd_switches_root_and_refreshes_tree(tmp_path: Path) -> None:
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="drive roots are Windows-only")
-def test_cd_accepts_drive_root(tmp_path: Path, monkeypatch: Any) -> None:
+def test_cd_accepts_drive_root(tmp_path: Path) -> None:
     """A drive-root argument (``D:\\`` form) switches the root directly."""
     fx = _CdFixture(tmp_path)
     anchor = tmp_path.anchor
     assert anchor
-    drive = Entry(Path(anchor), anchor.rstrip("\\/"), True)
-    monkeypatch.setattr(fx.workspace, "list_drives", lambda: [drive])
 
     fx.entry.func(anchor)
 
     assert fx.workspace.root == Path(anchor)
     assert fx.explorer.refresh_calls == 1
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="bare drives are Windows-only")
+def test_cd_normalizes_bare_drive_colon(tmp_path: Path) -> None:
+    """``:cd D:`` lands on the drive root, not the drive's current directory."""
+    fx = _CdFixture(tmp_path)
+    anchor = tmp_path.anchor
+    assert anchor
+    bare = anchor.rstrip("\\/")
+
+    fx.entry.func(bare)
+
+    assert fx.workspace.root == Path(anchor)
+
+
+def test_cd_strips_surrounding_quotes(tmp_path: Path) -> None:
+    """A quoted target (spaces) resolves like the other path commands."""
+    fx = _CdFixture(tmp_path)
+    sub = tmp_path / "dir with spaces"
+    sub.mkdir()
+
+    fx.entry.func(f'"{sub}"')
+
+    assert fx.workspace.root == sub
 
 
 def test_cd_rejects_file_with_warning(tmp_path: Path) -> None:
@@ -178,6 +200,24 @@ def test_cd_rejects_missing_path(tmp_path: Path) -> None:
     assert fx.has_note("not a directory", "warn")
 
 
+
+def test_cd_probe_oserror_degrades_to_warning(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An ``OSError`` from the directory probe reads as not-a-directory."""
+    fx = _CdFixture(tmp_path)
+
+    def _boom(self: object) -> bool:
+        raise OSError("probe failed")
+
+    monkeypatch.setattr(Path, "is_dir", _boom)
+
+    fx.entry.func(str(tmp_path))
+
+    assert fx.workspace.root == tmp_path
+    assert fx.has_note("not a directory", "warn")
+
+
 def test_cd_bare_shows_root(tmp_path: Path) -> None:
     """Bare ``:cd`` reports the current root without changing state."""
     fx = _CdFixture(tmp_path)
@@ -186,6 +226,15 @@ def test_cd_bare_shows_root(tmp_path: Path) -> None:
 
     assert fx.workspace.root == tmp_path
     assert fx.has_note(f"workspace root: {tmp_path}", "info")
+
+
+def test_cd_bare_with_no_root_reports_none() -> None:
+    """Bare ``:cd`` without a workspace root reports ``(none)``."""
+    fx = _CdFixture(None)
+
+    fx.entry.func("")
+
+    assert fx.has_note("workspace root: (none)", "info")
 
 
 def test_cd_relative_resolves_against_root(tmp_path: Path) -> None:
@@ -216,9 +265,13 @@ def test_cd_completer_lists_dirs_and_drives(tmp_path: Path, monkeypatch: Any) ->
     partial = completer("d")
     drive_prefix = completer("D:\\")
 
+    (tmp_path / "afile.txt").write_text("x", encoding="utf-8")
+
     assert "alpha/" in empty
     assert "data/" in empty
     assert "D:\\" in empty
+    # ``:cd`` is directories-only: bare file names never surface.
+    assert "afile.txt" not in empty
     assert "data/" in partial
     assert "D:\\" in partial
     # A prefix that already *is* a drive root is deduplicated, not offered
