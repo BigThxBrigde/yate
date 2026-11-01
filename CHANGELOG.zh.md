@@ -7,6 +7,7 @@
 
 ### 新功能
 
+- 命令：新增 :cd 快速切换工作区根目录与盘符 ([`aeedd05`](https://gitee.com/jermaine/yate/commit/aeedd05ad46c7cae57e1c7b669abbd7ac6fa1055))
 - CLI：文件管理器入口接入命令/CLI/键位 ([`ea5d1c5`](https://gitee.com/jermaine/yate/commit/ea5d1c55086faa8c809972c25f3c26837e3a8455))
 - 调度：新增 FileManagerFlows 并接线 editor 装配 ([`0f633b6`](https://gitee.com/jermaine/yate/commit/0f633b60cc00f3cc0c55542debe37d95c8e7bbd9))
 - 编辑器视图：新增 lf 风格三栏 FileManagerScreen ([`aa73c33`](https://gitee.com/jermaine/yate/commit/aa73c3353f1519bd39cc46d320d668d22c84bcd8))
@@ -18,6 +19,7 @@
 
 ### 问题修复
 
+- 命令：按评审加固 :cd（引号/盘符/仅目录补全） ([`986b6ad`](https://gitee.com/jermaine/yate/commit/986b6ad520958ae28c13edeb8aca8abfa69111d8))
 - 冒烟：场景去除私有状态访问 ([`5eb134c`](https://gitee.com/jermaine/yate/commit/5eb134c5818dfd2dfb7034dd79dc86846602a10c))
 - 调度：重命名/删除同步会话与文件树 ([`9497b8b`](https://gitee.com/jermaine/yate/commit/9497b8bbe988f07db744ee3f7684c11e290fcade))
 - 编辑器视图：按评审 F1 加固 FileManagerScreen ([`3331c7a`](https://gitee.com/jermaine/yate/commit/3331c7a1292c890cecec0a5ca3c1060a7f5af8ff))
@@ -41,6 +43,7 @@
 
 ### 文档
 
+- regenerate for the file-manager feature set [缺中文] ([`1c66f03`](https://gitee.com/jermaine/yate/commit/1c66f03f450dfe0250a53b6c6de88af60664c017))
 - 文档：非目标段对齐 m4/M3 评审结论 ([`b4a54cf`](https://gitee.com/jermaine/yate/commit/b4a54cf88d80ae4cb80bfa9f75497a0ac8e4b76b))
 - 文档：手册对齐缓存/跨卷/冲突的实际行为 ([`a0505e7`](https://gitee.com/jermaine/yate/commit/a0505e7b6f722b88e44a2dc6c85655bd60616b9a))
 - 文档：登记 file-manager 评审记录 ([`0d5901a`](https://gitee.com/jermaine/yate/commit/0d5901afaaa780573ffd611c847c4a0009c6a1e8))

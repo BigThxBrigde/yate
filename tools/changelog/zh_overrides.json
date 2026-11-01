@@ -1607,6 +1607,9 @@
   "9828b24": {
     "summary": "修复 PTY 启动失败时退出 Future 未完成"
   },
+  "986b6ad": {
+    "summary": "命令：按评审加固 :cd（引号/盘符/仅目录补全）"
+  },
   "98a1128": {
     "summary": "explorer 测试适配 LspSync 的 spawn 动词"
   },
@@ -1817,6 +1820,9 @@
   },
   "aecf3e3": {
     "summary": "新增发布工具加固计划"
+  },
+  "aeedd05": {
+    "summary": "命令：新增 :cd 快速切换工作区根目录与盘符"
   },
   "af566a2": {
     "summary": "新增 plan-execute-review 代理团队定义"

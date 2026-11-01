@@ -6,6 +6,7 @@
 
 ### Features
 
+- add :cd to switch the workspace root and drives ([`aeedd05`](https://gitee.com/jermaine/yate/commit/aeedd05ad46c7cae57e1c7b669abbd7ac6fa1055))
 - wire the file manager entries into shell, CLI, and keymaps ([`ea5d1c5`](https://gitee.com/jermaine/yate/commit/ea5d1c55086faa8c809972c25f3c26837e3a8455))
 - add FileManagerFlows and wire the editor assembly ([`0f633b6`](https://gitee.com/jermaine/yate/commit/0f633b60cc00f3cc0c55542debe37d95c8e7bbd9))
 - add lf-style FileManagerScreen with three-pane layout ([`aa73c33`](https://gitee.com/jermaine/yate/commit/aa73c3353f1519bd39cc46d320d668d22c84bcd8))
@@ -17,6 +18,7 @@
 
 ### Bug Fixes
 
+- harden :cd per review (quotes, drives, dirs-only) ([`986b6ad`](https://gitee.com/jermaine/yate/commit/986b6ad520958ae28c13edeb8aca8abfa69111d8))
 - drop private-state access from the filemanager scenario ([`5eb134c`](https://gitee.com/jermaine/yate/commit/5eb134c5818dfd2dfb7034dd79dc86846602a10c))
 - sync file manager renames and deletes to session and tree ([`9497b8b`](https://gitee.com/jermaine/yate/commit/9497b8bbe988f07db744ee3f7684c11e290fcade))
 - harden FileManagerScreen per review F1 ([`3331c7a`](https://gitee.com/jermaine/yate/commit/3331c7a1292c890cecec0a5ca3c1060a7f5af8ff))
@@ -40,6 +42,7 @@
 
 ### Documentation
 
+- regenerate for the file-manager feature set ([`1c66f03`](https://gitee.com/jermaine/yate/commit/1c66f03f450dfe0250a53b6c6de88af60664c017))
 - align non-goals with m4/M3 review outcomes ([`b4a54cf`](https://gitee.com/jermaine/yate/commit/b4a54cf88d80ae4cb80bfa9f75497a0ac8e4b76b))
 - align guide with actual cache, cross-volume, conflict behavior ([`a0505e7`](https://gitee.com/jermaine/yate/commit/a0505e7b6f722b88e44a2dc6c85655bd60616b9a))
 - add file-manager review record (1 blocker, 4 major, 6 minor) ([`0d5901a`](https://gitee.com/jermaine/yate/commit/0d5901afaaa780573ffd611c847c4a0009c6a1e8))
