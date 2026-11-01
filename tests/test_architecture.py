@@ -247,6 +247,11 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_view",
         "yate.editor_view.whichkey",
     },
+    "flows/filemanager_flows.py": {
+        "yate.editor_view.commandline",
+        "yate.editor_view.explorer",
+        "yate.editor_view.filemgr",
+    },
 }
 
 #: Extension-machinery submodules (R14): yate code enters the extension
@@ -346,6 +351,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
+    "editor_view/filemgr.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "services/yxp.py",
@@ -816,7 +822,7 @@ def test_ts_backend_never_imports_regex_backend() -> None:
 
 
 def test_collaborators_keep_widget_coupling_frozen() -> None:
-    """The ten ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
+    """The ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
     editor-level collaborators: each may drive its known widgets but never
     depend upward, and a new ``editor_view`` import must be added there
     first (R11)."""

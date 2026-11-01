@@ -94,6 +94,7 @@ class YateApp(App[None]):
         ext_dirs: list[str | Path] | None = None,
         diff_files: list[Path] | None = None,
         hex_file: Path | None = None,
+        filemanager_dir: Path | None = None,
     ) -> None:
         # self.config must exist before super().__init__(): App.__init__
         # resolves the driver class, which consults config.key_protocol.
@@ -173,6 +174,9 @@ class YateApp(App[None]):
         # CLI --hex request: handed to the overlay flow once mounted (same
         # deferred-handoff shape as --diff).
         self._hex_file = hex_file
+        # CLI --file-manager request: handed to the file manager flows once
+        # mounted (same deferred-handoff shape as --diff/--hex).
+        self._filemanager_dir = filemanager_dir
 
     @override
     def compose(self) -> ComposeResult:
@@ -221,6 +225,16 @@ class YateApp(App[None]):
         if self._hex_file:
             self.call_after_refresh(
                 self.editor.overlays.open_hex_view, self._hex_file
+            )
+        # CLI --file-manager request: bind the fullscreen exit verb before
+        # the screen is pushed, then open the file manager fullscreen after
+        # the base screen has laid out (same deferred-handoff shape as
+        # --diff/--hex above).
+        if self._filemanager_dir is not None:
+            self.editor.bind_filemanager_exit(self.exit)
+            self.call_after_refresh(
+                self.editor.filemanager_flows.open_fullscreen,
+                self._filemanager_dir,
             )
 
     async def on_unmount(self) -> None:

@@ -1,0 +1,51 @@
+/* FileManagerScreen stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_view/filemgr.py via yate.paths.load_tcss.
+   Selector ids are owned by this component (no shell CSS references). */
+FileManagerScreen {
+    align: center middle;
+}
+FileManagerScreen #filemgr {
+    width: 90%;
+    height: 80%;
+    border: tall $panel;
+    background: $surface;
+}
+FileManagerScreen.fullscreen #filemgr {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+FileManagerScreen #filemgr-body {
+    height: 1fr;
+}
+FileManagerScreen #filemgr-parent {
+    width: 1fr;
+    padding: 0 1;
+}
+FileManagerScreen #filemgr-list {
+    width: 2fr;
+    padding: 0 1;
+}
+FileManagerScreen #filemgr-preview {
+    width: 2fr;
+    border-left: tall $panel;
+    padding: 0 1;
+}
+FileManagerScreen #filemgr-input {
+    height: 1;
+    display: none;
+    border: none;
+    padding: 0 1;
+    background: $surface;
+}
+FileManagerScreen #filemgr-input.active {
+    display: block;
+}
+FileManagerScreen #filemgr-status {
+    height: 1;
+    padding: 0 1;
+    background: $surface;
+}
+FileManagerScreen Widget {
+    scrollbar-size-vertical: 1;
+}

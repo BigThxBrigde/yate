@@ -231,6 +231,32 @@ def _make_path_completer(editor: Editor) -> ArgCompleter:
     return _complete
 
 
+def _make_cd_completer(editor: Editor) -> ArgCompleter:
+    """Completer for ``:cd``: workspace entries plus drive roots.
+
+    Drive candidates come from the workspace's virtual drive level
+    (Windows only; empty on POSIX) and are appended after the regular
+    ``path_matches`` results, deduplicated against the prefix itself.
+    An empty prefix offers every root entry plus all drives -- the
+    quick-drive-switch entry point.
+    """
+    def _complete(prefix: str) -> list[str]:
+        matches = path_matches(prefix, editor.workspace)
+        # ``:cd`` accepts directories only: ``path_matches`` marks every
+        # directory candidate with a trailing "/" on every platform; files
+        # never carry it.  Drive roots are appended separately below.
+        dirs = [c for c in matches if c.endswith("/")]
+        lowered = prefix.lower()
+        for drive in editor.workspace.list_drives():
+            # Drive roots are ``Path("C:\\")``: ``str`` already carries the
+            # trailing separator, so nothing is appended here.
+            candidate = str(drive.path)
+            if drive.name.lower().startswith(lowered) and candidate != prefix:
+                dirs.append(candidate)
+        return dirs
+    return _complete
+
+
 def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     """Register the built-in ex commands on *registry*."""
     reg = registry.register
@@ -306,6 +332,15 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         else:
             editor.document_flows.prompt_open()
 
+    def _cd(args: str) -> None:
+        args = _strip_quotes(args.strip())
+        if not args:
+            root = editor.workspace.root
+            shown = "(none)" if root is None else str(root)
+            editor.message(f"workspace root: {shown}", kind="info")
+            return
+        editor.document_flows.open_directory(Path(args))
+
     def _enew(args: str) -> None:
         editor.document_flows.new_buffer()
 
@@ -330,6 +365,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _palette(args: str) -> None:
         editor.overlays.open_command_palette()
 
+    def _file_manager(args: str) -> None:
+        editor.filemanager_flows.open_overlay()
+
     def _project_replace(args: str) -> None:
         editor.overlays.open_project_replace()
 
@@ -340,6 +378,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         arg_completer=_make_path_completer(editor))
     reg("edit", _edit, "open a file or directory by path",
         arg_completer=_make_path_completer(editor))
+    reg("cd", _cd, "change the workspace root directory (:cd [dir]; bare :cd shows it)",
+        arg_completer=_make_cd_completer(editor))
     reg("enew", _enew, "open a new empty buffer")
     reg("welcome", _welcome,
         "show the welcome page again (on an empty unnamed buffer)")
@@ -352,6 +392,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         "promote the chunked document to a fully loaded editable buffer")
     reg("files", _files, "fuzzy quick file open (ctrl+p)")
     reg("palette", _palette, "command palette (alt+shift+p)")
+    reg("file-manager", _file_manager,
+        "open the lf-style file manager (Alt+Shift+F)")
     reg("project-replace", _project_replace,
         "find & replace in project (ctrl+h)")
     reg("trust", _trust,

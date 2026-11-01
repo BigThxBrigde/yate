@@ -1,23 +1,106 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-10-29 · yate 0.2.15
+> 由 git 历史自动生成于 2026-11-01 · yate 0.2.15
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...HEAD)
 
 ### 新功能
 
+- 命令：新增 :cd 快速切换工作区根目录与盘符 ([`aeedd05`](https://gitee.com/jermaine/yate/commit/aeedd05ad46c7cae57e1c7b669abbd7ac6fa1055))
+- CLI：文件管理器入口接入命令/CLI/键位 ([`ea5d1c5`](https://gitee.com/jermaine/yate/commit/ea5d1c55086faa8c809972c25f3c26837e3a8455))
+- 调度：新增 FileManagerFlows 并接线 editor 装配 ([`0f633b6`](https://gitee.com/jermaine/yate/commit/0f633b60cc00f3cc0c55542debe37d95c8e7bbd9))
+- 编辑器视图：新增 lf 风格三栏 FileManagerScreen ([`aa73c33`](https://gitee.com/jermaine/yate/commit/aa73c3353f1519bd39cc46d320d668d22c84bcd8))
+- 编辑器视图：新增 filemgr_model（排序/过滤/行渲染/状态栏） ([`6bcfd5b`](https://gitee.com/jermaine/yate/commit/6bcfd5ba67ba87fa16d5028dd6218548adc5b6aa))
+- 工作区：新增条目元数据、盘符列举与复制/移动操作 ([`8605e62`](https://gitee.com/jermaine/yate/commit/8605e62ee36d35b9d1f0740d51717127e1dd1888))
+- two-phase tab candidates on the ex line and a palette argument phase [缺中文] ([`67c3509`](https://gitee.com/jermaine/yate/commit/67c3509558efd7b405d20b1474dbb2cb926af26e))
+- declare arg_completer metadata for registered commands [缺中文] ([`1ecb7fa`](https://gitee.com/jermaine/yate/commit/1ecb7fa8880065249bc40661aa54ea7915e2bb53))
 - single-source the ctrl+w chord rows and hint [缺中文] ([`742d297`](https://gitee.com/jermaine/yate/commit/742d2977f2bdf76ce6080583ad7f82e3aa61f8f7))
 
 ### 问题修复
 
+- 命令：按评审加固 :cd（引号/盘符/仅目录补全） ([`986b6ad`](https://gitee.com/jermaine/yate/commit/986b6ad520958ae28c13edeb8aca8abfa69111d8))
+- 冒烟：场景去除私有状态访问 ([`5eb134c`](https://gitee.com/jermaine/yate/commit/5eb134c5818dfd2dfb7034dd79dc86846602a10c))
+- 调度：重命名/删除同步会话与文件树 ([`9497b8b`](https://gitee.com/jermaine/yate/commit/9497b8bbe988f07db744ee3f7684c11e290fcade))
+- 编辑器视图：按评审 F1 加固 FileManagerScreen ([`3331c7a`](https://gitee.com/jermaine/yate/commit/3331c7a1292c890cecec0a5ca3c1060a7f5af8ff))
+- annotate the pty log capture closure [缺中文] ([`62f0bc8`](https://gitee.com/jermaine/yate/commit/62f0bc8ff41e57c55e9343e4ff68c9e89aa6e1e7))
+- freeze live-search window in the empty-clear test [缺中文] ([`0dded3a`](https://gitee.com/jermaine/yate/commit/0dded3ab9252fb23f7986fc5a1f70d4d0cd72e4a))
+- log first pty io failure once at debug level [缺中文] ([`05ec31f`](https://gitee.com/jermaine/yate/commit/05ec31f9bf93750de7247a3650b674773ed1a175))
+- poll for terminal output and add the fake PTY detach hook [缺中文] ([`4f011df`](https://gitee.com/jermaine/yate/commit/4f011dfb731162cc3cfc24ed29f09404fdd3bba0))
+- make debounce and worker tests deterministic [缺中文] ([`5ff6064`](https://gitee.com/jermaine/yate/commit/5ff606440138d3e9635c41222377a04a58b2217a))
+- address review findings for the arg-completion waves [缺中文] ([`ee8ae14`](https://gitee.com/jermaine/yate/commit/ee8ae1472a1a7a450b079607fe057ac476c557c4))
+- resolve the workspace path for gating and messaging [缺中文] ([`6f58ee2`](https://gitee.com/jermaine/yate/commit/6f58ee287189e1f657c12dcd7302d4a005d6dbac))
+- reject case-colliding manifest entries and cover rollback skips [缺中文] ([`181f179`](https://gitee.com/jermaine/yate/commit/181f17970c81ec78a1ef78c4447c64394bdc06b7))
+- refuse to operate through symlinked member paths end to end [缺中文] ([`6c6713a`](https://gitee.com/jermaine/yate/commit/6c6713abbcff212418e5ec93dd3b94678ba0b710))
+- refuse to write through symlinked member targets and warn on unverified packages [缺中文] ([`0a95bd3`](https://gitee.com/jermaine/yate/commit/0a95bd3e3a77472f39b09ef6223b3b13e5d6d42f))
+- gate workspace theme directories behind workspace trust [缺中文] ([`0723e95`](https://gitee.com/jermaine/yate/commit/0723e95f60e3e8874e30b45c13772c08d0914bec))
 - reset the global theme state after every test [缺中文] ([`c4cb554`](https://gitee.com/jermaine/yate/commit/c4cb5547dd7b25d2452d3fabb349479671d3431e))
+
+### 重构
+
+- 编辑器视图：提取共享预览管线至 preview.py ([`07c982a`](https://gitee.com/jermaine/yate/commit/07c982a0c63d44993ada92a33f4ae885b297f538))
+- single-source the ~/.yate root and restrict log dirs on POSIX [缺中文] ([`e01d07d`](https://gitee.com/jermaine/yate/commit/e01d07d971c9527ae2e11f59abbabc3e9cddc81c))
 
 ### 文档
 
+- regenerate for the file-manager feature set [缺中文] ([`1c66f03`](https://gitee.com/jermaine/yate/commit/1c66f03f450dfe0250a53b6c6de88af60664c017))
+- 文档：非目标段对齐 m4/M3 评审结论 ([`b4a54cf`](https://gitee.com/jermaine/yate/commit/b4a54cf88d80ae4cb80bfa9f75497a0ac8e4b76b))
+- 文档：手册对齐缓存/跨卷/冲突的实际行为 ([`a0505e7`](https://gitee.com/jermaine/yate/commit/a0505e7b6f722b88e44a2dc6c85655bd60616b9a))
+- 文档：登记 file-manager 评审记录 ([`0d5901a`](https://gitee.com/jermaine/yate/commit/0d5901afaaa780573ffd611c847c4a0009c6a1e8))
+- 文档：新增双语 file-manager 指南与索引 ([`271294c`](https://gitee.com/jermaine/yate/commit/271294c11e094d2d8f7622276741b91acfa50243))
+- 文档：记录 Q1 降级与 Q2 排序的裁决 ([`e643232`](https://gitee.com/jermaine/yate/commit/e6432320d4f4fcdc42fc8bc036d47b8c3d2137d5))
+- 文档：plan-e 固化已验证的 dirty/关闭契约 ([`e690948`](https://gitee.com/jermaine/yate/commit/e6909485f8272a12ecb198ac7cca4c5146e6b425))
+- 文档：新增 file-manager 实施计划（总纲与子计划 a-g） ([`58620e4`](https://gitee.com/jermaine/yate/commit/58620e4be31405e7f00cc7de11c77671b136308b))
+- widen multi-dim-review output contract [缺中文] ([`630b7e6`](https://gitee.com/jermaine/yate/commit/630b7e656cccd2fbc59b66387c5b0b850d5be812))
+- record review minor dispositions in test-speedup overview [缺中文] ([`881dcca`](https://gitee.com/jermaine/yate/commit/881dcca26dfacab38e493ec54c89a4626c1e4de3))
+- backfill measured results and follow-ups into test-speedup plans [缺中文] ([`3cfee30`](https://gitee.com/jermaine/yate/commit/3cfee3064f540dedeb78a47956d56ef2c0ce6acf))
+- record round-3 adjudication for smoke baseline drift and stress flake [缺中文] ([`4a90a19`](https://gitee.com/jermaine/yate/commit/4a90a19b4f6810e5438f53a19e4cafc5b022d936))
+- register multi-dim review fixes [缺中文] ([`9ffef7d`](https://gitee.com/jermaine/yate/commit/9ffef7daf18ce04d64ac2336c93958e506e101f2))
+- register full-repo multi-dim review [缺中文] ([`99ea6ea`](https://gitee.com/jermaine/yate/commit/99ea6ea6b27cad96d29373e370867bff6764cd71))
+- always prefer low time and space complexity algorithms [缺中文] ([`0ae1a64`](https://gitee.com/jermaine/yate/commit/0ae1a641418a942819f0d88b10ce16ce4372eb67))
+- split algorithm dimension and require cross-layer call logging [缺中文] ([`779164f`](https://gitee.com/jermaine/yate/commit/779164f4aabb1d4964846b9fbc5309febfe603f2))
+- add multi-dim-review skill [缺中文] ([`63cb791`](https://gitee.com/jermaine/yate/commit/63cb791259280ef68104969b3d62616233db127f))
+- backfill the arg-completion execution record [缺中文] ([`617fcb2`](https://gitee.com/jermaine/yate/commit/617fcb2a8b3a772f3b5b6a7c247ebd95b6f27c64))
+- add the arg-completion implementation plan [缺中文] ([`3c8a33a`](https://gitee.com/jermaine/yate/commit/3c8a33a8cc959aa1b458721b84a63aa189491422))
+- note the case-colliding regression test in the record [缺中文] ([`ae3838b`](https://gitee.com/jermaine/yate/commit/ae3838b8b2fbc5bdb788a86bf1a9c17138ff6747))
+- archive the arch-sec-audit branch pr-review round [缺中文] ([`5d0499e`](https://gitee.com/jermaine/yate/commit/5d0499e721de459dbec1052046338c45ed546258))
+- correct the baseline skip count and commit inventory [缺中文] ([`2ed0cbc`](https://gitee.com/jermaine/yate/commit/2ed0cbc93df58b2412a07b0538ff5b3ae7bc703a))
+- sync the theme trust gate into the in-app manuals [缺中文] ([`eebc5f8`](https://gitee.com/jermaine/yate/commit/eebc5f8597b425048fe64495bfe75cf9a4056495))
+- close the handoff note and align the commit inventory [缺中文] ([`5beb95a`](https://gitee.com/jermaine/yate/commit/5beb95abfcdff390fd1c6be7e4b7f7d8ed4a6528))
+- register the 2026-10-26 and 2026-10-29 audit rounds in the index [缺中文] ([`d0afda5`](https://gitee.com/jermaine/yate/commit/d0afda5fe44df45794beebc8d5e864be34f80d48))
+- record the compression handoff and fix the commit count [缺中文] ([`1b05db1`](https://gitee.com/jermaine/yate/commit/1b05db17718ea6763db098ab45b5f32c23f94d3b))
+- backfill the arch-sec-audit execution record [缺中文] ([`5eadb8f`](https://gitee.com/jermaine/yate/commit/5eadb8fcc04f5688e36679d5e71d34c03942cd62))
+- archive the arch-sec-audit review record [缺中文] ([`975f5b3`](https://gitee.com/jermaine/yate/commit/975f5b37b09557e2ef4c4ebac684f2e5f027b0ea))
+- fix the default-directory precedence order and error prefix [缺中文] ([`dcd8ee7`](https://gitee.com/jermaine/yate/commit/dcd8ee77aebdeb1183440d67a24408e15f3078bb))
+- correct the workspace-theme trust wording and self-descriptions [缺中文] ([`82bf6a7`](https://gitee.com/jermaine/yate/commit/82bf6a7ee9410f7061f30084cad95aedb5b8cb6a))
+- record the plan-d v2/v3 revisions [缺中文] ([`14d9522`](https://gitee.com/jermaine/yate/commit/14d9522b2b40a7f53479d533bdea39adbcf7a601))
+- link the games and which-key guides and refresh test stats [缺中文] ([`a144ec7`](https://gitee.com/jermaine/yate/commit/a144ec774208f7f488c9f7330fa07632da2ebae6))
+- declare the extension trust model and register the facade exception [缺中文] ([`176da1f`](https://gitee.com/jermaine/yate/commit/176da1f2731b1324404e92d5ec6549c5c3a17600))
+- replace the section sign in the plan-b template text [缺中文] ([`8dec0a9`](https://gitee.com/jermaine/yate/commit/8dec0a9e114ebdc81034f6f6cf5a0de1ed69aa4f))
+- revise plan-a to place the theme trust gate in the theme module [缺中文] ([`64ebe7c`](https://gitee.com/jermaine/yate/commit/64ebe7cd2807673860a810adb858ef315a5b8fc3))
+- add the arch-sec-audit master plan and sub-plans a-e [缺中文] ([`273e78c`](https://gitee.com/jermaine/yate/commit/273e78c0f9e517d6911518995e9c57af02bba523))
 - add whichkey chord single-source plan [缺中文] ([`d8bc3ba`](https://gitee.com/jermaine/yate/commit/d8bc3ba1d661e5f094a26b3fad4e702e280d15cf))
+
+### 测试
+
+- 冒烟：新增 filemanager 启动与导航场景 ([`74a5096`](https://gitee.com/jermaine/yate/commit/74a5096cf2cbcc2011cf993bd9b642557da697b7))
+- probe SHELL with a real temp file instead of patching Path.is_file [缺中文] ([`611269a`](https://gitee.com/jermaine/yate/commit/611269a80b799cfe06b1a3477b59d05054c39c6b))
+- prove the command_completion apply branch via cycle check [缺中文] ([`5380d3f`](https://gitee.com/jermaine/yate/commit/5380d3f43707d90afd9bafbbdbe11302cd6696d7))
+- retry disk polls across the os.replace swap window [缺中文] ([`bbd147b`](https://gitee.com/jermaine/yate/commit/bbd147b4637860fb3bf0f90109d4534dcbe72e5d))
+- wait for layout convergence in region and drag separator tests [缺中文] ([`3c6b7f3`](https://gitee.com/jermaine/yate/commit/3c6b7f3fa5dd36d7be6106446cac0d4e62b9d4be))
+- add which-key and completion scenarios, fix rapid-toggle flake, register baselines [缺中文] ([`4f4d99a`](https://gitee.com/jermaine/yate/commit/4f4d99a7d5506c63f7af24f81b765fe8edac34d3))
+- cover shell flows, shells, extension flows, user setup and cli gaps [缺中文] ([`3fcf71a`](https://gitee.com/jermaine/yate/commit/3fcf71abbc323c6c0bc14f0a3c80aa284da444cd))
+- speed up three slowest tests while keeping their semantics [缺中文] ([`1a377ef`](https://gitee.com/jermaine/yate/commit/1a377ef3c857df35e255cda2a737cd2db21bf39b))
+- wait for layout convergence before separator click in pane test [缺中文] ([`426781a`](https://gitee.com/jermaine/yate/commit/426781ae167b48539115e981c35d7891c640261b))
+- cover the case-colliding manifest rejection [缺中文] ([`57c7c90`](https://gitee.com/jermaine/yate/commit/57c7c90cae35e5fd12c22faf222f3057c807e310))
 
 ### 构建与工程
 
+- 架构：filemgr 豁免记录实测 888 行 ([`665eb13`](https://gitee.com/jermaine/yate/commit/665eb1326e21dc5bc10d86166e0cb40bbe1e70c2))
+- 架构：filemgr.py 登记体量豁免 ([`3e964e7`](https://gitee.com/jermaine/yate/commit/3e964e750dbd10aa6786de0dd4cf0d91323a7a2a))
+- sync size-exempt line counts to current measurements [缺中文] ([`c41a9e4`](https://gitee.com/jermaine/yate/commit/c41a9e41f96a0d9fec0d122dab8e466bae086658))
+- register services/yxp.py in the size exemption list [缺中文] ([`8d7d5eb`](https://gitee.com/jermaine/yate/commit/8d7d5ebb457bd0e2ac9d5ea11e9c4f4b446e385c))
+- run the test workflow with a read-only token [缺中文] ([`9ea0746`](https://gitee.com/jermaine/yate/commit/9ea07464ef220204ef42a40a168744a481c238c9))
+- update changelog [缺中文] ([`bc1cdb6`](https://gitee.com/jermaine/yate/commit/bc1cdb62f62bd8035dd57a2de3ce4e1ed62ad18e))
 - update changelog [缺中文] ([`002db38`](https://gitee.com/jermaine/yate/commit/002db3893d57ca4bcdb8adbfd370ed58d8c6ef5e))
 - update changelog [缺中文] ([`7365026`](https://gitee.com/jermaine/yate/commit/736502661661737d7abeeb9ca4f9f54b82942ca5))
 

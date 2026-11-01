@@ -42,6 +42,19 @@ from yate.session import EditorSession, Leaf
 log = tracing.get_logger(__name__)
 
 
+def _probe_is_dir(path: Path) -> bool:
+    """Directory probe that degrades ``OSError`` to ``False``.
+
+    A racing delete or an unreadable ACL must read as "not a directory"
+    (falling through to the file branch or the warning), never surface as
+    a crash from a keystroke handler.
+    """
+    try:
+        return path.is_dir()
+    except OSError:
+        return False
+
+
 class DocumentFlows:
     """Owns the open / save / close / cycle lifecycle of documents."""
 
@@ -264,11 +277,7 @@ class DocumentFlows:
     def open_path(self, path: Path) -> None:
         """Open a file or switch the workspace to a directory (sync)."""
         path = self.resolve_input_path(path)
-        try:
-            is_dir = path.is_dir()
-        except OSError:
-            is_dir = False
-        if is_dir:
+        if _probe_is_dir(path):
             log.info("opened folder: %s", path)
             # OSError past the probe surfaces to the caller (fail loudly)
             # instead of masquerading below as a failed file open
@@ -283,6 +292,30 @@ class DocumentFlows:
             return
         self._after_open()
 
+    def open_directory(self, path: Path) -> None:
+        """``:cd``: switch the workspace root to *path* (directories only).
+
+        A thin gate in front of :meth:`open_path`'s directory branch: a
+        non-directory (a file, a missing path, an unprobeable entry) is
+        reported and leaves the root untouched -- unlike ``:e``, which
+        would fall through to a file open.  A bare drive reference
+        (``D:``) is normalized to that drive's root (``D:\\``): pathlib
+        would otherwise resolve it to the drive's *current* directory,
+        not the root the completion candidates point at.
+        """
+        # A bare drive reference (``C:``) must be normalized *before*
+        # resolution: joining it onto the workspace root is a no-op when
+        # the root sits on the same drive (pathlib keeps the root as-is),
+        # and ``Path("C:").anchor`` is ``"C:"`` (anchor is drive+root and
+        # the root is empty), so the root is built explicitly.
+        if path.drive and not path.root:
+            path = Path(path.drive + "/")
+        resolved = self.resolve_input_path(path)
+        if not _probe_is_dir(resolved):
+            self._report(f"not a directory: {resolved}", "warn")
+            return
+        self.open_path(resolved)
+
     async def open_path_async(self, path: Path) -> bool:
         """Open a file without blocking the UI; ``False`` when it failed.
 
@@ -292,11 +325,7 @@ class DocumentFlows:
         :meth:`~yate.flows.window_flows.WindowFlows._split_pane_worker`).
         """
         path = self.resolve_input_path(path)
-        try:
-            is_dir = path.is_dir()
-        except OSError:
-            is_dir = False
-        if is_dir:
+        if _probe_is_dir(path):
             self.open_path(path)
             return True
         if await self._open_document_async(path) is None:

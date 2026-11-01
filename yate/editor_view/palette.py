@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from dataclasses import dataclass
 from functools import partial
-from itertools import islice
 from pathlib import Path
 from typing import Any, override
 
@@ -26,11 +24,9 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
 from textual.screen import ModalScreen
-from textual.widgets import Input, RichLog, Static
+from textual.widgets import Input, Static
 
 from yate.config import FilePreviewConfig
-from yate.editor_syntax.engine import tokenize_document
-from yate.editor_syntax.tokens import Token
 from yate.keymaps.base import ActionRunner
 from yate.logs import tracing
 from yate.paths import load_tcss
@@ -39,7 +35,13 @@ from yate.services.workspace import Workspace
 
 from yate.editor_view import theme
 from yate.editor_view.icons import GEAR, KEYBOARD, icon_for_path
-from yate.editor_view.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.editor_view.preview import (
+    PreviewCache,
+    PreviewData,
+    PreviewLog,
+    load_preview_worker,
+    preview_text,
+)
 
 #: maximum number of result rows rendered under the input
 MAX_VISIBLE: int = 12
@@ -49,23 +51,6 @@ MAX_VISIBLE: int = 12
 _COMMANDS_PLACEHOLDER: str = "search commands and actions by name…"
 
 log = tracing.get_logger(__name__)
-
-
-@dataclass(frozen=True)
-class _PreviewData:
-    """Worker-produced preview payload (raw lines + tokens, no widgets)."""
-
-    path: Path
-    lines: list[str]
-    tokens: list[list[Token]]
-    mtime_ns: int
-    size: int
-    truncated: bool
-    note: str | None  # binary / oversize / unreadable explanation
-
-
-#: preview cache entry cap (FIFO eviction)
-PREVIEW_CACHE_SIZE: int = 16
 
 
 def fuzzy_match(query: str, target: str) -> tuple[int, list[int]] | None:
@@ -111,35 +96,6 @@ def _match_lowered(
             score -= 1
         ti = idx + 1
     return (score, matched)
-
-
-class PreviewLog(RichLog):
-    """Read-only preview pane (source lines, syntax highlighted).
-
-    ``can_focus = False`` keeps a mouse click on the pane from stealing
-    focus away from the query input (one dispatch per keypress).
-    """
-
-    can_focus = False
-
-    @override
-    def on_mount(self) -> None:
-        """Own the slim-scrollbar wiring and the theme painting."""
-        # RichLog inherits ScrollView.on_mount (scrollbar visibility refresh).
-        super().on_mount()
-        # Same self-painting pattern as the explorer (issue IKJUU2): the
-        # renderer sliver alone still shows Textual's opaque default track.
-        apply_slim_scrollbars(self)
-        self._apply_theme()
-        theme.attach(self, self._apply_theme)
-
-    def on_unmount(self) -> None:
-        """Detach from the theme broadcast."""
-        theme.detach(self)
-
-    def _apply_theme(self) -> None:
-        """Paint the scrollbar palette from the active theme (IKJUU2, IKINF3 pattern)."""
-        apply_scrollbar_theme(self)
 
 
 class PaletteScreen(ModalScreen[None]):
@@ -196,9 +152,9 @@ class PaletteScreen(ModalScreen[None]):
         self._cursor = 0
         # shown in the results pane while the file index builds in a thread
         self._status_message: str | None = None
-        # preview payloads keyed by path; validity is judged per record via
-        # its mtime_ns/size pair (see _cache_current)
-        self._preview_cache: dict[Path, _PreviewData] = {}
+        # preview payloads keyed by path; validity is judged per probe via
+        # the entry's mtime_ns/size pair (see PreviewCache.get)
+        self._preview_cache = PreviewCache()
         #: ``None`` = command list mode; the command name = argument mode for
         #: that command (entered from a command whose ``arg_completer`` runs).
         self._arg_mode: str | None = None
@@ -269,12 +225,17 @@ class PaletteScreen(ModalScreen[None]):
 
     async def _index_files(self) -> None:
         """Build the file list in a thread so large workspaces do not
-        freeze the UI when the palette opens."""
+        freeze the UI when the palette opens.  The ``is_attached`` guard
+        below is defensive redundancy: unmount cancels the worker, so it
+        is not reachable in normal flow.
+        """
         try:
             entries = await asyncio.to_thread(self._collect_file_entries)
         except OSError:
             entries = []
-        if not self.is_mounted:
+        # is_mounted never resets on unmount; is_attached mirrors Textual's
+        # own mount check.
+        if not self.is_attached:
             return
         self._set_entries(entries)
         self._status_message = None
@@ -379,14 +340,6 @@ class PaletteScreen(ModalScreen[None]):
         path: Path = self._entries[idx][2]
         return path
 
-    def _cache_current(self, data: _PreviewData) -> bool:
-        """Whether *data* still matches the file on disk (mtime/size probe)."""
-        try:
-            st = data.path.stat()
-        except OSError:
-            return False
-        return st.st_mtime_ns == data.mtime_ns and st.st_size == data.size
-
     def _update_preview(self) -> None:
         """Refresh the preview pane for the highlighted file (files mode).
 
@@ -400,13 +353,15 @@ class PaletteScreen(ModalScreen[None]):
         if path is None:
             self._clear_preview()
             return
-        cached = self._preview_cache.get(path)
-        if cached is not None and self._cache_current(cached):
-            self._render_preview(cached)
-            return
-        # A stale entry would linger until FIFO eviction; drop it now so the
-        # cache only ever holds payloads valid at their last probe.
-        self._preview_cache.pop(path, None)
+        try:
+            st = path.stat()
+        except OSError:
+            st = None
+        if st is not None:
+            cached = self._preview_cache.get(path, st.st_mtime_ns, st.st_size)
+            if cached is not None:
+                self._render_preview(cached)
+                return
         self._show_loading()
         self.run_worker(
             # coroutine *function*: an eager coroutine would leak if
@@ -425,92 +380,27 @@ class PaletteScreen(ModalScreen[None]):
         pane.clear()
         pane.write(Text("loading…", style=theme.active().fg_dim))
 
-    def _load_preview(self, path: Path) -> _PreviewData:
-        """Read and tokenize *path* (worker thread; never touches widgets).
-
-        Oversize and binary files degrade to a note payload with empty
-        lines; successful reads keep the real ``stat`` fields so the cache
-        can serve repeat cursor visits without re-reading.  Decoding is
-        declared ``errors="replace"`` so odd bytes never raise.
-        """
-        try:
-            st = path.stat()
-        except OSError as exc:
-            return _PreviewData(
-                path=path, lines=[], tokens=[], mtime_ns=0, size=0,
-                truncated=False, note=f"cannot read: {exc}",
-            )
-        if st.st_size > self.preview.max_size:
-            return _PreviewData(
-                path=path, lines=[], tokens=[],
-                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
-                note=f"file too large (> {self.preview.max_size} bytes)",
-            )
-        if not Workspace.is_text_file(path):
-            return _PreviewData(
-                path=path, lines=[], tokens=[],
-                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
-                note="(binary file)",
-            )
-        lines: list[str] = []
-        truncated = False
-        try:
-            with path.open(encoding="utf-8", errors="replace") as fh:
-                lines = [
-                    line.rstrip("\n") for line in islice(fh, self.preview.max_lines)
-                ]
-                truncated = next(fh, None) is not None
-        except OSError as exc:
-            return _PreviewData(
-                path=path, lines=[], tokens=[],
-                mtime_ns=st.st_mtime_ns, size=st.st_size, truncated=False,
-                note=f"cannot read: {exc}",
-            )
-        # suffix-derived filetype, same rule as Document.filetype
-        filetype = path.suffix.lower().lstrip(".") or "plaintext"
-        tokens: list[list[Token]] = []
-        try:
-            tokens = tokenize_document(lines, filetype) if lines else []
-        except Exception as exc:  # noqa: BLE001 - degrade to unhighlighted text
-            # A tokenizer crash must never leave the pane stuck on
-            # "loading…"; align one empty token row per line so _preview_text's
-            # zip still walks every line and renders it plain via t.fg.
-            log.warning("palette preview tokenize failed for %s: %s", path, exc)
-            tokens = [[] for _ in lines]
-        return _PreviewData(
-            path=path, lines=lines, tokens=tokens,
-            mtime_ns=st.st_mtime_ns, size=st.st_size,
-            truncated=truncated, note=None,
-        )
-
-    def _cache_store(self, data: _PreviewData) -> None:
-        """Add *data* to the preview cache, evicting the oldest over capacity.
-
-        Insertion order is the eviction order (dicts keep it), so the entry
-        furthest in the past is dropped first; the just-stored payload is
-        never the eviction candidate.
-        """
-        self._preview_cache[data.path] = data
-        while len(self._preview_cache) > PREVIEW_CACHE_SIZE:
-            self._preview_cache.pop(next(iter(self._preview_cache)))
-
     async def _load_preview_worker(self, path: Path) -> None:
-        """Read+tokenize *path* in a thread, then paint when still selected.
+        """Run the shared preview worker, then paint when still selected.
 
-        The thread part does IO + tokenize only; the Rich Text assembly and
-        the widget write stay on the UI thread (same split as the editor's
-        highlight worker).  When the cursor moved on while the worker ran,
-        the payload is cached but not painted.
+        The thread part (IO + tokenize) lives in the shared
+        :func:`load_preview_worker`; the cache store and the Rich Text
+        assembly / widget write stay on the UI thread (same split as the
+        editor's highlight worker).  When the cursor moved on while the
+        worker ran, the payload is cached but not painted.  The
+        ``is_attached`` guard below is defensive redundancy: unmount
+        cancels the worker outright, so the ``return`` is not reachable
+        in normal flow and needs no direct test coverage.
         """
-        data = await asyncio.to_thread(self._load_preview, path)
-        if not self.is_mounted:
+        data = await load_preview_worker(path, self.preview)
+        if not self.is_attached:
             return
-        self._cache_store(data)
+        self._preview_cache.store(data)
         if self._selected_path() != path:
             return
         self._render_preview(data)
 
-    def _render_preview(self, data: _PreviewData) -> None:
+    def _render_preview(self, data: PreviewData) -> None:
         """Paint *data* into the preview pane (UI thread)."""
         t = theme.active()
         pane = self.query_one("#palette-preview", PreviewLog)
@@ -518,33 +408,7 @@ class PaletteScreen(ModalScreen[None]):
         if data.note is not None:
             pane.write(Text(data.note, style=t.fg_dim))
             return
-        pane.write(self._preview_text(data))
-
-    def _preview_text(self, data: _PreviewData) -> Text:
-        """Assemble the syntax-highlighted preview text (UI thread).
-
-        Token columns are clamped to the line length (backends may lag the
-        source after the truncation cut); token-free spans render with the
-        plain foreground.
-        """
-        t = theme.active()
-        text = Text()
-        for line, row_tokens in zip(data.lines, data.tokens):
-            pos = 0
-            for tok in row_tokens:
-                start, end = min(tok.start, len(line)), min(tok.end, len(line))
-                if start > pos:
-                    text.append(line[pos:start], style=t.fg)
-                text.append(line[start:end], style=t.syntax_style(tok.kind))
-                pos = max(pos, end)
-            if pos < len(line):
-                text.append(line[pos:], style=t.fg)
-            text.append("\n")
-        if data.truncated:
-            text.append(
-                f"… truncated at {self.preview.max_lines} lines", style=t.fg_dim
-            )
-        return text
+        pane.write(preview_text(data, theme.active(), self.preview.max_lines))
 
     # ------------------------------------------------------------- textual
 

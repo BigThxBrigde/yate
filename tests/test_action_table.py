@@ -32,6 +32,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "document_flows.save_document",
         "focus_editor",
         "focus_explorer",
+        "filemanager_flows.open_overlay",
         "overlays.open_command_palette",
         "overlays.open_file_palette",
         "overlays.open_project_replace",
@@ -53,7 +54,15 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
 
 #: Editor members the table reaches through (each a flow collaborator).
 _FLOW_NAMESPACES: frozenset[str] = frozenset(
-    {"document_flows", "prompt_flows", "overlays", "shell", "lsp_sync", "whichkey"}
+    {
+        "document_flows",
+        "filemanager_flows",
+        "prompt_flows",
+        "overlays",
+        "shell",
+        "lsp_sync",
+        "whichkey",
+    }
 )
 
 Call = tuple[str, tuple[Any, ...], dict[str, Any]]

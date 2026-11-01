@@ -464,6 +464,7 @@ no bracket auto-completion while multi-cursor is active.
 |---|---|
 | `Ctrl+P` | Quick open file (fuzzy match) |
 | `Alt+Shift+P` | Command palette (run any `:` command) |
+| `Alt+Shift+F` | Open the file manager (same as `:file-manager`) |
 | `F5` | Command line (ex commands: `:w` `:q` `:e` …; `Esc` closes) |
 | `Ctrl+/` | Toggle vsc / vim keymap |
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
@@ -764,6 +765,8 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:q!` | — | Discard changes and force quit |
 | `:wq` | — | Save and quit |
 | `:e [path]` | `:edit` | Open a file or directory; without arguments pops the `Open: ` input line |
+| `:cd [dir]` | — | Change the workspace root directory (drive roots like `D:\` work too); bare `:cd` shows the current root |
+| `:file-manager` | — | Open the lf-style file manager overlay (`Alt+Shift+F`) |
 | `:split [path]` | `:sp` | Horizontal split; no argument clones the current document (see 8.1) |
 | `:vsplit [path]` | `:vs` | Vertical split; no argument clones the current document (see 8.1) |
 | `:only` | — | Keep only the active pane |
