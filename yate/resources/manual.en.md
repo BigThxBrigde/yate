@@ -764,6 +764,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:q!` | — | Discard changes and force quit |
 | `:wq` | — | Save and quit |
 | `:e [path]` | `:edit` | Open a file or directory; without arguments pops the `Open: ` input line |
+| `:cd [dir]` | — | Change the workspace root directory (drive roots like `D:\` work too); bare `:cd` shows the current root |
 | `:split [path]` | `:sp` | Horizontal split; no argument clones the current document (see 8.1) |
 | `:vsplit [path]` | `:vs` | Vertical split; no argument clones the current document (see 8.1) |
 | `:only` | — | Keep only the active pane |

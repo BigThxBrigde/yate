@@ -231,6 +231,28 @@ def _make_path_completer(editor: Editor) -> ArgCompleter:
     return _complete
 
 
+def _make_cd_completer(editor: Editor) -> ArgCompleter:
+    """Completer for ``:cd``: workspace entries plus drive roots.
+
+    Drive candidates come from the workspace's virtual drive level
+    (Windows only; empty on POSIX) and are appended after the regular
+    ``path_matches`` results, deduplicated against the prefix itself.
+    An empty prefix offers every root entry plus all drives -- the
+    quick-drive-switch entry point.
+    """
+    def _complete(prefix: str) -> list[str]:
+        candidates = path_matches(prefix, editor.workspace)
+        lowered = prefix.lower()
+        for drive in editor.workspace.list_drives():
+            # Drive roots are ``Path("C:\\")``: ``str`` already carries the
+            # trailing separator, so nothing is appended here.
+            candidate = str(drive.path)
+            if drive.name.lower().startswith(lowered) and candidate != prefix:
+                candidates.append(candidate)
+        return candidates
+    return _complete
+
+
 def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     """Register the built-in ex commands on *registry*."""
     reg = registry.register
@@ -306,6 +328,13 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         else:
             editor.document_flows.prompt_open()
 
+    def _cd(args: str) -> None:
+        args = args.strip()
+        if not args:
+            editor.message(f"workspace root: {editor.workspace.root}", kind="info")
+            return
+        editor.document_flows.open_directory(Path(args))
+
     def _enew(args: str) -> None:
         editor.document_flows.new_buffer()
 
@@ -343,6 +372,8 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         arg_completer=_make_path_completer(editor))
     reg("edit", _edit, "open a file or directory by path",
         arg_completer=_make_path_completer(editor))
+    reg("cd", _cd, "change the workspace root directory (:cd [dir]; bare :cd shows it)",
+        arg_completer=_make_cd_completer(editor))
     reg("enew", _enew, "open a new empty buffer")
     reg("welcome", _welcome,
         "show the welcome page again (on an empty unnamed buffer)")

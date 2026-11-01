@@ -283,6 +283,24 @@ class DocumentFlows:
             return
         self._after_open()
 
+    def open_directory(self, path: Path) -> None:
+        """``:cd``: switch the workspace root to *path* (directories only).
+
+        A thin gate in front of :meth:`open_path`'s directory branch: a
+        non-directory (a file, a missing path, an unprobeable entry) is
+        reported and leaves the root untouched -- unlike ``:e``, which
+        would fall through to a file open.
+        """
+        resolved = self.resolve_input_path(path)
+        try:
+            is_dir = resolved.is_dir()
+        except OSError:
+            is_dir = False
+        if not is_dir:
+            self._report(f"not a directory: {resolved}", "warn")
+            return
+        self.open_path(resolved)
+
     async def open_path_async(self, path: Path) -> bool:
         """Open a file without blocking the UI; ``False`` when it failed.
 
