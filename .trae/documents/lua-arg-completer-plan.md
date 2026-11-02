@@ -555,3 +555,15 @@ break、保留已收出项）、`test_guarded_completer_swallows_coercion_type_e
   （107、110-111、114、118、122-123、127）全部消除，仅剩 `124->119` 部分分支标记
   （非缺失行）与 469/527/554/563/622/626/630 等与本轮无关的存量缺失行；
 - `pyright yate/ tests/ tools/`：0 errors, 0 warnings, 0 informations，退出码 0。
+
+### 评审轮 2（pr-review 终审，code-review-expert 执行）
+
+针对修复后全分支（8cfe8bf..65aedf2）的 PR 级预审结论：**APPROVE，0 blocker**。
+
+- 四维结论：功能 PASS（coercion 对 None/list/Lua 表/畸形形状四路降级完备，M1 回归测试在场）、
+  安全 PASS、性能 PASS、可维护性 PASS；
+- 门禁实测：pyright 0 errors / 0 warnings / 0 informations；pytest 全量全绿；
+  架构测试全绿；
+- 唯一 minor（非阻塞，登记待办）：`tests/test_lua_extensions.py` 头部的文件级
+  `# pyright: reportPrivateUsage=false` 覆盖面偏宽（理由注释在场，规则字面不禁止）；
+  建议后续窄化为逐处 ignore 或在编码风格规则中登记该惯例，不阻塞本分支合并。
