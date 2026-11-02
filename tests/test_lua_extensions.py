@@ -74,6 +74,23 @@ _SETUP_BOOM_LUA: str = (
 )
 
 
+_COMPLETER_TABLE_LUA: str = (
+    "yate.register_command('lua-cmd', function() end, 'desc',\n"
+    "  function(prefix) return {prefix .. 'a', prefix .. 'b'} end)\n"
+)
+_COMPLETER_NIL_LUA: str = (
+    "yate.register_command('lua-nil', function() end, 'desc',\n"
+    "  function(_prefix) return nil end)\n"
+)
+_COMPLETER_BOOM_LUA: str = (
+    "yate.register_command('lua-comp-boom', function() end, 'desc',\n"
+    "  function(_prefix) error('comp boom') end)\n"
+)
+_COMPLETER_ABSENT_LUA: str = (
+    "yate.register_command('lua-no-comp', function() end, 'desc')\n"
+)
+
+
 class _ApiBundle:
     """ExtensionAPI over *real* registries plus captured message texts.
 
@@ -146,6 +163,76 @@ def test_lua_extension_registers_command_and_receives_args(
     assert entry.description == "echo cmd"
     entry.func("hi")
     assert "echo:hi" in bundle.messages
+
+
+@requires_lupa
+def test_lua_completer_returns_table_coerced_to_list(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A Lua completer returning a table lands as a Python list[str]."""
+    script = tmp_path / "completer.lua"
+    script.write_text(_COMPLETER_TABLE_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-cmd")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("test") == ["testa", "testb"]
+
+
+@requires_lupa
+def test_lua_completer_returns_nil_coerced_to_empty(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A Lua completer returning nil degrades to an empty list."""
+    script = tmp_path / "completer_nil.lua"
+    script.write_text(_COMPLETER_NIL_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-nil")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("any") == []
+
+
+@requires_lupa
+def test_lua_completer_raises_degrades_to_empty(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A raising Lua completer degrades to [] instead of crashing Tab."""
+    script = tmp_path / "completer_boom.lua"
+    script.write_text(_COMPLETER_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-comp-boom")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("any") == []
+
+
+@requires_lupa
+def test_lua_completer_absent_means_no_completion(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A three-argument register_command leaves arg_completer unset."""
+    script = tmp_path / "completer_absent.lua"
+    script.write_text(_COMPLETER_ABSENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-no-comp")
+    assert entry is not None
+    assert entry.arg_completer is None
 
 
 @requires_lupa
