@@ -243,7 +243,9 @@ flowchart TD
   `apply_scrollbar_theme`（均出自 `editor_view/scrollbars.py`），与 explorer
   滚动条（IKINF3 细滑块 + 主题调色板）保持视觉一致。
   **守卫**：§六 #37 `test_scrollable_widgets_apply_theme_scrollbar_pair`
-  （AST 动态扫描 `yate/editor_view/*.py`：定义了基类命中 `SCROLLABLE_BASES`
+  （AST 动态扫描 `yate/editor_view/**/*.py`（含子包；2026-11-02 filemgr 子包迁移波
+  由非递归 glob 收紧为 rglob——非递归扫描会漏掉迁入子包的模块）：定义了基类命中
+  `SCROLLABLE_BASES`
   的类的模块必须同时出现两调用；豁免集 `SCROLLBAR_EXEMPT` 初始为空）。
 
 ## 二、分层职责
@@ -596,7 +598,7 @@ flowchart TD
 | 34 | `test_comments_and_docstrings_stay_ascii` | 代码注释 ASCII 纪律（misc-rules §四：拒 CJK / 全角 / 排版符号，字符串字面量放行；存量 6 处引述型命中登记 `NON_ASCII_COMMENT_EXEMPT`） |
 | 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
-| 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 扫 `yate/editor_view/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
+| 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_view/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
