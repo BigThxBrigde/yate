@@ -21,7 +21,6 @@ from textual.widgets import ListView
 from tools.smoke_test import harness
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, snapshot_svg
 from tools.smoke_test.scenarios._base import wait_until
-from yate.app import YateApp
 from yate.editor_view.filemgr.screen import FileManagerScreen
 
 __all__ = ["SCENARIOS"]
@@ -56,10 +55,9 @@ async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
     sub.mkdir()
     (sub / "inner.txt").write_text("inner\n", encoding="utf-8")
     # cli.py --file-manager startup form (target stays None, the dir is the
-    # --file-manager argument); registered for the invariant sweep exactly
-    # like harness.new_app does (the factory has no filemanager_dir knob).
-    app = YateApp(filemanager_dir=tmp)
-    harness.track(app)
+    # --file-manager argument); harness.new_app registers the app for the
+    # invariant sweep and forwards the startup dir knob.
+    app = harness.new_app(filemanager_dir=tmp)
     checks: list[Check] = []
     rows: dict[int, str] = {}
     async with app.run_test(size=(110, 32)) as pilot:
