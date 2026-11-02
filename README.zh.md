@@ -295,7 +295,9 @@ yate/
                   #   prompt / shell / window
   yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
-tools/            # 维护工具：changelog、release、smoke_test、pack（图标生成）
+tools/            # 维护工具：changelog、release、smoke_test、pack（图标生成）、
+                  #   screenshots（README 画廊生成器）
+screenshots/      # 生成的功能截图与画廊：`python -m tools.screenshots`
 pack/             # PyInstaller spec（yate*.spec）与打包脚本：pack.ps1 / pack.bat（Windows）、pack.sh（Linux）
                   #   + yate.ico：可执行程序图标，由 `python -m tools.pack icon` 生成
 ```

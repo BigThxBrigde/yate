@@ -277,7 +277,9 @@ yate/
                   #   prompt / shell / window
   yaterc.example  # configuration template
 tests/            # unit tests + Textual pilot end-to-end tests
-tools/            # maintenance tooling: changelog, release, smoke_test, pack (icon builder)
+tools/            # maintenance tooling: changelog, release, smoke_test, pack (icon builder),
+                  #   screenshots (README gallery generator)
+screenshots/      # generated feature screenshots + gallery: `python -m tools.screenshots`
 pack/             # PyInstaller specs (yate*.spec) + build scripts: pack.ps1 / pack.bat (Windows), pack.sh (Linux)
                   #   + yate.ico: the executable icon, built by `python -m tools.pack icon`
 ```
