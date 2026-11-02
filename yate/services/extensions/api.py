@@ -101,7 +101,7 @@ def _coerce_completer_result(raw: object) -> list[str]:
         # to the precise element type so strict mode stays clean.
         return [s for s in cast("list[object]", raw) if isinstance(s, str)]
     # Lua table via lupa: duck-typed by callable .keys() + __len__.
-    if hasattr(raw, "keys") and callable(getattr(raw, "keys", None)):
+    if callable(getattr(raw, "keys", None)):
         length_fn = getattr(raw, "__len__", None)
         if not callable(length_fn):
             return []
@@ -414,10 +414,10 @@ class ExtensionAPI:
         def guarded(prefix: str) -> list[str]:
             try:
                 raw = completer(prefix)
+                return _coerce_completer_result(raw)
             except Exception:  # noqa: BLE001 - user code, never crash the app
                 log.exception("extension command %s arg_completer raised", name)
                 return []
-            return _coerce_completer_result(raw)
 
         return guarded
 
