@@ -86,7 +86,7 @@ issue 原文："new_app 加 `filemanager_dir` 形参消除 filemgr 用例自建�
 
 ### 附加小项
 
-- `screen.py` 实测 954 行（splitlines 口径）；`SIZE_EXEMPT_FILES` 只查集合成员无需改测试；规则文档 §三.7 条目 882 → 954（提交 `90c7d7d`）。
+- `screen.py` 实测 954 行（splitlines 口径，review-fixes 波 docstring 增补后复测 963 行）；`SIZE_EXEMPT_FILES` 只查集合成员无需改测试；规则文档 §三.7 条目 882 → 954（提交 `90c7d7d`，963 随评审修复波同步）。
 
 ### 门禁终态（plan-c 后全量）
 
