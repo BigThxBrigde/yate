@@ -512,3 +512,46 @@ CHANGELOG 由 `python -m tools.changelog` 从 commit 自动生成，不手动编
   （维持）。
 
 无需新增 `tests/test_architecture.py` 守卫用例（本任务不引入新架构边界）。
+
+## 十、评审记录
+
+### 评审轮 1（python-code-review，code-review-expert 执行）
+
+针对分支上 5 笔提交（8cfe8bf..b746729）的评审发现与处置：
+
+| 编号 | 级别 | 位置 | 发现 | 处置 |
+|---|---|---|---|---|
+| M1 | major | `yate/services/extensions/api.py` 的 `guarded` 内层函数（`_guarded_completer` 内） | `_coerce_completer_result(raw)` 在 try 块之外调用；该函数自身可抛 TypeError（Python 侧 completer 返回带 keys + 整型 `__len__` 但 `__getitem__` 抛 TypeError 的对象时异常逃逸），违背包装器 docstring "a raise degrades to none" 的契约 | 已修复：收敛调用挪进 try 块，异常统一记日志并返回 `[]` |
+| m1 | minor | `yate/services/extensions/api.py` 的 `_coerce_completer_result` 防御分支 | 覆盖率缺失行 107、110-111、114、118、122-123、127 零覆盖 | 已修复：补纯函数单元测试（见下），全部缺失行消除 |
+| s1 | suggestion | `api.py` duck-type 判定行 | `hasattr(raw, "keys") and callable(getattr(raw, "keys", None))` 的 hasattr 冗余 | 已清理：只留 getattr + callable 判定，行为不变 |
+| s2 | suggestion | `_coerce_completer_result` | dict 会被 duck-type 分支收出整型键值 | 不处置：输入违反 ArgCompleter 契约、不崩溃，计划风险 1 已登记同类误判 |
+
+m1 补充的测试（`tests/test_lua_extensions.py`，普通测试、不依赖 lupa，以 duck-type 桩类
+模拟 Lua 表）：`test_coerce_completer_list_passthrough_filters_non_strings`（list 直通 +
+非字符串过滤）、`test_coerce_completer_none_degrades_to_empty`（None → `[]`）、
+`test_coerce_completer_duck_typed_table_walked_in_order`（1-based 顺序收出）、
+`test_coerce_completer_malformed_tables_degrade_to_empty`（参数化：`__len__` 抛
+TypeError / 返回非 int / 不可调用、无 `__getitem__`、纯 str/number 兜底）、
+`test_coerce_completer_stops_walk_at_missing_index`（`__getitem__` 抛 KeyError 中途
+break、保留已收出项）、`test_guarded_completer_swallows_coercion_type_error`
+（M1 回归：收敛期 TypeError 经 guarded 包装器降级为 `[]`，不再逃逸）。
+
+### 评审轮 1 门禁实测数字（评审时点）
+
+- `python -m pyright yate/ tests/ tools/`：0 errors / 0 warnings；
+- `pytest tests/ -q -n auto`：全绿（1 skip 为存量平台标记）；
+- 架构测试：37 passed；
+- 覆盖率：92.75%；
+- 冒烟：121/121 场景、1463 checks；
+- lupa 2.8 已装，completer 相关 6 测试 LIVE passed、0 skipped。
+
+### 评审修复轮实测数字（本轮）
+
+验收命令（venv 解释器）实测：
+
+- `pytest tests/test_lua_extensions.py -q -n auto`：49 passed，退出码 0；
+- `pytest tests/ --cov=yate --cov-branch -n auto --cov-fail-under=75`：退出码 0，
+  总覆盖率 92.82%；`yate/services/extensions/api.py` 行覆盖 97%，m1 清单缺失行
+  （107、110-111、114、118、122-123、127）全部消除，仅剩 `124->119` 部分分支标记
+  （非缺失行）与 469/527/554/563/622/626/630 等与本轮无关的存量缺失行；
+- `pyright yate/ tests/ tools/`：0 errors, 0 warnings, 0 informations，退出码 0。
