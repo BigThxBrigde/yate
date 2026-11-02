@@ -37,6 +37,7 @@ from tools.screenshots.driver import (
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.config import ScreenSaverConfig, YateConfig
 from yate.editor_view import theme as yate_theme
+from yate.editor_view.canvas_screen import CanvasScreen
 from yate.editor_view.manual import MarkdownDocScreen
 from yate.editor_view.themes import DEFAULT_THEME
 
