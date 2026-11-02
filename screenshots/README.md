@@ -24,3 +24,195 @@ the walker position varies per run too.
 Empty untitled buffer startup showing the welcome screen.
 
 空缓冲区启动，显示欢迎界面。
+
+### layout-explorer
+
+<img src="./layout-explorer.svg" width="720">
+
+Directory startup in browse mode with a file opened: explorer, tab bar, editor and status bar.
+
+目录启动（浏览模式）并打开文件：资源管理器、标签栏、编辑器与状态栏。
+
+### keymap-vsc
+
+<img src="./keymap-vsc.svg" width="720">
+
+Default vsc keymap; the status bar shows the VSC chip.
+
+默认 vsc 键位方案，状态栏显示 VSC 标识。
+
+### keymap-vim
+
+<img src="./keymap-vim.svg" width="720">
+
+Vim keymap startup with the ``:`` ex command line open.
+
+Vim 键位方案启动，``:`` 命令行处于打开状态。
+
+### syntax-highlighting
+
+<img src="./syntax-highlighting.svg" width="720">
+
+A Python file open with tree-sitter syntax highlighting.
+
+打开 Python 文件，展示 tree-sitter 语法高亮。
+
+### theme-onelight
+
+<img src="./theme-onelight.svg" width="720">
+
+``:set theme=onelight`` switches to the light palette.
+
+执行 ``:set theme=onelight`` 切换到浅色主题。
+
+### quick-open
+
+<img src="./quick-open.svg" width="720">
+
+The fuzzy file finder overlay over the editor.
+
+编辑器上方的模糊文件查找浮层。
+
+### command-palette
+
+<img src="./command-palette.svg" width="720">
+
+The command palette overlay (``alt+shift+p``).
+
+命令面板浮层（``alt+shift+p``）。
+
+### tabs
+
+<img src="./tabs.svg" width="720">
+
+Three files opened in sequence: the tab bar at work.
+
+依次打开三个文件，展示标签栏。
+
+### split-panes
+
+<img src="./split-panes.svg" width="720">
+
+``:vsplit`` plus ``:split``: a pane tree with three leaves.
+
+执行 ``:vsplit`` 与 ``:split``，形成三叶窗格树。
+
+### find-replace
+
+<img src="./find-replace.svg" width="720">
+
+``ctrl+f`` find mode with a query typed in.
+
+按 ``ctrl+f`` 进入查找模式并输入关键词。
+
+### shell-overlay
+
+<img src="./shell-overlay.svg" width="720">
+
+``f2`` shell overlay showing a real ``python --version`` run.
+
+按 ``f2`` 打开 shell 浮层，真实运行 ``python --version``。
+
+### integrated-terminal
+
+<img src="./integrated-terminal.svg" width="720">
+
+``:term`` opens the bottom terminal dock (real PTY shell).
+
+执行 ``:term`` 打开底部终端停靠区（真实 PTY shell）。
+
+### extensions
+
+<img src="./extensions.svg" width="720">
+
+Default startup with the bundled extensions loaded; the status bar lists the extension segment.
+
+默认启动并加载内置扩展，状态栏显示扩展段。
+
+### lsp-completion
+
+<img src="./lsp-completion.svg" width="720">
+
+``ctrl+space`` completion popup; without a language server this is the buffer-words fallback source.
+
+按 ``ctrl+space`` 弹出补全框；无语言服务器时为缓冲区单词回退来源。
+
+### screensaver
+
+<img src="./screensaver.svg" width="720">
+
+``alt+shift+s`` screensaver with the roster pinned to one character for determinism.
+
+按 ``alt+shift+s`` 进入屏保，角色白名单固定以保证确定性。
+
+### manual
+
+<img src="./manual.svg" width="720">
+
+``f8`` opens the bilingual manual (markdown doc screen).
+
+按 ``f8`` 打开双语手册（markdown 文档屏）。
+
+### game-snake
+
+<img src="./game-snake.svg" width="720">
+
+``:game snake`` runs the bundled games.lua extension.
+
+执行 ``:game snake`` 运行内置 games.lua 扩展。
+
+### file-manager
+
+<img src="./file-manager.svg" width="720">
+
+``filemanager_dir=`` startup form: the fullscreen manager.
+
+``filemanager_dir=`` 启动形态：全屏文件管理器。
+
+### hex-view
+
+<img src="./hex-view.svg" width="720">
+
+``hex_file=`` startup form: a binary file in the hex dump.
+
+``hex_file=`` 启动形态：二进制文件的十六进制转储。
+
+### diff-view
+
+<img src="./diff-view.svg" width="720">
+
+``diff_files=`` startup form: side-by-side diff overlay.
+
+``diff_files=`` 启动形态：并排差异对比浮层。
+
+### which-key
+
+<img src="./which-key.svg" width="720">
+
+``f9`` pins the full keymap sheet for the active keymap.
+
+按 ``f9`` 固定显示当前键位方案的完整键位表。
+
+### smoke-report
+
+<img src="./smoke-report.svg" width="720">
+
+Real ``tools.smoke_test run --tag view`` output, re-rendered from ANSI through Rich.
+
+真实运行 ``tools.smoke_test run --tag view``，ANSI 输出经 Rich 重渲染。
+
+### diag-report
+
+<img src="./diag-report.svg" width="720">
+
+Real ``yate --diag`` environment and config report.
+
+真实运行 ``yate --diag`` 的环境与配置报告。
+
+### pytest-pyright
+
+<img src="./pytest-pyright.svg" width="720">
+
+Real pytest and pyright runs rendered as two stacked panels in one frame.
+
+真实运行 pytest 与 pyright，同帧渲染为上下两个面板。

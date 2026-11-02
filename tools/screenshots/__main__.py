@@ -1,9 +1,12 @@
 """CLI entry point: ``python -m tools.screenshots``.
 
 Generates one deterministic SVG per scenario into ``<repo>/screenshots/``
-and renders the gallery (``screenshots/README.md``) from the scenarios that
-actually produced an image, so a partial run never references a missing
-file.  Each scenario runs against a fresh temporary fixture directory.
+and renders the gallery (``screenshots/README.md``) for every scenario
+whose SVG exists in the output directory: a full run lists the whole
+registry, a partial ``--only`` run regenerates images without clobbering
+the full gallery, and a scenario that never produced an image is never
+referenced.  Each scenario runs against a fresh temporary fixture
+directory.
 """
 
 from __future__ import annotations
@@ -107,8 +110,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"FAIL {scenario.name}: {type(exc).__name__}: {exc}")
 
     succeeded = [s for s in selected if s.name not in failed]
-    if succeeded:
-        gallery = render_gallery(succeeded, out_dir)
+    # The gallery always describes the full registry, filtered down to the
+    # scenarios whose SVG exists: a partial --only regen then leaves the
+    # full gallery byte-identical instead of shrinking it to the subset.
+    gallery_scenarios = [
+        scenario for scenario in SCENARIOS
+        if (out_dir / f"{scenario.name}.svg").exists()
+    ]
+    if gallery_scenarios:
+        gallery = render_gallery(gallery_scenarios, out_dir)
         print(f"gallery: {gallery}")
     print(
         f"generated: {len(succeeded)}/{len(selected)}  "

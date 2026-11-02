@@ -70,3 +70,22 @@ def test_welcome_screenshot_end_to_end(tmp_path: Path) -> None:
     text = gallery.read_text(encoding="utf-8")
     assert "### welcome-screen" in text
     assert '<img src="./welcome-screen.svg" width="720">' in text
+
+
+def test_partial_regen_preserves_full_gallery(tmp_path: Path) -> None:
+    """A partial ``--only`` regen keeps the complete gallery intact.
+
+    With every SVG present, the existence-filtered gallery renders the full
+    registry, so regenerating one scenario must not shrink the gallery to
+    that subset (regression for the subset-render defect).
+    """
+    out = tmp_path / "shots"
+    out.mkdir()
+    for scenario in SCENARIOS:
+        (out / f"{scenario.name}.svg").write_text("<svg/>", encoding="utf-8")
+    exit_code = main(["--only", "welcome-screen", "--out", str(out)])
+    assert exit_code == 0
+    text = (out / "README.md").read_text(encoding="utf-8")
+    assert text.count("### ") == len(SCENARIOS)
+    assert "### welcome-screen" in text
+    assert "### game-snake" in text

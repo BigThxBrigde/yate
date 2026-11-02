@@ -19,9 +19,10 @@ __all__ = ["render_gallery"]
 def render_gallery(scenarios: Sequence[Scenario], out_dir: Path) -> Path:
     """Write ``README.md`` for *scenarios* into *out_dir*; return its path.
 
-    Only the passed scenarios get a section, so a partial run (``--only``)
-    never references an SVG that was not generated.  Callers pass the
-    scenarios that actually produced an image.
+    Only the listed scenarios get a section.  Callers pass every scenario
+    whose SVG exists in the output directory (see ``__main__.py``), so the
+    gallery never references a missing image and a partial ``--only`` run
+    leaves a complete gallery untouched.
     """
     lines: list[str] = [
         "# yate screenshots",
