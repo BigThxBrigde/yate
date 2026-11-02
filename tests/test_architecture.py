@@ -250,7 +250,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     "flows/filemanager_flows.py": {
         "yate.editor_view.commandline",
         "yate.editor_view.explorer",
-        "yate.editor_view.filemgr",
+        "yate.editor_view.filemgr.screen",
     },
 }
 
@@ -351,7 +351,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
-    "editor_view/filemgr.py",
+    "editor_view/filemgr/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "services/yxp.py",
@@ -1561,7 +1561,7 @@ def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
     :data:`SCROLLBAR_EXEMPT`.
     """
     offenders: list[str] = []
-    for path in sorted((YATE / "editor_view").glob("*.py")):
+    for path in sorted((YATE / "editor_view").rglob("*.py")):
         rel = path.relative_to(YATE).as_posix()
         if rel in SCROLLBAR_EXEMPT:
             continue

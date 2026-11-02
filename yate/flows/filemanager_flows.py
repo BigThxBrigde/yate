@@ -6,7 +6,7 @@ handle -- the screen-stack verbs, the state queries and the fullscreen exit
 verb arrive as injected callables.  The orchestration of a selection
 (dirty gate -> close the old workspace -> hand the target to
 :class:`~yate.flows.document_flows.DocumentFlows`) lives here, so the
-:class:`~yate.editor_view.filemgr.FileManagerScreen` itself stays a pure
+:class:`~yate.editor_view.filemgr.screen.FileManagerScreen` itself stays a pure
 browsing component (R3).
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 from yate.config import YateConfig
 from yate.editor_view.commandline import PromptBar
 from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.filemgr import FileManagerScreen
+from yate.editor_view.filemgr.screen import FileManagerScreen
 from yate.flows import MessageFn, OpenSelectedFn, StateQuery
 from yate.flows.document_flows import DocumentFlows
 from yate.logs import tracing

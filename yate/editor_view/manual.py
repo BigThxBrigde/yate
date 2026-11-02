@@ -484,13 +484,15 @@ class MarkdownDocScreen(ModalScreen[None]):
             log.exception("failed to load the %s", self._title)
             source = f"failed to load the {self._title}: {exc}"
         # the viewer may have been closed while the read was in flight
-        if not self.is_mounted:
+        # (is_mounted never resets on unmount; is_attached mirrors Textual's
+        # own mount check)
+        if not self.is_attached:
             return
         # the file read yields to the loop, so the first layout has usually
         # landed by now -- still re-checked after mounting the rows below
         width = self._body_width()
         rows = await self._render_or_failure(source, width)
-        if not self.is_mounted:
+        if not self.is_attached:
             return
         body = self.query_one("#doc-md", DocBody)
         body.set_document(source, rows, width)
@@ -575,7 +577,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             return
         body = current
         source = body.source
-        if not source or not self.is_mounted:
+        if not source or not self.is_attached:
             return
         # a re-render must not throw the reader's place away: remember the
         # current hit row and restore the nearest one afterwards
@@ -584,7 +586,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             if 0 <= self._hit_index < len(self._hits) else None
         )
         rows = await self._render_or_failure(source, width)
-        if not self.is_mounted:
+        if not self.is_attached:
             return
         body.set_document(source, rows, width)
         if self._query:
@@ -687,7 +689,7 @@ class MarkdownDocScreen(ModalScreen[None]):
             self._search_timer.cancel()
             self._search_timer = None
         query = self._pending_query
-        if query is None or not self.is_mounted:
+        if query is None or not self.is_attached:
             # the screen may have been dismissed while the timer was armed
             return
         self._pending_query = None

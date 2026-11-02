@@ -1,5 +1,5 @@
 /* FileManagerScreen stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/filemgr.py via yate.paths.load_tcss.
+   loaded by editor_view/filemgr/screen.py via yate.paths.load_tcss.
    Selector ids are owned by this component (no shell CSS references). */
 FileManagerScreen {
     align: center middle;

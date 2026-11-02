@@ -1,10 +1,10 @@
 """Key bindings and input-window constants for the file manager screen.
 
-Split from :mod:`yate.editor_view.filemgr` (plan-d's ``filemgr_keys``
+Split from :mod:`yate.editor_view.filemgr.screen` (plan-d's ``filemgr_keys``
 escape hatch for the size guard): the binding tables are pure data with
 no widget or workspace coupling, so they live apart from the screen
 logic.  Action names referenced here are defined on
-:class:`~yate.editor_view.filemgr.FileManagerScreen` and on its
+:class:`~yate.editor_view.filemgr.screen.FileManagerScreen` and on its
 middle-pane ``ListView`` subclass.
 """
 

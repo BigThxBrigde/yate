@@ -93,6 +93,26 @@ def filter_entries(entries: list[Entry], query: str) -> list[Entry]:
 
 
 @dataclass(frozen=True)
+class DirListing:
+    """Cached directory listing with its freshness stamp (R1).
+
+    *stamp* is the directory's ``st_mtime_ns`` probed immediately before
+    the scan that produced *entries* (a raw ``Workspace.list_dir``
+    result: directories first, ignore rules and dotfile visibility
+    applied, not filtered or sorted by the screen).  Any change of the
+    directory contents after the scan makes the stored stamp read as
+    stale, so the consumer re-scans.  The stamp only tracks the
+    directory itself: external edits to an existing child's *content*
+    do not move it, so cached metadata (size / mtime decoration and
+    size ordering) stays as scanned until a forced refresh (``r``) or
+    any directory change rescans.
+    """
+
+    stamp: int
+    entries: list[Entry]
+
+
+@dataclass(frozen=True)
 class RowSpec:
     """Plain row data for the list pane.
 

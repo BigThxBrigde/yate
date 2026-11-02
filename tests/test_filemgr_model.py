@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from stat import filemode
 
-from yate.editor_view.filemgr_model import (
+from yate.editor_view.filemgr.model import (
     SORT_CYCLE,
     build_row_text,
     count_children,

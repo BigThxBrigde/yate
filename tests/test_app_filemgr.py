@@ -20,7 +20,7 @@ import pytest
 from yate.app import YateApp
 from yate.cli import build_parser, main
 from yate.editor_view.commandline import MESSAGE_COLORS
-from yate.editor_view.filemgr import FileManagerScreen
+from yate.editor_view.filemgr.screen import FileManagerScreen
 from yate.keymaps.base import parse_key
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap

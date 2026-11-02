@@ -103,8 +103,13 @@ class HighlightMixin:
         raise NotImplementedError
 
     @property
-    def is_mounted(self) -> bool:
-        """Whether the host widget is mounted (mirrors ``Widget.is_mounted``)."""
+    def is_attached(self) -> bool:
+        """Whether the host widget is attached to the DOM.
+
+        Mirrors ``MessagePump.is_attached``: unlike ``Widget.is_mounted``
+        this resets once the host leaves the DOM, so guards using it stay
+        live after the host is removed.
+        """
         raise NotImplementedError
 
     def refresh(
@@ -404,7 +409,9 @@ class HighlightMixin:
         duplicate passes are prevented by the scheduled-key guard plus the
         exclusive worker group.
         """
-        if not self.is_mounted:
+        # is_mounted never resets on unmount; is_attached mirrors Textual's
+        # own mount check.
+        if not self.is_attached:
             return
         # Keyed to *this* widget (not the app) so concurrent panes do
         # not cancel each other's highlight passes.  The coroutine
@@ -431,7 +438,7 @@ class HighlightMixin:
         tokens, ml_states, session_out = await asyncio.to_thread(
             _tokenize_with_states, lines, filetype, session
         )
-        if not self.is_mounted:
+        if not self.is_attached:
             return
         # discard the result if the document changed/closed while we worked;
         # a repaint reschedules a fresh pass for the current state
