@@ -75,6 +75,30 @@ def test_games_extension_registers_the_game_command() -> None:
 
 
 @requires_lupa
+def test_game_completer_lists_registered_games() -> None:
+    """Empty prefix completes "player" plus every registered game, sorted."""
+    _runtime, api = _dispatcher()
+    _with_games(api)
+    completer = api.completers["game"]
+
+    candidates = cast(list[str], lua_to_python(completer("")))
+
+    assert candidates == ["nethack", "pacman", "player", "snake", "tetris"]
+
+
+@requires_lupa
+def test_game_completer_filters_by_prefix() -> None:
+    """A matching prefix keeps only candidates that start with it."""
+    _runtime, api = _dispatcher()
+    _with_games(api)
+    completer = api.completers["game"]
+
+    candidates = cast(list[str], lua_to_python(completer("sn")))
+
+    assert candidates == ["snake"]
+
+
+@requires_lupa
 def test_dispatch_reports_usage_with_the_available_games() -> None:
     """No argument (or blanks only) prints the frozen usage line."""
     _runtime, api = _dispatcher()

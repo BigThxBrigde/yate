@@ -5,11 +5,14 @@ skip when the optional package is absent; the degradation and resource tests
 run everywhere.
 """
 
+# tests legitimately poke at the completer coercion private:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, cast, override
 from unittest.mock import MagicMock
 
 import pytest
@@ -18,12 +21,13 @@ from yate.config import YateConfig
 from yate.keymaps.base import Keymap, parse_key
 from yate.keymaps.registry import KeymapSet
 from yate.paths import bundled_extensions_dir
-from yate.registries import ActionRegistry, CommandRegistry
+from yate.registries import ActionRegistry, ArgCompleter, CommandRegistry
 from yate.session import EditorSession
 from yate.services import clipboard as clipboard_module
 from yate.services.events import EditorEvent, EventHub
 from yate.services.extensions import loader as ext_loader
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
+from yate.services.extensions.api import _coerce_completer_result
 from yate.services.extensions.lua.library import lua_api_library_source
 from yate.services.extensions.lua.runtime import create_runtime
 
@@ -71,6 +75,23 @@ _SETUP_BOOM_LUA: str = (
     "  api.register_command('setup-boom', function() end)\n"
     "  error('setup boom')\n"
     "end\n"
+)
+
+
+_COMPLETER_TABLE_LUA: str = (
+    "yate.register_command('lua-cmd', function() end, 'desc',\n"
+    "  function(prefix) return {prefix .. 'a', prefix .. 'b'} end)\n"
+)
+_COMPLETER_NIL_LUA: str = (
+    "yate.register_command('lua-nil', function() end, 'desc',\n"
+    "  function(_prefix) return nil end)\n"
+)
+_COMPLETER_BOOM_LUA: str = (
+    "yate.register_command('lua-comp-boom', function() end, 'desc',\n"
+    "  function(_prefix) error('comp boom') end)\n"
+)
+_COMPLETER_ABSENT_LUA: str = (
+    "yate.register_command('lua-no-comp', function() end, 'desc')\n"
 )
 
 
@@ -146,6 +167,76 @@ def test_lua_extension_registers_command_and_receives_args(
     assert entry.description == "echo cmd"
     entry.func("hi")
     assert "echo:hi" in bundle.messages
+
+
+@requires_lupa
+def test_lua_completer_returns_table_coerced_to_list(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A Lua completer returning a table lands as a Python list[str]."""
+    script = tmp_path / "completer.lua"
+    script.write_text(_COMPLETER_TABLE_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-cmd")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("test") == ["testa", "testb"]
+
+
+@requires_lupa
+def test_lua_completer_returns_nil_coerced_to_empty(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A Lua completer returning nil degrades to an empty list."""
+    script = tmp_path / "completer_nil.lua"
+    script.write_text(_COMPLETER_NIL_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-nil")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("any") == []
+
+
+@requires_lupa
+def test_lua_completer_raises_degrades_to_empty(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A raising Lua completer degrades to [] instead of crashing Tab."""
+    script = tmp_path / "completer_boom.lua"
+    script.write_text(_COMPLETER_BOOM_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-comp-boom")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("any") == []
+
+
+@requires_lupa
+def test_lua_completer_absent_means_no_completion(
+    bundle: _ApiBundle, loader: ExtensionLoader, tmp_path: Path
+) -> None:
+    """A three-argument register_command leaves arg_completer unset."""
+    script = tmp_path / "completer_absent.lua"
+    script.write_text(_COMPLETER_ABSENT_LUA, encoding="utf-8")
+
+    record = loader.load_file(script)
+
+    assert record.error is None
+    entry = bundle.commands.get("lua-no-comp")
+    assert entry is not None
+    assert entry.arg_completer is None
 
 
 @requires_lupa
@@ -821,3 +912,141 @@ def test_lua_bind_action_and_unbind_key_round_trip(
     assert record.error is None
     assert km.lookup(parse_key("gq")) is None
     assert "removed:true" in bundle.messages
+
+
+# --- completer result coercion (pure-python duck-typed tables) ----------------
+
+
+class _FakeLuaTable:
+    """Duck-typed Lua table: callable keys() plus 1-based __getitem__."""
+
+    def __init__(self, items: list[object]) -> None:
+        self._items = items
+
+    def keys(self) -> list[int]:
+        """Shape only: the coercion probes callable-ness, never calls it."""
+        return list(range(1, len(self._items) + 1))
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __getitem__(self, index: int) -> object:
+        return self._items[index - 1]
+
+
+class _LenNotCallableTable:
+    """keys() callable, but the __len__ slot holds a plain int."""
+
+    def keys(self) -> list[int]:
+        return []
+
+    # A plain int attribute: getattr finds it, callable() rejects it.
+    __len__ = 3
+
+
+class _LenRaisesTable:
+    """keys() callable, but __len__ raises TypeError when called."""
+
+    def keys(self) -> list[int]:
+        return []
+
+    def __len__(self) -> int:
+        raise TypeError("len boom")
+
+
+class _LenReturnsStrTable:
+    """keys() callable, but __len__ returns a non-int."""
+
+    def keys(self) -> list[int]:
+        return []
+
+    def __len__(self) -> str:
+        return "3"
+
+
+class _NoGetitemTable:
+    """keys() + __len__ callable, but no __getitem__ at all."""
+
+    def keys(self) -> list[int]:
+        return []
+
+    def __len__(self) -> int:
+        return 2
+
+
+class _GetitemKeyErrorTable(_FakeLuaTable):
+    """A table whose reads raise KeyError mid-walk (the break path)."""
+
+    @override
+    def __getitem__(self, index: int) -> object:
+        if index > 1:
+            raise KeyError(index)
+        return self._items[index - 1]
+
+
+class _GetitemTypeErrorTable(_FakeLuaTable):
+    """A table whose element reads raise TypeError (the M1 escape shape)."""
+
+    @override
+    def __getitem__(self, index: int) -> object:
+        raise TypeError("getitem boom")
+
+
+def test_coerce_completer_list_passthrough_filters_non_strings() -> None:
+    """A Python list passes through; non-string elements are dropped."""
+    assert _coerce_completer_result(["a", 1, None, "b"]) == ["a", "b"]
+
+
+def test_coerce_completer_none_degrades_to_empty() -> None:
+    """A nil completer return coerces to []."""
+    assert _coerce_completer_result(None) == []
+
+
+def test_coerce_completer_duck_typed_table_walked_in_order() -> None:
+    """A duck-typed Lua table is walked 1-based up to len."""
+    assert _coerce_completer_result(_FakeLuaTable(["a", "b"])) == ["a", "b"]
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        pytest.param(_LenRaisesTable(), id="len-raises-typeerror"),
+        pytest.param(_LenReturnsStrTable(), id="len-returns-non-int"),
+        pytest.param(_LenNotCallableTable(), id="len-not-callable"),
+        pytest.param(_NoGetitemTable(), id="no-getitem"),
+        pytest.param("plain str", id="bare-str"),
+        pytest.param(42, id="bare-number"),
+    ],
+)
+def test_coerce_completer_malformed_tables_degrade_to_empty(raw: object) -> None:
+    """Broken __len__ shapes and bare scalars all degrade to []."""
+    assert _coerce_completer_result(raw) == []
+
+
+def test_coerce_completer_stops_walk_at_missing_index() -> None:
+    """A KeyError mid-walk keeps the candidates gathered so far."""
+    table = _GetitemKeyErrorTable(["a", "b"])
+    assert _coerce_completer_result(table) == ["a"]
+
+
+def test_guarded_completer_swallows_coercion_type_error(bundle: _ApiBundle) -> None:
+    """M1 regression: a coercion-time TypeError degrades to [], never escapes.
+
+    A Python completer may return an object with callable keys plus an
+    integer __len__ whose __getitem__ raises TypeError; the wrapper used
+    to coerce outside its try block, so the error escaped to the Tab path.
+    """
+    table = _GetitemTypeErrorTable(["a", "b"])
+
+    def completer(_prefix: str) -> object:
+        return table
+
+    bundle.api.register_command(
+        "coerce-boom", lambda _args: None, "desc",
+        arg_completer=cast(ArgCompleter, completer),
+    )
+    entry = bundle.commands.get("coerce-boom")
+    assert entry is not None
+    guarded = entry.arg_completer
+    assert guarded is not None
+    assert guarded("x") == []

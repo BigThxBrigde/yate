@@ -304,6 +304,25 @@ function engine.dispatch(args)
   yate.actions.run(ACTION_PREFIX .. word)
 end
 
+-- The ":game" arg_completer: candidate game names + the "player"
+-- subcommand, filtered by prefix and sorted.
+function engine.completer(prefix)
+  local raw = engine.trim(prefix or "")
+  local candidates = {}
+  -- Subcommand "player" completes when the prefix is empty or matches.
+  if raw == "" or ("player"):sub(1, #raw) == raw then
+    candidates[#candidates + 1] = "player"
+  end
+  -- Registered game names from engine.games() (already sorted).
+  for _, name in ipairs(engine.games()) do
+    if raw == "" or name:sub(1, #raw) == raw then
+      candidates[#candidates + 1] = name
+    end
+  end
+  table.sort(candidates)
+  return candidates
+end
+
 -- -------------------------------------------------------------------- canvas
 
 --: The one open session of this runtime (each game has its own runtime).

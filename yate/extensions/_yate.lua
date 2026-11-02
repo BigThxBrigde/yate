@@ -64,7 +64,8 @@ functions, same signatures) exposes them to IDEs editing user scripts --
 Exported functions (see each function's comment for details):
 
   message(text)                          show a hint on the message line
-  register_command(name, fn, desc?)      register a ``:`` command
+  register_command(name, fn, desc?, completer?)
+                                         register a ``:`` command
   register_action(name, fn, desc?)       register a named action
   bind_key(spec, fn, keymap?)            bind a key to a Lua callback
   bind_action(spec, action, keymap?)     bind a key to a registered action
@@ -101,13 +102,17 @@ end
 -- Register a ``:`` command.  fn receives the raw argument string after
 -- the command name (may be empty).  Commands appear in the command
 -- palette (Alt+Shift+P) and the :help list, with Tab completion.
--- description is optional (default "extension command").
+-- description is optional (default "extension command"); completer is
+-- an optional Lua callback receiving the raw argument prefix and
+-- returning a table of candidate strings (1-based; non-string elements
+-- are skipped).
 ---@param name string
 ---@param fn fun(args: string)
 ---@param description string|nil
+---@param completer fun(prefix: string): string[]|nil
 ---@return nil
-function yate.register_command(name, fn, description)
-  api.register_command(name, fn, description)
+function yate.register_command(name, fn, description, completer)
+  api.register_command(name, fn, description, completer)
 end
 
 -- Register a named action.  Actions can be bound from keymaps and looked

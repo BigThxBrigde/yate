@@ -176,6 +176,8 @@ class FakeApi:
     def __init__(self) -> None:
         self.messages: list[str] = []
         self.commands: dict[str, tuple[Any, str | None]] = {}
+        # ``register_command`` completer per name (IKRZ61 bridge surface).
+        self.completers: dict[str, Any] = {}
         self.canvas: FakeCanvas | None = None
         self.ui = FakeUi(self)
         self.actions = FakeActions()
@@ -192,10 +194,15 @@ class FakeApi:
         self.messages.append(text)
 
     def register_command(
-        self, name: str, fn: Any, description: str | None = None
+        self,
+        name: str,
+        fn: Any,
+        description: str | None = None,
+        completer: Any = None,
     ) -> None:
-        """Record one ``:`` command registration."""
+        """Record one ``:`` command registration (and its completer)."""
         self.commands[name] = (fn, description)
+        self.completers[name] = completer
 
     def register_action(
         self, name: str, fn: Any, description: str | None = None
