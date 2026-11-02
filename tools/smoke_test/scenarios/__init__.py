@@ -17,7 +17,7 @@ from tools.smoke_test.scenarios.core import SCENARIOS as _CORE
 from tools.smoke_test.scenarios.diffview import SCENARIOS as _DIFFVIEW
 from tools.smoke_test.scenarios.edit import SCENARIOS as _EDIT
 from tools.smoke_test.scenarios.explorer import SCENARIOS as _EXPLORER
-from tools.smoke_test.scenarios.filemanager import SCENARIOS as _FILEMANAGER
+from tools.smoke_test.scenarios.file_manager import SCENARIOS as _FILE_MANAGER
 from tools.smoke_test.scenarios.files import SCENARIOS as _FILES
 from tools.smoke_test.scenarios.guards import SCENARIOS as _GUARDS
 from tools.smoke_test.scenarios.hexview import SCENARIOS as _HEXVIEW
@@ -59,7 +59,7 @@ SCENARIOS: list[Scenario] = [
     *_GUARDS,
     *_PANES,
     *_EXPLORER,
-    *_FILEMANAGER,
+    *_FILE_MANAGER,
     *_WORKSPACE_NAV,
     *_VIEW,
     *_WHICHKEY,

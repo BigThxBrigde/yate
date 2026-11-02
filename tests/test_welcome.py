@@ -1,4 +1,4 @@
-"""Unit tests for ``yate.editor_view.welcome`` (welcome-page rows).
+"""Unit tests for ``yate.editor_components.welcome`` (welcome-page rows).
 
 Covers the caller-owned (theme, vim_keys) cache contract, the vim-only
 ex-command hint, the banner centering flags / padding and the Strip padding
@@ -10,8 +10,8 @@ the process-global theme state.
 
 from __future__ import annotations
 
-from yate.editor_view import theme
-from yate.editor_view.welcome import (
+from yate.editor_components import theme
+from yate.editor_components.welcome import (
     _WELCOME_BANNER,
     _WelcomeRow,
     render_welcome_row,

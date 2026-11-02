@@ -1,4 +1,4 @@
-"""Tests for yate.editor_view.hexview (HexView widget + HexScreen overlay).
+"""Tests for yate.editor_components.hexview (HexView widget + HexScreen overlay).
 
 Rendering tests mount the view in a minimal host app (Lightweight-test
 anchor, whichkey-panel precedent) and call the line API directly; the
@@ -24,15 +24,15 @@ from textual.screen import Screen
 from textual.widgets import Input, Static
 
 from yate.editor_core.chunked import ChunkedBinaryFile
-from yate.editor_view import theme
-from yate.editor_view.hexview import (
+from yate.editor_components import theme
+from yate.editor_components.hexview import (
     _CONTENT_WIDTH,
     HexScreen,
     HexView,
     MAX_UNDO_STEPS,
     parse_hex_address,
 )
-from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.editor_components.scrollbars import SlimScrollBarRender
 from yate.flows.overlay_flows import OverlayFlows
 
 # "Hello, hex view!" -- exactly 16 bytes, so line 0 is a full row.

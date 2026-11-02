@@ -1,5 +1,5 @@
 /* CompletionPopup widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/completion.py via yate.paths.load_tcss. */
+   loaded by editor_components/completion.py via yate.paths.load_tcss. */
 CompletionPopup {
     layer: lsp-popup;
     position: absolute;

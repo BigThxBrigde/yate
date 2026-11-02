@@ -12,8 +12,8 @@ import asyncio
 import re
 from collections.abc import Callable
 
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.panes import PaneManager
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.panes import PaneManager
 from yate.flows import MessageFn
 from yate.session import EditorSession
 

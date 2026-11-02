@@ -1,6 +1,6 @@
 """Pin the conftest autouse theme-state reset (worker-parallel isolation).
 
-``yate.editor_view.theme`` keeps the active theme in module globals, so a
+``yate.editor_components.theme`` keeps the active theme in module globals, so a
 test that switches themes would otherwise leak into every later test of the
 same xdist worker whenever its manual restore line is skipped.  The autouse
 ``reset_theme_state`` fixture in ``conftest.py`` restores the default after
@@ -11,7 +11,7 @@ undone (on the same worker; on separate workers both pass trivially).
 
 from __future__ import annotations
 
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 
 def test_theme_switch_takes_effect_within_a_test() -> None:

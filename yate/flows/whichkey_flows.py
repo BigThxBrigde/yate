@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from yate.editor_view.whichkey import ChordEntry, WhichKeyPanel
+from yate.editor_components.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import MessageFn, StateQuery
 from yate.keymaps.conflicts import find_key_conflicts, format_conflicts
 from yate.keymaps.keys import key_name

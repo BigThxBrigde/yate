@@ -1,0 +1,349 @@
+"""The static chrome around the editor: the tab line and the breadcrumbs.
+
+Both are self-contained widgets: they read the shared
+:class:`~yate.session.EditorSession` (plus the workspace for the path crumbs)
+and render themselves, so the application never builds their Rich text.
+The tab bar reports clicks through the ``on_activate`` callback the editor
+wires in; nothing here knows about the application class.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Callable
+
+from rich.text import Text
+from textual.events import MouseDown, Resize
+from textual.widgets import Static
+
+from yate.editor_core import Document
+from yate.logs import tracing
+from yate.services.workspace import Workspace
+from yate.session import EditorSession
+
+from yate.editor_components import theme
+from yate.editor_components.icons import CHEVRON_RIGHT, FOLDER, icon_for_path
+
+log = tracing.get_logger(__name__)
+
+
+class TabBar(Static):
+    """Flat VS Code-style tab line that supports click-to-switch.
+
+    The bar is rendered as a single Rich Text line (kept for the VS Code look),
+    but each rendered tab also records its cell span so a mouse click can be
+    mapped back to a document index.
+    """
+
+    def __init__(
+        self,
+        session: EditorSession,
+        on_activate: Callable[[Document], None],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.session = session
+        self.on_activate = on_activate
+        # [(start_cell, end_cell_exclusive, doc_index), ...] for the last
+        # rendered line; used by on_mouse_down for hit testing.
+        self._regions: list[tuple[int, int, int]] = []
+        # Content fingerprint of the last rendered tab line (plan-f P3):
+        # an unchanged fingerprint skips the Rich Text rebuild.
+        self._last_fingerprint: tuple[object, ...] | None = None
+
+    # --------------------------------------------------------------- data
+
+    def build(self, width: int) -> tuple[Text, list[tuple[int, int, int]]]:
+        """Build the flat tab line and its hit-test regions.
+
+        Inactive tabs sit on the panel background; the active tab uses the
+        editor background so it visually merges with the editor below.  Tabs
+        that no longer fit collapse into a trailing `` +N`` overflow
+        indicator (dim on panel, no click region: reach them via the
+        explorer or :commands).
+
+        Returns the rendered text and a list of ``(start, end, doc_index)``
+        cell spans (end exclusive) so :meth:`on_mouse_down` can map mouse
+        clicks back to documents.
+        """
+        session = self.session
+        t = theme.active()
+
+        def _fit(budget: int) -> tuple[Text, list[tuple[int, int, int]], int]:
+            """Render as many tabs as *budget* cells allow; report the use."""
+            text = Text()
+            regions: list[tuple[int, int, int]] = []
+            used = 0
+            for i, doc in enumerate(session.docs):
+                name = theme.truncate_to_cells(doc.name, 24)
+                active = i == session.index
+                # " <icon> <name>" + optional " ●" + trailing space
+                seg_cells = (
+                    1 + 1 + 1 + theme.cell_len(name)
+                    + (2 if doc.modified else 0) + 1
+                )
+                if used + seg_cells > budget:
+                    break
+                bg = t.bg if active else t.panel
+                name_style = f"bold {t.fg_bright}" if active else t.fg_dim
+                icon = icon_for_path(doc.name, False)
+                text.append(" ", style=f"on {bg}")
+                text.append(
+                    icon, style=f"{t.accent if active else t.fg_dim} on {bg}"
+                )
+                text.append(f" {name}", style=f"{name_style} on {bg}")
+                if doc.modified:
+                    text.append(" ●", style=f"bold {t.orange} on {bg}")
+                text.append(" ", style=f"on {bg}")
+                regions.append((used, used + seg_cells, i))
+                used += seg_cells
+            return text, regions, used
+
+        text, regions, used = _fit(width)
+        hidden = len(session.docs) - len(regions)
+        if hidden > 0:
+            ind_cells = theme.cell_len(f" +{hidden}")
+            if used + ind_cells > width and regions:
+                # Reserve the indicator's cells and re-fit once; hidden grows
+                # when tabs fall out of the tighter budget.
+                text, regions, used = _fit(width - ind_cells)
+                hidden = len(session.docs) - len(regions)
+            indicator = f" +{hidden}"
+            ind_cells = theme.cell_len(indicator)
+            if used + ind_cells <= width:
+                # Extremely narrow widths cannot host the indicator at all.
+                text.append(indicator, style=f"{t.fg_dim} on {t.panel}")
+                used += ind_cells
+        if used < width:
+            text.append(" " * (width - used), style=f"on {t.panel}")
+        return text, regions
+
+    def render_content(self, width: int) -> None:
+        """Rebuild the tab text and its hit-test regions."""
+        text, regions = self.build(width)
+        self._regions = regions
+        self.styles.background = theme.active().panel
+        self.update(text)
+
+    def refresh_tabs(self) -> None:
+        """Re-render at the widget's current width (unless unchanged)."""
+        # Plan-f P3: the tab line is fully determined by the document
+        # sequence (identity, name, modified flag), the active index, the
+        # width and the theme; any of them changing alters the output, so
+        # this fingerprint is exhaustive over the render inputs.
+        session = self.session
+        fingerprint = (
+            id(theme.active()),
+            self.size.width or 80,
+            session.index,
+            tuple(
+                (id(doc), doc.name, doc.modified) for doc in session.docs
+            ),
+        )
+        if fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = fingerprint
+        self.render_content(self.size.width or 80)
+
+    #: unsubscribe hook from :func:`yate.editor_components.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: theme.Unsubscribe | None = None
+
+    def on_mount(self) -> None:
+        """Initial render, then follow theme changes (self-painted)."""
+        theme.attach(self, self.refresh_tabs)
+        self.refresh_tabs()
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    # ------------------------------------------------------------- events
+
+    def on_resize(self, _event: Resize) -> None:
+        """Re-render the tab line at the new width."""
+        self.refresh_tabs()
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """Switch to the tab under the cursor, if any."""
+        x = event.x
+        for start, end, doc_idx in self._regions:
+            if start <= x < end:
+                if doc_idx != self.session.index:
+                    log.debug("tab clicked: index=%d", doc_idx)
+                    self.on_activate(self.session.docs[doc_idx])
+                event.stop()
+                return
+
+
+class Breadcrumbs(Static):
+    """VS Code-style breadcrumb line above the editor (the active file path)."""
+
+    def __init__(self, session: EditorSession, workspace: Workspace, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.session = session
+        self.workspace = workspace
+        # resolve() is a filesystem round trip; the workspace root only
+        # changes on set_root, so its resolved form is cached per root
+        # object (plan-b m-12).
+        self._cached_root: Path | None = None
+        self._resolved_root: Path | None = None
+        # Plan-f P10b: resolve() is a filesystem round trip per keystroke;
+        # cache the resolved form keyed by the path string -- retargeting to
+        # another path changes the key, saving in place does not.
+        self._resolved_doc: tuple[str, Path] | None = None
+        # Content fingerprint of the last rendered crumb line (plan-f P3).
+        self._last_fingerprint: tuple[object, ...] | None = None
+
+    # --------------------------------------------------------------- data
+
+    def crumb_parts(self) -> list[tuple[str, str, bool]]:
+        """(icon, label, is_file) crumbs for the active document's path."""
+        doc = self.session.doc
+        if doc.path is None:
+            # Untitled buffer: the tab already shows the name -- a second
+            # copy here would look like a permanent two-row tab bar.
+            return []
+        path = doc.path
+        root = self.workspace.root
+        if root is not self._cached_root:
+            self._cached_root = root
+            self._resolved_root = root.resolve() if root is not None else None
+        resolved_root = self._resolved_root
+        # Plan-f P10b: reuse the cached resolve() result while the path
+        # string is unchanged (a save does not change the path, so it hits).
+        if self._resolved_doc is None or self._resolved_doc[0] != str(path):
+            self._resolved_doc = (str(path), path.resolve())
+        resolved_path = self._resolved_doc[1]
+        parts: list[str]
+        if root is not None and resolved_root is not None:
+            try:
+                parts = [root.name, *resolved_path.relative_to(resolved_root).parts]
+            except ValueError:
+                parts = list(path.parts)
+        else:
+            parts = list(path.parts)
+        crumbs: list[tuple[str, str, bool]] = []
+        for i, part in enumerate(parts):
+            is_file = i == len(parts) - 1
+            icon = icon_for_path(part, False) if is_file else FOLDER
+            crumbs.append((icon, part, is_file))
+        return crumbs
+
+    def build(self, width: int) -> Text:
+        """Build the breadcrumb line (path crumbs above the editor)."""
+        t = theme.active()
+        crumbs = self.crumb_parts()
+
+        def crumb_text(crumb: tuple[str, str, bool], style: str) -> Text:
+            icon, label, is_file = crumb
+            piece = Text()
+            piece.append(icon + " ", style=style)
+            piece.append(label, style=style if not is_file else f"bold {t.fg_bright}")
+            return piece
+
+        # Render from the last crumb backwards until the width budget runs out,
+        # keeping the file name always visible (left truncation, like VS Code).
+        chosen: list[tuple[str, str, bool]] = []
+        used = 1  # leading space
+        for crumb in reversed(crumbs):
+            label = crumb[1]
+            extra = 1 + 1 + theme.cell_len(label)  # icon + space + label
+            if chosen:
+                extra += 3  # " <chevron> " separator
+            if used + extra > width:
+                if not chosen:
+                    # A single over-wide crumb (usually the file name) is
+                    # truncated to the remaining budget instead of letting
+                    # it overflow the whole line (icon + space = 2 cells).
+                    truncated = theme.truncate_to_cells(
+                        label, max(0, width - used - 2)
+                    )
+                    chosen.insert(0, (crumb[0], truncated, crumb[2]))
+                break
+            chosen.insert(0, crumb)
+            used += extra
+
+        text = Text()
+        text.append(" ", style=f"on {t.bg}")
+        if len(chosen) < len(crumbs):
+            text.append("… ", style=f"{t.fg_dim} on {t.bg}")
+        for i, crumb in enumerate(chosen):
+            if i > 0:
+                text.append(f" {CHEVRON_RIGHT} ", style=f"{t.fg_dim} on {t.bg}")
+            text.append(crumb_text(crumb, t.fg_dim))
+        used_cells = theme.cell_len(text.plain)
+        if used_cells < width:
+            text.append(" " * (width - used_cells), style=f"on {t.bg}")
+        return text
+
+    def refresh_crumbs(self) -> None:
+        """Re-render at the widget's current width (unless unchanged)."""
+        # Plan-f P3: the crumb line is fully determined by the active
+        # document path, the workspace root (identity + name), the width
+        # and the theme.
+        doc = self.session.doc
+        root = self.workspace.root
+        fingerprint = (
+            id(theme.active()),
+            self.size.width or 80,
+            str(doc.path),
+            id(root),
+            root.name if root is not None else None,
+        )
+        if fingerprint == self._last_fingerprint:
+            return
+        self._last_fingerprint = fingerprint
+        self.styles.background = theme.active().bg
+        self.update(self.build(self.size.width or 80))
+
+    #: unsubscribe hook from :func:`yate.editor_components.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: theme.Unsubscribe | None = None
+
+    def on_mount(self) -> None:
+        """Initial render, then follow theme changes (self-painted)."""
+        theme.attach(self, self.refresh_crumbs)
+        self.refresh_crumbs()
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def on_resize(self, _event: Resize) -> None:
+        """Re-render the crumb line at the new width."""
+        self.refresh_crumbs()
+
+
+class SidebarHead(Static):
+    """The 'EXPLORER' sidebar title; owns its own theme painting."""
+
+    #: unsubscribe hook from :func:`yate.editor_components.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: theme.Unsubscribe | None = None
+
+    def on_mount(self) -> None:
+        """Paint initial background and title, then follow theme changes."""
+        self._apply_theme()
+        self._theme_unsubscribe = theme.subscribe(self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        if self._theme_unsubscribe is not None:
+            self._theme_unsubscribe()
+            self._theme_unsubscribe = None
+
+    def _apply_theme(self) -> None:
+        """Panel background plus the bold muted title from the theme."""
+        self.styles.background = theme.active().panel
+        self.update(sidebar_head_text())
+
+
+#: The sidebar title ("EXPLORER"), kept with the rest of the static chrome.
+SIDEBAR_TITLE: str = " EXPLORER"
+
+
+def sidebar_head_text() -> Text:
+    """Rich text for the sidebar header line."""
+    t = theme.active()
+    return Text(SIDEBAR_TITLE, style=f"bold {t.fg_dim}")

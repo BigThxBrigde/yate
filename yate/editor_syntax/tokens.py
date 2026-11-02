@@ -24,7 +24,7 @@ class Token:
 
 
 #: Token kind -> syntax palette attribute name on
-#: :class:`~yate.editor_view.theme.Theme`.  This is the contract every
+#: :class:`~yate.editor_components.theme.Theme`.  This is the contract every
 #: syntax backend must stick to.
 SYNTAX_KINDS: dict[str, str] = {
     "keyword": "syn_keyword",

@@ -23,7 +23,7 @@ from tools.smoke_test.harness import (
     snapshot_svg,
 )
 from tools.smoke_test.scenarios._base import run_command, wait_until
-from yate.editor_view.hexview import HexScreen
+from yate.editor_components.hexview import HexScreen
 
 __all__ = ["SCENARIOS"]
 

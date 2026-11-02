@@ -6,7 +6,7 @@ source-construction refusals, unsaved-buffer guard), the
 :class:`DocumentFlows` callback injection on the binary-open branch
 (bound opener vs deferred pending target) and the end-to-end binary
 startup target flowing into a
-:class:`~yate.editor_view.hexview.HexScreen`.
+:class:`~yate.editor_components.hexview.HexScreen`.
 """
 
 # tests legitimately poke at flow/screen internals:
@@ -26,7 +26,7 @@ from textual.screen import Screen
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core.chunked import ChunkedBinaryFile
-from yate.editor_view.hexview import HexScreen, HexView
+from yate.editor_components.hexview import HexScreen, HexView
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.session import EditorSession

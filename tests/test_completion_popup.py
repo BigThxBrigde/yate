@@ -21,7 +21,7 @@ from yate.app import YateApp
 from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.client import Completion
-from yate.editor_view import completion
+from yate.editor_components import completion
 
 from conftest import wait_until
 

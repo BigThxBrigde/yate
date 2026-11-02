@@ -25,9 +25,9 @@ from yate.flows import MessageFn, SpawnFn, StateQuery
 from yate.flows.completion_flows import CompletionFlows
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.panes import PaneManager
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.panes import PaneManager
 from yate.logs import tracing
 from yate.services.events import (
     DocumentActivated,

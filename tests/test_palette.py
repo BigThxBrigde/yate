@@ -18,7 +18,7 @@ from textual.app import App
 from textual.widgets import Input
 
 from yate.config import FilePreviewConfig
-from yate.editor_view.palette import PaletteScreen
+from yate.editor_components.palette import PaletteScreen
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 

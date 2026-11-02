@@ -1,5 +1,5 @@
 /* _OverlayScreen widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/modals.py via yate.paths.load_tcss. */
+   loaded by editor_components/modals.py via yate.paths.load_tcss. */
 _OverlayScreen {
     align: center middle;
 }

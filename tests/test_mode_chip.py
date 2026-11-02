@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from yate.editor_core.buffer import TextBuffer
-from yate.editor_view import theme
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.statusbar import mode_chip
+from yate.editor_components import theme
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.statusbar import mode_chip
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keymaps.vsc import VscKeymap

@@ -7,7 +7,7 @@ scenario group covers:
   (:mod:`yate.services.extensions.loader`) -> ``ExtensionAPI`` rollback scope
   (:mod:`yate.services.extensions.api`) -> registries -> ``:`` command and
   action dispatch -> ``teardown_all``;
-* custom theme file: ``load_theme_paths`` (:mod:`yate.editor_view.theme_files`)
+* custom theme file: ``load_theme_paths`` (:mod:`yate.editor_components.theme_files`)
   -> ``themes.register_theme`` -> ``:theme <name>`` -> ``theme.active()``.
 """
 
@@ -17,9 +17,9 @@ from pathlib import Path
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import message_text, run_command
-from yate.editor_view import theme
-from yate.editor_view.theme_files import load_theme_paths
-from yate.editor_view.themes import THEMES
+from yate.editor_components import theme
+from yate.editor_components.theme_files import load_theme_paths
+from yate.editor_components.themes import THEMES
 from yate.paths import package_root
 from yate.services.extensions import load_startup_extensions
 

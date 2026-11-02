@@ -10,7 +10,7 @@ Three paths through the ``file_preview`` feature, driven end to end
 
 ``PaletteScreen`` exposes no public accessor for ``_preview_cache``, so the
 read helpers below go through ``getattr`` + ``cast`` with the field names
-taken from ``yate/editor_view/palette.py`` -- the same documented-private
+taken from ``yate/editor_components/palette.py`` -- the same documented-private
 probe pattern the diffview scenarios use (direct private attribute access
 would trip pyright's ``reportPrivateUsage``, which this repo's
 zero-diagnostic gate treats as an error).
@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import cast
 
 from yate.yaterc import load_config
-from yate.editor_view.palette import PaletteScreen, PreviewLog
+from yate.editor_components.palette import PaletteScreen, PreviewLog
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import type_text, wait_until

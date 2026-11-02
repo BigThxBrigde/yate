@@ -143,7 +143,7 @@ def default_rc_paths(
 type ThemeRegistrar = Callable[[Any], None]
 
 #: Callback loading one batch of rc-declared theme files/directories; same
-#: contract as :func:`yate.editor_view.theme.load_theme_paths` (problems are
+#: contract as :func:`yate.editor_components.theme.load_theme_paths` (problems are
 #: appended to *errors*, never raised).
 type ThemeDirLoader = Callable[[list[Path], list[str]], None]
 
@@ -169,7 +169,7 @@ def load_config(
     as ``register_theme`` and *load_theme_paths* loads the ``theme_dirs``
     entries after all files ran, before the caller applies ``theme =
     "<custom>"``.  Both callbacks are the same-named functions of
-    :mod:`yate.editor_view.theme`; the production caller is
+    :mod:`yate.editor_components.theme`; the production caller is
     :mod:`yate.cli`.  With the defaults (``None``) the namespace simply
     lacks ``register_theme`` -- an rc calling it records a NameError on
     the config and the remaining files still run -- and ``theme_dirs``

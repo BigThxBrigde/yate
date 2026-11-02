@@ -16,7 +16,7 @@ import pytest
 from textual.screen import Screen
 
 from yate.editor import Editor
-from yate.editor_view.manual import (
+from yate.editor_components.manual import (
     MarkdownDocScreen,
     load_changelog_markdown,
     load_doc_markdown,
@@ -140,14 +140,14 @@ def test_unknown_lang_falls_back_to_en() -> None:
 def test_missing_changelog_resource_returns_placeholder_without_raising(
     lang: str, expected: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("yate.editor_view.manual.files", _fake_files)
+    monkeypatch.setattr("yate.editor_components.manual.files", _fake_files)
     assert expected in load_changelog_markdown(lang)
 
 
 def test_missing_manual_resource_returns_placeholder(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("yate.editor_view.manual.files", _fake_files)
+    monkeypatch.setattr("yate.editor_components.manual.files", _fake_files)
     assert "No manual" in load_doc_markdown("manual", "en")
 
 

@@ -41,7 +41,7 @@ os.environ["YATE_PYTHON_LSP"] = "off"
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core import Document
-from yate.editor_view import theme
+from yate.editor_components import theme
 from yate.keymaps.base import ActionContext, KeyUi
 from yate.session import EditorSession
 

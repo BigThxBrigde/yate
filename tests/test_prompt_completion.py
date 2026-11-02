@@ -24,7 +24,7 @@ from yate.commands import (
     _manual_completer,
 )
 from yate.config import YateConfig
-from yate.editor_view import theme
+from yate.editor_components import theme
 from yate.flows.prompt_completion import prompt_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace

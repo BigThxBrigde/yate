@@ -16,7 +16,7 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from typing import override
 
-from yate.editor_view.commandline import OWNER_CANDIDATES, PromptBar
+from yate.editor_components.commandline import OWNER_CANDIDATES, PromptBar
 
 
 class _Host(App[None]):

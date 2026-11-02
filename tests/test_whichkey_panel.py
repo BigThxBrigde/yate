@@ -24,8 +24,8 @@ from textual.widget import Widget
 from textual.widgets import Static
 from textual.visual import VisualType
 
-from yate.editor_view import theme
-from yate.editor_view.whichkey import (
+from yate.editor_components import theme
+from yate.editor_components.whichkey import (
     MAX_ROWS,
     ChordEntry,
     EditorColumn,

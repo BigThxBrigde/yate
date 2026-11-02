@@ -175,7 +175,7 @@ register custom `Theme` instances. The easiest approach is
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES, register_theme
+from yate.editor_components.theme import THEMES, register_theme
 
 register_theme(replace(
     THEMES["mocha"],
@@ -189,7 +189,7 @@ theme = "my-mocha"
 ```
 
 The `Theme` fields (defined in
-[yate/editor_view/theme.py](../editor_view/theme.py)) grouped by purpose:
+[yate/editor_components/theme.py](../editor_components/theme.py)) grouped by purpose:
 
 - **Backgrounds**: `bg` (editor), `panel` (tab bar/sidebar/status bar),
   `surface` (current line/inputs), `gutter_bg` (line-number gutter),
@@ -231,7 +231,7 @@ scope; regular imports work as well. Example file
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
 ```

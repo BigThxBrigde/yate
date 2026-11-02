@@ -1,6 +1,6 @@
 """Integrated terminal subsystem (PTY backend, VT emulator, shell lookup).
 
-The package is UI independent: :mod:`yate.editor_view.terminal` renders the
+The package is UI independent: :mod:`yate.editor_components.terminal` renders the
 emulator state in Textual and feeds key bytes back in.
 
 The re-exports below are the documented public API exception

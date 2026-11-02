@@ -21,9 +21,9 @@ from textual.widgets import Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_syntax.tokens import SYNTAX_KINDS
-from yate.editor_view import theme
-from yate.editor_view.palette import PaletteScreen
-from yate.editor_view.preview import (
+from yate.editor_components import theme
+from yate.editor_components.palette import PaletteScreen
+from yate.editor_components.preview import (
     PREVIEW_CACHE_SIZE,
     PreviewCache,
     PreviewData,
@@ -31,7 +31,7 @@ from yate.editor_view.preview import (
     load_preview,
     preview_text,
 )
-from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.editor_components.scrollbars import SlimScrollBarRender
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.workspace import Workspace
 
@@ -347,7 +347,7 @@ def test_preview_cache_hits_without_reread(
 
     # patch the shared loader's module-level name: load_preview_worker
     # resolves it from the preview module globals at worker run time
-    monkeypatch.setattr("yate.editor_view.preview.load_preview", _counting)
+    monkeypatch.setattr("yate.editor_components.preview.load_preview", _counting)
 
     async def scenario() -> None:
         app = _Host(_palette(tmp_path))
@@ -457,7 +457,7 @@ def test_preview_renders_plain_lines_when_tokenize_fails(
         raise RuntimeError("tokenizer exploded")
 
     # patch the consumer-side name: preview.py from-imports tokenize_document
-    monkeypatch.setattr("yate.editor_view.preview.tokenize_document", boom)
+    monkeypatch.setattr("yate.editor_components.preview.tokenize_document", boom)
     alpha = tmp_path / "alpha.py"
     alpha.write_text(ALPHA_SOURCE, encoding="utf-8")
 

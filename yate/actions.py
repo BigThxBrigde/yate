@@ -215,7 +215,7 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         "Quick file open")
     reg("command_palette", lambda ctx: editor.overlays.open_command_palette(),
         "Command palette")
-    reg("file_manager", lambda ctx: editor.filemanager_flows.open_overlay(),
+    reg("file_manager", lambda ctx: editor.file_manager_flows.open_overlay(),
         "open the file manager overlay (lf-style)")
     reg("focus_explorer", lambda ctx: editor.focus_explorer(), "Focus explorer")
     reg("focus_editor", lambda ctx: editor.focus_editor(), "Focus editor")

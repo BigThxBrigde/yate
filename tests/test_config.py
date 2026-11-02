@@ -9,7 +9,7 @@ import pytest
 
 from yate import config as cfg
 from yate import yaterc as yrc
-from yate.editor_view import theme as themes
+from yate.editor_components import theme as themes
 from yate.services import trust as trust_mod
 from yate.services.trust import trust_workspace
 
@@ -768,7 +768,7 @@ def test_disabled_extensions_blank_entries_reported_but_siblings_kept(
 def _theme_file(directory: Path, name: str, theme_name: str) -> Path:
     body = (
         "from dataclasses import replace\n"
-        "from yate.editor_view.theme import THEMES\n"
+        "from yate.editor_components.theme import THEMES\n"
         f"register_theme(replace(THEMES['mocha'], name={theme_name!r}))\n"
     )
     return _write(directory / name, body)
@@ -1208,7 +1208,7 @@ def test_register_theme_from_rc(
 ) -> None:
     body = (
         "from dataclasses import replace\n"
-        "from yate.editor_view.theme import THEMES\n"
+        "from yate.editor_components.theme import THEMES\n"
         "register_theme(replace(THEMES['mocha'], name='yate_test_theme'))\n"
         'theme = "yate_test_theme"\n'
     )

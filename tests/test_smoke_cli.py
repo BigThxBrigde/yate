@@ -26,7 +26,7 @@ from pathlib import Path
 import pytest
 from tools.smoke_test.cli import _worse, _write_json, build_parser, main
 from tools.smoke_test.harness import Check, Coverage, ScenarioResult
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 #: A shipped scenario that builds no file palette and no screenshot, so the
 #: one real ``main(["run", ...])`` call in this module stays well under a second.

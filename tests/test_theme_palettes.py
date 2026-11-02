@@ -27,8 +27,8 @@ import pytest
 
 import yate
 from yate.editor_syntax.tokens import SYNTAX_KINDS
-from yate.editor_view import theme
-from yate.editor_view.theme import (
+from yate.editor_components import theme
+from yate.editor_components.theme import (
     DEFAULT_THEME,
     THEMES,
     Theme,
@@ -453,7 +453,7 @@ def test_register_theme_warns_on_overwrite_not_on_re_registration(
     tracing; re-registering identical content stays silent (idempotent)."""
     first = _bad(name="overwrite-me")
     try:
-        with caplog.at_level(logging.WARNING, logger="yate.editor_view.themes"):
+        with caplog.at_level(logging.WARNING, logger="yate.editor_components.themes"):
             register_theme(first)  # new key: never warns
             assert not [
                 r for r in caplog.records if "overwrite-me" in r.getMessage()

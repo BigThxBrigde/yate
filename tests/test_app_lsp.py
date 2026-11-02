@@ -334,7 +334,7 @@ def test_completion_popup_navigate_accept_and_ctrl_space(tmp_path: Path) -> None
 
 def test_diagnostic_render_status_echo_and_command(tmp_path: Path) -> None:
     from yate.editor_lsp import protocol
-    from yate.editor_view.modals import OutputScreen
+    from yate.editor_components.modals import OutputScreen
 
     async def scenario() -> None:
         py = tmp_path / "diag.py"

@@ -13,7 +13,7 @@ from typing import Any, cast
 import pytest
 from textual.events import MouseMove, MouseUp
 from yate.app import YateApp
-from yate.editor_view.editor import EditorView
+from yate.editor_components.editor import EditorView
 from yate.session import Split as PaneSplit
 from yate.session import leaves as pane_leaves
 from conftest import message_text, wait_until

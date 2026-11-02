@@ -8,7 +8,7 @@ file before anything else when bumping Textual.
 
 One more Textual-surface mirror lives outside this file: the
 ``HighlightMixin`` declaration stubs in
-``yate/editor_view/highlighting.py`` hand-mirror five public widget
+``yate/editor_components/highlighting.py`` hand-mirror five public widget
 signatures -- re-check that file on upgrades too.
 
 Version commitments: the dependency floor is ``textual>=8.0``
