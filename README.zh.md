@@ -22,6 +22,14 @@
 
 版本历史由 git 历史自动生成：[CHANGELOG.zh.md](CHANGELOG.zh.md) · [English](CHANGELOG.md)。运行时可通过 `yate --changelog [en|zh]` 直接打印，或在编辑器内用 `:changelog [en|zh]` 命令浏览。
 
+## 截图 / Screenshots
+
+每个功能都有随包工具生成的运行截图与场景说明，集中在
+[screenshots 画廊](screenshots/README.md)——`python -m tools.screenshots`
+可经 Textual pilot 无头再生全部截图。
+
+![yate — 布局：文件树、标签栏与语法高亮](screenshots/layout-explorer.svg)
+
 ## 特性
 
 > 完整特性与功能清单（18 个维度）：[FEATURES.zh.md](FEATURES.zh.md) · English: [FEATURES.md](FEATURES.md)
