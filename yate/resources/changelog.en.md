@@ -1,6 +1,37 @@
 # Changelog
 
-> Generated from the git history on 2026-11-02 · yate 0.2.16
+> Generated from the git history on 2026-11-02 · yate 0.2.17
+
+## [0.2.17] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.16...v0.2.17)
+
+### Bug Fixes
+
+- review fixes for filemgr wrap-up ([`7bdad83`](https://gitee.com/jermaine/yate/commit/7bdad838d1fa052c6adffb95507cb9a72ff9bb16))
+
+### Performance
+
+- incremental directory refresh with mtime-keyed cache ([`8fce788`](https://gitee.com/jermaine/yate/commit/8fce788786d8897ae3669b703d6f2418ac04aeec))
+
+### Refactors
+
+- drop dead is_mounted guards ([`3158d12`](https://gitee.com/jermaine/yate/commit/3158d12a3d273151a7a07f76433338a2e5eba332))
+- move file manager modules into a subpackage ([`3a4dcff`](https://gitee.com/jermaine/yate/commit/3a4dcffa1ab04b137c09325292898caf6901cb17))
+
+### Documentation
+
+- record the third-round pr-review verdict ([`23d3a03`](https://gitee.com/jermaine/yate/commit/23d3a037eb564e070d82530e4b6c83bec887520a))
+- record filemgr-wrapup review rounds ([`c7f749b`](https://gitee.com/jermaine/yate/commit/c7f749bf6a338d1a4f4951c5d5db1fd59b48487c))
+- note the R15 guard scan is recursive over editor_view subpackages ([`a7bf55c`](https://gitee.com/jermaine/yate/commit/a7bf55ccf5d0b77af1daeff3624fd2d0583abad7))
+- sync filemgr screen exemption line count ([`90c7d7d`](https://gitee.com/jermaine/yate/commit/90c7d7d8107f759dcc60a28af4d0ae12562d6d68))
+- add filemgr wrap-up plans for issue IKS4CT ([`021fe2a`](https://gitee.com/jermaine/yate/commit/021fe2ada78293e4f14b6ccdd8b8eac29bb6256c))
+
+### Tests
+
+- register filemanager svg baseline ([`b86e90c`](https://gitee.com/jermaine/yate/commit/b86e90cbd404abe225bef93654b0f1d2d81dcdf6))
+
+### Tooling
+
+- add filemanager_dir option to harness new_app ([`e27abcd`](https://gitee.com/jermaine/yate/commit/e27abcd3056c8a92dbba09574d4e532300aef90a))
 
 ## [0.2.16] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...v0.2.16)
 

@@ -1,6 +1,37 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-11-02 · yate 0.2.16
+> 由 git 历史自动生成于 2026-11-02 · yate 0.2.17
+
+## [0.2.17] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.16...v0.2.17)
+
+### 问题修复
+
+- review fixes for filemgr wrap-up [缺中文] ([`7bdad83`](https://gitee.com/jermaine/yate/commit/7bdad838d1fa052c6adffb95507cb9a72ff9bb16))
+
+### 性能优化
+
+- incremental directory refresh with mtime-keyed cache [缺中文] ([`8fce788`](https://gitee.com/jermaine/yate/commit/8fce788786d8897ae3669b703d6f2418ac04aeec))
+
+### 重构
+
+- drop dead is_mounted guards [缺中文] ([`3158d12`](https://gitee.com/jermaine/yate/commit/3158d12a3d273151a7a07f76433338a2e5eba332))
+- move file manager modules into a subpackage [缺中文] ([`3a4dcff`](https://gitee.com/jermaine/yate/commit/3a4dcffa1ab04b137c09325292898caf6901cb17))
+
+### 文档
+
+- record the third-round pr-review verdict [缺中文] ([`23d3a03`](https://gitee.com/jermaine/yate/commit/23d3a037eb564e070d82530e4b6c83bec887520a))
+- record filemgr-wrapup review rounds [缺中文] ([`c7f749b`](https://gitee.com/jermaine/yate/commit/c7f749bf6a338d1a4f4951c5d5db1fd59b48487c))
+- note the R15 guard scan is recursive over editor_view subpackages [缺中文] ([`a7bf55c`](https://gitee.com/jermaine/yate/commit/a7bf55ccf5d0b77af1daeff3624fd2d0583abad7))
+- sync filemgr screen exemption line count [缺中文] ([`90c7d7d`](https://gitee.com/jermaine/yate/commit/90c7d7d8107f759dcc60a28af4d0ae12562d6d68))
+- add filemgr wrap-up plans for issue IKS4CT [缺中文] ([`021fe2a`](https://gitee.com/jermaine/yate/commit/021fe2ada78293e4f14b6ccdd8b8eac29bb6256c))
+
+### 测试
+
+- register filemanager svg baseline [缺中文] ([`b86e90c`](https://gitee.com/jermaine/yate/commit/b86e90cbd404abe225bef93654b0f1d2d81dcdf6))
+
+### 构建与工程
+
+- add filemanager_dir option to harness new_app [缺中文] ([`e27abcd`](https://gitee.com/jermaine/yate/commit/e27abcd3056c8a92dbba09574d4e532300aef90a))
 
 ## [0.2.16] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.15...v0.2.16)
 
