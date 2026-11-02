@@ -1,0 +1,107 @@
+{
+  "checks": [
+    {
+      "label": "fullscreen_screen_pushed",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "fullscreen_class",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "three_panes_visible",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "listing_ready",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "cursor_starts_on_dir",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "j_steps_to_file",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "k_back_to_dir",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "l_enters_subdir",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "subdir_listed",
+      "expected": 1,
+      "actual": 1,
+      "ok": true
+    },
+    {
+      "label": "svg_shows_entry",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "q_exits_app",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "return_code_zero",
+      "expected": 0,
+      "actual": 0,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_row",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:cursor_col",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_leftover_modal",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:no_crash",
+      "expected": true,
+      "actual": true,
+      "ok": true
+    },
+    {
+      "label": "invariant:theme_restored",
+      "expected": "mocha",
+      "actual": "mocha",
+      "ok": true
+    }
+  ],
+  "svg_rows": {}
+}
