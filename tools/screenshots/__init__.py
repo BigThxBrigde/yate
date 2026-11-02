@@ -5,3 +5,5 @@ tools.screenshots``); the scenario catalog and its evidence trail live in
 ``.trae/documents/readme-screenshots-plans/overview.md``.  The package root
 stays lazy: no submodule symbols are re-exported here.
 """
+
+from __future__ import annotations

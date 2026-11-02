@@ -23,7 +23,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from tools.screenshots.driver import repo_root
+from tools.screenshots.driver import repo_root, scrub_text
 
 __all__ = ["diag_report_svg", "smoke_report_svg", "tests_report_svg"]
 
@@ -52,19 +52,30 @@ def _capture(cmd: list[str], *, timeout: float) -> str:
     env = dict(os.environ)
     env["FORCE_COLOR"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
-    proc = subprocess.run(
-        cmd,
-        cwd=repo_root(),
-        env=env,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            cwd=repo_root(),
+            env=env,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        tail = exc.stdout or ""
+        if isinstance(tail, bytes):
+            tail = tail.decode("utf-8", errors="replace")
+        lines = [line for line in tail.splitlines() if line.strip()]
+        last = lines[-1] if lines else "<no output captured>"
+        raise RuntimeError(
+            f"subprocess timed out after {timeout:.0f}s; last line: {last}"
+        ) from exc
+    output = proc.stdout.rstrip()
     if proc.stderr:
-        return f"{proc.stdout.rstrip()}\n{proc.stderr.rstrip()}"
-    return proc.stdout.rstrip()
+        output = f"{output}\n{proc.stderr.rstrip()}"
+    return scrub_text(output)
 
 
 def _recording_console() -> Console:

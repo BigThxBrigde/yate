@@ -20,20 +20,17 @@ default in a ``finally`` block to keep later scenarios deterministic.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from tools.screenshots.cli_reports import (
     diag_report_svg,
     smoke_report_svg,
     tests_report_svg,
 )
-from tools.screenshots.driver import (
-    DriverFn,
-    make_app,
-    save_svg,
-    write_fixtures,
-)
+from tools.screenshots.driver import DriverFn, make_app, save_svg
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.config import ScreenSaverConfig, YateConfig
 from yate.editor_view import theme as yate_theme
@@ -45,6 +42,22 @@ __all__ = ["SCENARIOS", "Scenario"]
 
 #: Frame size shared by every scenario (the overview fixes 100x30).
 _SIZE: tuple[int, int] = (100, 30)
+
+
+async def _require(  # noqa: Any - mirrors the shared wait_until signature
+    pilot: Any,
+    predicate: Callable[[], bool],
+    *,
+    what: str,
+) -> None:
+    """Fail the scenario loudly when its awaited state never arrives.
+
+    :func:`wait_until` returns ``False`` on timeout instead of raising, so
+    its result must be consumed: saving a screenshot of a state that was
+    never reached would publish the wrong image as the feature's evidence.
+    """
+    if not await wait_until(pilot, predicate):
+        raise RuntimeError(f"state not reached: {what}")
 
 
 @dataclass(frozen=True)
@@ -69,7 +82,6 @@ class Scenario:
 
 async def _welcome_screen(svg_path: Path, fixtures: Path) -> None:
     """Empty untitled buffer startup: the welcome screen."""
-    write_fixtures(fixtures)
     app = make_app()
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -78,7 +90,6 @@ async def _welcome_screen(svg_path: Path, fixtures: Path) -> None:
 
 async def _layout_explorer(svg_path: Path, fixtures: Path) -> None:
     """Directory startup (browse mode, explorer visible) with a file opened."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -89,7 +100,6 @@ async def _layout_explorer(svg_path: Path, fixtures: Path) -> None:
 
 async def _keymap_vsc(svg_path: Path, fixtures: Path) -> None:
     """Default vsc keymap; the status bar shows the VSC chip."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -98,7 +108,6 @@ async def _keymap_vsc(svg_path: Path, fixtures: Path) -> None:
 
 async def _keymap_vim(svg_path: Path, fixtures: Path) -> None:
     """Vim keymap startup with the ``:`` ex command line open."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py", keymap="vim")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -109,7 +118,6 @@ async def _keymap_vim(svg_path: Path, fixtures: Path) -> None:
 
 async def _syntax_highlighting(svg_path: Path, fixtures: Path) -> None:
     """A Python file open: tree-sitter syntax highlighting."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -122,7 +130,6 @@ async def _theme_onelight(svg_path: Path, fixtures: Path) -> None:
     The yate theme is process-global; the ``finally`` restores the default
     so later scenarios in the same process keep the mocha palette.
     """
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     try:
         async with app.run_test(size=_SIZE) as pilot:
@@ -136,29 +143,34 @@ async def _theme_onelight(svg_path: Path, fixtures: Path) -> None:
 
 async def _quick_open(svg_path: Path, fixtures: Path) -> None:
     """The fuzzy file finder overlay (quick open action)."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         app.editor.execute_action("quick_open")
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="quick open overlay",
+        )
         save_svg(app, svg_path)
 
 
 async def _command_palette(svg_path: Path, fixtures: Path) -> None:
     """The command palette overlay (``alt+shift+p``)."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("alt+shift+p")
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="command palette overlay",
+        )
         save_svg(app, svg_path)
 
 
 async def _tabs(svg_path: Path, fixtures: Path) -> None:
     """Three files opened in sequence: the multi-buffer tab bar."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "a.txt")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -170,7 +182,6 @@ async def _tabs(svg_path: Path, fixtures: Path) -> None:
 
 async def _split_panes(svg_path: Path, fixtures: Path) -> None:
     """``:vsplit`` plus ``:split``: the pane tree with three leaves."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -182,7 +193,6 @@ async def _split_panes(svg_path: Path, fixtures: Path) -> None:
 
 async def _find_replace(svg_path: Path, fixtures: Path) -> None:
     """``ctrl+f`` opens the find mode with a query typed in."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -193,34 +203,35 @@ async def _find_replace(svg_path: Path, fixtures: Path) -> None:
 
 async def _shell_overlay(svg_path: Path, fixtures: Path) -> None:
     """``f2`` shell command overlay showing a real ``python --version``."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("f2")
         await type_text(pilot, "python --version")
         await pilot.press("enter")
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="shell output overlay",
+        )
         await pilot.pause()
         save_svg(app, svg_path)
 
 
 async def _integrated_terminal(svg_path: Path, fixtures: Path) -> None:
     """``:term`` opens the bottom terminal dock (real PTY shell)."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await run_command(pilot, "term")
         panel = app.editor.terminal_panel
-        await wait_until(pilot, lambda: panel.display)
+        await _require(pilot, lambda: panel.display, what="terminal panel")
         await pilot.pause(0.5)
         save_svg(app, svg_path)
 
 
 async def _extensions(svg_path: Path, fixtures: Path) -> None:
     """Default startup with the bundled extensions loaded (status bar)."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -235,7 +246,6 @@ async def _lsp_completion(svg_path: Path, fixtures: Path) -> None:
     Without a language server this is the buffer fallback source, honestly
     labeled in the gallery.
     """
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "words.txt")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -243,7 +253,7 @@ async def _lsp_completion(svg_path: Path, fixtures: Path) -> None:
         await type_text(pilot, "al")
         await pilot.press("ctrl+space")
         popup = app.editor.completion_popup
-        await wait_until(pilot, lambda: popup.is_open)
+        await _require(pilot, lambda: popup.is_open, what="completion popup")
         save_svg(app, svg_path)
 
 
@@ -253,7 +263,6 @@ async def _screensaver(svg_path: Path, fixtures: Path) -> None:
     ``characters=("snake",)`` pins the walker roster for determinism; the
     sampled frame still captures one point of the walk animation.
     """
-    write_fixtures(fixtures)
     config = YateConfig(
         screen_saver=ScreenSaverConfig(
             enable=True, interval=0, characters=("snake",)
@@ -263,22 +272,26 @@ async def _screensaver(svg_path: Path, fixtures: Path) -> None:
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("alt+shift+s")
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="screensaver screen",
+        )
         await pilot.pause(0.5)
         save_svg(app, svg_path)
 
 
 async def _manual(svg_path: Path, fixtures: Path) -> None:
     """``f8`` opens the in-app bilingual manual (markdown doc screen)."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("f8")
-        await wait_until(
+        await _require(
             pilot,
             lambda: len(app.screen_stack) == 2
             and isinstance(app.screen, MarkdownDocScreen),
+            what="manual screen",
         )
         await pilot.pause(0.5)
         save_svg(app, svg_path)
@@ -286,15 +299,15 @@ async def _manual(svg_path: Path, fixtures: Path) -> None:
 
 async def _game_snake(svg_path: Path, fixtures: Path) -> None:
     """``:game snake`` runs the Lua extension game on a canvas screen."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await run_command(pilot, "game snake")
-        await wait_until(
+        await _require(
             pilot,
             lambda: len(app.screen_stack) == 2
             and isinstance(app.screen, CanvasScreen),
+            what="game canvas screen",
         )
         await pilot.pause(0.5)
         save_svg(app, svg_path)
@@ -302,39 +315,47 @@ async def _game_snake(svg_path: Path, fixtures: Path) -> None:
 
 async def _file_manager(svg_path: Path, fixtures: Path) -> None:
     """``filemanager_dir=`` startup form: the fullscreen file manager."""
-    write_fixtures(fixtures)
     app = make_app(filemanager_dir=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="file manager screen",
+        )
         save_svg(app, svg_path)
 
 
 async def _hex_view(svg_path: Path, fixtures: Path) -> None:
     """``hex_file=`` startup form: the binary file in the hex dump view."""
-    write_fixtures(fixtures)
     app = make_app(hex_file=fixtures / "thing.bin")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="hex view screen",
+        )
         save_svg(app, svg_path)
 
 
 async def _diff_view(svg_path: Path, fixtures: Path) -> None:
     """``diff_files=`` startup form: the side-by-side diff overlay."""
-    write_fixtures(fixtures)
     app = make_app(
         diff_files=[fixtures / "left.txt", fixtures / "right.txt"]
     )
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
-        await wait_until(pilot, lambda: len(app.screen_stack) == 2)
+        await _require(
+            pilot,
+            lambda: len(app.screen_stack) == 2,
+            what="diff view screen",
+        )
         save_svg(app, svg_path)
 
 
 async def _which_key(svg_path: Path, fixtures: Path) -> None:
     """``f9`` pins the full which-key keymap sheet."""
-    write_fixtures(fixtures)
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -345,19 +366,16 @@ async def _which_key(svg_path: Path, fixtures: Path) -> None:
 
 async def _smoke_report(svg_path: Path, fixtures: Path) -> None:
     """Real ``--tag view`` smoke run; ANSI output re-rendered via Rich."""
-    write_fixtures(fixtures)
     svg_path.write_text(smoke_report_svg(), encoding="utf-8")
 
 
 async def _diag_report(svg_path: Path, fixtures: Path) -> None:
     """Real ``yate --diag`` run; ANSI output re-rendered via Rich."""
-    write_fixtures(fixtures)
     svg_path.write_text(diag_report_svg(), encoding="utf-8")
 
 
 async def _pytest_pyright(svg_path: Path, fixtures: Path) -> None:
     """Real pytest + pyright runs; two stacked panels in one frame."""
-    write_fixtures(fixtures)
     svg_path.write_text(tests_report_svg(), encoding="utf-8")
 
 

@@ -5,8 +5,9 @@ and renders the gallery (``screenshots/README.md``) for every scenario
 whose SVG exists in the output directory: a full run lists the whole
 registry, a partial ``--only`` run regenerates images without clobbering
 the full gallery, and a scenario that never produced an image is never
-referenced.  Each scenario runs against a fresh temporary fixture
-directory.
+referenced.  Each scenario runs against a fixed-name temporary fixture
+directory, is bounded by a wall-clock timeout, and its image is validated
+and scrubbed of machine-specific paths before it counts as generated.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from tools.screenshots.driver import repo_root, write_fixtures
+from tools.screenshots.driver import repo_root, scrub_svg, write_fixtures
 from tools.screenshots.gallery import render_gallery
 from tools.screenshots.scenarios import SCENARIOS, Scenario
 
@@ -71,12 +72,41 @@ def _select(only: list[str] | None) -> list[Scenario]:
     return [scenario for scenario in SCENARIOS if scenario.name in wanted]
 
 
+#: Wall-clock budget per scenario: pilot drives are quick; the subprocess
+#: report scenarios own much longer internal timeouts (pytest up to 900 s),
+#: so one hung scenario cannot stall the remaining ones (mirrors the smoke
+#: harness' per-scenario timeout).
+_PILOT_TIMEOUT_S: float = 120.0
+_REPORT_TIMEOUT_S: float = 1200.0
+
+
 def _run_one(scenario: Scenario, svg_path: Path) -> None:
-    """Run one scenario against a fresh temporary fixture directory."""
+    """Run one scenario against a fixed-name temporary fixture directory.
+
+    The fixture directory name is stable (``fixtures``) so it cannot leak a
+    random suffix into the captured frames.  A scenario only counts as
+    generated when its awaited states were reached (drivers raise through
+    ``_require``), the SVG exists, is non-empty and looks like an SVG, and
+    its machine-specific paths were scrubbed afterwards.
+    """
+    timeout = _REPORT_TIMEOUT_S if scenario.skip_cli else _PILOT_TIMEOUT_S
     with tempfile.TemporaryDirectory(prefix="yate-screenshots-") as tmp:
-        fixtures = Path(tmp)
+        fixtures = Path(tmp) / "fixtures"
+        fixtures.mkdir()
         write_fixtures(fixtures)
-        asyncio.run(scenario.driver(svg_path, fixtures))
+
+        async def _drive() -> None:
+            await asyncio.wait_for(
+                scenario.driver(svg_path, fixtures), timeout=timeout
+            )
+
+        asyncio.run(_drive())
+    if not svg_path.is_file():
+        raise RuntimeError("no image written")
+    text = svg_path.read_text(encoding="utf-8")
+    if not text.lstrip().startswith("<svg"):
+        raise RuntimeError("no image written")
+    scrub_svg(svg_path)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -97,6 +127,8 @@ def main(argv: list[str] | None = None) -> int:
     skipped = len(requested) - len(selected)
 
     out_dir = args.out if args.out is not None else repo_root() / "screenshots"
+    if out_dir.exists() and not out_dir.is_dir():
+        raise SystemExit(f"--out must be a directory: {out_dir}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     failed: set[str] = set()
