@@ -366,7 +366,7 @@ class FindReplaceScreen(ModalScreen[None]):
         )
 
     async def _search_worker(self, query: str) -> None:
-        """Scan the workspace in a thread, then repaint when still mounted."""
+        """Scan the workspace in a thread, then repaint while still attached."""
 
         def _scan() -> tuple[list[FileMatch], bool, dict[Path, str]]:
             paths = self._workspace.walk_files(limit=SCAN_FILE_CAP)
@@ -387,7 +387,9 @@ class FindReplaceScreen(ModalScreen[None]):
             return results, truncated, labels
 
         results, truncated, labels = await asyncio.to_thread(_scan)
-        if not self.is_mounted:
+        # is_mounted never resets on unmount; is_attached mirrors Textual's
+        # own mount check.
+        if not self.is_attached:
             return
         self._results = results
         self._truncated = truncated
@@ -551,7 +553,7 @@ class FindReplaceScreen(ModalScreen[None]):
         log.debug(
             "project replace: %d occurrence(s) in %d file(s)", total, files,
         )
-        if not self.is_mounted:
+        if not self.is_attached:
             return
         self._message(f"replaced {total} occurrence(s) in {files} file(s)", "ok")
         self._refresh_ui()
