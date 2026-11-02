@@ -1,0 +1,72 @@
+"""Tests for the screenshot tool: registry integrity, gallery, one e2e run.
+
+The end-to-end case exercises exactly one real, fast pilot scenario
+(welcome-screen) so the suite stays quick; the three subprocess-report
+scenarios are deliberately not run here.
+"""
+
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+from tools.screenshots.__main__ import main
+from tools.screenshots.gallery import render_gallery
+from tools.screenshots.scenarios import SCENARIOS, Scenario
+
+
+def _stub_scenario(name: str) -> Scenario:
+    """A registry-shaped entry whose driver is never invoked here."""
+    async def _driver(svg_path: Path, fixtures: Path) -> None:
+        return None
+
+    return Scenario(
+        name=name,
+        title_en=f"{name} title",
+        title_zh=f"{name} 标题",
+        desc_en=f"English description for {name}.",
+        desc_zh=f"{name} 的中文说明。",
+        size=(100, 30),
+        driver=_driver,
+    )
+
+
+def test_registry_names_are_kebab_and_unique() -> None:
+    """Every scenario name is kebab-case and unique; texts are non-empty."""
+    names = [scenario.name for scenario in SCENARIOS]
+    assert len(names) == 25
+    assert len(set(names)) == len(names)
+    for name in names:
+        assert re.fullmatch(r"[a-z0-9-]+", name), name
+    for scenario in SCENARIOS:
+        assert scenario.title_en and scenario.title_zh
+        assert scenario.desc_en and scenario.desc_zh
+        assert scenario.size == (100, 30)
+
+
+def test_gallery_renders_registry_to_markdown(tmp_path: Path) -> None:
+    """The gallery renders one section per scenario plus the font note."""
+    stubs = (_stub_scenario("stub-alpha"), _stub_scenario("stub-beta"))
+    gallery = render_gallery(stubs, tmp_path)
+    assert gallery == tmp_path / "README.md"
+    text = gallery.read_text(encoding="utf-8")
+    assert text.count("### ") == 2
+    assert "### stub-alpha" in text
+    assert '<img src="./stub-alpha.svg" width="720">' in text
+    assert "Nerd Font" in text
+    assert "中文说明" in text
+
+
+def test_welcome_screenshot_end_to_end(tmp_path: Path) -> None:
+    """``--only welcome-screen`` produces a real SVG plus the gallery."""
+    out = tmp_path / "shots"
+    exit_code = main(["--only", "welcome-screen", "--out", str(out)])
+    assert exit_code == 0
+    svg = out / "welcome-screen.svg"
+    assert svg.exists()
+    assert "rich-terminal" in svg.read_text(encoding="utf-8")
+    gallery = out / "README.md"
+    assert gallery.exists()
+    text = gallery.read_text(encoding="utf-8")
+    assert "### welcome-screen" in text
+    assert '<img src="./welcome-screen.svg" width="720">' in text
