@@ -1,5 +1,5 @@
 # pyright: reportPrivateUsage=false
-"""Unit tests for ``yate.editor_view.highlighting`` (token cache + passes).
+"""Unit tests for ``yate.editor_components.highlighting`` (token cache + passes).
 
 Drives a minimal host widget (``Widget`` combined with ``HighlightMixin``,
 Widget first so the real Textual ``refresh`` / ``set_timer`` / ``run_worker``
@@ -29,7 +29,7 @@ from yate.editor_syntax.engine import (
     tokenize_line_sync,
 )
 from yate.editor_syntax.tokens import Token
-from yate.editor_view.highlighting import HighlightMixin, HighlightProbe
+from yate.editor_components.highlighting import HighlightMixin, HighlightProbe
 
 
 class _HostWidget(Widget, HighlightMixin):

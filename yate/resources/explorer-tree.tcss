@@ -1,5 +1,5 @@
 /* ExplorerTree widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/explorer.py via yate.paths.load_tcss. */
+   loaded by editor_components/explorer.py via yate.paths.load_tcss. */
 ExplorerTree {
     background: $surface;
     border-right: tall $foreground 12%;

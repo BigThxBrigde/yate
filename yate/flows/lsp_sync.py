@@ -14,10 +14,10 @@ from functools import partial
 
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.modals import OutputScreen
-from yate.editor_view.panes import PaneManager
-from yate.editor_view.statusbar import StatusBar
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.modals import OutputScreen
+from yate.editor_components.panes import PaneManager
+from yate.editor_components.statusbar import StatusBar
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.services.events import DiagnosticsUpdated, EditorEvent, EventHub
 from yate.session import EditorSession

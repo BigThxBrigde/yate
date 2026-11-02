@@ -303,7 +303,7 @@ def test_chunked_flows_promote_to_full_messages(tmp_path: Path) -> None:
 # --- EditorView render path --------------------------------------------------
 
 
-def test_editor_view_ensure_row_called_for_visible_rows(tmp_path: Path) -> None:
+def test_editor_components_ensure_row_called_for_visible_rows(tmp_path: Path) -> None:
     """render_line probes ensure_row exactly for the visible buffer rows."""
 
     async def scenario() -> None:

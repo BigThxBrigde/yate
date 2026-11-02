@@ -19,8 +19,8 @@ from textual.events import Key
 
 from yate.flows import MessageFn, SpawnFn, StateQuery
 from yate.flows.document_flows import DocumentFlows
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.panes import PaneManager
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.panes import PaneManager
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.logs import tracing
@@ -248,7 +248,7 @@ class WindowFlows:
 
         Every flip goes through here (arm and consume/cancel alike), so the
         panel refreshes no matter which focused widget routed the key --
-        including :class:`~yate.editor_view.explorer.ExplorerTree`, whose
+        including :class:`~yate.editor_components.explorer.ExplorerTree`, whose
         ``on_key`` calls this module directly without touching the editor's
         dispatch.
         """

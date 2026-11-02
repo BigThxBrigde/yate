@@ -16,7 +16,7 @@ import pytest
 from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_lsp.manager import LspManager
-from yate.editor_view.statusbar import StatusBar
+from yate.editor_components.statusbar import StatusBar
 from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry

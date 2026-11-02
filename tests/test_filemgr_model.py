@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from stat import filemode
 
-from yate.editor_view.filemgr.model import (
+from yate.editor_components.filemgr.model import (
     SORT_CYCLE,
     build_row_text,
     count_children,
@@ -17,7 +17,7 @@ from yate.editor_view.filemgr.model import (
     parent_and_siblings,
     sort_entries,
 )
-from yate.editor_view.icons import SETI_COLORS, icon_for_path
+from yate.editor_components.icons import SETI_COLORS, icon_for_path
 from yate.services.workspace import Entry, EntryStat, Workspace, human_size
 
 _MTIME_FORMAT = "%a %b %d %H:%M:%S %Y"

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from yate.app import YateApp
-from yate.editor_view.canvas_screen import CanvasScreen
+from yate.editor_components.canvas_screen import CanvasScreen
 
 from conftest import wait_until
 

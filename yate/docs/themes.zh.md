@@ -42,7 +42,7 @@ yaterc 的执行命名空间里注入了 `register_theme()` 函数（仅此一�
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],
@@ -163,7 +163,7 @@ Copy-Item <资源目录>\theme_examples\ayu_theme.example     "$HOME\.yate\theme
 ```python
 # ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],

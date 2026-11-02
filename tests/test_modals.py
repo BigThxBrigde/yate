@@ -1,4 +1,4 @@
-"""Tests for yate.editor_view.modals (overlay screens and their scrollbar).
+"""Tests for yate.editor_components.modals (overlay screens and their scrollbar).
 
 Both overlay screens -- the F1 help reference and the shell-command output --
 share ``_OverlayScreen``, whose scrolling body is ``_OverlayScroll``.  These
@@ -12,9 +12,9 @@ from __future__ import annotations
 
 import asyncio
 
-from yate.editor_view import theme
-from yate.editor_view.modals import HelpScreen, OutputScreen
-from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.editor_components import theme
+from yate.editor_components.modals import HelpScreen, OutputScreen
+from yate.editor_components.scrollbars import SlimScrollBarRender
 
 
 def _assert_slim_scrollbar_overlay(screen: HelpScreen | OutputScreen) -> None:

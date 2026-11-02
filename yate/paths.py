@@ -16,7 +16,7 @@ is read through :func:`load_tcss` (the shell's ``app.tcss`` plus one
 ``<class>.tcss`` per widget class -- one public loader so every consumer
 shares the same fail-fast and single-read-per-process contract), while
 manuals are read via ``importlib.resources.files("yate.resources")`` (see
-editor_view.manual) and the ``docs`` guides plus the ``yaterc.example``
+editor_components.manual) and the ``docs`` guides plus the ``yaterc.example``
 template are plain shipped files users open/copy by their documented
 package-relative paths.
 

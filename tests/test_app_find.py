@@ -656,7 +656,7 @@ def test_overlay_commands_clear_stale_message(
         # the real document's parse/render cost (help/files/palette never
         # load a doc, so the patch is inert for them).
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:

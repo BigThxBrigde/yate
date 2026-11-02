@@ -22,10 +22,10 @@ from textual.color import Color
 from textual.widgets import Input, ListView, Static
 
 from yate.config import FilePreviewConfig
-from yate.editor_view import theme
-import yate.editor_view.filemgr.screen as filemgr
-from yate.editor_view.filemgr.screen import FileManagerScreen, _FileListView
-from yate.editor_view.preview import PreviewLog
+from yate.editor_components import theme
+import yate.editor_components.filemgr.screen as filemgr
+from yate.editor_components.filemgr.screen import FileManagerScreen, _FileListView
+from yate.editor_components.preview import PreviewLog
 from yate.services.workspace import Entry, EntryStat, Workspace
 
 from conftest import plain_text, wait_until
@@ -334,7 +334,7 @@ def test_filemgr_double_click_opens_via_selected(
     is patched wide to keep the test off real-sleep timing).
     """
     # the screen compares against its own by-value import (screen.py does
-    # ``from yate.editor_view.filemgr.keys import DOUBLE_CLICK_WINDOW``), so
+    # ``from yate.editor_components.filemgr.keys import DOUBLE_CLICK_WINDOW``), so
     # the patch must target the consumer module binding, not the source
     # module attribute.
     monkeypatch.setattr(filemgr, "DOUBLE_CLICK_WINDOW", 30.0)

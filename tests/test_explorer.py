@@ -1,4 +1,4 @@
-"""Tests for yate.editor_view.explorer (ExplorerTree) and the session-side
+"""Tests for yate.editor_components.explorer (ExplorerTree) and the session-side
 document cleanup behind it (EditorSession.close_under / LspSync.documents_closed)."""
 
 # pyright: reportPrivateUsage=false
@@ -20,9 +20,9 @@ from textual.widgets.tree import TreeNode
 from yate.config import YateConfig
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
-from yate.editor_view import theme
-from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.icons import (
+from yate.editor_components import theme
+from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.icons import (
     FOLDER,
     FOLDER_OPEN,
     ICON_COLOR_FALLBACK,

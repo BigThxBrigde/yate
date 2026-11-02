@@ -367,7 +367,7 @@ class ThemeExtensionBridge:
     """``api.theme`` -- switch/read the color theme from an extension.
 
     The bridge holds injected callbacks only (R4: ``services`` never imports
-    ``yate.editor_view``); the editor wires ``set`` to the theme module's
+    ``yate.editor_components``); the editor wires ``set`` to the theme module's
     ``set_theme`` and ``active`` to its name.  An unknown theme name raises
     ``KeyError`` straight through -- the loader records and rolls back a
     raising ``setup``, and the API's callback guard contains it later on.

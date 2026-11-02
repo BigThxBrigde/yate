@@ -47,7 +47,7 @@ see Option B), so a handful of tweaks can live directly there:
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],
@@ -180,7 +180,7 @@ The simplest approach is to copy a built-in theme and override a few colors:
 ```python
 # ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],

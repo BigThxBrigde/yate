@@ -57,7 +57,7 @@ from tools.smoke_test.harness import (
     set_seed,
 )
 from tools.smoke_test.scenarios import SCENARIOS
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 
 @pytest.fixture(autouse=True)

@@ -167,7 +167,7 @@ def _yate_sources() -> list[Path]:
     * ``yate/extensions/*.py.example`` -- bundled extensions, imported via
       ``importlib.util.spec_from_file_location`` (``yate/services/extensions/loader.py``);
     * ``yate/yaterc.example`` -- an rc file (``yate/config.py``);
-    * ``yate/resources/theme_examples/*.example`` -- themes (``yate/editor_view/theme.py``).
+    * ``yate/resources/theme_examples/*.example`` -- themes (``yate/editor_components/theme.py``).
 
     ``yate/extensions/lua.example`` is deliberately absent: it is a Lua chunk
     compiled by the lupa runtime, never by Python, so a Python import scan

@@ -211,11 +211,11 @@ use_spaces = True
 
 # ------------------------------------------------------- custom theme demo
 #
-# A theme is a yate.editor_view.theme.Theme instance. The easiest way to
+# A theme is a yate.editor_components.theme.Theme instance. The easiest way to
 # make one is to copy a built-in theme and override a few colors:
 #
 # from dataclasses import replace
-# from yate.editor_view.theme import THEMES, register_theme
+# from yate.editor_components.theme import THEMES, register_theme
 #
 # register_theme(replace(
 #     THEMES["mocha"],

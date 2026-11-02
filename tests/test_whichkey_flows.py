@@ -15,7 +15,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
-from yate.editor_view.whichkey import ChordEntry, WhichKeyPanel
+from yate.editor_components.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import StateQuery
 from yate.flows.whichkey_flows import WhichKeyFlows, WindowChordHintsFn
 from yate.flows.window_flows import (

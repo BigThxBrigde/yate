@@ -1,6 +1,6 @@
 """Small markdown fixture the manual/doc UI tests load instead of the bundled manual.
 
-Patching ``yate.editor_view.manual.load_doc_markdown`` with
+Patching ``yate.editor_components.manual.load_doc_markdown`` with
 :data:`MANUAL_DOC_FIXTURE` keeps every search/layout assertion of
 ``test_app_manual.py`` / ``test_app_render.py`` meaningful while skipping
 the expensive parse/render of the real manual.  Data dependencies:

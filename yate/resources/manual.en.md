@@ -6,7 +6,7 @@ Version **0.1.0** (this manual ships with the program; press `F8` or type `:manu
 to open it anytime — `:manual zh` / `:manual en` picks the language, English by default).
 
 yate uses a layered architecture: `editor_core` is pure editing logic fully
-decoupled from the UI (buffers, document model, search engine), `editor_view` is
+decoupled from the UI (buffers, document model, search engine), `editor_components` is
 the Textual interface, `keymaps` provides pluggable key bindings, and `services`
 handles the workspace, shell, extensions and fonts.
 
@@ -971,7 +971,7 @@ is `dataclasses.replace` to copy a built-in theme and override a few colors:
 ```python
 # ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],

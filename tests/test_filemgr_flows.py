@@ -16,9 +16,9 @@ from pathlib import Path
 from typing import cast
 
 from yate.config import YateConfig
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.filemgr.screen import FileManagerScreen
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.filemgr.screen import FileManagerScreen
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.filemanager_flows import FileManagerFlows
 from yate.services.workspace import Workspace

@@ -39,7 +39,7 @@ os.environ.setdefault("YATE_PYTHON_LSP", "off")
 from yate.app import YateApp  # noqa: E402
 from yate.config import YateConfig  # noqa: E402
 from yate.editor import Editor  # noqa: E402
-from yate.editor_view import theme  # noqa: E402
+from yate.editor_components import theme  # noqa: E402
 
 
 def _speed_up_pilot() -> None:

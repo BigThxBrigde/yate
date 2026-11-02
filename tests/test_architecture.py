@@ -9,12 +9,12 @@ These tests enforce the boundaries documented in
   ``yate.app``.
 * **R2** no one-size-fits-all ``AppProtocol``, no ``interfaces.py``, and no
   new ``Protocol`` class beyond the frozen whitelist.
-* **R3** ``editor_view/*`` widgets never import ``yate.editor`` / ``yate.app``
+* **R3** ``editor_components/*`` widgets never import ``yate.editor`` / ``yate.app``
   (they receive concrete collaborators or callbacks); the ``app_features``
   package deleted in Plan D stays deleted.
 * **R4** the UI-free layers (``keymaps/*``, ``services/*``, ``session.py``,
   ``registries.py``, ``config.py``, ``yaterc.py``, ``yaterc_options.py``)
-  never import ``editor_view``.  ``editor_core`` joined
+  never import ``editor_components``.  ``editor_core`` joined
   with the diff tool (wave-3): the L0 engine package (buffer / document /
   diff / ...) is scanned by the same UI-free guards.
 * **R5** ``editor.py`` never imports the built-in tables ``actions.py`` /
@@ -43,8 +43,8 @@ These tests enforce the boundaries documented in
   (``dict[str, Callable[...]]``), are not alias definitions and stay inline.
 * **Panes** the pane tree model is L1 state, not a widget-package type layer:
   ``session.py`` owns ``Leaf`` / ``Split`` / ``ViewState`` and the tree
-  operations, ``editor_view`` imports them and never re-exports them, and
-  ``editor_view/pane_types.py`` stays deleted.
+  operations, ``editor_components`` imports them and never re-exports them, and
+  ``editor_components/pane_types.py`` stays deleted.
 * **Logging** ``log.*`` calls use lazy ``%`` formatting, never f-strings
   (coding-style 4.6): arguments must not be evaluated while the level is off.
 * **R12** logging goes through the tracing singleton: no ``self.log`` /
@@ -127,7 +127,7 @@ UPWARD_MODULES: tuple[str, ...] = ("yate.editor", "yate.app")
 #: the ``_Ts*`` structural types are leaf-package types that predate this
 #: refactoring.  Any other ``Protocol`` class fails the build.
 ALLOWED_PROTOCOLS: dict[str, set[str]] = {
-    "editor_view/editor.py": {"PaneRegistry"},
+    "editor_components/editor.py": {"PaneRegistry"},
     "editor_syntax/engine.py": {"SyntaxBackend"},
     "editor_syntax/ts_backend/backend.py": {"_TsPoint", "_TsNode"},
 }
@@ -148,7 +148,7 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("diagnostics.py", 3),
     ("flows/", 3),
     ("services/extensions/", 3),
-    ("editor_view/", 2),
+    ("editor_components/", 2),
     ("session.py", 1),
     ("registries.py", 1),
     ("keymaps/keys.py", 0),
@@ -163,10 +163,10 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
 UPWARD_EDGES_FROZEN: frozenset[str] = frozenset()
 
 #: Pure logic packages / modules that must run without any widget (R4).
-#: ``config.py`` joined in N30: it used to lazily import editor_view.theme
+#: ``config.py`` joined in N30: it used to lazily import editor_components.theme
 #: inside ``load_config`` (the only L0->L2 edge; theme support is now
 #: injected as callbacks by the L4 caller).  ``keyproto`` joined with the
-#: Windows chord driver: a pure L0 leaf that must never reach editor_view.
+#: Windows chord driver: a pure L0 leaf that must never reach editor_components.
 #: ``editor_core`` joined with the diff tool (wave-3): the whole L0 engine
 #: package (buffer / document / diff / ...) stays widget-free.
 UI_FREE_PACKAGES: tuple[str, ...] = (
@@ -188,69 +188,69 @@ UI_FREE_FILES: tuple[str, ...] = (
 )
 
 #: L3 collaborator modules that do drive a few widget types by design: they
-#: still may not depend upward, and their ``editor_view`` coupling is frozen
+#: still may not depend upward, and their ``editor_components`` coupling is frozen
 #: here, so a new widget import fails until it is justified (R11).
 UI_FROZEN_FILES: dict[str, set[str]] = {
     "flows/document_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.explorer",
-        "yate.editor_view.panes",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.explorer",
+        "yate.editor_components.panes",
     },
     "flows/window_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.explorer",
-        "yate.editor_view.panes",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.explorer",
+        "yate.editor_components.panes",
     },
     "flows/completion_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.theme",
-        "yate.editor_view.commandline",
-        "yate.editor_view.completion",
-        "yate.editor_view.editor",
-        "yate.editor_view.panes",
+        "yate.editor_components",
+        "yate.editor_components.theme",
+        "yate.editor_components.commandline",
+        "yate.editor_components.completion",
+        "yate.editor_components.editor",
+        "yate.editor_components.panes",
     },
     "flows/lsp_sync.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.modals",
-        "yate.editor_view.panes",
-        "yate.editor_view.statusbar",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.modals",
+        "yate.editor_components.panes",
+        "yate.editor_components.statusbar",
     },
     "flows/mouse_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.editor",
+        "yate.editor_components",
+        "yate.editor_components.editor",
     },
     "flows/shell_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.modals",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.modals",
     },
     "flows/overlay_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.diffview",
-        "yate.editor_view.find_replace",
-        "yate.editor_view.hexview",
-        "yate.editor_view.manual",
-        "yate.editor_view.modals",
-        "yate.editor_view.palette",
-        "yate.editor_view.screensaver",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.diffview",
+        "yate.editor_components.find_replace",
+        "yate.editor_components.hexview",
+        "yate.editor_components.manual",
+        "yate.editor_components.modals",
+        "yate.editor_components.palette",
+        "yate.editor_components.screensaver",
     },
     "flows/prompt_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.commandline",
-        "yate.editor_view.panes",
+        "yate.editor_components",
+        "yate.editor_components.commandline",
+        "yate.editor_components.panes",
     },
     "flows/whichkey_flows.py": {
-        "yate.editor_view",
-        "yate.editor_view.whichkey",
+        "yate.editor_components",
+        "yate.editor_components.whichkey",
     },
     "flows/filemanager_flows.py": {
-        "yate.editor_view.commandline",
-        "yate.editor_view.explorer",
-        "yate.editor_view.filemgr.screen",
+        "yate.editor_components.commandline",
+        "yate.editor_components.explorer",
+        "yate.editor_components.filemgr.screen",
     },
 }
 
@@ -302,7 +302,7 @@ EDITOR_FORBIDDEN_IMPORTS: tuple[str, ...] = ("yate.actions", "yate.commands")
 BUILTIN_TABLE_MODULES: tuple[str, ...] = ("yate.actions", "yate.commands")
 
 #: Banned identifier suffixes (R7): no protocol-ish / thin-delegate naming.
-#: ``PaneHost`` is the Textual widget container in ``editor_view/panes.py``,
+#: ``PaneHost`` is the Textual widget container in ``editor_components/panes.py``,
 #: so it is whitelisted.  Flow modules are named by duty (``*Flows`` /
 #: ``LspSync``); ``*Controller`` is banned for new code.
 BANNED_SUFFIXES: tuple[str, ...] = ("Feature", "Host", "Ops", "Delegate", "Controller")
@@ -321,9 +321,9 @@ MAX_SOURCE_LINES: int = 800
 #: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
 #: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
 #: (big-module-split plan section 2).
-#: Waves b-f are done: ``editor_view/diffview.py`` was split into
-#: ``diff_pane.py``, ``editor_view/editor.py`` into ``highlighting.py`` +
-#: ``welcome.py``, ``editor_view/theme.py`` into ``themes.py`` + ``cells.py``
+#: Waves b-f are done: ``editor_components/diffview.py`` was split into
+#: ``diff_pane.py``, ``editor_components/editor.py`` into ``highlighting.py`` +
+#: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
 #: + ``theme_files.py``, ``editor_term/emulator.py`` into ``palette.py`` +
 #: ``keys.py``, ``editor_lsp/manager.py`` into ``parsing.py`` and
 #: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
@@ -351,7 +351,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
-    "editor_view/filemgr/screen.py",
+    "editor_components/filemgr/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "services/yxp.py",
@@ -425,7 +425,7 @@ HOME_PATH_EXEMPT: frozenset[tuple[str, int]] = frozenset()
 
 #: Textual base classes that make a widget scrollable (R15): a module that
 #: defines a subclass of one of these must wire the slim scrollbar renderer
-#: and the theme palette from ``editor_view/scrollbars.py`` -- the explorer's
+#: and the theme palette from ``editor_components/scrollbars.py`` -- the explorer's
 #: slim, theme-following scrollbar look (issue IKINF3), popups included.
 SCROLLABLE_BASES: frozenset[str] = frozenset({
     "ScrollView",
@@ -437,7 +437,7 @@ SCROLLABLE_BASES: frozenset[str] = frozenset({
     "ListView",
 })
 
-#: ``editor_view`` modules exempt from the R15 scrollbar-pair guard, keyed by
+#: ``editor_components`` modules exempt from the R15 scrollbar-pair guard, keyed by
 #: ``yate/``-relative path.  Empty by design: scrollable widgets (including
 #: those inside modal screens) wire both calls; a justified exception is
 #: registered here visibly instead of weakening the scan.
@@ -722,10 +722,10 @@ def test_only_cli_imports_app() -> None:
         assert "yate.app" not in _yate_imports(path), path
 
 
-def test_editor_view_does_not_import_upward() -> None:
-    """Widgets take concrete collaborators or callbacks: ``editor_view/*``
+def test_editor_components_does_not_import_upward() -> None:
+    """Widgets take concrete collaborators or callbacks: ``editor_components/*``
     never imports ``yate.editor`` / ``yate.app`` (R3)."""
-    for path in (YATE / "editor_view").rglob("*.py"):
+    for path in (YATE / "editor_components").rglob("*.py"):
         if "__pycache__" in path.parts:
             continue
         for module in _yate_imports(path):
@@ -746,7 +746,7 @@ def test_app_features_package_is_gone() -> None:
 def test_keymaps_services_and_models_stay_ui_free() -> None:
     """``keymaps`` / ``services`` / ``keyproto`` / ``session.py`` /
     ``registries.py`` / ``config.py`` run without a mounted app: they must
-    not import ``editor_view`` (R4)."""
+    not import ``editor_components`` (R4)."""
     targets: list[Path] = []
     for package in UI_FREE_PACKAGES:
         targets.extend(
@@ -756,7 +756,7 @@ def test_keymaps_services_and_models_stay_ui_free() -> None:
     targets.extend(YATE / name for name in UI_FREE_FILES)
     for path in targets:
         for module in _yate_imports(path):
-            assert not module.startswith("yate.editor_view"), (path, module)
+            assert not module.startswith("yate.editor_components"), (path, module)
 
 
 def test_no_unregistered_upward_imports() -> None:
@@ -824,13 +824,13 @@ def test_ts_backend_never_imports_regex_backend() -> None:
 def test_collaborators_keep_widget_coupling_frozen() -> None:
     """The ``flows/`` keys registered in ``UI_FROZEN_FILES`` are
     editor-level collaborators: each may drive its known widgets but never
-    depend upward, and a new ``editor_view`` import must be added there
+    depend upward, and a new ``editor_components`` import must be added there
     first (R11)."""
     for name, allowed in UI_FROZEN_FILES.items():
         path = YATE / name
         for module in _yate_imports(path):
             assert not _imports_upward(module), (path, module)
-            if module.startswith("yate.editor_view"):
+            if module.startswith("yate.editor_components"):
                 assert module in allowed, (path, module)
 
 
@@ -917,12 +917,12 @@ def test_source_files_within_size_threshold() -> None:
 
 def test_pane_model_lives_in_l1_session() -> None:
     """The pane tree model is L1 state, not a widget-package type layer:
-    ``session.py`` owns it; ``editor_view`` imports it, never re-exports it."""
+    ``session.py`` owns it; ``editor_components`` imports it, never re-exports it."""
     source = (YATE / "session.py").read_text(encoding="utf-8")
     for name in ("class Leaf", "class Split", "class ViewState", "def find_leaf"):
         assert name in source, name
-    assert not (YATE / "editor_view" / "pane_types.py").exists()
-    panes = (YATE / "editor_view" / "panes.py").read_text(encoding="utf-8")
+    assert not (YATE / "editor_components" / "pane_types.py").exists()
+    panes = (YATE / "editor_components" / "panes.py").read_text(encoding="utf-8")
     assert "backward compatibility" not in panes
 
 
@@ -1120,7 +1120,7 @@ def test_no_class_level_scrollbar_renderer_patch() -> None:
         source = path.read_text(encoding="utf-8")
         assert pattern.search(source) is None, (
             f"{path}: class-level ScrollBar.renderer patch is banned; "
-            "use editor_view.scrollbars.apply_slim_scrollbars(widget)"
+            "use editor_components.scrollbars.apply_slim_scrollbars(widget)"
         )
 
 
@@ -1553,7 +1553,7 @@ def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
     A module defining a class that inherits one of the scrollable Textual
     bases must call both ``apply_slim_scrollbars`` (mount path) and
     ``apply_scrollbar_theme`` (theme paint path) from
-    :mod:`yate.editor_view.scrollbars` -- the explorer's slim,
+    :mod:`yate.editor_components.scrollbars` -- the explorer's slim,
     theme-following scrollbar look (issue IKINF3) is the component-wide
     baseline, popups included.  The scan is dynamic: matching the base
     classes instead of freezing a module list intercepts new scrollable
@@ -1561,7 +1561,7 @@ def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
     :data:`SCROLLBAR_EXEMPT`.
     """
     offenders: list[str] = []
-    for path in sorted((YATE / "editor_view").rglob("*.py")):
+    for path in sorted((YATE / "editor_components").rglob("*.py")):
         rel = path.relative_to(YATE).as_posix()
         if rel in SCROLLBAR_EXEMPT:
             continue

@@ -304,7 +304,7 @@ def _section_config(editor: Editor) -> list[str]:
 # ------------------------------------------------------------------ themes
 
 def _section_themes() -> list[str]:
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     return [_kv("available themes", ", ".join(theme_mod.available()), width=18)]
 

@@ -17,9 +17,9 @@ from textual.strip import Strip
 
 from yate.app import YateApp
 from yate.editor_syntax.tokens import Token
-from yate.editor_view import theme
-from yate.editor_view.manual import DocScroll, MarkdownDocScreen
-from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.editor_components import theme
+from yate.editor_components.manual import DocScroll, MarkdownDocScreen
+from yate.editor_components.scrollbars import SlimScrollBarRender
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
@@ -113,7 +113,7 @@ def test_welcome_rows_cached_per_theme_and_keymap() -> None:
             await pilot.pause()
             editor = app.editor.panes.active_view
             assert editor is not None
-            from yate.editor_view import theme
+            from yate.editor_components import theme
 
             # same (theme, keymap) cache key: the same row list object
             first = editor._welcome_lines(theme.active(), vim_keys=False)
@@ -155,7 +155,7 @@ def test_discarded_highlight_pass_reschedules_immediately(
                 timeout=5.0,
             )
 
-            import yate.editor_view.highlighting as highlighting_module
+            import yate.editor_components.highlighting as highlighting_module
 
             real_tokenize = highlighting_module._tokenize_with_states
             started = threading.Event()
@@ -253,7 +253,7 @@ def test_doc_search_debounce_merges_rapid_typing(
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -310,7 +310,7 @@ def test_doc_search_enter_flushes_pending_query_immediately(
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -372,7 +372,7 @@ def test_render_paints_cursor_block_on_each_extra_point_row(
             assert buf.lines == ["alpha beta", "gamma delta", ""]
             assert buf.add_cursor_at((1, 5))
 
-            from yate.editor_view import theme
+            from yate.editor_components import theme
 
             gutter = editor.gutter_width()
             tw = buf.tab_width
@@ -468,7 +468,7 @@ def test_doc_scroll_scrollbar_paints_theme_palette() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -522,7 +522,7 @@ def test_cell_offsets_matches_char_to_cell_pointwise() -> None:
     ``char_to_cell`` rescans with this table, so any drift shifts painted
     columns.
     """
-    from yate.editor_view.theme import cell_offsets
+    from yate.editor_components.theme import cell_offsets
 
     lines = [
         "",
@@ -548,7 +548,7 @@ def test_cell_offsets_matches_char_to_cell_pointwise() -> None:
 def test_cell_offsets_line_end_and_total() -> None:
     """The table covers index ``len(line)``: total width, matching the old
     ``char_to_cell`` behavior for end-of-line lookups (cursor at EOL)."""
-    from yate.editor_view.theme import cell_offsets
+    from yate.editor_components.theme import cell_offsets
 
     line = "ab\tcd"
     offsets = cell_offsets(line, 4)

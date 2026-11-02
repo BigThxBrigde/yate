@@ -1,5 +1,5 @@
 /* PaletteScreen widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/palette.py via yate.paths.load_tcss. */
+   loaded by editor_components/palette.py via yate.paths.load_tcss. */
 PaletteScreen {
     align: center top;
 }

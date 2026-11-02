@@ -18,7 +18,7 @@ from tools.smoke_test.harness import (
     snapshot_svg,
 )
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 __all__ = ["SCENARIOS"]
 

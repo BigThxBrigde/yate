@@ -25,8 +25,8 @@ from yate.commands import register_commands
 from yate.config import YateConfig
 from yate.editor import Editor
 from yate.editor_sprites.characters import character_names
-from yate.editor_view import theme
-from yate.editor_view.screensaver import ScreensaverScreen
+from yate.editor_components import theme
+from yate.editor_components.screensaver import ScreensaverScreen
 from yate.keyproto.legacy import textual_key_to_raw
 from yate.logs import LOGGER_NAME, create_devtools_bridge, tracing
 from yate.paths import load_tcss
@@ -187,7 +187,7 @@ class YateApp(App[None]):
         """Repaint the base screen background with the active yate palette.
 
         The screen is the one surface the shell owns; every other widget
-        paints itself via the :mod:`yate.editor_view.theme` broadcast.
+        paints itself via the :mod:`yate.editor_components.theme` broadcast.
         """
         if self.screen_stack:
             self.screen.styles.background = theme.active().bg

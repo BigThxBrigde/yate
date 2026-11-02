@@ -106,7 +106,7 @@ async def _terminal_termclose(tmp: Path) -> ScenarioResult:
     """:termclose / :terminal (the full names of the terminal commands).
 
     The ex command line is only reachable while the editor owns the keyboard:
-    a focused :class:`~yate.editor_view.terminal.TerminalView` swallows every
+    a focused :class:`~yate.editor_components.terminal.TerminalView` swallows every
     key (stops the event) except the toggle keys, exactly as noted on
     ``terminal_panel_toggle``.  ``:termclose`` is therefore driven first, on
     the hidden panel -- the documented "already hidden" warning path -- and

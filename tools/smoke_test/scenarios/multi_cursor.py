@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yate.editor_view.editor import EditorView
+from yate.editor_components.editor import EditorView
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import run_command, type_text

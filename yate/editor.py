@@ -37,17 +37,17 @@ from yate.editor_syntax import (
     language_name,
     resolve_filetype,
 )
-from yate.editor_view import theme
-from yate.editor_view.canvas_screen import CanvasScreen
-from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.completion import CompletionPopup
-from yate.editor_view.editor import EditorView
-from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.panes import PaneHost, PaneManager
-from yate.editor_view.statusbar import StatusBar, mode_chip
-from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
-from yate.editor_view.whichkey import EditorColumn, WhichKeyPanel
+from yate.editor_components import theme
+from yate.editor_components.canvas_screen import CanvasScreen
+from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.completion import CompletionPopup
+from yate.editor_components.editor import EditorView
+from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.panes import PaneHost, PaneManager
+from yate.editor_components.statusbar import StatusBar, mode_chip
+from yate.editor_components.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
@@ -1119,7 +1119,7 @@ class Editor:
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
         # Normalization (strip / lower) is single-sourced in
-        # editor_view.theme.set_theme; the shell forwards the raw input.
+        # editor_components.theme.set_theme; the shell forwards the raw input.
         # Capture before set_theme: afterwards active().name always equals
         # *selected.name*, so the re-select case is no longer distinguishable
         # there.

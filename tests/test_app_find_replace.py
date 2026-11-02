@@ -17,13 +17,13 @@ from textual.widgets import Input, Static
 
 from yate.app import YateApp
 from yate.editor_core import project_search
-from yate.editor_view import theme
-from yate.editor_view.find_replace import (
+from yate.editor_components import theme
+from yate.editor_components.find_replace import (
     FindReplaceScreen,
     RevealFn,
     _Results,
 )
-from yate.editor_view.scrollbars import SlimScrollBarRender
+from yate.editor_components.scrollbars import SlimScrollBarRender
 
 from conftest import message_text, plain_text, wait_until
 

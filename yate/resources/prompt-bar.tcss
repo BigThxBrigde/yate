@@ -1,5 +1,5 @@
 /* PromptBar widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/commandline.py via yate.paths.load_tcss. */
+   loaded by editor_components/commandline.py via yate.paths.load_tcss. */
 PromptBar {
     height: 1;
     background: $surface;

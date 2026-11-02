@@ -12,7 +12,7 @@ from typing import Any, cast
 from unittest.mock import patch
 import pytest
 from yate.app import YateApp
-from yate.editor_view.manual import DocBody, MarkdownDocScreen
+from yate.editor_components.manual import DocBody, MarkdownDocScreen
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 
@@ -25,7 +25,7 @@ def test_f8_opens_manual_and_esc_closes() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -76,7 +76,7 @@ def test_set_theme_switches_textual_theme_and_overlay_border() -> None:
     async def scenario() -> None:
         from textual.color import Color
 
-        from yate.editor_view import theme as yate_theme
+        from yate.editor_components import theme as yate_theme
 
         app = YateApp()
         try:
@@ -131,7 +131,7 @@ def test_startup_falls_back_to_mocha_when_selected_theme_bridge_fails() -> None:
     """A yate theme with an unusable bridge must not crash startup."""
     from dataclasses import fields as dc_fields
 
-    from yate.editor_view.theme import THEMES, Theme, set_theme
+    from yate.editor_components.theme import THEMES, Theme, set_theme
 
     async def scenario() -> None:
         base = THEMES["mocha"]
@@ -160,7 +160,7 @@ def test_valid_custom_yate_theme_gets_working_bridge() -> None:
 
     from textual.color import Color
 
-    from yate.editor_view.theme import THEMES, Theme, set_theme
+    from yate.editor_components.theme import THEMES, Theme, set_theme
 
     async def scenario() -> None:
         base = THEMES["mocha"]
@@ -220,7 +220,7 @@ def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> No
 
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown", side_effect=fake_load
+            "yate.editor_components.manual.load_doc_markdown", side_effect=fake_load
         ):
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
@@ -243,7 +243,7 @@ def test_manual_command_selects_language(cmd_arg: str, expected_lang: str) -> No
 
 @pytest.mark.parametrize("lang", ["en", "zh"])
 def test_both_language_files_bundled(lang: str) -> None:
-    from yate.editor_view.manual import load_manual_markdown
+    from yate.editor_components.manual import load_manual_markdown
 
     text = load_manual_markdown(lang)
     assert len(text) > 1000
@@ -263,7 +263,7 @@ def test_manual_search_filters_and_cycles_matches() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -360,7 +360,7 @@ def test_manual_search_step_lands_on_exact_rendered_row() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -431,7 +431,7 @@ def test_manual_search_no_matches_then_slash_reopens() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -484,7 +484,7 @@ def test_manual_hit_rows_paint_a_tinted_background() -> None:
     from textual.color import Color
     from textual.widgets import Static
 
-    from yate.editor_view import theme as yate_theme
+    from yate.editor_components import theme as yate_theme
 
     # The expected tint is derived here from the palette, not read back from
     # the viewer, so a mapping change that silently drops the tint fails.
@@ -499,7 +499,7 @@ def test_manual_hit_rows_paint_a_tinted_background() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -555,7 +555,7 @@ def test_manual_renders_at_the_laid_out_body_width() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(120, 40)) as pilot:
@@ -588,7 +588,7 @@ def test_manual_resize_rerenders_rows_and_keeps_the_current_hit() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -638,7 +638,7 @@ def test_manual_theme_switch_rerenders_the_row_colors() -> None:
     """The rows bake their colors in, so a theme switch must re-render them."""
     from textual.widgets import Static
 
-    from yate.editor_view import theme as yate_theme
+    from yate.editor_components import theme as yate_theme
 
     before_theme = yate_theme.active().name
 
@@ -646,7 +646,7 @@ def test_manual_theme_switch_rerenders_the_row_colors() -> None:
         app = YateApp()
         try:
             with patch(
-                "yate.editor_view.manual.load_doc_markdown",
+                "yate.editor_components.manual.load_doc_markdown",
                 return_value=MANUAL_DOC_FIXTURE,
             ):
                 async with app.run_test(size=(100, 30)) as pilot:
@@ -694,7 +694,7 @@ def test_manual_render_failure_degrades_to_an_error_row() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.render_doc_lines",
+            "yate.editor_components.manual.render_doc_lines",
             side_effect=RuntimeError("boom"),
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -729,7 +729,7 @@ def test_manual_paints_before_content_loads() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown", side_effect=slow_load
+            "yate.editor_components.manual.load_doc_markdown", side_effect=slow_load
         ):
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
@@ -762,7 +762,7 @@ def test_manual_paints_before_content_loads() -> None:
 def test_shell_command_runs_without_freezing_ui() -> None:
     from unittest.mock import patch
 
-    from yate.editor_view.modals import OutputScreen
+    from yate.editor_components.modals import OutputScreen
     from yate.services.shell import ShellResult
 
     gate = threading.Event()

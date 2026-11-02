@@ -19,7 +19,7 @@ from yate.editor_syntax import (
     resolve_filetype,
 )
 from yate.editor_syntax.tokens import Token
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 
 def _kinds(tokens: list[Token], line: str) -> list[tuple[str, str]]:

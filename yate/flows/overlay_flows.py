@@ -20,14 +20,14 @@ from yate.config import YateConfig
 from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.diffview import MAX_DIFF_LINES, DiffScreen
-from yate.editor_view.find_replace import FindReplaceScreen, RevealFn
-from yate.editor_view.hexview import HexScreen
-from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.modals import HelpScreen, OutputScreen
-from yate.editor_view.palette import PaletteScreen
-from yate.editor_view.screensaver import ScreensaverScreen
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.diffview import MAX_DIFF_LINES, DiffScreen
+from yate.editor_components.find_replace import FindReplaceScreen, RevealFn
+from yate.editor_components.hexview import HexScreen
+from yate.editor_components.manual import MarkdownDocScreen
+from yate.editor_components.modals import HelpScreen, OutputScreen
+from yate.editor_components.palette import PaletteScreen
+from yate.editor_components.screensaver import ScreensaverScreen
 from yate.flows import MessageFn, StateQuery
 from yate.keymaps.base import ActionRunner
 from yate.keymaps.registry import KeymapSet

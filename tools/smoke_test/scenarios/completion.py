@@ -1,7 +1,7 @@
 """Command completion smoke scenario (tag: ``command``).
 
 ``command_completion`` drives the multi-match command-name branch of
-``CommandInput._do_tab_completion`` (yate/editor_view/commandline.py):
+``CommandInput._do_tab_completion`` (yate/editor_components/commandline.py):
 the first tab extends the typed prefix to the longest common prefix and
 lists the remaining candidates on the message slot
 (``OWNER_CANDIDATES``), the second tab applies the first candidate of
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yate.editor_view.commandline import OWNER_CANDIDATES
+from yate.editor_components.commandline import OWNER_CANDIDATES
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import message_text, type_text

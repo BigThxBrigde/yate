@@ -20,7 +20,7 @@ import pytest
 
 import yate.commands
 from yate.commands import register_commands
-from yate.editor_view.explorer import ExplorerTree
+from yate.editor_components.explorer import ExplorerTree
 from yate.flows.document_flows import DocumentFlows
 from yate.registries import CommandRegistry
 from yate.services.workspace import Entry, Workspace
