@@ -23,7 +23,7 @@ local mod = {}
 function mod.setup(_api)
   -- The dispatcher lives in the shared engine: every game file only calls
   -- engine.register(name, launch), which records the "game-<name>" action.
-  yate.register_command("game", engine.dispatch, "launch a bundled game")
+  yate.register_command("game", engine.dispatch, "launch a bundled game", engine.completer)
 end
 
 function mod.teardown(_api)
