@@ -106,3 +106,35 @@ flowchart LR
     J --> K[审核 code-review-expert]
     K --> L[计划回填 + 收尾提交]
 ```
+
+## 六、执行结果回填（2026-11-02）
+
+### 提交清单
+
+| 提交 | 内容 |
+|---|---|
+| `7721b06` | `docs(plan): add editor-components-rename plan`（本计划） |
+| `860ae95` | Wave A `refactor(components): rename editor_view package to editor_components`（169 文件，rename 追踪 97–100%） |
+| `b01a376` | Wave B `refactor(file-manager): unify python-side file manager naming`（22 文件，git mv 12 + 内容替换 10；含 id 字面量滑移修复，见下） |
+| `ff2254b` | 评审跟进 `refactor(file-manager): rename leftover filemgr test module`（`tests/test_workspace_filemgr.py` → `test_workspace_file_manager.py`，纯文件名） |
+
+### 门禁实测（HEAD = `ff2254b`）
+
+| 门禁 | 实测 |
+|---|---|
+| pyright（`yate/ tests/ tools/ pack/`） | 0 errors / 0 warnings / 0 informations |
+| `pytest tests/ -q -n auto` | 全绿（3345 collected，仅存量 skip），exit 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed |
+| `--cov=yate --cov-branch --cov-fail-under=75` | 92.82%（达标） |
+| `tools.smoke_test run --jobs 4` | 121/121 场景、1463/1463 checks，`file_manager_startup_navigation` 17/17 PASS |
+| 负向演练 ×3（R3 / R15 / 层秩） | 临时回填违规均被拦截，已还原复测绿 |
+| 残留 grep | `editor_view` / `filemgr` / `filemanager` 在 yate/ + tests/ + tools/ 零残留；豁免集：changelog 历史注记、`zh_overrides.json`、`.trae/` 历史文档；`FileManagerScreen` / `FileManagerFlows` 类名按计划保留 |
+
+### 偏离与过程记录
+
+1. **批准环节豁免**（§五 已登记）：用户预授权无人值守。
+2. **Wave B 发现并修复一处替换滑移**：`screen.py` 事件处理器 id 比较误写成 `"file_manager-list"` / `"file_manager-input"`（下划线-连字符混排），与真实 widget id `#file-manager-list` / `#file-manager-input` 不匹配，导致高亮预览 / 过滤 / 输入提交静默失效——3 个 Pilot 测试（dir_preview / filter_keystrokes / mutations_drop）确定性失败暴露；经插桩定位后修正 5 处（含 worker group 名一并统一为 `file-manager-preview`），随 Wave B 提交。
+3. **评审结论**：code-review-expert 实测门禁后 **Approve**，唯一 minor（`test_workspace_filemgr.py` 文件名残留）已由 `ff2254b` 修复；评审自我批判剔除了 3 项误报（`namespace="file_manager_row"` 为 Textual 处理器名合法性所需、worker group 内部自洽、changelog 历史冻结）。
+4. **规则文档首次补登**：`architecture-boundaries.md` §一 L3 清单 / R11 / §三.7 豁免行 / §三.8 以 `file_manager_flows.py` 补登（历史波次名 filemgr-wrapup 按口径保留）。
+5. **另案登记（未改）**：`tests/test_app_panes.py::test_pane_regions_stay_visible_after_split` 并行时序 flake（串行复核两次通过）——与本次改名无关，待专项处理。
+
