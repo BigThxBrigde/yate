@@ -5,7 +5,10 @@
 #   CRLF in a Windows working tree is produced by core.autocrlf, not by editors
 # - Python style (.trae/rules/python-coding-style.md): 4-space indent,
 #   100-column limit, files end with a newline
-# - .gitattributes: *.sh must stay LF (a CRLF shebang breaks on Linux)
+# - Lua style (yate/extensions/): 2-space indent, uniform across the API
+#   library, bundled extensions and lua.example
+# - .gitattributes: *.sh and *.lua must stay LF (a CRLF shebang breaks on
+#   Linux; CR bytes are rejected by tools/lint_lua.py)
 
 # top-most EditorConfig file
 root = true
@@ -16,11 +19,40 @@ end_of_line = lf
 insert_final_newline = true
 trim_trailing_whitespace = true
 
-# Python sources and Python-based config examples (yaterc.example, themes).
-[*.{py,example}]
+# Python sources, type stubs (typings/), PyInstaller spec files (Python
+# syntax, exec'd by pyinstaller), and Python-based config examples
+# (yaterc.example, themes, *.py.example extension templates).
+[*.{py,pyi,spec,example}]
 indent_style = space
 indent_size = 4
 max_line_length = 100
+
+# The one Lua-syntax example follows the Lua style below, not the Python
+# style above (this section must come after it to win).
+[lua.example]
+indent_style = space
+indent_size = 2
+
+# Lua extension scripts (yate/extensions/): 2-space indent throughout;
+# LF is additionally enforced by .gitattributes.
+[*.lua]
+indent_style = space
+indent_size = 2
+
+# Tree-sitter query files (yate/editor_syntax/ts_backend/queries/).
+[*.scm]
+indent_style = space
+indent_size = 2
+
+# Textual CSS resources (yate/resources/).
+[*.tcss]
+indent_style = space
+indent_size = 4
+
+# PowerShell scripts (pack/, tools/probes/).
+[*.ps1]
+indent_style = space
+indent_size = 4
 
 # Machine-written JSON (smoke-test baselines) uses 2-space indent.
 [*.json]
