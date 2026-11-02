@@ -64,3 +64,43 @@
 ## 六、结论
 
 **可合并**：0 blocker / 0 major（F1 当轮已修）/ 0 minor 待办；门禁五项全绿。
+
+## 七、第二轮独立评审（2026-11-03，code-review-expert 子代理 reviewer-r2）
+
+用户指令按 `.trae/agents/code-review-expert.md` 剧本执行第二轮 review + 修复。
+本次派发按 subagent-workflow §五.4 变更配置重试（新团队、分相回报制、显式
+bypassPermissions）——**成功**：四相全部交付（门禁实测 + 6 项只读探针 +
+16 条自我批判裁决）。评审对象 `2e311e8..c2c031a`（7 提交）。
+
+**门禁实测（子代理亲跑，全部 exit 0）**：pyright 全仓 0 / 架构 37 / 工具测试
+4 / 全量 pytest / 覆盖率 92.80% / 冒烟 121·1463。
+
+**发现与处置（2 major + 6 minor + 6 建议）**：
+
+| 级别 | 发现 | 处置（提交） |
+|---|---|---|
+| major A1 | `wait_until` 超时返回 False 而非抛错，11 处调用点丢弃返回值——状态未达也存图报成功；运行器亦不校验产物 | `_require` 辅助（11 处改造）+ 运行器缺图/非 SVG 拒收（`1867b9b`） |
+| major A2 | 已提交截图泄漏本机环境：用户名（diag/pytest-pyright/game-snake/shell-overlay）、家目录、仓库路径（公开 Gitee 仓库，违反 doc-conventions §五） | `scrub_text/scrub_svg` 捕获时脱敏（`<home>/<repo>/<user>` 占位符），25 图重生成后全量扫描归零（`1867b9b` + `fc2875c`） |
+| minor B1 | 随机夹具目录名进入 15 帧 + 画廊"确定性"声明失真 | 夹具目录固定名 `fixtures`；临时 token 与 Rich 段哈希 SVG id 归一化；画廊文案改为"脱敏 + 报告类为真实采样"（`1867b9b`/`fc2875c`） |
+| minor B2 | 场景无墙钟预算，单场景挂死阻塞整轮 | `asyncio.wait_for` 每场景 120s（pilot）/1200s（报告） |
+| minor B3 | `__init__.py` 缺 future 导入 | 已补（`1867b9b`） |
+| minor B4 | `write_fixtures` 单点 + 25 处驱动重复 | 收敛为运行器单点（`1867b9b`） |
+| minor B5 | 工具自身覆盖率 46%，失败分支无用例 | 新增 3 用例（--list / 未知 --only / 失败分支 + 缺图拒收），去硬编码数量断言（`1867b9b`） |
+| minor B6 | 双语 README layout 树未登记新目录 | 两树各补 `screenshots/` 与 `tools/screenshots`（`99edb8a`） |
+| 建议 C1/C3/C4 | --out 指文件裸 traceback / 子进程超时丢输出 / 夹具常量公开名 | 全部采纳（`1867b9b`） |
+| 建议 C2/C6 | 截断 SVG 收录（预防性）/ `pause(0.5)` 采样等待 | C2 以运行器内容校验替代原子写（Textual 文件名耦合 title，不引原子替换）；C6 维持采样等待（屏保/游戏为动画帧，无确定性谓词） |
+
+**自我批判亮点**：删除 4 条初判（主题全局单例次序依赖——实测构造器重置全局主题；
+三图同字节——SHA256 两两不同为巧合；用户 yaterc 影响——App 不加载用户 rc；
+scenarios.py 需拆分——<800 行且单职责），A2 blocker→major 降级有据。
+
+**修复波门禁（主代理亲跑，全部 exit 0）**：pyright 全仓 0 / 架构 37 / 全量
+pytest / 覆盖率 92.88% / 冒烟 121·1463。补充验证：25 图泄漏扫描归零、
+`shell-overlay`（原时序敏感帧）与 `welcome-screen` 双再生 SHA256 一致、
+画廊 25 节完整。修复期间架构守卫 `test_no_machine_local_home_paths_in_sources`
+反抓到脱敏正则的字面量——按守卫先例改写措辞而非豁免（HOME_PATH_EXEMPT 保持空）。
+
+**流程注记**：覆盖率首轮出现 `test_filemgr_gg_prefix_jumps_to_top` 时序 flake
+（同批全量 pytest 通过、单跑即过、与本改动无关），复跑转绿后计门禁通过。
+
+**第二轮结论：可合并**（0 blocker / 0 major 残留；2 major 均当轮修复）。
