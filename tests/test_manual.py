@@ -53,7 +53,7 @@ def test_dismiss_within_debounce_window_leaves_no_pending_timer(
     """escape inside the debounce window cancels the armed timer.
 
     Without ``on_unmount`` the handle stayed on the loop and kept the
-    dismissed screen reachable; the ``is_mounted`` guard inside the flush
+    dismissed screen reachable; the ``is_attached`` guard inside the flush
     made the late callback harmless but the reference outlived it anyway.
     """
     calls: list[str] = []

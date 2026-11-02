@@ -297,7 +297,10 @@ class FileManagerScreen(ModalScreen[None]):
             # Listing unchanged (mtime revalidated): keep the stat dict and
             # top up only entries never stat'ed (same setdefault as
             # _refilter); dropped entries cannot linger because a content
-            # change misses the cache.
+            # change misses the cache.  Entries carried over from other
+            # directories (cross-directory navigation on cache hits) are
+            # harmless: every consumer looks paths up from the current
+            # entries, and any fresh scan rebuilds the dict wholesale.
             for entry in self._entries:
                 if entry.path not in self._stats:
                     self._stats[entry.path] = self.workspace.stat_entry(entry.path)
@@ -345,6 +348,12 @@ class FileManagerScreen(ModalScreen[None]):
         whether the listing came from a fresh cache hit (``_reload``
         keeps the stat dict only then); FIFO eviction caps the cache at
         :data:`_DIR_CACHE_SIZE`.
+
+        Residual window: a change landing in the *same* mtime tick as
+        the stamp reads as fresh until the next change pushes the mtime
+        again.  Nanosecond filesystems (NTFS/ext4) self-heal instantly;
+        coarse-tick filesystems (FAT32, some network shares) widen the
+        window to seconds -- ``r`` (force refresh) always rescans.
         """
         key = (path, self.workspace.show_hidden)
         cached = self._dir_cache.get(key)

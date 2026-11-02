@@ -64,3 +64,25 @@ self._dir_cache: dict[tuple[Path, bool], DirListing] = {}
 ## 回滚
 
 单提交 `perf(filemgr): incremental directory refresh with mtime-keyed cache`；失败 reset 到 plan-a 提交点。
+
+## 执行记录（2026-11-02）
+
+- 已按计划完成，提交 `8fce788`（3 文件，+317/-6）：`screen.py` 882→954 行、`model.py` +16（`DirListing` frozen dataclass，:95-108）、`tests/test_filemgr.py` +223（5 个新用例）。
+- 设计落点：`_DIR_CACHE_SIZE = 16`（screen.py:70）；缓存 `dict[tuple[Path, bool], DirListing]`（screen.py:181）；`_lookup_dir_listing`（:334-366，`st_mtime_ns` 复验 + FIFO 逐出 + stat 失败安全回退）；`_list_dir_cached`（:368-371）；`_drop_dir_cache`（:373-375）。
+- **stamp 语义细化**：stamp 取**扫描前**的目录 `st_mtime_ns`——扫描与 stamp 之间若发生变更，stamp 偏旧、下次复验必 miss，不会把陈旧列表钉在新 stamp 下。
+- `_reload` stat 策略：缓存命中 → `_stats` 保持并按 `_refilter` 同款 setdefault 只补缺失；重扫 → `_stats` 以本次 listing 重建（避免已删条目残留）。
+- **mutation 清单（grep 枚举定案）**：`_submit_prompt`（delete/rename/mkdir/new-file 四路共用单点，drop @ :729）、`action_paste`（drop @ :952）、`action_refresh`（drop `_dir_cache` + `_child_counts` + `_stats`）；`action_toggle_hidden` **有意不 drop**——无 FS 变更且 `show_hidden` 在键内保证正确性（drop 反而击穿"两键各自缓存"测试）。其余 `_reload` 调用点（`_wire_mount`/`action_open`/`action_up`/`action_cycle_sort`）无 FS 变更，不接线。
+- 测试新增：热复用/ mtime 失效、`r` 强刷重扫 + `_stats` 重建、rename/paste/delete 触发 drop、m11 同目录只 list_dir 一次 + `r` 后重扫、`show_hidden` 两键互不污染；既有 M3 计数用例不改一字通过。
+- **性能实测**（10000 子项 + 2 个 5000 文件胖目录，pilot 计时，临时脚本已删除）：
+
+  | 指标 | master（改造前） | 本分支 | 结论 |
+  |---|---|---|---|
+  | mount+首扫 ready | 31.60s | 32.02s | 持平（冷路径） |
+  | `_reload` 冷 | 6.07s（1 次 list_dir） | 6.12s（1 次） | 持平 |
+  | `_reload` 热 | 7.22s（1 次 list_dir） | 6.21s（**0 次**） | 热 reload 省约 1.0s，热路径零扫描 |
+  | `_render_dir_preview` ×10 | 2.675s（10 次 list_dir） | 0.304s（**1 次**） | **8.8×**，m11 达成 |
+  | j/k 高亮新增 list_dir | 10 / 10 | **1 / 0** | 热路径每键零全量扫描 |
+
+  j/k 单键墙钟由 10k 项未虚拟化 ListView 滚动成本支配（两版相同，超出本计划范围），故以隔离 dir_preview 微基准 + list_dir 计数作 m11 证据。
+- 验收：pyright 0 诊断 / pytest 全量 3318 passed, 10 skipped / 架构 37 passed。
+- 双语手册核对：`file-manager.en.md:80` 的 `r` 语义描述与改造后可见行为一致，未改动。

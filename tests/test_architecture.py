@@ -1561,7 +1561,7 @@ def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
     :data:`SCROLLBAR_EXEMPT`.
     """
     offenders: list[str] = []
-    for path in sorted((YATE / "editor_view").glob("*.py")):
+    for path in sorted((YATE / "editor_view").rglob("*.py")):
         rel = path.relative_to(YATE).as_posix()
         if rel in SCROLLBAR_EXEMPT:
             continue

@@ -969,8 +969,9 @@ def test_filemgr_mutations_drop_dir_cache(
             await pilot.press("enter")
             assert await wait_until(pilot, lambda: _entry_names(screen) == [])
             assert drops == [True, True, True]
-            # the middle pane listed "sub" on: mount preview, the rescan
-            # after each drop (rename / paste / delete) = 4 total
+            # "sub" was listed by: the mount-time dir preview, the preview
+            # after rename drops the cursor back on it, then the rescan
+            # after each drop (paste / delete) = 4 total
             assert calls.count(tmp_path / "sub") == 4
 
     asyncio.run(scenario())

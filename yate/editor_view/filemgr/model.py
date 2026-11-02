@@ -101,7 +101,11 @@ class DirListing:
     result: directories first, ignore rules and dotfile visibility
     applied, not filtered or sorted by the screen).  Any change of the
     directory contents after the scan makes the stored stamp read as
-    stale, so the consumer re-scans.
+    stale, so the consumer re-scans.  The stamp only tracks the
+    directory itself: external edits to an existing child's *content*
+    do not move it, so cached metadata (size / mtime decoration and
+    size ordering) stays as scanned until a forced refresh (``r``) or
+    any directory change rescans.
     """
 
     stamp: int

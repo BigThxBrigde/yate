@@ -57,3 +57,13 @@ python -m pytest tests/test_architecture.py -q
 ## 回滚
 
 单提交 `refactor(filemgr): move file manager modules into a subpackage`；失败 `git reset --hard` 回到 plan-a 起点。
+
+## 执行记录（2026-11-02）
+
+- 已按计划完成，提交 `3a4dcff`（13 文件，+31/-21；三文件 `git mv` rename 追踪 95-100%）。
+- 新 `filemgr/__init__.py` 仅英文 docstring（UI 包禁 re-export、按名导入子模块），零代码。
+- `screen.py` 迁移后 882 行（splitlines 口径），维持豁免（后续 plan-b 波复测 954 行）。
+- `yate/docs/file-manager.{en,zh}.md` 经 grep 核实无模块路径表述，未改动。
+- 残留 grep：`editor_view.filemgr import`（不带 .screen/.model/.keys）与 `editor_view.filemgr_model` / `editor_view.filemgr_keys` 在 `yate/ tests/ tools/` 均 0 命中；`yate/resources/changelog.{en,zh}.md` 中的 `filemgr_model` 为历史 commit 注记（描述过去提交，不属活跃导入路径）。
+- 验收：pyright 0 诊断 / pytest 全量绿 / 架构 37 passed。
+- 环境注记：worktree 无自带 `.venv`，pyright 经 `--pythonpath` 指主仓 venv 解释器（后续 plan-b 波已建 `.venv` junction，git-ignored）。
