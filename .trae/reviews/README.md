@@ -50,6 +50,10 @@
 `630b7e6..HEAD` 23 提交 / 52 文件 +6549−198；1 blocker / 1 major / 11 minor，
 五项门禁全绿——blocker 为 `copy_entry` 目录粘进自身子树的 `RecursionError`，
 门禁不可达故须独立用例兜底）。
+**2026-11-02 readme-screenshots 增量**：新增 #55（`feat/readme-screenshots`
+分支评审，5 提交：截图工具 + 25 SVG + 画廊 + 双语 README 链接；
+1 major 当轮修复——画廊子集渲染语义 `afcaf5f`；门禁五项全绿，
+评审子代理零产出由主代理按剧本兜底）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -112,6 +116,7 @@
 | 52 | 2026-11-01 | `:cd` 命令单笔评审（`feat/file-manager` @ `aeedd05`，6 文件 +343）：1 major = `:cd` 未走 `_strip_quotes`，`:cd "C:\Program Files"` 被判「不是目录」（`:e` / `:saveas` / `:split` 等 6 处同类调用点均剥引号）；7 minor = 补全含文件候选 / `is_dir` 探测三份副本 / 新增 `OSError` 分支零覆盖 / 无根时打印 `None` / 盘符形态与分隔符不归一 / 死 monkeypatch / 方案文档两处与实现不符 | 👀 待处置（门禁六项：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.69% + 冒烟 121/121·1463 checks，全 exit 0） | [2026-10-31-file-manager.md](2026-10-31-file-manager.md)（末章 `## :cd command`） |
 | 53 | 2026-11-01 | **`feat/file-manager` 合并前 PR 级预评审**（`630b7e6..HEAD` 23 提交 / 52 文件 +6549−198；分支级一致性 + 跨提交回归 + CHANGELOG/双语指南一致性 + 合并冲突面）：⛔ 1 blocker = `Workspace.copy_entry` 无自嵌套守卫，`y`→`l`→`l`→`p` 把目录粘进自身子树 → 500 层嵌套 + `RecursionError`（不属 `OSError`）→ 应用以 rc 1 退出且残留 489 条垃圾路径（探针 + pilot 双证）；1 major = POSIX 文件系统根 `h` / `--file-manager /` 进入空盘符层且 `h`/`l`/`j`/`r` 全部无效（pilot 实证，CI Linux 腿可达）；11 minor = `:cd` 目录过滤字面量写成双引号 / 该修复的回归用例空转（文件在候选求值后才创建）/ Q4 改造残留死分支与死假设用例 / 双语指南把盘符层写在左栏 / 预览文本装配两处逐字重复 / `--file-manager` 非目录静默空屏且与 `--diff`·`--hex` 未互斥 / 手册缺 `:file-manager` 与 `Alt+Shift+F` / `alt+shift+f` 绕过 action 注册 / `is_mounted` 守卫为空操作 / nav 重映射零用例 / 目录预览每次光标移动全量 `list_dir` | ⛔ 未通过（待处置；五项门禁全绿：pyright 0 + 3304 passed/10 skipped + 架构 37 + 覆盖率 92.71% + 冒烟 121/121·1463 checks，全 exit 0；blocker 与 major 均非门禁可拦截类） | [2026-11-01-pr-review-feat-file-manager.md](2026-11-01-pr-review-feat-file-manager.md) |
 | 54 | 2026-11-02 | filemgr-wrapup 闭环评审（issue IKS4CT，`4a4f900..HEAD` 9 提交；分支 `ref/filemgr-wrapup`）：第一轮 python-code-review = MINOR ISSUES（3 WARNING：R15 守卫扫描面被包迁移击穿 / coarse-mtime 同刻度残余窗口 / docstring 修正游离未提交 + 3 SUGGESTION）；第二轮 pr-review = **APPROVE**（1 MINOR：豁免行数登记落后）。全部当轮修复 | ✅ 已修（W1 glob→rglob 恢复递归扫描面 + 规则文档同步 `7bdad83`/`a7bf55c`；W2/S1/S2 docstring 边界登记；S3 测试注释归因修正；行数 963 同步；门禁 pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.81% + 冒烟 121/121·1463 checks + filemanager 基线 MATCH；方案与执行记录 [filemgr-wrapup-plans/](../documents/filemgr-wrapup-plans/overview.md)） | [2026-11-02-filemgr-wrapup.md](2026-11-02-filemgr-wrapup.md) |
+| 55 | 2026-11-02 | `feat/readme-screenshots` 分支评审（`2e311e8..afcaf5f` 5 提交：tools/screenshots 无头截图工具 / 25 SVG + 画廊 / 双语 README 链接）：1 major = 画廊按「本次成功子集」渲染，`--only` 部分再生把 `screenshots/README.md` 缩水（且 wave-2 提交的画廊已被旧代码的确定性抽查覆写成 1 节，提交前未复检） | ✅ 已修（画廊改全量注册表 × SVG 存在性过滤 `afcaf5f`，部分再生字节一致实测 SHA256 相等，回归用例 `test_partial_regen_preserves_full_gallery` 在位；门禁五项全绿：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.81% + 冒烟 121/121·1463 checks；评审子代理零产出，主代理按剧本兜底） | [2026-11-02-readme-screenshots.md](2026-11-02-readme-screenshots.md) |
 
 ---
 
