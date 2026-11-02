@@ -556,6 +556,23 @@ break、保留已收出项）、`test_guarded_completer_swallows_coercion_type_e
   （非缺失行）与 469/527/554/563/622/626/630 等与本轮无关的存量缺失行；
 - `pyright yate/ tests/ tools/`：0 errors, 0 warnings, 0 informations，退出码 0。
 
+### 收尾全量门禁（主代理亲测，空闲环境）
+
+- `python -m pyright yate/ tests/ tools/`：0 errors / 0 warnings / 0 informations，退出码 0；
+- `pytest tests/ -q -n auto`：全绿，退出码 0（首轮与冒烟/覆盖率并行时
+  `test_pack_wiki_parallel.py::test_interrupt_leaves_the_queued_batches_untranslated`
+  墙钟断言被负载膨胀击穿（1.79s 对 1.6s 上限，xdist 工作进程实测膨胀约 3.5x）；
+  按「时序 flake 必须修用例」纪律，把该断言余量从 8 倍放宽到 15 倍并注释负载依据，
+  修复后单文件 `-n 4` 与全量 `-n auto` 空闲复跑均全绿）；
+- `pytest tests/test_architecture.py -q`：37 passed，退出码 0；
+- `pytest tests/ --cov=yate --cov-branch -n auto --cov-fail-under=75`：总覆盖率 92.88%，
+  退出码 0；
+- `python -m tools.smoke_test run --jobs 4`：121/121 场景、1463/1463 checks，退出码 0
+  （首轮与 pytest/覆盖率并行时 `vim_registers_text_objects` 的 `ciw_back_to_normal`
+  单项失败（期望 NORMAL 实得 INSERT）；单场景复跑定位为并行门禁 CPU 争抢导致的
+  时序 flake（空闲 0.97s 对负载 4.1s），master 对照通过、空闲复跑通过、空闲全量
+  复跑 1463/1463 全过，非本分支代码回归）。
+
 ### 评审轮 2（pr-review 终审，code-review-expert 执行）
 
 针对修复后全分支（8cfe8bf..65aedf2）的 PR 级预审结论：**APPROVE，0 blocker**。
