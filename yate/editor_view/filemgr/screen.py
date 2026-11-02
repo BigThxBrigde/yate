@@ -39,6 +39,7 @@ from yate.editor_view.filemgr.keys import (
     SCREEN_BINDINGS,
 )
 from yate.editor_view.filemgr.model import (
+    DirListing,
     SortKey,
     build_row_text,
     count_children,
@@ -63,6 +64,10 @@ log = tracing.get_logger(__name__)
 
 #: Maximum children listed in a directory preview.
 _DIR_PREVIEW_CAP: int = 100
+
+#: Directory-listing cache entry cap (FIFO eviction; aligned with the
+#: preview pipeline's ``PREVIEW_CACHE_SIZE``).
+_DIR_CACHE_SIZE: int = 16
 
 #: Mode of the bottom input line / pending prompt operation.
 type _InputMode = Literal["filter", "prompt"]
@@ -172,6 +177,8 @@ class FileManagerScreen(ModalScreen[None]):
         self._entries: list[Entry] = []
         self._stats: dict[Path, EntryStat] = {}
         self._child_counts: dict[Path, int] = {}
+        #: ``(path, show_hidden)`` -> listing, mtime-keyed freshness (R1)
+        self._dir_cache: dict[tuple[Path, bool], DirListing] = {}
         #: rendered row texts, parallel to ``_entries``
         self._rows: list[Text] = []
         self._sort: SortKey = "name"
@@ -274,15 +281,32 @@ class FileManagerScreen(ModalScreen[None]):
     def _reload(self, keep: Path | None = None) -> None:
         """Rebuild the panes from the file system (shared refresh pipeline):
         list + stat + sort + render, then refresh preview and status.
-        *keep* forces the cursor onto that entry (the ``h`` lf semantics)."""
+        *keep* forces the cursor onto that entry (the ``h`` lf semantics).
+        The middle listing goes through the mtime-keyed cache (R1): a hit
+        reuses the stat dict, a fresh scan rebuilds it."""
         previous = self._cursor_path()
         if self._cwd is None:
-            # drive-letter virtual level (Q4): drives listed in the middle
+            # drive-letter virtual level (Q4): drives listed in the middle;
+            # list_drives probes are cheap, so this level stays uncached
             self._all = self.workspace.list_drives()
+            cached = False
         else:
-            self._all = self.workspace.list_dir(self._cwd)
+            self._all, cached = self._lookup_dir_listing(self._cwd)
         self._entries = filter_entries(self._all, self._filter or "")
-        self._stats = {e.path: self.workspace.stat_entry(e.path) for e in self._entries}
+        if cached:
+            # Listing unchanged (mtime revalidated): keep the stat dict and
+            # top up only entries never stat'ed (same setdefault as
+            # _refilter); dropped entries cannot linger because a content
+            # change misses the cache.
+            for entry in self._entries:
+                if entry.path not in self._stats:
+                    self._stats[entry.path] = self.workspace.stat_entry(entry.path)
+        else:
+            # Fresh scan is authoritative: rebuild so entries deleted since
+            # the previous listing do not linger in the stat dict.
+            self._stats = {
+                e.path: self.workspace.stat_entry(e.path) for e in self._entries
+            }
         self._entries = sort_entries(
             self._entries, self._stats, self._sort, descending=self._desc
         )
@@ -306,6 +330,49 @@ class FileManagerScreen(ModalScreen[None]):
         self._render_list(previous=previous)
         self._refresh_preview()
         self._refresh_status()
+
+    def _lookup_dir_listing(self, path: Path) -> tuple[list[Entry], bool]:
+        """Cached :meth:`Workspace.list_dir` probe with mtime revalidation.
+
+        The cache key is ``(path, show_hidden)``; a hit must revalidate
+        the stored stamp against the directory's current ``st_mtime_ns``,
+        so any content change reads as a miss and rescans.  The stamp is
+        probed *before* the scan: a change between stamp and scan keeps
+        the stamp older than the content, so the next probe misses
+        (stamping after the scan could pin a stale listing under a fresh
+        stamp).  A failed ``stat`` (vanished directory) reads as a miss
+        and falls back to an uncached ``list_dir``.  The ``bool`` reports
+        whether the listing came from a fresh cache hit (``_reload``
+        keeps the stat dict only then); FIFO eviction caps the cache at
+        :data:`_DIR_CACHE_SIZE`.
+        """
+        key = (path, self.workspace.show_hidden)
+        cached = self._dir_cache.get(key)
+        if cached is not None:
+            try:
+                fresh = path.stat().st_mtime_ns == cached.stamp
+            except OSError:
+                fresh = False
+            if fresh:
+                return cached.entries, True
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            return self.workspace.list_dir(path), False
+        entries = self.workspace.list_dir(path)
+        self._dir_cache[key] = DirListing(stamp=stamp, entries=entries)
+        while len(self._dir_cache) > _DIR_CACHE_SIZE:
+            self._dir_cache.pop(next(iter(self._dir_cache)))
+        return entries, False
+
+    def _list_dir_cached(self, path: Path) -> list[Entry]:
+        """Directory listing through the cache (consumers needing the
+        hit/miss bit call :meth:`_lookup_dir_listing`)."""
+        return self._lookup_dir_listing(path)[0]
+
+    def _drop_dir_cache(self) -> None:
+        """Drop every cached directory listing (mutations, force refresh)."""
+        self._dir_cache.clear()
 
     def _rebuild_rows(self) -> None:
         """Recompute row texts from the current entries.
@@ -425,7 +492,7 @@ class FileManagerScreen(ModalScreen[None]):
         """Render the first N children of directory *path* (UI thread)."""
         pane = self.query_one("#filemgr-preview", PreviewLog)
         pane.clear()
-        children = self.workspace.list_dir(path)
+        children = self._list_dir_cached(path)
         shown = children[:_DIR_PREVIEW_CAP]
         if not shown:
             pane.write(Text("(empty directory)", style=theme.active().fg_dim))
@@ -659,6 +726,7 @@ class FileManagerScreen(ModalScreen[None]):
             log.debug("filemgr %s failed: %s", kind, exc)
             self._show_input_error(str(exc))
             return
+        self._drop_dir_cache()
         self.workspace.invalidate()
         self._hide_input()
         if renamed is not None:
@@ -758,9 +826,12 @@ class FileManagerScreen(ModalScreen[None]):
         self._reload(keep=self._cursor_path())
 
     def action_refresh(self) -> None:
-        """``r`` / F5: drop the workspace cache and rebuild the listing."""
+        """``r`` / F5: force refresh -- drop the workspace, directory-listing,
+        child-count and stat caches, then rebuild the listing."""
         self.workspace.invalidate()
+        self._drop_dir_cache()
         self._child_counts = {}
+        self._stats = {}
         self._reload(keep=self._cursor_path())
 
     def action_mark(self) -> None:
@@ -878,5 +949,6 @@ class FileManagerScreen(ModalScreen[None]):
             log.debug("filemgr paste failed: %s", exc)
             self._show_input_error(f"paste failed: {exc}")
             return
+        self._drop_dir_cache()
         self.workspace.invalidate()
         self._reload()

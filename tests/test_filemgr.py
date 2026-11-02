@@ -12,6 +12,7 @@ tests assert on the DOM, screen state and the file system.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 
@@ -120,6 +121,24 @@ def _preview_text(screen: FileManagerScreen) -> str:
     """Rendered plain text of the preview pane."""
     pane = screen.query_one("#filemgr-preview", PreviewLog)
     return "\n".join(strip.text for strip in pane.lines)
+
+
+def _count_list_dir(monkeypatch: pytest.MonkeyPatch) -> list[Path]:
+    """Route ``Workspace.list_dir`` through a recording stand-in.
+
+    Returns the list the calls are recorded into; assertions use
+    ``calls.count(path)`` so unrelated listings (the left pane's parent
+    scan) never skew the counts.
+    """
+    calls: list[Path] = []
+    real_list = Workspace.list_dir
+
+    def list_counting(self: Workspace, path: Path) -> list[Entry]:
+        calls.append(path)
+        return real_list(self, path)
+
+    monkeypatch.setattr(Workspace, "list_dir", list_counting)
+    return calls
 
 
 def _make_tree(tmp_path: Path) -> None:
@@ -822,6 +841,210 @@ def test_filemgr_filter_keystrokes_reuse_cached_counts(
             await pilot.press("r")
             assert await wait_until(pilot, lambda: calls["counts"] == 2)
             assert calls["stats"] == 4
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_reload_reuses_listing_until_dir_mtime_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unchanged directory lists once; an mtime bump forces a rescan."""
+    _make_tree(tmp_path)
+    calls = _count_list_dir(monkeypatch)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot,
+                lambda: _entry_names(screen)
+                == ["other", "sub", "alpha.txt", "beta.txt"],
+            )
+            assert calls.count(tmp_path) == 1
+            # unchanged directory: the second reload is a pure cache hit
+            screen._reload()
+            assert calls.count(tmp_path) == 1
+            assert _entry_names(screen) == [
+                "other",
+                "sub",
+                "alpha.txt",
+                "beta.txt",
+            ]
+            # a directory mtime bump invalidates the stamp: rescan
+            stamp = 1_500_000_000_000_000_000
+            os.utime(tmp_path, ns=(stamp, stamp))
+            screen._reload()
+            assert calls.count(tmp_path) == 2
+            assert _entry_names(screen) == [
+                "other",
+                "sub",
+                "alpha.txt",
+                "beta.txt",
+            ]
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_refresh_drops_dir_cache_and_restats(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``r`` rescans a warm unchanged directory and rebuilds the stat dict."""
+    _make_tree(tmp_path)
+    calls = _count_list_dir(monkeypatch)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 4)
+            assert calls.count(tmp_path) == 1
+            assert screen._dir_cache  # warm after the initial listing
+            # mtime unchanged: only a dropped cache explains the rescan
+            await pilot.press("r")
+            assert await wait_until(pilot, lambda: calls.count(tmp_path) == 2)
+            assert screen._dir_cache  # refilled by the forced rescan
+            assert screen._child_counts  # recount repopulated
+            assert set(screen._stats) == {e.path for e in screen._all}
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_mutations_drop_dir_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """rename / paste / delete each drop the dir cache before reloading."""
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
+    (tmp_path / "beta.txt").write_text("b\n", encoding="utf-8")
+    drops: list[bool] = []
+    calls = _count_list_dir(monkeypatch)
+    real_drop = filemgr.FileManagerScreen._drop_dir_cache
+
+    def drop_counting(screen: FileManagerScreen) -> None:
+        drops.append(True)
+        real_drop(screen)
+
+    monkeypatch.setattr(filemgr.FileManagerScreen, "_drop_dir_cache", drop_counting)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == ["sub", "alpha.txt", "beta.txt"]
+            )
+            assert drops == []
+            # rename alpha.txt -> gamma.txt (cursor moves off "sub" first)
+            await pilot.press("j")
+            await pilot.press("R")
+            await pilot.press("ctrl+u")
+            for ch in "gamma.txt":
+                await pilot.press(ch)
+            await pilot.press("enter")
+            assert await wait_until(
+                pilot,
+                lambda: _entry_names(screen) == ["sub", "beta.txt", "gamma.txt"],
+            )
+            assert drops == [True]
+            # yank gamma.txt, enter "sub", paste it there
+            await pilot.press("j")
+            await pilot.press("j")
+            await pilot.press("y")
+            await pilot.press("g", "g")
+            await pilot.press("l")
+            assert await wait_until(pilot, lambda: _entry_names(screen) == [])
+            await pilot.press("p")
+            assert await wait_until(pilot, lambda: _entry_names(screen) == ["gamma.txt"])
+            assert drops == [True, True]
+            # delete the pasted file
+            await pilot.press("d")
+            await pilot.press("y")
+            await pilot.press("enter")
+            assert await wait_until(pilot, lambda: _entry_names(screen) == [])
+            assert drops == [True, True, True]
+            # the middle pane listed "sub" on: mount preview, the rescan
+            # after each drop (rename / paste / delete) = 4 total
+            assert calls.count(tmp_path / "sub") == 4
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_dir_preview_lists_each_directory_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Highlighting directories reuses the cache; ``r`` forces a rescan."""
+    _make_tree(tmp_path)  # dirs: other, sub; files: alpha.txt, beta.txt
+    calls = _count_list_dir(monkeypatch)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot,
+                lambda: _entry_names(screen)
+                == ["other", "sub", "alpha.txt", "beta.txt"],
+            )
+            # the mount-time preview already listed the cursor dir "other"
+            assert await wait_until(
+                pilot, lambda: calls.count(tmp_path / "other") == 1
+            )
+            await pilot.press("j")  # highlight "sub": listed once
+            assert await wait_until(pilot, lambda: calls.count(tmp_path / "sub") == 1)
+            await pilot.press("k")  # back to "other": cache hit
+            await pilot.press("j")  # "sub" again: cache hit
+            await pilot.pause()
+            assert calls.count(tmp_path / "sub") == 1
+            assert calls.count(tmp_path / "other") == 1
+            # ``r`` drops the cache: the re-rendered preview rescans
+            await pilot.press("r")
+            assert await wait_until(pilot, lambda: calls.count(tmp_path / "sub") == 2)
+
+    asyncio.run(scenario())
+
+
+def test_filemgr_hidden_toggle_switches_cache_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The two show_hidden keys cache independently (the key carries it)."""
+    (tmp_path / "visible.txt").write_text("v\n", encoding="utf-8")
+    (tmp_path / ".dotfile").write_text("d\n", encoding="utf-8")
+    calls = _count_list_dir(monkeypatch)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == ["visible.txt"]
+            )
+            assert calls.count(tmp_path) == 1
+            cwd = screen._cwd
+            assert cwd is not None
+            # ``H`` reveals dotfiles: the new key misses once, then caches
+            await pilot.press("H")
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == [".dotfile", "visible.txt"]
+            )
+            assert calls.count(cwd) == 2
+            assert set(screen._dir_cache) == {(cwd, False), (cwd, True)}
+            # toggling back hits the original key: no rescan
+            await pilot.press("H")
+            assert await wait_until(
+                pilot, lambda: _entry_names(screen) == ["visible.txt"]
+            )
+            assert calls.count(cwd) == 2
 
     asyncio.run(scenario())
 
