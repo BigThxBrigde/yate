@@ -190,6 +190,16 @@ def cmd(args: str) -> None:
 api.register_command("name", func, "description")
 ```
 
+Lua extensions attach an argument completer as the fourth argument; it
+receives the raw argument prefix and returns candidate strings for `Tab`:
+
+```lua
+-- with Tab completion
+api.register_command("name", func, "description", function(prefix)
+  return {"candidate1", "candidate2"}
+end)
+```
+
 The command function receives the raw argument string after the command name
 (which may be empty). For `:upper foo bar`, `args` is `"foo bar"`.
 
@@ -959,6 +969,11 @@ yate.bind_key("<alt-h>", function(ctx)
   yate.message("Alt+H pressed")
 end, "both")                   -- positional args (Lua has no kwargs)
 
+-- Tab completion: pass a completer as the 4th argument; it receives the
+-- raw argument prefix and returns a table of candidate strings:
+-- yate.register_command("game", handler, "desc",
+--   function(prefix) return { "one", "two" } end)
+
 -- optional cleanup on exit:
 -- teardown = function(api) ... end
 ```
@@ -981,7 +996,7 @@ runtime: `require("yate")` and the global `yate` are the same module table
 | Function | Purpose |
 |---|---|
 | `yate.message(text)` | show a hint on the message line |
-| `yate.register_command(name, fn, desc?)` | register a `:` command; `fn` receives the raw argument string |
+| `yate.register_command(name, fn, desc?, completer?)` | register a `:` command; `fn` receives the raw argument string; `completer(prefix)` returns candidate strings for `Tab` |
 | `yate.register_action(name, fn, desc?)` | register a named action |
 | `yate.bind_key(spec, fn, keymap?)` | bind a key (`"vsc"` / `"vim"` / `"both"`; default `"vsc"`) |
 | `yate.bind_action(spec, action, keymap?)` | bind a key to a **registered** action (built-in or your own; register first, section 4.12) |

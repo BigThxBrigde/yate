@@ -168,6 +168,16 @@ def cmd(args: str) -> None:
 api.register_command("name", func, "description")
 ```
 
+Lua 扩展把参数补全器作为第 4 个参数传入；回调接收原始参数前缀，返回供
+`Tab` 补全的候选字符串：
+
+```lua
+-- with Tab completion
+api.register_command("name", func, "description", function(prefix)
+  return {"candidate1", "candidate2"}
+end)
+```
+
 命令函数接收命令名之后的原始参数字符串（可能为空串）。例如执行
 `:upper foo bar`，`args` 为 `"foo bar"`。
 
@@ -877,6 +887,11 @@ yate.bind_key("<alt-h>", function(ctx)
   yate.message("Alt+H pressed")
 end, "both")                   -- 位置参数（Lua 没有 kwargs）
 
+-- Tab 补全：第 4 个参数传补全回调；回调接收原始参数前缀，
+-- 返回候选字符串表：
+-- yate.register_command("game", handler, "desc",
+--   function(prefix) return { "one", "two" } end)
+
 -- 退出时的可选清理：
 -- teardown = function(api) ... end
 ```
@@ -897,7 +912,7 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 | 函数 | 用途 |
 |---|---|
 | `yate.message(text)` | 在消息栏显示提示 |
-| `yate.register_command(name, fn, desc?)` | 注册 `:` 命令；`fn` 接收原始参数字符串 |
+| `yate.register_command(name, fn, desc?, completer?)` | 注册 `:` 命令；`fn` 接收原始参数字符串；`completer(prefix)` 返回供 `Tab` 补全的候选字符串 |
 | `yate.register_action(name, fn, desc?)` | 注册命名动作 |
 | `yate.bind_key(spec, fn, keymap?)` | 绑定按键（`"vsc"` / `"vim"` / `"both"`；默认 `"vsc"`） |
 | `yate.bind_action(spec, action, keymap?)` | 把按键绑定到**已注册**动作（内置或自己的均可；先注册后绑定，见 4.12 节） |
