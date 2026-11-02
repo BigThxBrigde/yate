@@ -32,6 +32,10 @@ if /i "%arg%"=="--onefile" set "arg=-OneFile"
 if /i "%arg%"=="--skip-changelog" set "arg=-SkipChangelog"
 if /i "%arg%"=="--dist" set "arg=-Dist"
 if /i "%arg%"=="--help" set "arg=-Help"
+rem A trailing backslash would escape the closing quote below and reach
+rem PowerShell as a literal '"' (classic "...\ " pitfall); double it so the
+rem re-quoted argument round-trips (pack.ps1 also strips stray quotes).
+if "%arg:~-1%"=="\" set "arg=%arg%\"
 set "ARGS=%ARGS% "%arg%""
 shift
 goto parse

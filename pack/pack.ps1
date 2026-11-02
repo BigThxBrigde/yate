@@ -174,6 +174,11 @@ try {
 
     # --dist <dir>: collect the freshly built artifact into a versioned
     # subdirectory for direct pick-up (local copy only, no upload).
+    # The .bat wrapper re-quotes every argument; a trailing backslash then
+    # escapes the closing quote and arrives here as a literal '"'
+    # (".\release\onefile\" -> .\release\onefile").  Strip stray quotes and
+    # the trailing separator before any path math.
+    $Dist = $Dist.Trim().Trim('"').TrimEnd('\')
     if ($Dist -ne "") {
         $distRoot = [System.IO.Path]::GetFullPath((Join-Path $root $Dist))
 
