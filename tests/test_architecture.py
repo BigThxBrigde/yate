@@ -247,10 +247,10 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components",
         "yate.editor_components.whichkey",
     },
-    "flows/filemanager_flows.py": {
+    "flows/file_manager_flows.py": {
         "yate.editor_components.commandline",
         "yate.editor_components.explorer",
-        "yate.editor_components.filemgr.screen",
+        "yate.editor_components.file_manager.screen",
     },
 }
 
@@ -351,7 +351,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor.py",
-    "editor_components/filemgr/screen.py",
+    "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "services/yxp.py",

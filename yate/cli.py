@@ -520,7 +520,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.diff_files
         else None,
         hex_file=Path(args.hex_file) if args.hex_file else None,
-        filemanager_dir=fm_dir,
+        file_manager_dir=fm_dir,
     )
     app.run()
     return 0

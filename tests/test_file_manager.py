@@ -23,8 +23,8 @@ from textual.widgets import Input, ListView, Static
 
 from yate.config import FilePreviewConfig
 from yate.editor_components import theme
-import yate.editor_components.filemgr.screen as filemgr
-from yate.editor_components.filemgr.screen import FileManagerScreen, _FileListView
+import yate.editor_components.file_manager.screen as file_manager
+from yate.editor_components.file_manager.screen import FileManagerScreen, _FileListView
 from yate.editor_components.preview import PreviewLog
 from yate.services.workspace import Entry, EntryStat, Workspace
 
@@ -78,7 +78,7 @@ def _screen(
 
 def _list(screen: FileManagerScreen) -> _FileListView:
     """The middle-pane list of *screen*."""
-    return screen.query_one("#filemgr-list", _FileListView)
+    return screen.query_one("#file-manager-list", _FileListView)
 
 
 def _entry_names(screen: FileManagerScreen) -> list[str]:
@@ -88,12 +88,12 @@ def _entry_names(screen: FileManagerScreen) -> list[str]:
 
 def _status_text(screen: FileManagerScreen) -> str:
     """Plain text of the status bar."""
-    return plain_text(screen.query_one("#filemgr-status", Static).content)
+    return plain_text(screen.query_one("#file-manager-status", Static).content)
 
 
 def _parent_texts(screen: FileManagerScreen) -> list[str]:
     """Plain texts of the left-pane rows."""
-    pane = screen.query_one("#filemgr-parent", ListView)
+    pane = screen.query_one("#file-manager-parent", ListView)
     texts: list[str] = []
     for item in pane.children:
         for child in item.children:
@@ -104,7 +104,7 @@ def _parent_texts(screen: FileManagerScreen) -> list[str]:
 
 def _input_visible(screen: FileManagerScreen) -> bool:
     """Whether the bottom input line is currently shown."""
-    return screen.query_one("#filemgr-input", Input).has_class("active")
+    return screen.query_one("#file-manager-input", Input).has_class("active")
 
 
 def _no_drives(self: Workspace) -> list[Entry]:
@@ -119,7 +119,7 @@ def _one_q_drive(self: Workspace) -> list[Entry]:
 
 def _preview_text(screen: FileManagerScreen) -> str:
     """Rendered plain text of the preview pane."""
-    pane = screen.query_one("#filemgr-preview", PreviewLog)
+    pane = screen.query_one("#file-manager-preview", PreviewLog)
     return "\n".join(strip.text for strip in pane.lines)
 
 
@@ -149,7 +149,7 @@ def _make_tree(tmp_path: Path) -> None:
     (tmp_path / "beta.txt").write_text("beta\n", encoding="utf-8")
 
 
-def test_filemgr_renders_three_panes_and_status(tmp_path: Path) -> None:
+def test_file_manager_renders_three_panes_and_status(tmp_path: Path) -> None:
     """Push mounts the three panes and the status bar; rows match list_dir."""
     _make_tree(tmp_path)
 
@@ -159,10 +159,10 @@ def test_filemgr_renders_three_panes_and_status(tmp_path: Path) -> None:
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
-            assert screen.query("#filemgr-parent")
-            assert screen.query("#filemgr-list")
-            assert screen.query("#filemgr-preview")
-            assert screen.query("#filemgr-status")
+            assert screen.query("#file-manager-parent")
+            assert screen.query("#file-manager-list")
+            assert screen.query("#file-manager-preview")
+            assert screen.query("#file-manager-status")
             expected = len(Workspace(tmp_path).list_dir(tmp_path))
             assert await wait_until(
                 pilot, lambda: len(list(_list(screen).children)) == expected
@@ -172,7 +172,7 @@ def test_filemgr_renders_three_panes_and_status(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_navigate_enter_dir_and_back_lands_on_origin(tmp_path: Path) -> None:
+def test_file_manager_navigate_enter_dir_and_back_lands_on_origin(tmp_path: Path) -> None:
     """l enters a directory; h returns and the cursor lands on it (lf)."""
     _make_tree(tmp_path)
     (tmp_path / "sub" / "inner.txt").write_text("inner\n", encoding="utf-8")
@@ -204,7 +204,7 @@ def test_filemgr_navigate_enter_dir_and_back_lands_on_origin(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_filemgr_filter_narrows_and_esc_clears(tmp_path: Path) -> None:
+def test_file_manager_filter_narrows_and_esc_clears(tmp_path: Path) -> None:
     """``/`` opens filter mode; typing narrows; Esc restores the full list."""
     _make_tree(tmp_path)
 
@@ -227,7 +227,7 @@ def test_filemgr_filter_narrows_and_esc_clears(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_sort_cycles_with_dirs_first(tmp_path: Path) -> None:
+def test_file_manager_sort_cycles_with_dirs_first(tmp_path: Path) -> None:
     """``s`` cycles name -> size -> mtime in the status bar; dirs stay first."""
     (tmp_path / "zdir").mkdir()
     (tmp_path / "big.txt").write_text("x" * 1000, encoding="utf-8")
@@ -254,7 +254,7 @@ def test_filemgr_sort_cycles_with_dirs_first(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_toggle_hidden_and_refresh(tmp_path: Path) -> None:
+def test_file_manager_toggle_hidden_and_refresh(tmp_path: Path) -> None:
     """``H`` reveals dotfiles; ``r`` rebuilds the same listing."""
     (tmp_path / "visible.txt").write_text("v\n", encoding="utf-8")
     (tmp_path / ".dotfile").write_text("d\n", encoding="utf-8")
@@ -281,7 +281,7 @@ def test_filemgr_toggle_hidden_and_refresh(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_mark_and_invert_and_open_collection(tmp_path: Path) -> None:
+def test_file_manager_mark_and_invert_and_open_collection(tmp_path: Path) -> None:
     """Space marks, v inverts, Enter hands the marked collection to the stub."""
     _make_tree(tmp_path)  # dirs other/sub, files alpha.txt/beta.txt
 
@@ -323,7 +323,7 @@ def test_filemgr_mark_and_invert_and_open_collection(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_double_click_opens_via_selected(
+def test_file_manager_double_click_opens_via_selected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Single click moves the cursor only; a double click opens the file.
@@ -334,10 +334,10 @@ def test_filemgr_double_click_opens_via_selected(
     is patched wide to keep the test off real-sleep timing).
     """
     # the screen compares against its own by-value import (screen.py does
-    # ``from yate.editor_components.filemgr.keys import DOUBLE_CLICK_WINDOW``), so
+    # ``from yate.editor_components.file_manager.keys import DOUBLE_CLICK_WINDOW``), so
     # the patch must target the consumer module binding, not the source
     # module attribute.
-    monkeypatch.setattr(filemgr, "DOUBLE_CLICK_WINDOW", 30.0)
+    monkeypatch.setattr(file_manager, "DOUBLE_CLICK_WINDOW", 30.0)
     _make_tree(tmp_path)
     target = tmp_path / "alpha.txt"
 
@@ -363,7 +363,7 @@ def test_filemgr_double_click_opens_via_selected(
     asyncio.run(scenario())
 
 
-def test_filemgr_preview_shows_tokens_and_binary_note(tmp_path: Path) -> None:
+def test_file_manager_preview_shows_tokens_and_binary_note(tmp_path: Path) -> None:
     """Text previews render highlighted lines; binary files degrade to a note."""
     (tmp_path / "code.py").write_text(
         "def hello():\n    return 'world'\n", encoding="utf-8"
@@ -393,7 +393,7 @@ def test_filemgr_preview_shows_tokens_and_binary_note(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_escape_exits_filter_then_marks_then_closes(tmp_path: Path) -> None:
+def test_file_manager_escape_exits_filter_then_marks_then_closes(tmp_path: Path) -> None:
     """Esc steps back level by level: filter, then marks, then close."""
     _make_tree(tmp_path)
 
@@ -427,7 +427,7 @@ def test_filemgr_escape_exits_filter_then_marks_then_closes(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
-def test_filemgr_theme_switch_repaints_rows(tmp_path: Path) -> None:
+def test_file_manager_theme_switch_repaints_rows(tmp_path: Path) -> None:
     """A theme switch repaints the rows with the new accent (and scrollbars)."""
     _make_tree(tmp_path)
     original = theme.active().name
@@ -459,7 +459,7 @@ def test_filemgr_theme_switch_repaints_rows(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_file_ops_create_rename_delete(tmp_path: Path) -> None:
+def test_file_manager_file_ops_create_rename_delete(tmp_path: Path) -> None:
     """a creates a file, R renames it, d + y deletes it (disk assertions)."""
     (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
 
@@ -469,7 +469,7 @@ def test_filemgr_file_ops_create_rename_delete(tmp_path: Path) -> None:
             await pilot.pause()
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
-            input_widget = screen.query_one("#filemgr-input", Input)
+            input_widget = screen.query_one("#file-manager-input", Input)
             # create
             await pilot.press("a")
             assert _input_visible(screen)
@@ -505,8 +505,8 @@ def test_filemgr_file_ops_create_rename_delete(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_fullscreen_css_class_switches_layout(tmp_path: Path) -> None:
-    """fullscreen=True adds the class and #filemgr covers the whole screen."""
+def test_file_manager_fullscreen_css_class_switches_layout(tmp_path: Path) -> None:
+    """fullscreen=True adds the class and #file-manager covers the whole screen."""
     _make_tree(tmp_path)
 
     async def scenario() -> None:
@@ -516,7 +516,7 @@ def test_filemgr_fullscreen_css_class_switches_layout(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
             assert screen.has_class("fullscreen")
-            container = screen.query_one("#filemgr")
+            container = screen.query_one("#file-manager")
             assert await wait_until(
                 pilot, lambda: container.region.size == (100, 30)
             )
@@ -524,7 +524,7 @@ def test_filemgr_fullscreen_css_class_switches_layout(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_half_page_scrolls_cursor_down_and_up(tmp_path: Path) -> None:
+def test_file_manager_half_page_scrolls_cursor_down_and_up(tmp_path: Path) -> None:
     """ctrl+d / ctrl+u move the cursor by half a viewport, clamped."""
     for i in range(20):
         (tmp_path / f"f{i:02}.txt").write_text("x\n", encoding="utf-8")
@@ -546,7 +546,7 @@ def test_filemgr_half_page_scrolls_cursor_down_and_up(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_gg_prefix_jumps_to_top(tmp_path: Path) -> None:
+def test_file_manager_gg_prefix_jumps_to_top(tmp_path: Path) -> None:
     """``g`` ``g`` within the timeout jumps to the first row (lf semantics)."""
     _make_tree(tmp_path)
 
@@ -566,7 +566,7 @@ def test_filemgr_gg_prefix_jumps_to_top(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_toggle_hidden_notifies_show_hidden_changed(tmp_path: Path) -> None:
+def test_file_manager_toggle_hidden_notifies_show_hidden_changed(tmp_path: Path) -> None:
     """``H`` flips the flag and reports every change to the injected hook (m5)."""
     (tmp_path / "visible.txt").write_text("v\n", encoding="utf-8")
     hidden_calls: list[bool] = []
@@ -590,7 +590,7 @@ def test_filemgr_toggle_hidden_notifies_show_hidden_changed(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
-def test_filemgr_yank_then_paste_copies_entry(tmp_path: Path) -> None:
+def test_file_manager_yank_then_paste_copies_entry(tmp_path: Path) -> None:
     """``y`` + ``p`` copies into the entered directory: source kept."""
     (tmp_path / "sub").mkdir()
     (tmp_path / "alpha.txt").write_text("alpha\n", encoding="utf-8")
@@ -622,7 +622,7 @@ def test_filemgr_yank_then_paste_copies_entry(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_yank_paste_copies_directory_recursively(tmp_path: Path) -> None:
+def test_file_manager_yank_paste_copies_directory_recursively(tmp_path: Path) -> None:
     """Pasting a yanked directory copies the whole tree (copytree)."""
     (tmp_path / "srcdir").mkdir()
     (tmp_path / "srcdir" / "inner.txt").write_text("inner\n", encoding="utf-8")
@@ -655,7 +655,7 @@ def test_filemgr_yank_paste_copies_directory_recursively(tmp_path: Path) -> None
     asyncio.run(scenario())
 
 
-def test_filemgr_cut_then_paste_moves_entry_and_consumes_buffer(
+def test_file_manager_cut_then_paste_moves_entry_and_consumes_buffer(
     tmp_path: Path,
 ) -> None:
     """``x`` + ``p`` moves the source; the second paste reports an empty buffer."""
@@ -684,7 +684,7 @@ def test_filemgr_cut_then_paste_moves_entry_and_consumes_buffer(
             assert screen._clipboard is None
             await pilot.press("p")
             assert await wait_until(pilot, lambda: _input_visible(screen))
-            input_widget = screen.query_one("#filemgr-input", Input)
+            input_widget = screen.query_one("#file-manager-input", Input)
             assert "clipboard is empty" in input_widget.placeholder
             await pilot.press("escape")
             assert not _input_visible(screen)
@@ -692,7 +692,7 @@ def test_filemgr_cut_then_paste_moves_entry_and_consumes_buffer(
     asyncio.run(scenario())
 
 
-def test_filemgr_paste_conflict_reports_and_keeps_both_files(tmp_path: Path) -> None:
+def test_file_manager_paste_conflict_reports_and_keeps_both_files(tmp_path: Path) -> None:
     """A name conflict surfaces ``paste failed:`` and changes neither file."""
     (tmp_path / "sub").mkdir()
     (tmp_path / "alpha.txt").write_text("from\n", encoding="utf-8")
@@ -712,7 +712,7 @@ def test_filemgr_paste_conflict_reports_and_keeps_both_files(tmp_path: Path) -> 
             assert await wait_until(pilot, lambda: screen._cwd == tmp_path / "sub")
             await pilot.press("p")
             assert await wait_until(pilot, lambda: _input_visible(screen))
-            input_widget = screen.query_one("#filemgr-input", Input)
+            input_widget = screen.query_one("#file-manager-input", Input)
             assert "paste failed:" in input_widget.placeholder
             assert "already exists" in input_widget.placeholder
             # neither side was touched by the failed paste
@@ -725,7 +725,7 @@ def test_filemgr_paste_conflict_reports_and_keeps_both_files(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_filemgr_rename_conflict_keeps_input_and_retries(tmp_path: Path) -> None:
+def test_file_manager_rename_conflict_keeps_input_and_retries(tmp_path: Path) -> None:
     """A rename error keeps the typed value and the pending op (m2)."""
     (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
     (tmp_path / "beta.txt").write_text("b\n", encoding="utf-8")
@@ -738,7 +738,7 @@ def test_filemgr_rename_conflict_keeps_input_and_retries(tmp_path: Path) -> None
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
             assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 2)
-            input_widget = screen.query_one("#filemgr-input", Input)
+            input_widget = screen.query_one("#file-manager-input", Input)
             await pilot.press("R")  # rename alpha.txt (cursor starts there)
             assert input_widget.value == "alpha.txt"
             await pilot.press("ctrl+u")  # clear the prefilled name
@@ -764,7 +764,7 @@ def test_filemgr_rename_conflict_keeps_input_and_retries(tmp_path: Path) -> None
     asyncio.run(scenario())
 
 
-def test_filemgr_delete_cancel_then_confirm_reports_deleted(tmp_path: Path) -> None:
+def test_file_manager_delete_cancel_then_confirm_reports_deleted(tmp_path: Path) -> None:
     """Non-``y`` input cancels; ``y`` deletes and reports to the hook (M2)."""
     (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
     deleted_calls: list[Path] = []
@@ -796,7 +796,7 @@ def test_filemgr_delete_cancel_then_confirm_reports_deleted(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
-def test_filemgr_filter_keystrokes_reuse_cached_counts(
+def test_file_manager_filter_keystrokes_reuse_cached_counts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Filter edits reuse cached stats and child counts; ``r`` resets (M3)."""
@@ -804,7 +804,7 @@ def test_filemgr_filter_keystrokes_reuse_cached_counts(
     (tmp_path / "sub" / "inner.txt").write_text("i\n", encoding="utf-8")
     (tmp_path / "alpha.txt").write_text("a\n", encoding="utf-8")
     calls = {"counts": 0, "stats": 0}
-    real_counts = filemgr.count_children
+    real_counts = file_manager.count_children
     real_stats = Workspace.stat_entry
 
     def counting(path: Path) -> int:
@@ -817,7 +817,7 @@ def test_filemgr_filter_keystrokes_reuse_cached_counts(
         calls["stats"] += 1
         return real_stats(self, path)
 
-    monkeypatch.setattr(filemgr, "count_children", counting)
+    monkeypatch.setattr(file_manager, "count_children", counting)
     monkeypatch.setattr(Workspace, "stat_entry", stat_counting)
 
     async def scenario() -> None:
@@ -845,7 +845,7 @@ def test_filemgr_filter_keystrokes_reuse_cached_counts(
     asyncio.run(scenario())
 
 
-def test_filemgr_reload_reuses_listing_until_dir_mtime_changes(
+def test_file_manager_reload_reuses_listing_until_dir_mtime_changes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An unchanged directory lists once; an mtime bump forces a rescan."""
@@ -888,7 +888,7 @@ def test_filemgr_reload_reuses_listing_until_dir_mtime_changes(
     asyncio.run(scenario())
 
 
-def test_filemgr_refresh_drops_dir_cache_and_restats(
+def test_file_manager_refresh_drops_dir_cache_and_restats(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """``r`` rescans a warm unchanged directory and rebuilds the stat dict."""
@@ -914,7 +914,7 @@ def test_filemgr_refresh_drops_dir_cache_and_restats(
     asyncio.run(scenario())
 
 
-def test_filemgr_mutations_drop_dir_cache(
+def test_file_manager_mutations_drop_dir_cache(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """rename / paste / delete each drop the dir cache before reloading."""
@@ -923,13 +923,13 @@ def test_filemgr_mutations_drop_dir_cache(
     (tmp_path / "beta.txt").write_text("b\n", encoding="utf-8")
     drops: list[bool] = []
     calls = _count_list_dir(monkeypatch)
-    real_drop = filemgr.FileManagerScreen._drop_dir_cache
+    real_drop = file_manager.FileManagerScreen._drop_dir_cache
 
     def drop_counting(screen: FileManagerScreen) -> None:
         drops.append(True)
         real_drop(screen)
 
-    monkeypatch.setattr(filemgr.FileManagerScreen, "_drop_dir_cache", drop_counting)
+    monkeypatch.setattr(file_manager.FileManagerScreen, "_drop_dir_cache", drop_counting)
 
     async def scenario() -> None:
         app = _Host(_screen(tmp_path, [], []))
@@ -977,7 +977,7 @@ def test_filemgr_mutations_drop_dir_cache(
     asyncio.run(scenario())
 
 
-def test_filemgr_dir_preview_lists_each_directory_once(
+def test_file_manager_dir_preview_lists_each_directory_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Highlighting directories reuses the cache; ``r`` forces a rescan."""
@@ -1013,7 +1013,7 @@ def test_filemgr_dir_preview_lists_each_directory_once(
     asyncio.run(scenario())
 
 
-def test_filemgr_hidden_toggle_switches_cache_keys(
+def test_file_manager_hidden_toggle_switches_cache_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The two show_hidden keys cache independently (the key carries it)."""
@@ -1051,7 +1051,7 @@ def test_filemgr_hidden_toggle_switches_cache_keys(
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="drive letters are Windows-only")
-def test_filemgr_drive_level_lists_drives_and_enters(tmp_path: Path) -> None:
+def test_file_manager_drive_level_lists_drives_and_enters(tmp_path: Path) -> None:
     """A root start lands on the drive level; ``l`` enters, ``h`` returns (Q4)."""
     (tmp_path / "marker.txt").write_text("m\n", encoding="utf-8")
 
@@ -1084,7 +1084,7 @@ def test_filemgr_drive_level_lists_drives_and_enters(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_filemgr_root_without_drives_stays_at_root(
+def test_file_manager_root_without_drives_stays_at_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No drives (POSIX): the file-system root has no drive level (M1).
@@ -1120,7 +1120,7 @@ def test_filemgr_root_without_drives_stays_at_root(
     asyncio.run(scenario())
 
 
-def test_filemgr_cut_paste_directory_into_itself_reports_failure(
+def test_file_manager_cut_paste_directory_into_itself_reports_failure(
     tmp_path: Path,
 ) -> None:
     """Cut-pasting a directory into its own subtree fails (B1 companion).
@@ -1150,7 +1150,7 @@ def test_filemgr_cut_paste_directory_into_itself_reports_failure(
             )
             await pilot.press("p")
             assert await wait_until(pilot, lambda: _input_visible(screen))
-            input_widget = screen.query_one("#filemgr-input", Input)
+            input_widget = screen.query_one("#file-manager-input", Input)
             assert "paste failed:" in input_widget.placeholder
             # the source tree was left untouched by the failed move
             assert (
@@ -1162,7 +1162,7 @@ def test_filemgr_cut_paste_directory_into_itself_reports_failure(
     asyncio.run(scenario())
 
 
-def test_filemgr_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> None:
+def test_file_manager_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> None:
     """The six remapped keys reach the screen via nav() (m10).
 
     While the middle-pane list is focused, ``ScrollableContainer`` would

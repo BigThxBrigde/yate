@@ -2,7 +2,7 @@
 
 Covers the ``--file-manager`` startup form end to end (the only surface
 the m6 review found unguarded): the app boots straight into the
-fullscreen :class:`~yate.editor_components.filemgr.screen.FileManagerScreen`, whose
+fullscreen :class:`~yate.editor_components.file_manager.screen.FileManagerScreen`, whose
 mount wiring is deferred via ``call_after_refresh`` (B1 race), so every
 post-startup assertion is awaited through :func:`wait_until`.  The
 scenario then drives ``j`` / ``k`` / ``l`` navigation into a
@@ -21,7 +21,7 @@ from textual.widgets import ListView
 from tools.smoke_test import harness
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, snapshot_svg
 from tools.smoke_test.scenarios._base import wait_until
-from yate.editor_components.filemgr.screen import FileManagerScreen
+from yate.editor_components.file_manager.screen import FileManagerScreen
 
 __all__ = ["SCENARIOS"]
 
@@ -34,21 +34,21 @@ def _fm_screen(app: Any) -> FileManagerScreen | None:
 
 def _list(screen: FileManagerScreen) -> ListView:
     """The current-directory pane (public DOM access, no private state)."""
-    return screen.query_one("#filemgr-list", ListView)
+    return screen.query_one("#file-manager-list", ListView)
 
 
 def _panes_visible(screen: FileManagerScreen) -> bool:
     """Whether the three panes are attached and displayed (post-B1 wiring)."""
     try:
-        parent = screen.query_one("#filemgr-parent")
-        body = screen.query_one("#filemgr-list")
-        preview = screen.query_one("#filemgr-preview")
+        parent = screen.query_one("#file-manager-parent")
+        body = screen.query_one("#file-manager-list")
+        preview = screen.query_one("#file-manager-preview")
     except Exception:  # noqa: BLE001 - panes not mounted yet is a False, not a crash
         return False
     return all(node.is_attached and node.display for node in (parent, body, preview))
 
 
-async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
+async def _file_manager_startup_navigation(tmp: Path) -> ScenarioResult:
     """``--file-manager`` startup: fullscreen screen, three panes, j/l, q."""
     (tmp / "a.txt").write_text("alpha\n", encoding="utf-8")
     sub = tmp / "sub"
@@ -57,7 +57,7 @@ async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
     # cli.py --file-manager startup form (target stays None, the dir is the
     # --file-manager argument); harness.new_app registers the app for the
     # invariant sweep and forwards the startup dir knob.
-    app = harness.new_app(filemanager_dir=tmp)
+    app = harness.new_app(file_manager_dir=tmp)
     checks: list[Check] = []
     rows: dict[int, str] = {}
     async with app.run_test(size=(110, 32)) as pilot:
@@ -118,13 +118,13 @@ async def _filemanager_startup_navigation(tmp: Path) -> ScenarioResult:
                 break
         checks.append(Check("q_exits_app", True, exited))
         checks.append(Check("return_code_zero", 0, app.return_code))
-    return ScenarioResult("filemanager_startup_navigation", checks, rows)
+    return ScenarioResult("file_manager_startup_navigation", checks, rows)
 
 
 SCENARIOS: list[Scenario] = [
     Scenario(
-        "filemanager_startup_navigation",
-        _filemanager_startup_navigation,
+        "file_manager_startup_navigation",
+        _file_manager_startup_navigation,
         ("files", "view"),
     ),
 ]

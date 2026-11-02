@@ -6,7 +6,7 @@ handle -- the screen-stack verbs, the state queries and the fullscreen exit
 verb arrive as injected callables.  The orchestration of a selection
 (dirty gate -> close the old workspace -> hand the target to
 :class:`~yate.flows.document_flows.DocumentFlows`) lives here, so the
-:class:`~yate.editor_components.filemgr.screen.FileManagerScreen` itself stays a pure
+:class:`~yate.editor_components.file_manager.screen.FileManagerScreen` itself stays a pure
 browsing component (R3).
 """
 
@@ -18,7 +18,7 @@ from pathlib import Path
 from yate.config import YateConfig
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.explorer import ExplorerTree
-from yate.editor_components.filemgr.screen import FileManagerScreen
+from yate.editor_components.file_manager.screen import FileManagerScreen
 from yate.flows import MessageFn, OpenSelectedFn, StateQuery
 from yate.flows.document_flows import DocumentFlows
 from yate.logs import tracing
@@ -112,7 +112,7 @@ class FileManagerFlows:
             self._message(f"not a directory: {initial_dir}", "error")
             return
         if self._exit_app is None:
-            log.warning("filemanager exit verb not bound; closing pops instead")
+            log.warning("file_manager exit verb not bound; closing pops instead")
             close: Callable[[], None] = self._pop_screen_call
         else:
             close = self._exit_app

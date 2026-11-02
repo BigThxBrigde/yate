@@ -20,7 +20,7 @@ import pytest
 from yate.app import YateApp
 from yate.cli import build_parser, main
 from yate.editor_components.commandline import MESSAGE_COLORS
-from yate.editor_components.filemgr.screen import FileManagerScreen
+from yate.editor_components.file_manager.screen import FileManagerScreen
 from yate.keymaps.base import parse_key
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap
@@ -77,11 +77,11 @@ def test_action_file_manager_registered_in_both_keymaps() -> None:
     assert app.editor.actions.get("file_manager") is not None
 
 
-def test_fullscreen_startup_pushes_filemgr_screen(tmp_path: Path) -> None:
+def test_fullscreen_startup_pushes_file_manager_screen(tmp_path: Path) -> None:
     """--file-manager startup pushes the fullscreen screen after mount."""
 
     async def scenario() -> None:
-        app = YateApp(target=tmp_path, filemanager_dir=tmp_path)
+        app = YateApp(target=tmp_path, file_manager_dir=tmp_path)
         async with app.run_test(size=(120, 36)) as pilot:
             assert await wait_until(
                 pilot, lambda: isinstance(app.screen, FileManagerScreen)
@@ -103,7 +103,7 @@ def test_fullscreen_open_file_switches_workspace(tmp_path: Path) -> None:
         sub.mkdir()
         file = tmp_path / "a.txt"
         file.write_text("hi\n", encoding="utf-8")
-        app = YateApp(target=tmp_path, filemanager_dir=tmp_path)
+        app = YateApp(target=tmp_path, file_manager_dir=tmp_path)
         async with app.run_test(size=(120, 36)) as pilot:
             assert await wait_until(
                 pilot, lambda: isinstance(app.screen, FileManagerScreen)
@@ -136,7 +136,7 @@ def test_fullscreen_open_dir_sets_root(tmp_path: Path) -> None:
     async def scenario() -> None:
         sub = tmp_path / "sub"
         sub.mkdir()
-        app = YateApp(target=tmp_path, filemanager_dir=tmp_path)
+        app = YateApp(target=tmp_path, file_manager_dir=tmp_path)
         async with app.run_test(size=(120, 36)) as pilot:
             assert await wait_until(
                 pilot, lambda: isinstance(app.screen, FileManagerScreen)
@@ -166,7 +166,7 @@ def test_fullscreen_q_exits_app(tmp_path: Path) -> None:
     """
 
     async def scenario() -> None:
-        app = YateApp(target=tmp_path, filemanager_dir=tmp_path)
+        app = YateApp(target=tmp_path, file_manager_dir=tmp_path)
         async with app.run_test(size=(120, 36)) as pilot:
             assert await wait_until(
                 pilot, lambda: isinstance(app.screen, FileManagerScreen)
@@ -253,7 +253,7 @@ def test_fullscreen_startup_rejects_non_directory(tmp_path: Path) -> None:
     async def scenario() -> None:
         file = tmp_path / "a.txt"
         file.write_text("x\n", encoding="utf-8")
-        app = YateApp(target=tmp_path, filemanager_dir=file)
+        app = YateApp(target=tmp_path, file_manager_dir=file)
         async with app.run_test(size=(120, 36)) as pilot:
             assert await wait_until(
                 pilot,

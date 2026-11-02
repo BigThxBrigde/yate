@@ -1,7 +1,7 @@
 # pyright: reportPrivateUsage=false
 """Headless tests for the file manager flows (FileManagerFlows).
 
-Drives :class:`yate.flows.filemanager_flows.FileManagerFlows` with
+Drives :class:`yate.flows.file_manager_flows.FileManagerFlows` with
 recording stand-ins for the session / workspace / document-flow
 collaborators (no Textual app is started).  Covered: the Q1 dirty gate
 that refuses a switch, closing the old workspace down to the scratch
@@ -18,9 +18,9 @@ from typing import cast
 from yate.config import YateConfig
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.explorer import ExplorerTree
-from yate.editor_components.filemgr.screen import FileManagerScreen
+from yate.editor_components.file_manager.screen import FileManagerScreen
 from yate.flows.document_flows import DocumentFlows
-from yate.flows.filemanager_flows import FileManagerFlows
+from yate.flows.file_manager_flows import FileManagerFlows
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 

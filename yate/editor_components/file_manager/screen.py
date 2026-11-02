@@ -32,13 +32,13 @@ from yate.paths import load_tcss
 from yate.services.workspace import Entry, EntryStat, Workspace
 
 from yate.editor_components import theme
-from yate.editor_components.filemgr.keys import (
+from yate.editor_components.file_manager.keys import (
     DOUBLE_CLICK_WINDOW,
     G_PENDING_TIMEOUT,
     LIST_BINDINGS,
     SCREEN_BINDINGS,
 )
-from yate.editor_components.filemgr.model import (
+from yate.editor_components.file_manager.model import (
     DirListing,
     SortKey,
     build_row_text,
@@ -80,7 +80,7 @@ class _Row(Static):
     posts one on every item click) -- the screen owns cursor movement
     and the double-click window instead."""
 
-    class Clicked(Message, namespace="filemgr_row"):
+    class Clicked(Message, namespace="file_manager_row"):
         """A row was clicked; *index* points into the screen's entry list."""
 
         def __init__(self, index: int) -> None:
@@ -107,7 +107,7 @@ class _FileListView(ListView):
 
     def __init__(self, screen: FileManagerScreen) -> None:
         """Bind the list to its owning *screen* (same module, L2 internal)."""
-        super().__init__(id="filemgr-list")
+        super().__init__(id="file-manager-list")
         self._screen = screen
 
     def action_nav(self, name: str) -> None:
@@ -130,7 +130,7 @@ class _FileListView(ListView):
 class FileManagerScreen(ModalScreen[None]):
     """lf-style three-pane file manager (parent | current | preview)."""
 
-    DEFAULT_CSS = load_tcss("filemgr-screen.tcss")
+    DEFAULT_CSS = load_tcss("file-manager-screen.tcss")
 
     BINDINGS = SCREEN_BINDINGS
 
@@ -201,15 +201,15 @@ class FileManagerScreen(ModalScreen[None]):
     @override
     def compose(self) -> ComposeResult:
         """Compose the three panes, the bottom input and the status bar."""
-        with Vertical(id="filemgr"):
-            with Horizontal(id="filemgr-body"):
-                parent = ListView(id="filemgr-parent")
+        with Vertical(id="file-manager"):
+            with Horizontal(id="file-manager-body"):
+                parent = ListView(id="file-manager-parent")
                 parent.can_focus = False
                 yield parent
                 yield _FileListView(self)
-                yield PreviewLog(id="filemgr-preview")
-            yield Input(id="filemgr-input")
-            yield Static(id="filemgr-status")
+                yield PreviewLog(id="file-manager-preview")
+            yield Input(id="file-manager-input")
+            yield Static(id="file-manager-status")
 
     def on_mount(self) -> None:
         """Defer the mount wiring until the composed children exist.
@@ -231,17 +231,17 @@ class FileManagerScreen(ModalScreen[None]):
         ``False`` on unmount, so a teardown after ``q`` would pass the
         guard and then fail the populate.
         """
-        panes = self.query("#filemgr-parent, #filemgr-list, #filemgr-preview")
+        panes = self.query("#file-manager-parent, #file-manager-list, #file-manager-preview")
         if len(panes) < 3 or not all(node.is_attached for node in panes):
             self.call_after_refresh(self._wire_mount)  # children not attached yet
             return
-        apply_slim_scrollbars(self.query_one("#filemgr-parent", ListView))
-        apply_slim_scrollbars(self.query_one("#filemgr-list", _FileListView))
-        apply_slim_scrollbars(self.query_one("#filemgr-preview", PreviewLog))
+        apply_slim_scrollbars(self.query_one("#file-manager-parent", ListView))
+        apply_slim_scrollbars(self.query_one("#file-manager-list", _FileListView))
+        apply_slim_scrollbars(self.query_one("#file-manager-preview", PreviewLog))
         theme.attach(self, self._apply_theme)
         self._apply_theme()
         self._reload()
-        self.query_one("#filemgr-list", _FileListView).focus()
+        self.query_one("#file-manager-list", _FileListView).focus()
 
     def on_unmount(self) -> None:
         """Detach from the theme broadcast."""
@@ -249,9 +249,9 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _apply_theme(self) -> None:
         """Repaint scrollbars, rows and status bar from the active theme (R13)."""
-        apply_scrollbar_theme(self.query_one("#filemgr-parent", ListView))
-        apply_scrollbar_theme(self.query_one("#filemgr-list", _FileListView))
-        apply_scrollbar_theme(self.query_one("#filemgr-preview", PreviewLog))
+        apply_scrollbar_theme(self.query_one("#file-manager-parent", ListView))
+        apply_scrollbar_theme(self.query_one("#file-manager-list", _FileListView))
+        apply_scrollbar_theme(self.query_one("#file-manager-preview", PreviewLog))
         if self._entries:
             self._rebuild_rows()
             self._render_list(previous=self._cursor_path())
@@ -259,7 +259,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _cursor_entry(self) -> Entry | None:
         """Entry under the middle-pane cursor (``None`` on an empty listing)."""
-        index = self.query_one("#filemgr-list", _FileListView).index
+        index = self.query_one("#file-manager-list", _FileListView).index
         if index is None or not 0 <= index < len(self._entries):
             return None
         return self._entries[index]
@@ -272,7 +272,7 @@ class FileManagerScreen(ModalScreen[None]):
     def _restore_index(self, index: int, attempt: int = 0) -> None:
         """Set the list cursor once the rebuilt rows reached the DOM
         (row mount/removal is scheduled, so re-check and retry, bounded)."""
-        list_view = self.query_one("#filemgr-list", _FileListView)
+        list_view = self.query_one("#file-manager-list", _FileListView)
         if len(list_view) != len(self._entries) and attempt < 10:
             list_view.call_after_refresh(self._restore_index, index, attempt + 1)
             return
@@ -412,7 +412,7 @@ class FileManagerScreen(ModalScreen[None]):
     ) -> None:
         """Rebuild the row widgets from ``_rows``; cursor: *keep*, then
         *previous*, then the top."""
-        list_view = self.query_one("#filemgr-list", _FileListView)
+        list_view = self.query_one("#file-manager-list", _FileListView)
         list_view.clear()
         list_view.extend(
             ListItem(_Row(row_text, index))
@@ -435,7 +435,7 @@ class FileManagerScreen(ModalScreen[None]):
         the left pane shows a placeholder both at the drive level and
         while browsing a file-system root.
         """
-        pane = self.query_one("#filemgr-parent", ListView)
+        pane = self.query_one("#file-manager-parent", ListView)
         pane.clear()
         t = theme.active()
         rows: list[Text] = []
@@ -467,7 +467,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _refresh_preview(self) -> None:
         """Update the preview pane for the cursor entry (palette pipeline)."""
-        pane = self.query_one("#filemgr-preview", PreviewLog)
+        pane = self.query_one("#file-manager-preview", PreviewLog)
         entry = self._cursor_entry()
         if entry is None:
             pane.clear()
@@ -492,14 +492,14 @@ class FileManagerScreen(ModalScreen[None]):
             # coroutine *function*: an eager coroutine would leak if
             # the worker never starts (closing pump)
             partial(self._load_preview_worker, path),
-            group="filemgr-preview",
+            group="file-manager-preview",
             exclusive=True,
             exit_on_error=False,
         )
 
     def _render_dir_preview(self, path: Path) -> None:
         """Render the first N children of directory *path* (UI thread)."""
-        pane = self.query_one("#filemgr-preview", PreviewLog)
+        pane = self.query_one("#file-manager-preview", PreviewLog)
         pane.clear()
         children = self._list_dir_cached(path)
         shown = children[:_DIR_PREVIEW_CAP]
@@ -537,7 +537,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _render_preview(self, data: PreviewData) -> None:
         """Paint *data* into the preview pane (UI thread)."""
-        pane = self.query_one("#filemgr-preview", PreviewLog)
+        pane = self.query_one("#file-manager-preview", PreviewLog)
         pane.clear()
         if data.note is not None:
             # binary / oversize / unreadable: the pipeline's degradation note
@@ -548,7 +548,7 @@ class FileManagerScreen(ModalScreen[None]):
     def _refresh_status(self) -> None:
         """Repaint the status bar for the cursor entry."""
         entry = self._cursor_entry()
-        index = self.query_one("#filemgr-list", _FileListView).index
+        index = self.query_one("#file-manager-list", _FileListView).index
         stat = self._stats.get(entry.path) if entry is not None else None
         status = format_status(
             stat,
@@ -559,13 +559,13 @@ class FileManagerScreen(ModalScreen[None]):
             self._filter,
             len(self._marked),
         )
-        self.query_one("#filemgr-status", Static).update(
+        self.query_one("#file-manager-status", Static).update(
             Text(status, style=theme.active().fg)
         )
 
     def _repaint_row(self, index: int) -> None:
         """Re-render a single row in place (mark toggles keep the cursor)."""
-        list_view = self.query_one("#filemgr-list", _FileListView)
+        list_view = self.query_one("#file-manager-list", _FileListView)
         children = list(list_view.children)
         if not 0 <= index < len(children) or index >= len(self._rows):
             return
@@ -594,14 +594,14 @@ class FileManagerScreen(ModalScreen[None]):
             return
         self._g_pending = False
 
-    def on_filemgr_row_clicked(self, event: _Row.Clicked) -> None:
+    def on_file_manager_row_clicked(self, event: _Row.Clicked) -> None:
         """Row click: move the cursor; a double click opens.
 
         Textual 8.2.8 posts ``ListView.Selected`` on every single item
         click, so the click is intercepted at the row (see ``_Row``)."""
         if self._mode is not None:
             return
-        list_view = self.query_one("#filemgr-list", _FileListView)
+        list_view = self.query_one("#file-manager-list", _FileListView)
         list_view.focus()
         now = time.monotonic()
         if (
@@ -618,27 +618,27 @@ class FileManagerScreen(ModalScreen[None]):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Enter on the middle list opens the cursor entry (keyboard path)."""
-        if event.list_view.id != "filemgr-list" or self._mode is not None:
+        if event.list_view.id != "file-manager-list" or self._mode is not None:
             return
         self.action_open()
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         """Cursor moves repaint the preview and the status bar."""
-        if event.list_view.id != "filemgr-list":
+        if event.list_view.id != "file-manager-list":
             return
         self._refresh_preview()
         self._refresh_status()
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Filter mode narrows the listing as the query changes."""
-        if event.input.id != "filemgr-input" or self._mode != "filter":
+        if event.input.id != "file-manager-input" or self._mode != "filter":
             return
         self._filter = event.value or None
         self._refilter()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Enter applies the filter in filter mode, commits in prompt mode."""
-        if event.input.id != "filemgr-input":
+        if event.input.id != "file-manager-input":
             return
         if self._mode == "filter":
             self._hide_input()
@@ -647,7 +647,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _show_input(self, placeholder: str, value: str = "") -> None:
         """Show the bottom input line and focus it."""
-        input_widget = self.query_one("#filemgr-input", Input)
+        input_widget = self.query_one("#file-manager-input", Input)
         input_widget.placeholder = placeholder
         input_widget.value = value
         input_widget.add_class("active")
@@ -655,13 +655,13 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _hide_input(self) -> None:
         """Hide the bottom input line, clear the mode, refocus the list."""
-        input_widget = self.query_one("#filemgr-input", Input)
+        input_widget = self.query_one("#file-manager-input", Input)
         input_widget.remove_class("active")
         input_widget.value = ""
         self._mode = None
         self._prompt_kind = None
         self._prompt_target = None
-        self.query_one("#filemgr-list", _FileListView).focus()
+        self.query_one("#file-manager-list", _FileListView).focus()
 
     def _show_input_error(self, message: str) -> None:
         """Show *message* on the input line, keeping the prompt context.
@@ -677,7 +677,7 @@ class FileManagerScreen(ModalScreen[None]):
         if self._prompt_kind is None:
             self._show_input(message)
             return
-        input_widget = self.query_one("#filemgr-input", Input)
+        input_widget = self.query_one("#file-manager-input", Input)
         input_widget.placeholder = message
         input_widget.focus()
 
@@ -732,7 +732,7 @@ class FileManagerScreen(ModalScreen[None]):
                     return
                 self.workspace.create_entry(cwd, value, is_dir=False)
         except (ValueError, FileExistsError, OSError) as exc:
-            log.debug("filemgr %s failed: %s", kind, exc)
+            log.debug("file_manager %s failed: %s", kind, exc)
             self._show_input_error(str(exc))
             return
         self._drop_dir_cache()
@@ -746,20 +746,20 @@ class FileManagerScreen(ModalScreen[None]):
 
     def action_cursor_down(self) -> None:
         """``j`` / down: move the middle-pane cursor down one row."""
-        self.query_one("#filemgr-list", _FileListView).action_cursor_down()
+        self.query_one("#file-manager-list", _FileListView).action_cursor_down()
 
     def action_cursor_up(self) -> None:
         """``k`` / up: move the middle-pane cursor up one row."""
-        self.query_one("#filemgr-list", _FileListView).action_cursor_up()
+        self.query_one("#file-manager-list", _FileListView).action_cursor_up()
 
     def action_top(self) -> None:
         """``gg`` / home: cursor to the first row."""
-        self.query_one("#filemgr-list", _FileListView).index = 0
+        self.query_one("#file-manager-list", _FileListView).index = 0
 
     def action_bottom(self) -> None:
         """``G`` / end: cursor to the last row."""
         if self._entries:
-            self.query_one("#filemgr-list", _FileListView).index = len(self._entries) - 1
+            self.query_one("#file-manager-list", _FileListView).index = len(self._entries) - 1
 
     def action_half_page_down(self) -> None:
         """ctrl+d: move the cursor down half a viewport."""
@@ -771,7 +771,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def _half_page(self, direction: int) -> None:
         """Move the cursor *direction* half-viewport steps (clamped)."""
-        list_view = self.query_one("#filemgr-list", _FileListView)
+        list_view = self.query_one("#file-manager-list", _FileListView)
         if list_view.index is None or not self._entries:
             return
         step = max(1, list_view.size.height // 2) * direction
@@ -845,7 +845,7 @@ class FileManagerScreen(ModalScreen[None]):
 
     def action_mark(self) -> None:
         """space: toggle the mark on the cursor entry (cursor stays put)."""
-        index = self.query_one("#filemgr-list", _FileListView).index
+        index = self.query_one("#file-manager-list", _FileListView).index
         if index is None:
             return
         entry = self._entries[index]
@@ -955,7 +955,7 @@ class FileManagerScreen(ModalScreen[None]):
             else:
                 self.workspace.copy_entry(source, self._cwd)
         except (FileExistsError, OSError) as exc:
-            log.debug("filemgr paste failed: %s", exc)
+            log.debug("file_manager paste failed: %s", exc)
             self._show_input_error(f"paste failed: {exc}")
             return
         self._drop_dir_cache()

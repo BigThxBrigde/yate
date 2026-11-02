@@ -18,7 +18,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / prompt_completion.py / mouse_flows.py / chunked_flows.py）/
+         lsp_sync.py / prompt_completion.py / mouse_flows.py / chunked_flows.py /
+         file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
@@ -126,7 +127,8 @@ flowchart TD
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
   `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py` /
-  `whichkey_flows.py` / `chunked_flows.py`；
+  `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
+  命名统一波以新名首次补登，修复漏登漂移）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
@@ -313,7 +315,7 @@ flowchart TD
      （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
      维持豁免，
      已登记为下一个 big-module-split 候选）、
-     `editor_components/filemgr/screen.py`（LF 风格文件管理器三栏屏单一职责
+     `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
      2026-10-31 file-manager 任务（issue IKRZ41）评审修复波 F1 登记
@@ -463,7 +465,7 @@ flowchart TD
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_components/` 只 import、不再重导出
   （`editor_components/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
 - **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py` /
-  `flows/chunked_flows.py`
+  `flows/chunked_flows.py` / `flows/file_manager_flows.py`
   不向上依赖，`editor_components` 导入必须落在冻结集合内；
 - **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：
   `test_support_mouse_gate_lives_in_app_on_event` 文本断言闸门（`support_mouse` 判定）
