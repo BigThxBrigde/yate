@@ -2,6 +2,12 @@
 
 > 由 git 历史自动生成于 2026-11-02 · yate 0.2.17
 
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.17...HEAD)
+
+### 问题修复
+
+- keep a trailing backslash in --dist from corrupting the path [缺中文] ([`8bf2e88`](https://gitee.com/jermaine/yate/commit/8bf2e88c988e77b90735bf51d1beabb66eea4d1d))
+
 ## [0.2.17] - 2026-11-02 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.16...v0.2.17)
 
 ### 问题修复
