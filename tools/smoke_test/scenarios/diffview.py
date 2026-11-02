@@ -24,8 +24,8 @@ from textual.widgets import Static
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import message_text, plain_text, run_command
 from yate.editor_core.diff import DiffHunk, MergeRegion
-from yate.editor_components.diff_pane import DiffPane
-from yate.editor_components.diffview import DiffScreen
+from yate.editor_components.diff.pane import DiffPane
+from yate.editor_components.diff.screen import DiffScreen
 
 __all__ = ["SCENARIOS"]
 

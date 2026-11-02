@@ -1,9 +1,9 @@
 """Per-side diff pane: gutter badges + diff-tinted text rendering.
 
-The widget half of the diff viewer, split from :mod:`yate.editor_components.diffview`
+The widget half of the diff viewer, split from :mod:`yate.editor_components.diff.screen`
 (big-module-split wave b).  :class:`DiffPane` is a pure renderer with an
 opt-in edit mode; the diff state it paints is computed by
-:class:`~yate.editor_components.diffview.DiffScreen` and handed over wholesale as
+:class:`~yate.editor_components.diff.screen.DiffScreen` and handed over wholesale as
 a :class:`PaneDiffState`.  Theme painting is self-held (R13): the pane
 subscribes on mount and repaints itself on broadcast.
 

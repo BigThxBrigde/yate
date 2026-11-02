@@ -21,7 +21,7 @@ from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_core.document import Document
 from yate.editor_sprites.characters import character_names
 from yate.editor_components.commandline import PromptBar
-from yate.editor_components.diffview import MAX_DIFF_LINES, DiffScreen
+from yate.editor_components.diff.screen import MAX_DIFF_LINES, DiffScreen
 from yate.editor_components.find_replace import FindReplaceScreen, RevealFn
 from yate.editor_components.hexview import HexScreen
 from yate.editor_components.manual import MarkdownDocScreen

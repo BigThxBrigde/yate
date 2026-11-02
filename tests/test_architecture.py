@@ -230,7 +230,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     "flows/overlay_flows.py": {
         "yate.editor_components",
         "yate.editor_components.commandline",
-        "yate.editor_components.diffview",
+        "yate.editor_components.diff.screen",
         "yate.editor_components.find_replace",
         "yate.editor_components.hexview",
         "yate.editor_components.manual",

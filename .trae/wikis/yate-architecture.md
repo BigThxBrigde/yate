@@ -23,7 +23,7 @@ flowchart LR
         FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/prompt_completion)"]
     end
     subgraph L2["L2 · 组件 (editor_view/)"]
-        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diffview / diff_pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme(hub) / themes / cells<br/>theme_files / icons"]
+        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diff/screen / diff/pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme(hub) / themes / cells<br/>theme_files / icons"]
     end
     subgraph L1["L1 · 会话与模型"]
         SES["session.py<br/>(EditorSession + 窗格树<br/>Leaf/Split/ViewState)"]
@@ -172,7 +172,7 @@ flowchart TB
 | `explorer.py::ExplorerTree` | 侧边文件浏览器 |
 | `palette.py::PaletteScreen` | quick-open / 命令面板 |
 | `modals.py` | Help / Output 覆盖层 |
-| `diffview.py::DiffScreen` / `diff_pane.py::DiffPane` | 两路 / 三路 diff 视图（screen 侧在 `diffview.py`、每侧窗格在 `diff_pane.py`；`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlay_flows.py::OverlayFlows.open_diff` 推入） |
+| `diff/screen.py::DiffScreen` / `diff/pane.py::DiffPane` | 两路 / 三路 diff 视图（screen 侧在 `diff/screen.py`、每侧窗格在 `diff/pane.py`；`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlay_flows.py::OverlayFlows.open_diff` 推入） |
 | `manual.py::MarkdownDocScreen` | 帮助手册 / changelog 查看器（引用 `$doc-hit-*` CSS 变量） |
 | `terminal.py::TerminalPanel` | 内置终端面板 |
 | `completion.py::CompletionPopup` | 补全弹出层 |

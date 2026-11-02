@@ -1,9 +1,9 @@
 """Two/three-way diff viewer screen (DiffScreen).
 
 The screen half of the diff viewer, split from the original single module
-(big-module-split wave b): one :class:`~yate.editor_components.diff_pane.DiffPane`
+(big-module-split wave b): one :class:`~yate.editor_components.diff.pane.DiffPane`
 per file side renders gutter badges plus diff-tinted lines from a
-:class:`~yate.editor_components.diff_pane.PaneDiffState` the screen derives from
+:class:`~yate.editor_components.diff.pane.PaneDiffState` the screen derives from
 the L0 engine (:mod:`yate.editor_core.diff`).  The screen owns navigation
 (alt+up/down), block copying (alt+left/right, WinMerge semantics: the arrow
 names the target side), pane focus, per-side edit mode, saving and a
@@ -42,7 +42,7 @@ from yate.logs import tracing
 from yate.paths import load_tcss
 
 from yate.editor_components import theme
-from yate.editor_components.diff_pane import DiffPane, PaneDiffState
+from yate.editor_components.diff.pane import DiffPane, PaneDiffState
 
 log = tracing.get_logger(__name__)
 

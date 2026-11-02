@@ -364,8 +364,8 @@ flowchart TD
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`——2026-10-09 上提为包顶层
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；
-     `editor_components/diffview.py`（2026-10-08 big-module-split b 波：Pane 侧
-     迁入 `diff_pane.py`，screen 侧留在原文件，两文件均低于阈值）；
+     `editor_components/diffview.py` + `diff_pane.py`（2026-10-08 big-module-split b 波
+     拆分；2026-11-03 进一步子包化为 `diff/screen.py` + `diff/pane.py`，两文件均低于阈值）；
      `editor_components/editor.py`（2026-10-08 big-module-split c 波：高亮与
      欢迎页迁入 `highlighting.py` / `welcome.py`，拆分后三文件均低于阈值）；
      `editor_components/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
