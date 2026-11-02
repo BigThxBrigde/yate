@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
@@ -83,6 +83,48 @@ def _no_ui_canvas(
     """
     _ = cols, rows, on_key, on_tick, on_close
     raise RuntimeError("no UI host")
+
+
+def _coerce_completer_result(raw: object) -> list[str]:
+    """Coerce an arg_completer return value to list[str].
+
+    Python list passes through; a Lua table (duck-typed as a non-list
+    object with a callable ``keys`` method) is walked by 1-based index
+    up to ``len``; non-string elements are skipped (no ``tostring``
+    coercion -- ``"table: 0x..."`` would pollute candidates); anything
+    else (None, str, number) degrades to ``[]``.
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        # isinstance() on a bare ``object`` narrows to list[Unknown]; cast
+        # to the precise element type so strict mode stays clean.
+        return [s for s in cast("list[object]", raw) if isinstance(s, str)]
+    # Lua table via lupa: duck-typed by callable .keys() + __len__.
+    if hasattr(raw, "keys") and callable(getattr(raw, "keys", None)):
+        length_fn = getattr(raw, "__len__", None)
+        if not callable(length_fn):
+            return []
+        try:
+            length_value = length_fn()
+        except (TypeError, ValueError):
+            return []
+        # Lua ``#t`` is always an integer; anything else degrades to [].
+        if not isinstance(length_value, int):
+            return []
+        out: list[str] = []
+        getitem = getattr(raw, "__getitem__", None)
+        if not callable(getitem):
+            return []
+        for index in range(1, length_value + 1):
+            try:
+                value = getitem(index)
+            except (KeyError, IndexError):
+                break
+            if isinstance(value, str):
+                out.append(value)
+        return out
+    return []
 
 
 @dataclass
@@ -371,10 +413,11 @@ class ExtensionAPI:
 
         def guarded(prefix: str) -> list[str]:
             try:
-                return completer(prefix)
+                raw = completer(prefix)
             except Exception:  # noqa: BLE001 - user code, never crash the app
                 log.exception("extension command %s arg_completer raised", name)
                 return []
+            return _coerce_completer_result(raw)
 
         return guarded
 

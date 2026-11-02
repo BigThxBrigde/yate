@@ -25,12 +25,14 @@ function yate.message(text) end
 
 -- Register a ``:`` command.  fn receives the raw argument string after
 -- the command name (may be empty).  description is optional
--- (default "extension command").
+-- (default "extension command"); completer is an optional Lua callback
+-- returning candidate strings for Tab completion.
 ---@param name string
 ---@param fn fun(args: string)
 ---@param description string|nil
+---@param completer fun(prefix: string): string[]|nil
 ---@return nil
-function yate.register_command(name, fn, description) end
+function yate.register_command(name, fn, description, completer) end
 
 -- Register a named action (bindable from keymaps, listed in the palette).
 ---@param name string
