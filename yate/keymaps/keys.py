@@ -165,11 +165,27 @@ def key_name(key: str) -> str:
             return "<ctrl-space>"
         if 1 <= code <= 26:
             return f"<ctrl-{chr(code + ord('a') - 1)}>"
+        if 28 <= code <= 30:
+            # FS/GS/RS (0x1c..0x1e) are the C0 images of ctrl-\, ctrl-] and
+            # ctrl-^ -- the tail of parse_key's "@".."_" ctrl range that the
+            # letter branch above and the alias (0x1f -> ctrl-/) leave
+            # uncovered; without this the raw byte leaks into the help
+            # overlay and the which-key sheet.
+            return f"<ctrl-{chr(code + 64)}>"
         if key == " ":
             return "<space>"
         return key
     if key.startswith("\x1b") and len(key) == 2:
-        return f"<alt-{key[1]}>"
+        # Name the byte after the modifier through the single-char path so
+        # <alt-backspace> reads as such instead of leaking the raw DEL byte
+        # (same leak class as the FS/GS/RS branch above).
+        named = key_name(key[1])
+        body = (
+            named[1:-1]
+            if named.startswith("<") and named.endswith(">") and len(named) > 2
+            else named
+        )
+        return f"<alt-{body}>"
     m = re.fullmatch(r"\x1b\[(\d+);(\d+)u", key)
     if m:
         # kitty encodes the modifier field as 1 + bitmask (shift=1 alt=2 ctrl=4)
