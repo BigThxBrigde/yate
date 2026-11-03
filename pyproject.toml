@@ -56,6 +56,10 @@ dev = [
     "tree-sitter-zig>=1.1",
     "lupa>=2.0",
     "pymarkdownlnt>=0.9.41,<1.0",
+    # tools/screenshots embeds a per-image WOFF2 subset of the bundled Nerd
+    # Font (icon glyphs) via the fontTools CLI; brotli is its woff2 codec.
+    "fonttools>=4.53",
+    "brotli>=1.0",
 ]
 # Lua extension support (optional): the Python-Lua bridge for `*.lua`
 # extension scripts. Without it yate still runs and every `*.py` extension

@@ -22,6 +22,14 @@
 
 版本历史由 git 历史自动生成：[CHANGELOG.zh.md](CHANGELOG.zh.md) · [English](CHANGELOG.md)。运行时可通过 `yate --changelog [en|zh]` 直接打印，或在编辑器内用 `:changelog [en|zh]` 命令浏览。
 
+## 截图 / Screenshots
+
+每个功能都有随包工具生成的运行截图与场景说明，集中在
+[screenshots 画廊](screenshots/README.md)——`python -m tools.screenshots`
+可经 Textual pilot 无头再生全部截图。
+
+![yate — 布局：文件树、标签栏与语法高亮](screenshots/layout-explorer.svg)
+
 ## 特性
 
 > 完整特性与功能清单（18 个维度）：[FEATURES.zh.md](FEATURES.zh.md) · English: [FEATURES.md](FEATURES.md)
@@ -287,7 +295,9 @@ yate/
                   #   prompt / shell / window
   yaterc.example  # 配置模板
 tests/            # 单元测试 + Textual pilot 端到端测试
-tools/            # 维护工具：changelog、release、smoke_test、pack（图标生成）
+tools/            # 维护工具：changelog、release、smoke_test、pack（图标生成）、
+                  #   screenshots（README 画廊生成器）
+screenshots/      # 生成的功能截图与画廊：`python -m tools.screenshots`
 pack/             # PyInstaller spec（yate*.spec）与打包脚本：pack.ps1 / pack.bat（Windows）、pack.sh（Linux）
                   #   + yate.ico：可执行程序图标，由 `python -m tools.pack icon` 生成
 ```
