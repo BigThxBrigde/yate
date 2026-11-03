@@ -14,7 +14,7 @@ Visual contract:
   origin and ``align-*`` does not apply to absolute children);
 - rounded border with a theme-tinted ``border_title`` carrying the
   current chord / keymap name; theme variables come from
-  :mod:`yate.editor_components.themes`;
+  :mod:`yate.editor_components.theme.themes`;
 - single-column entries with a content-adaptive key column; pinned
   category rows render as ``\u25B8 <name>``.
 

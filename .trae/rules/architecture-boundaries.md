@@ -18,7 +18,7 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
 L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / prompt_completion.py / mouse_flows.py / chunked_flows.py /
+         lsp_sync.py / cmdline_completions.py / mouse_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
@@ -126,13 +126,13 @@ flowchart TD
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
-  `overlay_flows.py` / `lsp_sync.py` / `prompt_completion.py` / `mouse_flows.py` /
+  `overlay_flows.py` / `lsp_sync.py` / `cmdline_completions.py` / `mouse_flows.py` /
   `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
   命名统一波以新名首次补登，修复漏登漂移）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
-  其中 `prompt_completion.py` 自 2026-10-30 起不再 import `editor_components`
+  其中 `cmdline_completions.py` 自 2026-10-30 起不再 import `editor_components`
   （arg-completion 波 a 退役集中式参数 if/else 后改读注册元数据，路径匹配改依赖
   L0 `services/workspace.path_matches`），`UI_FROZEN_FILES` 白名单条目同步移除，
   其在 flows 枚举清单中的地位不变）；
@@ -256,7 +256,7 @@ flowchart TD
 |---|---|---|
 | `YateApp`（L4） | Textual 生命周期、`CSS`（装载 `yate/resources/app.tcss`）、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、驱动选择（`get_driver_class`）、事件转发与空闲探测（`on_event`）、装载内置表 | 不持有业务状态、不实现业务操作（屏保只由外壳"轮询 + 触发 action"，画面与精灵渲染分别归 `editor_components/screensaver.py` 与 `editor_sprites/*`） |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
-| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/prompt_completion.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
+| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/cmdline_completions.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_components/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），自持滚动条主题（R15），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合（`keymaps/` 除 L0 记法 `keys.py` 外整体在本层）、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_components`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`、dist 元数据 `dist_meta.py`、键位记法 `keymaps/keys.py`） | 不 import 上层（2026-10-17 切分后：零例外） |
@@ -272,7 +272,7 @@ flowchart TD
    ① 包根**默认惰性**：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层；
    ② UI / 服务包（`editor_components` / `services`）**禁止** re-export（现状惯例成文化，
    `editor_components/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
-   声明为范本）；**唯一例外**：`editor_components/theme.py` 作为主题广播枢纽与门面再导出
+   声明为范本）；**唯一例外**：`editor_components/theme/__init__.py` 作为主题广播枢纽与门面再导出
   （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），以及
   `services/extensions/__init__.py` 门面（R14 冻结 14 名插件导入路径，
   2026-10-29 arch-sec-audit 审计登记，docstring 已自述例外）同为登记例外，
@@ -285,7 +285,7 @@ flowchart TD
    `test_editor_lsp_package_root_is_light`）。`keymaps` 自 2026-10-17 起整体属 **L1**
    （`keys.py` 除外），其包根 re-export 仍按本款登记并受同一守卫检查。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
-   纯计算（`prompt_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
+   纯计算（`cmdline_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
 7. **文件体量阈值处置（2026-10-07，评审 A11）**：单文件超过 **800 行**触发处置评审。
    守卫面自 2026-10-09 起覆盖 `yate/` 与 `tools/`（`tests/` 不设限）。
@@ -364,14 +364,16 @@ flowchart TD
    - 已出名单：`editor_syntax/regex_backend.py`（2026-10-08 big-module-split
      a 波：语言定义迁入 `regex_langdefs.py`——2026-10-09 上提为包顶层
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；
-     `editor_components/diffview.py`（2026-10-08 big-module-split b 波：Pane 侧
-     迁入 `diff_pane.py`，screen 侧留在原文件，两文件均低于阈值）；
+     `editor_components/diffview.py` + `diff_pane.py`（2026-10-08 big-module-split b 波
+     拆分；2026-11-03 进一步子包化为 `diff/screen.py` + `diff/pane.py`，两文件均低于阈值）；
      `editor_components/editor.py`（2026-10-08 big-module-split c 波：高亮与
      欢迎页迁入 `highlighting.py` / `welcome.py`，拆分后三文件均低于阈值）；
      `editor_components/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
      Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件
      加载迁入 `theme_files.py`，原文件保留广播枢纽并作门面再导出，
-     拆分后四文件均低于阈值）；
+     拆分后四文件均低于阈值；2026-11-03 进一步子包化为 `theme/`：
+     `__init__.py` + `theme/themes.py` + `theme/files.py`，`cells.py` 留根，
+     门面导入路径不变）；
      `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
      按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
      `editor_lsp/manager.py`（2026-10-08 big-module-split f 波：线格式解析
@@ -464,7 +466,7 @@ flowchart TD
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_components/` 只 import、不再重导出
   （`editor_components/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `flows/completion_flows.py` / `flows/prompt_completion.py` / `flows/mouse_flows.py` /
+- **R11** `flows/completion_flows.py` / `flows/cmdline_completions.py` / `flows/mouse_flows.py` /
   `flows/chunked_flows.py` / `flows/file_manager_flows.py`
   不向上依赖，`editor_components` 导入必须落在冻结集合内；
 - **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：

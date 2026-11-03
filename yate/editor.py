@@ -56,7 +56,7 @@ from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
-from yate.flows.prompt_completion import prompt_completions
+from yate.flows.cmdline_completions import cmdline_completions
 from yate.flows.prompt_flows import PromptFlows
 from yate.flows.shell_flows import ShellFlows
 from yate.flows.whichkey_flows import WhichKeyFlows
@@ -150,7 +150,7 @@ def _build_widgets(ed: Editor) -> None:
     """Create the widget tree members and keep the references ops need."""
     ed.prompt_bar = PromptBar(
         partial(
-            prompt_completions,
+            cmdline_completions,
             commands=ed.commands,
             session=ed.session,
             workspace=ed.workspace,

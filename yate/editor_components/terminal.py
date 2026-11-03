@@ -44,7 +44,7 @@ from yate.services.workspace import Workspace
 
 from yate.editor_components import theme
 from yate.editor_components.commandline import PromptBar
-from yate.editor_components.themes import Theme
+from yate.editor_components.theme.themes import Theme
 
 log = tracing.get_logger(__name__)
 

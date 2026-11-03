@@ -20,10 +20,10 @@ flowchart LR
     subgraph L3["L3 · 调度"]
         ED["editor.py::Editor"]
         ACT["actions.py / commands.py<br/>内置表"]
-        FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/prompt_completion)"]
+        FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/cmdline_completions)"]
     end
     subgraph L2["L2 · 组件 (editor_view/)"]
-        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diffview / diff_pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme(hub) / themes / cells<br/>theme_files / icons"]
+        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diff/screen / diff/pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme/(hub+facade) / theme/themes / theme/files / cells<br/>icons"]
     end
     subgraph L1["L1 · 会话与模型"]
         SES["session.py<br/>(EditorSession + 窗格树<br/>Leaf/Split/ViewState)"]
@@ -148,7 +148,7 @@ flowchart TB
 | `actions.py` | 内置动作表 | `populate()`（闭包绑定具体 Editor 实例） |
 | `commands.py` | 内置 ex 命令表 | `register_commands()` |
 | `config.py` | yaterc（Python 脚本式配置）加载 | `YateConfig`，支持 `register_theme` 注入、`language_servers` 声明 |
-| `flows/completion_flows.py` / `flows/prompt_completion.py` | 补全控制器与 prompt 补全 | `completion_flows.py::CompletionFlows`（即 `Editor.completion` 类型） |
+| `flows/completion_flows.py` / `flows/cmdline_completions.py` | 补全控制器与 prompt 补全 | `completion_flows.py::CompletionFlows`（即 `Editor.completion` 类型） |
 | `keymaps/` | 可插拔键位方案 | `base.py::Keymap/ActionContext`、`registry.py::KeymapSet`、`vsc.py`、`vim.py` |
 | `editor_term/` | 内置终端：VT100/xterm 模拟器 + 跨平台 PTY | `emulator.py`（2026-10-08 拆出 `palette.py` 调色板与 `keys.py` 按键映射）、`pty_proc.py`、`shells.py` |
 | `editor_lsp/` | UI 无关 LSP 客户端与管理器 | `client.py::LspClient`、`manager.py::LspManager`（didOpen/didChange/didSave/didClose、补全、诊断）、`parsing.py`（wire 格式解析）、`protocol.py` |
@@ -156,7 +156,7 @@ flowchart TB
 | `keyproto/` | 键弦模型与 Windows 键输入驱动（L0 叶包，2026-09-28 新增核对） | `chords.py::KeyChord` + VK/修饰位常量、`aliases.py`（弦→Textual 键名 / →C0 字节）、`legacy.py::event_to_raw` / `textual_key_to_raw`、`frames.py`（Windows Terminal `win32-input-mode` 键帧解码）、`driver_windows.py::YateWindowsDriver` |
 | `editor_sprites/` | 屏保精灵子系统（L0 叶包：纯数据 + 纯渲染，无 Textual/rich/IO，2026-09-28 新增核对） | `characters.py`（27 个角色的帧/调色板注册表，`character_names` / `get_character` / `shuffle_order`）、`render.py::render_rows` / `walk_x`、`chars/`（24 个角色位图模块 + 共享 `_shared.py`） |
 | `services/` | 平台服务 | `extensions/` 子包（扩展系统机件：R14 门面 `__init__` 再导出冻结插件导入路径 + `api.py`（`ExtensionAPI`/`ExtensionContext` 与 A13 回滚作用域）+ `bridges.py`（十座 `api.*` 桥 + `StatusSegment`）+ `loader.py`（发现/装载/回滚驱动/teardown）+ `lua/` 子包（lupa Lua 桥））、`events.py`（`EditorEvent` / `EventHub` 扩展事件枢纽，由 Editor 构造注入）、`workspace.py`、`fonts.py`、`user_setup.py`、`trust.py`（工作区信任门控）、`shell.py`、`clipboard.py`（pyperclip 降级安全包装）、`idle_tracker.py::IdleTracker`（屏保空闲打点，无定时器/线程） |
-| `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + `:trust` 信任确认 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`prompt_completion.py::prompt_completions`、`lsp_sync.py::LspSync` |
+| `flows/*`（`*_flows.py` + `lsp_sync.py`） | 从 `editor.py` 抽出的流程模块（`yate/flows/` 子包；由 `Editor` 构造，一律不反向导入 UI 层） | `document_flows.py::DocumentFlows`、`window_flows.py::WindowFlows`、`prompt_flows.py::PromptFlows`、`shell_flows.py::ShellFlows`、`extension_flows.py::ExtensionFlows`（扩展加载 + `:trust` 信任确认 + yaterc `language_servers` 注册）、`overlay_flows.py::OverlayFlows`（palette / help / manual / diff 推屏）、`mouse_flows.py::MouseFlows`、`completion_flows.py::CompletionFlows`、`cmdline_completions.py::cmdline_completions`、`lsp_sync.py::LspSync` |
 | `extensions/`（顶层，区别于 `services/extensions/` 机件子包） | 内置扩展示例 | `python_lsp.py`（内置 Python LSP 扩展）+ 7 个 `*.py.example` 示例（batch / diff / example_ext / fsharp / git / ini / yatesh 语法）+ `lua.example` 与 Lua API 库 `_yate.lua`（`require("yate")`）及 IDE lint 定义 `_yate.d.lua`；C# 等语言高亮属**内置**语法层（`editor_syntax/ts_backend/queries/csharp.scm` 等），不在本目录 |
 | 其他 | `logs.py`（crash/tracing）、`paths.py::load_tcss`（打包资源读取）、`diagnostics.py`、`dist_meta.py`（解析自身 Requires-Dist，供 `--diag` 与 PyInstaller spec 共用）、`resources/`（**`app.tcss` 外壳 CSS**、字体、manual/changelog 文档、主题示例） | |
 
@@ -172,13 +172,13 @@ flowchart TB
 | `explorer.py::ExplorerTree` | 侧边文件浏览器 |
 | `palette.py::PaletteScreen` | quick-open / 命令面板 |
 | `modals.py` | Help / Output 覆盖层 |
-| `diffview.py::DiffScreen` / `diff_pane.py::DiffPane` | 两路 / 三路 diff 视图（screen 侧在 `diffview.py`、每侧窗格在 `diff_pane.py`；`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlay_flows.py::OverlayFlows.open_diff` 推入） |
+| `diff/screen.py::DiffScreen` / `diff/pane.py::DiffPane` | 两路 / 三路 diff 视图（screen 侧在 `diff/screen.py`、每侧窗格在 `diff/pane.py`；`DEFAULT_CSS = load_tcss("diff-view.tcss")`，由 `overlay_flows.py::OverlayFlows.open_diff` 推入） |
 | `manual.py::MarkdownDocScreen` | 帮助手册 / changelog 查看器（引用 `$doc-hit-*` CSS 变量） |
 | `terminal.py::TerminalPanel` | 内置终端面板 |
 | `completion.py::CompletionPopup` | 补全弹出层 |
 | `screensaver.py::ScreensaverScreen` | 全屏屏保（`ModalScreen`，精灵队列调度与自我消解；不含精灵数据本身） |
 | `scrollbars.py` | 细滚动条按 widget 实例注入（`apply_slim_scrollbars(widget)`） |
-| `theme.py` | 主题广播枢纽 + 门面再导出（主题数据/校验/Textual 桥在 `themes.py`、字符几何在 `cells.py`、自定义主题文件加载在 `theme_files.py`；历史导入面不变） |
+| `theme/__init__.py` | 主题广播枢纽 + 门面再导出（主题数据/校验/Textual 桥在 `theme/themes.py`、字符几何在 `cells.py`、自定义主题文件加载在 `theme/files.py`；历史导入面不变） |
 
 > `keys.py` 已不存在：Textual 键名 → raw 字节翻译于 2026-09-28 核对确认已迁至
 > L0 叶包 `yate/keyproto/legacy.py`（`event_to_raw` / `textual_key_to_raw`）。

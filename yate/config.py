@@ -9,7 +9,7 @@ declarative :class:`LanguageServerSpec`.  Loading, exec'ing and validating
 This module also owns the ``:set`` option table (:class:`SetOption` /
 :data:`SET_OPTION_SPECS`) so the ``:`` command layer
 (:mod:`yate.commands`) and the prompt completion
-(:mod:`yate.flows.prompt_completion`) derive from one definition instead
+(:mod:`yate.flows.cmdline_completions`) derive from one definition instead
 of two hand-maintained copies (audit A8).
 
 Usage in a yaterc file -- see :mod:`yate.yaterc` for the load order and
@@ -287,7 +287,7 @@ def _parse_bool_option(value: str) -> object | None:
 
 #: The single source of ``:set`` truth: canonical names, aliases, value
 #: parsers and help text.  ``commands._set`` dispatches through this table
-#: and ``flows/prompt_completion`` derives its candidate list from it, so a
+#: and ``flows/cmdline_completions`` derives its candidate list from it, so a
 #: new option is added exactly once, here.  Order fixes the usage message.
 SET_OPTION_SPECS: tuple[SetOption, ...] = (
     SetOption(

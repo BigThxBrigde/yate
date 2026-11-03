@@ -22,7 +22,7 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``flows/completion_flows.py`` / ``flows/prompt_completion.py`` /
+  (``flows/completion_flows.py`` / ``flows/cmdline_completions.py`` /
   ``flows/lsp_sync.py`` / ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
   / ``flows/prompt_flows.py``) keep that coupling frozen and never look
   upward.
@@ -230,7 +230,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     "flows/overlay_flows.py": {
         "yate.editor_components",
         "yate.editor_components.commandline",
-        "yate.editor_components.diffview",
+        "yate.editor_components.diff.screen",
         "yate.editor_components.find_replace",
         "yate.editor_components.hexview",
         "yate.editor_components.manual",
@@ -322,9 +322,11 @@ MAX_SOURCE_LINES: int = 800
 #: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
 #: (big-module-split plan section 2).
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
-#: ``diff_pane.py``, ``editor_components/editor.py`` into ``highlighting.py`` +
+#: ``diff_pane.py`` (2026-11-03 further subpackaged as ``diff/``:
+#: ``screen.py`` + ``pane.py``), ``editor_components/editor.py`` into ``highlighting.py`` +
 #: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
-#: + ``theme_files.py``, ``editor_term/emulator.py`` into ``palette.py`` +
+#: + ``theme_files.py`` (2026-11-03 further subpackaged as ``theme/``:
+#: ``__init__.py`` + ``themes.py`` + ``files.py``), ``editor_term/emulator.py`` into ``palette.py`` +
 #: ``keys.py``, ``editor_lsp/manager.py`` into ``parsing.py`` and
 #: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line

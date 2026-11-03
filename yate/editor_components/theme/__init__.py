@@ -6,11 +6,11 @@ mechanism: :func:`set_theme` switches the process-global theme (like vim's
 :func:`subscribe` / :func:`attach`.  Widgets own their theme painting: they
 subscribe on mount and unsubscribe on unmount.
 
-The theme data itself lives in :mod:`yate.editor_components.themes` (the
+The theme data itself lives in :mod:`yate.editor_components.theme.themes` (the
 :class:`Theme` class, the built-in palettes, the registry and the Textual
 bridge), the character geometry helpers in
 :mod:`yate.editor_components.cells` and the custom theme file loader in
-:mod:`yate.editor_components.theme_files`.  All public symbols of those modules are
+:mod:`yate.editor_components.theme.files`.  All public symbols of those modules are
 re-exported here (big-module-split wave d facade), so the historical import
 surface -- ``from yate.editor_components import theme`` and
 ``from yate.editor_components.theme import THEMES`` in the docs -- keeps working
@@ -40,13 +40,13 @@ from yate.editor_components.cells import (
     expand_char,
     truncate_to_cells,
 )
-from yate.editor_components.theme_files import (
+from yate.editor_components.theme.files import (
     _theme_namespace,
     default_theme_dirs,
     load_theme_file,
     load_theme_paths,
 )
-from yate.editor_components.themes import (
+from yate.editor_components.theme.themes import (
     DEFAULT_THEME,
     TEXTUAL_THEME_PREFIX,
     THEMES,

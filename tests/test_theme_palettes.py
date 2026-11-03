@@ -453,7 +453,7 @@ def test_register_theme_warns_on_overwrite_not_on_re_registration(
     tracing; re-registering identical content stays silent (idempotent)."""
     first = _bad(name="overwrite-me")
     try:
-        with caplog.at_level(logging.WARNING, logger="yate.editor_components.themes"):
+        with caplog.at_level(logging.WARNING, logger="yate.editor_components.theme.themes"):
             register_theme(first)  # new key: never warns
             assert not [
                 r for r in caplog.records if "overwrite-me" in r.getMessage()
