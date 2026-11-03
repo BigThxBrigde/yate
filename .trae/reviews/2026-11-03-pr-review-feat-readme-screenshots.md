@@ -101,3 +101,17 @@ Strengths：
 
 执行注记：本记录由主代理撰写——`pr-reviewer` 子代理 Phase-1 后判死（§一），
 主代理按剧本接管并如实标注；评审期间基线两次前移均以再合并处置（§四）。
+
+## 八、MINOR 修复轮（同日，2026-11-03）
+
+三项 MINOR 当轮处置（方案见
+[pr-review-minor-fixes-plan.md](../documents/pr-review-minor-fixes-plan.md) §七）：
+
+| # | 处置 | 证据 |
+|---|---|---|
+| M1 panes flake | ✅ 修复（等待语义加固）：`test_app_panes.py` 三处弦驱动断言（游标 ×2、焦点 ×2 合并谓词）wait_until 化；`-n 1` 与全量均绿。三次满载复现尝试（全量 ×2 + 三文件加压子集 ×1）未再现早期 "asyncio exception"——残留 👀 观察：复现即按 traceback 精修 | 提交 `test(panes)` |
+| M2 which-key 控制字符 | ✅ 修复（根因）：`key_name` 缺 C0 0x1c–0x1e 逆向（0x1d 掉穿 `return key`），补 `<ctrl-\>` / `<ctrl-]>` / `<ctrl-^>` 分支；可打印性守护首轮即红，另暴露 `<alt-backspace>` 经 ESC 两字节分支漏裸 DEL——alt 后缀改走单字符命名路径（`<alt-backspace>` / `<alt-ctrl-d>`）。固定表与帮助层同源受益；`which-key.svg` 重生成（XML 有效、无原始 C0、`ctrl-]` 标签在位，画廊其余帧字节不变） | 提交 `fix(keymaps)` + `chore(screenshots)`；变异演练 3 处全红 → 还原全绿 |
+| M3 SVG 体量基线 | 📌 维持登记（非缺陷）：24 帧 2037 KB（最大 216 KB）为画廊刚需，留作帧数增长时的体量基线 | 无代码动作 |
+
+修复后门禁五项全绿：pyright 0 / 全量 pytest `-n auto` exit 0 / 架构 37 /
+覆盖率 92.82% / 冒烟 121/121·1463 checks（全 exit 0）。
