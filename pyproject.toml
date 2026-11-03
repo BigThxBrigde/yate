@@ -29,11 +29,6 @@ dev = [
     # bound on per-test sleeps, so worker processes scale it near-linearly
     # (measured 2026-10-20: 308s serial -> 95s on 4 workers).
     "pytest-xdist>=3.6",
-    # CI shard splitting (`--shard-id/--num-shards`): each shard is one matrix
-    # job on its own 4-vCPU runner, so the suite wall time scales with the
-    # shard count while the shard-local workers keep the xdist speedup
-    # (measured 2026-11-03: 337s wall on 4 workers -> ~120s per 3-shard leg).
-    "pytest-shard>=0.1.2",
     "tree-sitter>=0.24,<0.26", # keep in sync with the ts group below
     "tree-sitter-python>=0.23",
     "tree-sitter-bash>=0.23",
