@@ -546,8 +546,21 @@ def test_file_manager_half_page_scrolls_cursor_down_and_up(tmp_path: Path) -> No
     asyncio.run(scenario())
 
 
-def test_file_manager_gg_prefix_jumps_to_top(tmp_path: Path) -> None:
-    """``g`` ``g`` within the timeout jumps to the first row (lf semantics)."""
+def test_file_manager_gg_prefix_jumps_to_top(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``g`` ``g`` within the timeout jumps to the first row (lf semantics).
+
+    The one-second pending window is patched wide like the double-click
+    window above: under a loaded parallel CI worker each pilot press can
+    take longer than the real window, which turned the second ``g`` into
+    a fresh prefix (observed as an flaky failure on the runners).
+    """
+    # the screen compares against its own by-value import (screen.py does
+    # ``from yate.editor_components.file_manager.keys import G_PENDING_TIMEOUT``),
+    # so the patch must target the consumer module binding, not the source
+    # module attribute.
+    monkeypatch.setattr(file_manager, "G_PENDING_TIMEOUT", 30.0)
     _make_tree(tmp_path)
 
     async def scenario() -> None:
