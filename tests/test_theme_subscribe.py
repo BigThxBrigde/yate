@@ -9,8 +9,8 @@ from typing import cast
 from textual.color import Color
 from textual.content import Content
 
-from yate.editor_view import theme
-from yate.editor_view.commandline import OWNER_LSP, PromptBar
+from yate.editor_components import theme
+from yate.editor_components.commandline import OWNER_LSP, PromptBar
 
 
 def _message_content(bar: PromptBar) -> Content:

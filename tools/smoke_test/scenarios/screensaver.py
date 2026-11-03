@@ -36,7 +36,7 @@ from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, s
 from tools.smoke_test.scenarios._base import message_text, run_command, wait_until
 from yate.app import YateApp
 from yate.config import ScreenSaverConfig, YateConfig
-from yate.editor_view.screensaver import ScreensaverScreen
+from yate.editor_components.screensaver import ScreensaverScreen
 
 __all__ = ["SCENARIOS"]
 

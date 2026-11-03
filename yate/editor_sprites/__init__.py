@@ -2,7 +2,7 @@
 
 Pure L0 leaf: ASCII-art sprite data plus pure rendering functions -- no
 Textual / rich / UI imports, no I/O, no state.  The screensaver screen
-(:mod:`yate.editor_view.screensaver`) drives this pack: it picks a frame
+(:mod:`yate.editor_components.screensaver`) drives this pack: it picks a frame
 per animation tick, walks it across the terminal via :func:`render.walk_x`
 and turns the ``(glyph, style)`` cells from :func:`render.render_rows`
 into text segments itself.

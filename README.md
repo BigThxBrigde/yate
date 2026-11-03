@@ -5,10 +5,10 @@
 **yate** — *yet another terminal editor*, a modern terminal text editor built
 on [Textual](https://www.textualize.io/). Layered architecture: `editor_core`
 holds the pure editing logic (UI-agnostic, headlessly testable) and
-`editor_view` is the Textual interface. `YateApp` is a thin Textual shell,
+`editor_components` is the Textual interface. `YateApp` is a thin Textual shell,
 `editor.py` holds the running editor (`Editor`: session + services + widget
 tree + operations), and `session.py` holds the UI-free document session
-(`EditorSession`); `editor_view/*` owns rendering, `editor_core` stays pure
+(`EditorSession`); `editor_components/*` owns rendering, `editor_core` stays pure
 editing logic.
 
 ## 📖 Manual
@@ -245,7 +245,7 @@ yate/
   editor_lsp/     # UI-agnostic LSP client: JSON-RPC, process management, completion/diagnostic state
   editor_syntax/ # UI-agnostic syntax layer: token contract, regex tokenizer backend,
                  #   optional tree-sitter backend, per-filetype backend selection
-  editor_view/   # Textual UI: editor, file tree, status bar, palette, terminal, themes
+  editor_components/   # Textual UI: editor, file tree, status bar, palette, terminal, themes
   editor_sprites/ # screensaver sprite pack: pixel frames, character roster, half-block rendering
   keymaps/        # vsc / vim keymap definitions and action dispatch
   keyproto/       # low-level key-chord model + byte codecs for the Windows input channel

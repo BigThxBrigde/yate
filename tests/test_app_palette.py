@@ -16,7 +16,7 @@ from conftest import wait_until
 
 
 def test_ctrl_p_chord_opens_file_palette(tmp_path: Path) -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
@@ -36,7 +36,7 @@ def test_ctrl_p_chord_opens_file_palette(tmp_path: Path) -> None:
 
 
 def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         (tmp_path / "notes.txt").write_text("hi\n", encoding="utf-8")
@@ -62,7 +62,7 @@ def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
 
 
 def test_command_palette_runs_command() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()
@@ -86,7 +86,7 @@ def test_command_palette_runs_command() -> None:
 
 
 def test_command_palette_alt_shift_p_binding() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()
@@ -104,7 +104,7 @@ def test_command_palette_alt_shift_p_binding() -> None:
 
 
 def test_command_palette_lists_all_commands_and_actions() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()
@@ -149,7 +149,7 @@ def test_command_palette_lists_all_commands_and_actions() -> None:
 
 
 def test_command_palette_runs_action_by_full_name() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()
@@ -175,7 +175,7 @@ def test_command_palette_runs_action_by_full_name() -> None:
 
 
 def test_command_palette_searches_descriptions() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()
@@ -209,7 +209,7 @@ def test_command_palette_searches_descriptions() -> None:
 
 
 def test_palette_down_cursor_moves(tmp_path: Path) -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         for name in ("a.txt", "b.txt", "c.txt"):
@@ -246,7 +246,7 @@ def test_palette_down_on_a_single_result_does_not_execute_it(tmp_path: Path) -> 
     down / ctrl+n, so pressing Down on the one result opened the file
     (2026-10-03 review R-20).
     """
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         (tmp_path / "only.txt").write_text("x\n", encoding="utf-8")
@@ -285,7 +285,7 @@ def test_file_palette_indexes_in_background(tmp_path: Path) -> None:
     from rich.text import Text
     from textual.widgets import Static
 
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
     from yate.services.workspace import Workspace
 
     root = tmp_path
@@ -326,7 +326,7 @@ def test_file_palette_indexes_in_background(tmp_path: Path) -> None:
 
 
 def test_tab_cycles_and_single_match_auto_chooses() -> None:
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()

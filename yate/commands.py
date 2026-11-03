@@ -366,7 +366,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.overlays.open_command_palette()
 
     def _file_manager(args: str) -> None:
-        editor.filemanager_flows.open_overlay()
+        editor.file_manager_flows.open_overlay()
 
     def _project_replace(args: str) -> None:
         editor.overlays.open_project_replace()

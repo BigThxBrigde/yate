@@ -32,7 +32,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "document_flows.save_document",
         "focus_editor",
         "focus_explorer",
-        "filemanager_flows.open_overlay",
+        "file_manager_flows.open_overlay",
         "overlays.open_command_palette",
         "overlays.open_file_palette",
         "overlays.open_project_replace",
@@ -56,7 +56,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
 _FLOW_NAMESPACES: frozenset[str] = frozenset(
     {
         "document_flows",
-        "filemanager_flows",
+        "file_manager_flows",
         "prompt_flows",
         "overlays",
         "shell",

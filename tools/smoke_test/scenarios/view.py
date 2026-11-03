@@ -8,7 +8,7 @@ from pathlib import Path
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import goto, message_text, run_command, type_text, wait_until
 from yate.commands import SET_OPTION_INDEX
-from yate.editor_view import theme
+from yate.editor_components import theme
 from yate.services import fonts
 
 __all__ = ["SCENARIOS"]

@@ -358,7 +358,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # only reads importlib.resources: no config, no app, no terminal.
     if args.changelog is not None:
         # Lazy import keeps --help/--version free of TUI-side imports.
-        from yate.editor_view.manual import (  # pylint: disable=import-outside-toplevel
+        from yate.editor_components.manual import (  # pylint: disable=import-outside-toplevel
             load_changelog_markdown,
         )
 
@@ -420,7 +420,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Resolve configuration (yaterc) before importing the TUI app.
     from yate.yaterc import default_rc_paths, load_config
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     target = Path(args.path) if args.path else None
     # CLI --file-manager request: resolved to an absolute directory here so
@@ -520,7 +520,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.diff_files
         else None,
         hex_file=Path(args.hex_file) if args.hex_file else None,
-        filemanager_dir=fm_dir,
+        file_manager_dir=fm_dir,
     )
     app.run()
     return 0

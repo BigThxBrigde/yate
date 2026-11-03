@@ -11,7 +11,7 @@ model, plus the byte-level codecs the rest of yate already speaks:
 - :mod:`yate.keyproto.aliases` -- chord -> canonical Textual key name and
   chord -> legacy C0 byte;
 - :mod:`yate.keyproto.legacy` -- Textual key name -> raw byte (the codec
-  formerly living in ``yate.editor_view.keys``).
+  formerly living in ``yate.editor_components.keys``).
 
 L0 leaf package: apart from the Windows driver, the package modules depend
 on the standard library only.  ``driver_windows.py`` carries two documented

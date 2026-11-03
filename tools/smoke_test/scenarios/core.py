@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import run_command, type_text
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 __all__ = ["SCENARIOS"]
 

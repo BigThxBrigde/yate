@@ -37,22 +37,22 @@ from yate.editor_syntax import (
     language_name,
     resolve_filetype,
 )
-from yate.editor_view import theme
-from yate.editor_view.canvas_screen import CanvasScreen
-from yate.editor_view.chrome import Breadcrumbs, SidebarHead, TabBar
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.completion import CompletionPopup
-from yate.editor_view.editor import EditorView
-from yate.editor_view.explorer import ExplorerTree
-from yate.editor_view.panes import PaneHost, PaneManager
-from yate.editor_view.statusbar import StatusBar, mode_chip
-from yate.editor_view.terminal import TOGGLE_KEYS, TerminalPanel
-from yate.editor_view.whichkey import EditorColumn, WhichKeyPanel
+from yate.editor_components import theme
+from yate.editor_components.canvas_screen import CanvasScreen
+from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.completion import CompletionPopup
+from yate.editor_components.editor import EditorView
+from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.panes import PaneHost, PaneManager
+from yate.editor_components.statusbar import StatusBar, mode_chip
+from yate.editor_components.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
-from yate.flows.filemanager_flows import FileManagerFlows
+from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
@@ -300,9 +300,9 @@ def _build_pane_stack(ed: Editor) -> None:
     ed.document_flows.bind_hex_opener(ed.overlays.open_hex_view)
     # The file manager flows: overlay/fullscreen open points plus the
     # workspace-switch orchestration.  Its fullscreen exit verb is bound
-    # later by the app shell (Editor.bind_filemanager_exit -> flows.bind_exit,
+    # later by the app shell (Editor.bind_file_manager_exit -> flows.bind_exit,
     # on_mount): the editor itself never holds App.exit (App handle boundary).
-    ed.filemanager_flows = FileManagerFlows(
+    ed.file_manager_flows = FileManagerFlows(
         push_screen=ed.app.push_screen,
         pop_screen=ed.app.pop_screen,
         session=ed.session,
@@ -440,7 +440,7 @@ class Editor:
     completion: CompletionFlows
     prompt_flows: PromptFlows
     document_flows: DocumentFlows
-    filemanager_flows: FileManagerFlows
+    file_manager_flows: FileManagerFlows
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
     mouse_flows: MouseFlows
@@ -477,7 +477,7 @@ class Editor:
         # after WhichKeyFlows exists (see _build_pane_stack).  The file
         # manager flows are built with the pane stack (overlays precedent);
         # their fullscreen exit verb is bound by the app shell on mount
-        # (bind_filemanager_exit).
+        # (bind_file_manager_exit).
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -486,9 +486,9 @@ class Editor:
 
     # ================================================================ wiring
 
-    def bind_filemanager_exit(self, exit_app: Callable[[], None]) -> None:
+    def bind_file_manager_exit(self, exit_app: Callable[[], None]) -> None:
         """Forward the app-exit verb to the file manager flows (L4 on_mount)."""
-        self.filemanager_flows.bind_exit(exit_app)
+        self.file_manager_flows.bind_exit(exit_app)
 
     def extension_context(self) -> ExtensionContext:
         """Build the :class:`ExtensionContext` handed to extensions."""
@@ -1119,7 +1119,7 @@ class Editor:
     def set_theme(self, name: str) -> None:
         """Switch the active color theme (``mocha``, ``latte``, ...)."""
         # Normalization (strip / lower) is single-sourced in
-        # editor_view.theme.set_theme; the shell forwards the raw input.
+        # editor_components.theme.set_theme; the shell forwards the raw input.
         # Capture before set_theme: afterwards active().name always equals
         # *selected.name*, so the re-select case is no longer distinguishable
         # there.

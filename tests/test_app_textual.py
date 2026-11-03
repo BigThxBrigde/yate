@@ -17,8 +17,8 @@ import pytest
 from textual.strip import Strip
 from yate.app import YateApp, textual_key_to_raw
 from yate.editor_syntax.tokens import Token
-from yate.editor_view.chrome import TabBar
-from yate.editor_view.icons import LOCK
+from yate.editor_components.chrome import TabBar
+from yate.editor_components.icons import LOCK
 from yate.keymaps.base import ActionContext
 from yate.keyproto.legacy import event_to_raw
 from yate.session import replace_node
@@ -485,7 +485,7 @@ def test_readonly_startup_flag_ignores_directory_target(tmp_path: Path) -> None:
 
 
 def test_syntax_highlight_and_theme_switch(tmp_path: Path) -> None:
-    from yate.editor_view import theme
+    from yate.editor_components import theme
 
     async def scenario() -> None:
         target = tmp_path / "script.py"
@@ -547,7 +547,7 @@ def test_highlight_cache_survives_cursor_movement(tmp_path: Path) -> None:
                     if seg.style is not None and seg.style.color is not None
                 }
 
-            from yate.editor_view import theme
+            from yate.editor_components import theme
             mocha = theme.active()
             before = colors_at(0)
             assert mocha.syn_keyword.lower() in before
@@ -587,7 +587,7 @@ def test_edit_keeps_colors_instead_of_flashing(tmp_path: Path) -> None:
             )
             assert editor.tokens_for(0)
 
-            from yate.editor_view import theme
+            from yate.editor_components import theme
             mocha = theme.active()
 
             def colors_at(row: int) -> set[str]:
@@ -1161,7 +1161,7 @@ def test_every_editor_cell_has_explicit_bg(tmp_path: Path) -> None:
     bleed through next to cells painted with theme.bg."""
     from rich.color import Color
 
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     async def scenario() -> None:
         p = tmp_path / "doc.py"
@@ -1245,7 +1245,7 @@ def test_horizontal_scroll_clips_wide_glyph_with_blank(tmp_path: Path) -> None:
 
 
 def test_help_lists_terminal_key_and_commands() -> None:
-    from yate.editor_view.modals import HelpScreen
+    from yate.editor_components.modals import HelpScreen
 
     async def scenario() -> None:
         app = YateApp()

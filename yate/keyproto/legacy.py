@@ -1,7 +1,7 @@
 """Legacy key codec: translation from Textual key names to the raw byte
 sequences yate keymaps use (control codes / ANSI escape sequences).
 
-Formerly ``yate.editor_view.keys``; moved into the L0 leaf package so
+Formerly ``yate.editor_components.keys``; moved into the L0 leaf package so
 keymaps, the driver layer and the app can share one codec without touching
 the component package.
 """

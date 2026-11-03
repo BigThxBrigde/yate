@@ -19,7 +19,7 @@ from typing import cast
 import pytest
 
 from yate.config import YateConfig
-from yate.editor_view.commandline import PromptBar
+from yate.editor_components.commandline import PromptBar
 from yate.flows import OverlayPusher, SpawnFn
 from yate.flows import shell_flows
 from yate.flows.shell_flows import ShellFlows

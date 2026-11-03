@@ -4,9 +4,9 @@
 
 **yate** — *yet another terminal editor*，基于 [Textual](https://www.textualize.io/)
 构建的现代终端文本编辑器。分层架构：`editor_core` 为纯编辑逻辑（与 UI 解耦，
-可无头测试），`editor_view` 为 Textual 界面。`YateApp` 只是瘦外壳，`editor.py`
+可无头测试），`editor_components` 为 Textual 界面。`YateApp` 只是瘦外壳，`editor.py`
 持有运行中的编辑器（`Editor`：会话 + 服务 + 组件树 + 操作），`session.py`
-持有无 UI 的文档会话（`EditorSession`）；`editor_view/*` 负责渲染，
+持有无 UI 的文档会话（`EditorSession`）；`editor_components/*` 负责渲染，
 `editor_core` 保持纯编辑逻辑。
 
 ## 📖 用户手册 / Manual
@@ -263,7 +263,7 @@ yate/
   editor_lsp/     # UI 无关的 LSP 客户端：JSON-RPC、进程管理、补全/诊断状态
   editor_syntax/ # 与 UI 无关的语法层：token 契约、正则 tokenizer 后端、
                  #   可选 tree-sitter 后端、按文件类型选择后端
-  editor_view/   # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、主题
+  editor_components/   # Textual 界面：编辑器、文件树、状态栏、命令面板、终端、主题
   editor_sprites/ # 屏保精灵包：像素帧、角色名册、半块渲染
   keymaps/        # vsc / vim 键位定义与动作分发
   keyproto/       # 底层按键和弦模型与字节编解码（Windows 输入通道）

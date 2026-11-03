@@ -1,4 +1,4 @@
-"""Unit tests for ``yate.editor_view.cells`` (character geometry helpers).
+"""Unit tests for ``yate.editor_components.cells`` (character geometry helpers).
 
 Pure-function coverage: terminal cell widths (combining / wide / tab / ASCII),
 truncation, the tab-aware cell<->char mappings, the prefix offset table and
@@ -8,7 +8,7 @@ the module is theme independent and its only state is a read-only LRU cache.
 
 from __future__ import annotations
 
-from yate.editor_view.cells import (
+from yate.editor_components.cells import (
     cell_len,
     cell_offsets,
     cell_to_char,

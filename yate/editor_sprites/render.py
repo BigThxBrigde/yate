@@ -9,7 +9,7 @@ terminal graphics protocols.
 
 This module is UI-free: callers turn the returned ``(glyph, style)``
 columns into text segments themselves (see
-:mod:`yate.editor_view.screensaver`).
+:mod:`yate.editor_components.screensaver`).
 """
 
 from __future__ import annotations

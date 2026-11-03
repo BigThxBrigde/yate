@@ -14,8 +14,8 @@ from collections.abc import Callable
 from functools import partial
 from pathlib import Path
 
-from yate.editor_view.commandline import PromptBar
-from yate.editor_view.modals import OutputScreen
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.modals import OutputScreen
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.services import fonts
 from yate.services.shell import ShellResult, run_shell, shell_name

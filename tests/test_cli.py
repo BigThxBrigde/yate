@@ -27,7 +27,7 @@ from yate.cli import build_parser, main, version_lines
 _CUSTOM_THEME_SRC: str = """\
 from dataclasses import replace
 
-from yate.editor_view.theme import THEMES, register_theme
+from yate.editor_components.theme import THEMES, register_theme
 
 register_theme(replace(
     THEMES["mocha"], name="cli-custom", label="CLI Custom", accent="#ff0000"
@@ -289,7 +289,7 @@ def test_changelog_missing_resource_degrades_without_raising(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     placeholder = "# Changelog\n\nNo changelog is shipped with this build."
-    with patch("yate.editor_view.manual.load_changelog_markdown",
+    with patch("yate.editor_components.manual.load_changelog_markdown",
                return_value=placeholder):
         rc, out = _run_changelog(["--changelog"], capsys)
     assert rc == 0
@@ -391,7 +391,7 @@ def test_diag_with_none_yaterc_reports_no_rc_loaded(
 @pytest.fixture
 def _custom_theme_cleanup() -> Any:
     yield
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     theme_mod.THEMES.pop("cli-custom", None)
     theme_mod.set_theme("mocha")
@@ -422,7 +422,7 @@ def _run_main(
 def test_theme_dir_auto_loads_and_theme_selects_custom_theme(
     capsys: pytest.CaptureFixture[str], _custom_theme_cleanup: None, tmp_path: Path
 ) -> None:
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     folder = tmp_path / "mythemes"
     folder.mkdir()
@@ -451,7 +451,7 @@ def test_theme_dir_tilde_is_expanded(
     Home is the fixture's isolated temp home, so ``~/mythemes`` is created
     there explicitly.
     """
-    from yate.editor_view import theme as theme_mod
+    from yate.editor_components import theme as theme_mod
 
     folder = isolated_home / "mythemes"
     folder.mkdir(parents=True)

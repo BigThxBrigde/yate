@@ -5,7 +5,7 @@
 版本 **0.1.0**（本手册随程序打包，按 `F8` 或输入 `:manual` 可随时打开）。
 
 yate 采用分层架构：`editor_core` 是与界面完全解耦的纯编辑逻辑
-（缓冲区、文档模型、搜索引擎），`editor_view` 是 Textual 界面，
+（缓冲区、文档模型、搜索引擎），`editor_components` 是 Textual 界面，
 `keymaps` 提供可插拔键位，`services` 负责工作区、Shell、扩展与字体。
 
 ---
@@ -886,7 +886,7 @@ theme = "my-mocha"                      # 从这些文件注册的主题中选�
 ```python
 # ~/.yate/themes/my_mocha.py
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(
     THEMES["mocha"],

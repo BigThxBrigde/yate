@@ -32,8 +32,8 @@ from textual.events import Key
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import goto, message_text, run_command, type_text
 from yate.app import YateApp
-from yate.editor_view import theme
-from yate.editor_view.commandline import OWNER_CANDIDATES
+from yate.editor_components import theme
+from yate.editor_components.commandline import OWNER_CANDIDATES
 from yate.keymaps.base import Keymap
 from yate.keymaps.vsc import VscKeymap
 
@@ -191,7 +191,7 @@ async def _unknown_command_and_action(tmp: Path) -> ScenarioResult:
 async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
     """Tab completes command names, ``:set`` values and open-prompt paths.
 
-    ``CommandInput._do_tab_completion`` (yate/editor_view/commandline.py)
+    ``CommandInput._do_tab_completion`` (yate/editor_components/commandline.py)
     drives two-phase bash-style completion: a single match is applied at
     once; several matches extend to the longest common prefix and list the
     remaining candidates on the message slot instead of applying one right

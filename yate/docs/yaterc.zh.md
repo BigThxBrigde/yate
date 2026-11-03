@@ -158,7 +158,7 @@ yaterc 的命名空间中注入了 `register_theme()` 函数，用于注册自�
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES, register_theme
+from yate.editor_components.theme import THEMES, register_theme
 
 register_theme(replace(
     THEMES["mocha"],
@@ -171,7 +171,7 @@ register_theme(replace(
 theme = "my-mocha"
 ```
 
-`Theme` 的字段（定义见 [yate/editor_view/theme.py](../editor_view/theme.py)）按用途分组：
+`Theme` 的字段（定义见 [yate/editor_components/theme.py](../editor_components/theme.py)）按用途分组：
 
 - **背景**：`bg`（编辑区）、`panel`（tab 栏/侧栏/状态栏）、`surface`
   （当前行/输入框）、`gutter_bg`（行号槽）、`border`（分隔线）
@@ -208,7 +208,7 @@ theme = "my-mocha"                     # 选用这些文件注册的主题
 
 ```python
 from dataclasses import replace
-from yate.editor_view.theme import THEMES
+from yate.editor_components.theme import THEMES
 
 register_theme(replace(THEMES["mocha"], name="my-mocha", accent="#89b4fa"))
 ```

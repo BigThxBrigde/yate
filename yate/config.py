@@ -188,7 +188,7 @@ class YateConfig:
     #: ``disabled_extensions = ["python_lsp"]``; accumulated across rc files.
     disabled_extensions: list[str] = field(default_factory=list[str])
     #: Directories holding ``*.py`` custom theme files, accumulated in load
-    #: order and scanned at startup (see editor_view.theme).
+    #: order and scanned at startup (see editor_components.theme).
     theme_dirs: list[Path] = field(default_factory=list[Path])
     #: Declarative LSP servers (the ``language_servers`` option); the app
     #: registers them after extensions so a same-named rc entry wins.

@@ -1,5 +1,5 @@
 /* MarkdownDocScreen widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/manual.py via yate.paths.load_tcss. */
+   loaded by editor_components/manual.py via yate.paths.load_tcss. */
 MarkdownDocScreen {
     align: center middle;
 }
@@ -56,6 +56,6 @@ MarkdownDocScreen .hint {
     text-align: center;
 }
 /* The document body is one widget holding pre-rendered rows (see
-   editor_view/manual.py:DocBody): search tints are painted into those rows
+   editor_components/manual.py:DocBody): search tints are painted into those rows
    from the active yate theme's yellow accent, so no per-block rules (and no
    MarkdownTable width rule) are needed here any more. */

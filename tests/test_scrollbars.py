@@ -1,4 +1,4 @@
-"""Tests for yate.editor_view.scrollbars (slim scrollbar renderer)."""
+"""Tests for yate.editor_components.scrollbars (slim scrollbar renderer)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from rich.color import Color
 from rich.segment import Segments
 from textual.scrollbar import ScrollBar
 
-from yate.editor_view.scrollbars import (
+from yate.editor_components.scrollbars import (
     SlimScrollBarRender,
     apply_slim_scrollbars,
 )

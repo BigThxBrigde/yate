@@ -24,7 +24,7 @@ from textual.screen import Screen
 from textual.worker import Worker
 
 #: ``message(text, kind)`` -- write one line on the message line (*kind* is a
-#: :data:`yate.editor_view.commandline.MESSAGE_COLORS` key: ``"info"`` /
+#: :data:`yate.editor_components.commandline.MESSAGE_COLORS` key: ``"info"`` /
 #: ``"error"`` / ``"warn"`` / ``"ok"``); the editor owns the callable.
 type MessageFn = Callable[[str, str], None]
 

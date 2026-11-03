@@ -15,7 +15,7 @@ in passing get their own end-to-end walk here:
   and the "pane at its minimum size" / "only one pane open" warnings.
 
 Pane geometry *is* observable: :class:`yate.session.Split` keeps the fractional
-sizes of every split, and :attr:`yate.editor_view.panes.PaneManager.root` is
+sizes of every split, and :attr:`yate.editor_components.panes.PaneManager.root` is
 the public tree root, so the resize assertions read real numbers instead of
 guessing from the rendering.  Only :meth:`WindowFlows._window_pending` is
 private, and the public :attr:`WindowFlows.window_pending` property covers it.

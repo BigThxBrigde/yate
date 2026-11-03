@@ -39,7 +39,7 @@ os.environ.setdefault("YATE_PYTHON_LSP", "off")
 from yate.app import YateApp  # noqa: E402
 from yate.config import YateConfig  # noqa: E402
 from yate.editor import Editor  # noqa: E402
-from yate.editor_view import theme  # noqa: E402
+from yate.editor_components import theme  # noqa: E402
 
 
 def _speed_up_pilot() -> None:
@@ -364,17 +364,17 @@ def new_app(
     keymap: str | None = None,
     theme_name: str | None = None,
     config: YateConfig | None = None,
-    filemanager_dir: Path | None = None,
+    file_manager_dir: Path | None = None,
 ) -> YateApp:
     """Create a :class:`YateApp` and register it for the invariant sweep.
 
-    *filemanager_dir* forwards the ``--file-manager`` startup form: the app
+    *file_manager_dir* forwards the ``--file-manager`` startup form: the app
     boots straight into the fullscreen file manager screen (the push itself
     rides ``call_after_refresh`` on mount, so await it in the scenario).
     """
     app = YateApp(
         target=target, keymap=keymap, theme_name=theme_name, config=config,
-        filemanager_dir=filemanager_dir,
+        file_manager_dir=file_manager_dir,
     )
     _apps.append(app)
     return app

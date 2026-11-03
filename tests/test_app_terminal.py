@@ -144,7 +144,7 @@ def test_nul_byte_from_windows_ctrl_grave_matches_toggle() -> None:
     # must be one of the accepted toggle keys.
     from textual._xterm_parser import XTermParser
 
-    from yate.editor_view.terminal import TOGGLE_KEYS
+    from yate.editor_components.terminal import TOGGLE_KEYS
 
     names = [
         getattr(m, "key", None) for m in XTermParser().feed("\x00")
@@ -285,7 +285,7 @@ def test_terminal_focused_ctrl1_returns_focus_to_editor() -> None:
 def test_terminal_click_focuses_view() -> None:
     # plan-d (issue IKJRFK): clicking the terminal view must focus it so
     # typed keys reach the shell (click-to-focus), VS Code style.
-    from yate.editor_view.terminal import TerminalView
+    from yate.editor_components.terminal import TerminalView
 
     async def scenario() -> None:
         app = YateApp()
@@ -314,7 +314,7 @@ def test_terminal_click_focuses_view() -> None:
 def test_terminal_click_does_not_write_shell() -> None:
     # plan-d (issue IKJRFK): a click focuses the terminal but must never
     # send input to the shell -- no bytes written, screen untouched.
-    from yate.editor_view.terminal import TerminalView
+    from yate.editor_components.terminal import TerminalView
 
     async def scenario() -> None:
         app = YateApp()

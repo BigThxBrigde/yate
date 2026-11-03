@@ -1,5 +1,5 @@
 /* PaneHost widget stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_view/panes.py via yate.paths.load_tcss. */
+   loaded by editor_components/panes.py via yate.paths.load_tcss. */
 PaneHost {
     width: 100%;
     height: 1fr;

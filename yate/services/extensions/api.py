@@ -408,7 +408,7 @@ class ExtensionAPI:
         message line -- it runs while the ex line / palette is mid-completion
         -- so it logs the traceback and returns ``[]``: a failing candidate
         source shows *no* candidates instead of crashing the Tab path
-        (``flows/prompt_completion.py``, ``editor_view/palette.py``).
+        (``flows/prompt_completion.py``, ``editor_components/palette.py``).
         """
 
         def guarded(prefix: str) -> list[str]:

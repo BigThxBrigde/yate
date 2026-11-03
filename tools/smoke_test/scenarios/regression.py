@@ -16,7 +16,7 @@ from typing import Any
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
 from tools.smoke_test.scenarios._base import message_text, run_command, type_text, wait_until
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 __all__ = ["SCENARIOS"]
 

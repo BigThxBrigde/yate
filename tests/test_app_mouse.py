@@ -19,8 +19,8 @@ from unittest.mock import patch
 from textual.events import MouseDown, MouseEvent, MouseMove, MouseUp
 from yate.app import YateApp
 from yate.config import YateConfig
-from yate.editor_view.editor import EditorView
-from yate.editor_view.panes import PaneHost
+from yate.editor_components.editor import EditorView
+from yate.editor_components.panes import PaneHost
 from yate.keymaps.vim import VimKeymap, VimMode
 from conftest import wait_until
 

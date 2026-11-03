@@ -20,8 +20,8 @@ from textual.events import Key
 
 from yate.editor_core.diff import DiffHunk, MergeRegion, diff_lines
 from yate.editor_core.document import Document
-from yate.editor_view.diff_pane import DiffPane
-from yate.editor_view.diffview import DiffScreen
+from yate.editor_components.diff_pane import DiffPane
+from yate.editor_components.diffview import DiffScreen
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap
 from yate.keymaps.vsc import VscKeymap
@@ -1097,8 +1097,8 @@ def test_inline_highlight_lines_up_after_a_leading_tab() -> None:
     """
     from textual.color import Color
 
-    from yate.editor_view import theme
-    from yate.editor_view.diff_pane import PaneDiffState
+    from yate.editor_components import theme
+    from yate.editor_components.diff_pane import PaneDiffState
 
     line = "\tone changed"  # span (5, 9) == "chan"
     pane = DiffPane(Document(), "solo")
@@ -1111,7 +1111,7 @@ def test_inline_highlight_lines_up_after_a_leading_tab() -> None:
     t = theme.active()
     strip = pane.render_line(0)
     # replicate the inline background the pane blends for "changed" rows
-    from yate.editor_view.diff_pane import _BADGES  # noqa: PLC0415
+    from yate.editor_components.diff_pane import _BADGES  # noqa: PLC0415
     tint = Color.parse(getattr(t, _BADGES["changed"][1]))
     inline_bg = tint.blend(Color.parse(t.bg), 0.55)
     highlighted = "".join(

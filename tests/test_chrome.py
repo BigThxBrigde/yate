@@ -16,7 +16,7 @@ import pytest
 
 from yate.config import YateConfig
 from yate.editor_core import Document
-from yate.editor_view.chrome import Breadcrumbs, TabBar
+from yate.editor_components.chrome import Breadcrumbs, TabBar
 from yate.session import EditorSession
 from yate.services.workspace import Workspace
 

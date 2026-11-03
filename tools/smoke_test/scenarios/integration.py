@@ -167,7 +167,7 @@ async def _large_file_scroll(tmp: Path) -> ScenarioResult:
 async def _terminal_focus_editor(tmp: Path) -> ScenarioResult:
     """Ctrl+1 hands focus from the terminal back to the editor (N19).
 
-    A focused :class:`~yate.editor_view.terminal.TerminalView` swallows
+    A focused :class:`~yate.editor_components.terminal.TerminalView` swallows
     every key except the toggle keys (see ``terminal_panel_toggle``), so
     ``ctrl+1`` is the documented way back.  The panel runs on the
     in-memory PTY (no real shell, hence not ``slow``), and the scenario

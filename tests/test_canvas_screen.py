@@ -20,7 +20,7 @@ from textual.content import Content
 from textual.style import Style
 from textual.widgets import Static
 
-from yate.editor_view.canvas_screen import TICKS_PER_SECOND, CanvasScreen
+from yate.editor_components.canvas_screen import TICKS_PER_SECOND, CanvasScreen
 
 from conftest import wait_until
 

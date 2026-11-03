@@ -1,0 +1,617 @@
+"""The integrated terminal dock (Textual widgets over the PTY/emulator core).
+
+The panel sits at the bottom of the screen, VS Code style: a one-line header
+with the shell name/title and the :class:`TerminalView` that paints the VT
+grid, forwards keystrokes to the PTY and manages scrollback.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, override
+
+from rich.segment import Segment
+from rich.style import Style
+from textual.containers import Vertical
+from textual.events import (
+    Key,
+    MouseDown,
+    MouseScrollDown,
+    MouseScrollUp,
+    Paste,
+    Resize,
+)
+from textual.strip import Strip
+from textual.widget import Widget
+from textual.widgets import Static
+
+from yate.config import YateConfig
+from yate.editor_term import (
+    Cell,
+    PtyProcess,
+    PtyProcessError,
+    TerminalEmulator,
+    key_to_terminal,
+    resolve_shell,
+    shell_label,
+)
+from yate.editor_components.editor import LEFT_BUTTON
+from yate.logs import tracing
+from yate.paths import load_tcss
+from yate.services.workspace import Workspace
+
+from yate.editor_components import theme
+from yate.editor_components.commandline import PromptBar
+from yate.editor_components.themes import Theme
+
+log = tracing.get_logger(__name__)
+
+#: Names Textual gives Ctrl+grave across platforms:
+#: - "ctrl+`" / "ctrl+grave": friendly/pilot names;
+#: - "ctrl+grave_accent": kitty keyboard protocol terminals (`chr(96)`
+#:   is named "grave_accent");
+#: - "ctrl+@": Windows conhost and legacy xterm -- Ctrl+grave translates
+#:   to the NUL byte there (ToUnicodeEx yields no character), which
+#:   Textual names ctrl+@. Kept so the panel can be CLOSED from the
+#:   keyboard while it is focused. The NUL byte is the same one
+#:   Ctrl+Space sends there, so elsewhere (editor/app) ctrl+@ never
+#:   opens the panel -- Ctrl+Space means manual completion instead.
+#: - "ctrl+2" / "ctrl+shift+2": other names Textual's Keys enum carries
+#:   for the same NUL byte (ctrl+2 aliases ctrl+@; shift+2 is @ on the
+#:   US layout), and what the chord driver reports when the physical
+#:   grave key sits on Shift+2 in the user's keyboard layout.
+TOGGLE_KEYS: frozenset[str] = frozenset({
+    "ctrl+`", "ctrl+grave", "ctrl+grave_accent", "ctrl+@",
+    "ctrl+2", "ctrl+shift+2",
+})
+
+#: Hands focus back to the editor while the terminal is focused (the
+#: terminal counterpart of the editor's own ctrl+1 chord).  Consumed by
+#: :meth:`TerminalView.on_key`, so the shell input stream never sees it.
+FOCUS_EDITOR_KEY: str = "ctrl+1"
+
+#: VT parsing runs on the UI event loop, so output chunks are coalesced
+#: and drained once per frame.  Bytes beyond this limit force an
+#: immediate synchronous drain: a producer faster than the frame rate
+#: must not grow the buffer without bound.
+OUTPUT_BUFFER_LIMIT: int = 1024 * 1024
+
+
+def _hex(rgb: tuple[int, int, int] | None) -> str | None:
+    if rgb is None:
+        return None
+    return f"#{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
+
+
+class TerminalView(Widget):
+    """Paints :class:`TerminalEmulator` rows and feeds keys to the PTY."""
+
+    can_focus = True
+
+    DEFAULT_CSS = load_tcss("terminal-view.tcss")
+
+    def __init__(self, panel: TerminalPanel, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self.panel = panel
+        self.emulator = TerminalEmulator(80, 24, on_response=self._respond)
+        self.proc: PtyProcess | None = None
+        self.shell_argv: list[str] = []
+        self._scroll = 0
+        self._starting = False
+        self.dead = False
+        self._exit_code: int | None = None
+        self._last_title = ""
+        # One-shot grid snapshot per frame: view_lines() copies the whole
+        # grid, so calling it once per rendered row is O(rows^2 * cols)
+        # per frame.  _grid_seq is bumped at every state-changing point
+        # (output, resize, scroll, exit) so a stale snapshot can never
+        # survive past the refresh that follows it.
+        self._snapshot: list[list[Cell]] | None = None
+        self._snapshot_key: tuple[int, int, int, int] = (-1, -1, -1, -1)
+        self._grid_seq = 0
+        # Output coalescing: chunks accumulate here until the scheduled
+        # per-frame drain feeds the whole batch to the emulator at once.
+        self._output_buffer = bytearray()
+        self._drain_scheduled = False
+
+    # ------------------------------------------------------------- lifecycle
+
+    @property
+    def started(self) -> bool:
+        """Whether the shell process exists and has not exited."""
+        return self.proc is not None and not self.dead
+
+    async def start(  # noqa: Any - fake PTY factory for tests; no stub.
+        self,
+        argv: list[str],
+        cwd: Path,
+        factory: Any | None = None,
+    ) -> None:
+        """Spawn the shell; restarted automatically after a previous exit."""
+        if self._starting or self.started:
+            return
+        self._starting = True
+        try:
+            # The panel was just shown: wait until Textual has laid it out
+            # so the PTY starts at the real size instead of the 80x24
+            # fallback (whose first lines would be discarded when the
+            # viewport shrinks to its final height).
+            await self._wait_for_size()
+            cols, rows = self._grid_size()
+            self.emulator = TerminalEmulator(
+                cols, rows, on_response=self._respond
+            )
+            self._scroll = 0
+            # A fresh emulator invalidates the grid snapshot as well.
+            self._grid_seq += 1
+            self.dead = False
+            self._exit_code = None
+            make: Any = factory or PtyProcess  # noqa: Any - fake PTY factory from tests; no stub.
+            proc: PtyProcess = make(argv, cwd, cols, rows)
+            self.proc = proc
+            self.shell_argv = list(argv)
+            try:
+                await proc.start(self._on_output, self._on_exit)
+            except Exception:  # noqa: BLE001 - re-raised; reset state first
+                # A failed spawn must not leave a phantom ``started`` shell:
+                # with proc set and dead False the revive path (any key /
+                # open()) would never fire again.  Cancellation is not caught
+                # on purpose -- the spawn thread may still have created the
+                # child, so shutdown() must keep the reference to reap it.
+                self.proc = None
+                self.dead = True
+                raise
+        finally:
+            self._starting = False
+        self._last_title = self.emulator.title
+        panel = self.parent
+        if isinstance(panel, TerminalPanel):
+            panel.refresh_header()
+        self.refresh()
+
+    async def shutdown(self) -> None:
+        """Terminate the shell (called when yate exits)."""
+        proc, self.proc = self.proc, None
+        if proc is None:
+            return
+        proc.terminate()
+        try:
+            await proc.wait_closed()
+        except Exception:  # noqa: BLE001 - best-effort teardown; must still detach
+            # Cancelled teardown (or a PTY error) must still detach the
+            # process so its reader thread can never post into the closed
+            # event loop after yate is gone.
+            pass
+        finally:
+            proc.detach()
+
+    def _grid(self) -> list[list[Cell]]:
+        """Snapshot of the visible grid, rebuilt only when state changed."""
+        key = (self._scroll, int(self.size.width), int(self.size.height),
+               self._grid_seq)
+        if self._snapshot is None or key != self._snapshot_key:
+            self._snapshot = self.emulator.view_lines(self._scroll)
+            self._snapshot_key = key
+        return self._snapshot
+
+    def _respond(self, data: bytes) -> None:
+        if self.proc is not None:
+            self.proc.write(data)
+
+    # ------------------------------------------------------------ PTY events
+
+    def _on_output(self, data: bytes) -> None:
+        self._output_buffer += data
+        if len(self._output_buffer) > OUTPUT_BUFFER_LIMIT:
+            # Producer outruns the frame rate: drain synchronously so the
+            # buffer cannot grow without bound (no bytes are dropped).
+            self._drain_output()
+            return
+        if not self.is_attached:
+            # Not on a live widget (tests / unmount race): scheduling a
+            # callback could never fire, so drain immediately instead.
+            self._drain_output()
+            return
+        if self._drain_scheduled:
+            return
+        self._drain_scheduled = True
+        self.call_after_refresh(self._drain_output)
+
+    def _drain_output(self) -> None:
+        """Feed every buffered output chunk to the emulator in one batch."""
+        self._drain_scheduled = False
+        data = bytes(self._output_buffer)
+        self._output_buffer.clear()
+        if not data:
+            return
+        self.emulator.feed(data)
+        if self._scroll:
+            self._scroll = min(self._scroll, self.emulator.max_scroll())
+        self._grid_seq += 1
+        self.refresh()
+        if self.emulator.title != self._last_title:
+            self._last_title = self.emulator.title
+            panel = self.parent
+            if isinstance(panel, TerminalPanel):
+                panel.refresh_header()
+
+    def _on_exit(self, code: int | None) -> None:
+        self.dead = True
+        self._exit_code = code
+        self._scroll = 0
+        self._grid_seq += 1
+        self.refresh()
+        panel = self.parent
+        if isinstance(panel, TerminalPanel):
+            panel.refresh_header()
+
+    # ---------------------------------------------------------------- layout
+
+    async def _wait_for_size(self, timeout: float = 1.0) -> None:
+        """Yield until the widget has a laid-out, non-zero size."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while loop.time() < deadline:
+            if self.is_attached and self.size.width and self.size.height:
+                return
+            await asyncio.sleep(0.02)
+
+    def _grid_size(self) -> tuple[int, int]:
+        width = int(self.size.width) if self.size.width else 80
+        height = int(self.size.height) if self.size.height else 24
+        return max(1, width), max(1, height)
+
+    def on_resize(self, _event: Resize) -> None:
+        """Resize the emulator and PTY to the new grid size."""
+        cols, rows = self._grid_size()
+        if (cols, rows) == (self.emulator.cols, self.emulator.rows):
+            return
+        self.emulator.resize(cols, rows)
+        if self.proc is not None:
+            self.proc.resize(cols, rows)
+        self._scroll = min(self._scroll, self.emulator.max_scroll())
+        self._grid_seq += 1
+        self.refresh()
+
+    # --------------------------------------------------------------- input
+
+    def on_mouse_down(self, event: MouseDown) -> None:
+        """Focus the terminal so typed keys reach the shell (click-to-focus).
+
+        The panel accepts the click (R10 analogue: the event is stopped) but
+        does not write to the shell -- a stray click must never send input.
+        """
+        if event.button == LEFT_BUTTON:
+            self.focus()
+            event.stop()
+            event.prevent_default()
+
+    def on_key(self, event: Key) -> None:
+        """Forward keys to the shell; toggle/focus keys stay local."""
+        # Consumption-point evidence: keys eaten here never reach the
+        # Editor.handle_key entry log, so without this line a trace cannot
+        # distinguish "key never arrived" from "arrived and was consumed by
+        # the terminal" (the 2026-09-26 ctrl+space forensics blind spot).
+        log.debug(
+            "terminal on_key: key=%s character=%r started=%s dead=%s",
+            event.key,
+            event.character,
+            self.started,
+            self.dead,
+        )
+        if event.key in TOGGLE_KEYS:
+            event.stop()
+            event.prevent_default()
+            self.panel.toggle()
+            return
+        if event.key == FOCUS_EDITOR_KEY:
+            # Focus change only: never reaches the shell, and must not
+            # revive a dead shell either.
+            event.stop()
+            event.prevent_default()
+            self.panel.focus_editor()
+            return
+        event.stop()
+        event.prevent_default()
+        if not self.started or self.dead:
+            # Any key revives a dead shell.
+            self.panel.open()
+            return
+        sequence = key_to_terminal(event.key, event.character)
+        if sequence:
+            self.proc_write(sequence.encode("utf-8"))
+            self._scroll = 0
+        elif event.key == "shift+pageup":
+            self.scroll_by(self.emulator.rows - 1)
+        elif event.key == "shift+pagedown":
+            self.scroll_by(-(self.emulator.rows - 1))
+
+    def on_paste(self, event: Paste) -> None:
+        """Send pasted text to the shell (bracketed when enabled)."""
+        if not self.started or self.dead or not event.text:
+            return
+        event.stop()
+        event.prevent_default()
+        if self.emulator.bracketed_paste:
+            data = b"\x1b[200~" + event.text.encode("utf-8") + b"\x1b[201~"
+        else:
+            data = event.text.encode("utf-8").replace(b"\n", b"\r")
+        self.proc_write(data)
+        self._scroll = 0
+
+    def on_mouse_scroll_up(self, event: MouseScrollUp) -> None:
+        """Scroll the terminal history up three rows."""
+        event.stop()
+        self.scroll_by(3)
+
+    def on_mouse_scroll_down(self, event: MouseScrollDown) -> None:
+        """Scroll the terminal history down three rows."""
+        event.stop()
+        self.scroll_by(-3)
+
+    def proc_write(self, data: bytes) -> None:
+        """Write raw bytes to the shell process, if one is running."""
+        if self.proc is not None:
+            self.proc.write(data)
+
+    def scroll_by(self, delta: int) -> None:
+        """Scroll the viewport by *delta* rows, clamped to history."""
+        maximum = self.emulator.max_scroll()
+        self._scroll = max(0, min(self._scroll + delta, maximum))
+        self._grid_seq += 1
+        self.refresh()
+
+    # --------------------------------------------------------------- render
+
+    @override
+    def render_line(self, y: int) -> Strip:
+        """Render one terminal row from the emulator grid (cursor highlighted)."""
+        t = theme.active()
+        width = int(self.size.width) if self.size.width else self.emulator.cols
+        lines = self._grid()
+        if y >= len(lines):
+            return Strip.blank(width, Style(bgcolor=t.bg))
+        row_cells = lines[y]
+        cursor_row, cursor_col = self.emulator.cursor
+        show_cursor = (
+            not self.dead
+            and self._scroll == 0
+            and self.emulator.cursor_visible
+            and y == cursor_row
+        )
+        segments: list[Segment] = []
+        text_parts: list[str] = []
+        current: Style | None = None
+        x = 0
+
+        def flush() -> None:
+            if text_parts:
+                segments.append(Segment("".join(text_parts), current))
+                text_parts.clear()
+
+        for cell in row_cells:
+            if cell.char == "":
+                # Second column of a wide glyph; Rich already advanced by 2.
+                x += 1
+                continue
+            style = self._cell_style(cell, t)
+            if show_cursor and x == cursor_col:
+                style = self._cursor_style(cell, t)
+            if style != current:
+                flush()
+                current = style
+            text_parts.append(cell.char)
+            x += 1
+        flush()
+
+        strip = Strip(segments)
+        used = strip.cell_length
+        if used < width:
+            # Pad so themes/painting cover the full row.
+            segments.append(Segment(" " * (width - used), Style(bgcolor=t.bg)))
+            strip = Strip(segments)
+
+        if self.dead and y == min(self.emulator.rows - 1, len(lines) - 1):
+            message = self._dead_message()
+            strip = Strip([Segment(" " + message,
+                                   Style(color=t.fg_dim, bgcolor=t.bg))])
+        return strip
+
+    def _dead_message(self) -> str:
+        code = self._exit_code
+        suffix = "" if code is None else f" (exit code {code})"
+        return f"[shell exited{suffix}; any key restarts]"
+
+    @staticmethod
+    def _cell_style(cell: Cell, t: Theme) -> Style:
+        fg = _hex(cell.fg)
+        bg = _hex(cell.bg) or t.bg
+        if cell.dim and cell.fg is None:
+            fg = t.fg_dim
+        if cell.reverse:
+            fg, bg = bg or t.bg, fg or t.fg
+        return Style(
+            color=fg or t.fg,
+            bgcolor=bg,
+            bold=cell.bold,
+            italic=cell.italic,
+            underline=cell.underline,
+        )
+
+    @staticmethod
+    def _cursor_style(cell: Cell, t: Theme) -> Style:
+        fg = _hex(cell.fg) or t.fg
+        bg = _hex(cell.bg) or t.bg
+        if cell.reverse:
+            fg, bg = bg, fg
+        return Style(color=bg, bgcolor=fg, bold=cell.bold,
+                     italic=cell.italic, underline=cell.underline)
+
+
+class TerminalPanel(Vertical):
+    """Header line plus the terminal view, docked at the bottom.
+
+    The panel owns its whole lifecycle (show / hide / spawn the shell): the
+    editor only calls :meth:`toggle`, :meth:`open`, :meth:`close` and
+    :meth:`apply_height`.  ``view_factory`` is the fake-PTY hook the test
+    suite injects (``None`` in production).
+    """
+
+    DEFAULT_CSS = load_tcss("terminal-panel.tcss")
+
+    def __init__(
+        self,
+        config: YateConfig,
+        workspace: Workspace,
+        prompt: PromptBar,
+        *,
+        focus_editor: Callable[[], None],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.config = config
+        self.workspace = workspace
+        self.prompt = prompt
+        self.focus_editor = focus_editor
+        #: Fake-PTY hook injected by the test-suite (``None`` in production).
+        self.view_factory: Callable[..., object] | None = None
+        self.header = Static("", id="terminal-title")
+        self.view = TerminalView(self)
+        self._cached_header = ""
+        self._visible = False
+        self._starting = False
+
+    @override
+    def compose(self) -> Any:
+        """Stack the title header and the terminal view."""
+        yield self.header
+        yield self.view
+
+    #: unsubscribe hook from :func:`yate.editor_components.theme.subscribe`;
+    #: ``None`` while not mounted.
+    _theme_unsubscribe: theme.Unsubscribe | None = None
+
+    def on_mount(self) -> None:
+        """Own the theme painting and register for theme-change updates."""
+        # Vertical's MRO has no public on_mount (Textual containers only
+        # implement the private _on_mount), so nothing is shadowed here.
+        self._apply_theme()
+        theme.attach(self, self._apply_theme)
+
+    def on_unmount(self) -> None:
+        """Detach from the theme broadcast."""
+        theme.detach(self)
+
+    def _apply_theme(self) -> None:
+        """Paint the header and view backgrounds with the active theme.
+
+        The panel stays mounted for the whole session (hiding only flips
+        ``display``), so without the subscription a theme switch would leave
+        the dock in the old palette until the app restarts.
+        """
+        t = theme.active()
+        self.header.styles.background = t.panel
+        self.header.styles.color = t.fg_dim
+        self.view.styles.background = t.bg
+        self.refresh_header()
+
+    # ----------------------------------------------------------- lifecycle
+
+    @property
+    def is_visible(self) -> bool:
+        """Whether the panel is currently shown."""
+        return self._visible
+
+    def toggle(self) -> None:
+        """Show/focus or hide the integrated terminal (Ctrl+`)."""
+        if self._visible:
+            self.close()
+        else:
+            self.open()
+
+    def open(self) -> None:
+        """Reveal the bottom terminal and focus it, spawning the shell."""
+        was_hidden = not self._visible
+        if was_hidden:
+            self.apply_height(self.config.terminal_height)
+            self.display = True
+            self._visible = True
+        self.view.focus()
+        if not self.view.started:
+            self.spawn_shell()
+        if was_hidden:
+            log.info("terminal panel shown")
+            self.prompt.write("terminal shown", kind="ok")
+
+    def close(self) -> None:
+        """Hide the panel; the shell process itself stays alive."""
+        if not self._visible:
+            self.prompt.write("terminal already hidden", kind="warn")
+            return
+        self.display = False
+        self._visible = False
+        self.focus_editor()
+        log.info("terminal panel hidden")
+        self.prompt.write("terminal hidden", kind="ok")
+
+    def apply_height(self, height: int) -> None:
+        """Resize the panel when it is currently visible."""
+        if self._visible:
+            self.styles.height = height
+
+    # ---------------------------------------------------------- shell spawn
+
+    def spawn_shell(self) -> None:
+        """Start the shell process once (idempotent while starting)."""
+        if self._starting:
+            return
+        self._starting = True
+        argv = resolve_shell(self.config.shell)
+        cwd = self.workspace.root or Path.cwd()
+
+        async def _start() -> None:
+            try:
+                await self.view.start(argv, cwd, factory=self.view_factory)
+            except PtyProcessError as exc:
+                self.prompt.write(f"terminal: {exc}", kind="warn")
+            except OSError as exc:
+                self.prompt.write(f"terminal: {exc}", kind="warn")
+            finally:
+                self._starting = False
+            if self._visible:
+                self.view.focus()
+
+        # Hand the worker the coroutine *function*: an eagerly built coroutine
+        # would live outside the worker's lifecycle and leak "never awaited"
+        # if the worker never starts (app quitting).
+        self.run_worker(_start, group="terminal", exit_on_error=False)
+
+    def header_text(self) -> str:
+        """Current header caption (name, title and shell state)."""
+        return self._cached_header
+
+    def refresh_header(self) -> None:
+        """Rebuild the title line (no-op when the text is unchanged)."""
+        name = shell_label(self.view.shell_argv) if self.view.shell_argv else "shell"
+        title = self.view.emulator.title
+        if self.view.dead:
+            state = "exited"
+        elif self.view.started:
+            state = "running"
+        else:
+            state = "starting"
+        hint = "Ctrl+` to hide"
+        middle = f"{name} -- {title}" if title else name
+        text = f" {middle} [{state}]    {hint}"
+        if text == self._cached_header:
+            return
+        self._cached_header = text
+        try:
+            self.header.update(text)
+        except Exception as exc:  # noqa: BLE001 - unmount race, best effort
+            # The only expected failure is updating a header already torn
+            # down during unmount; anything else is logged for diagnosis
+            # instead of vanishing.
+            log.debug("terminal header update skipped: %s", exc)

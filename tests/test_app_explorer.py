@@ -53,7 +53,7 @@ def test_explorer_click_opens_file(tmp_path: Path) -> None:
     # plan-d (issue IKJRFK): Textual's built-in tree click-select must keep
     # opening files from the explorer (NodeSelected -> open_path sentinel
     # against upstream drift).
-    from yate.editor_view.explorer import ExplorerTree
+    from yate.editor_components.explorer import ExplorerTree
 
     async def scenario() -> None:
         # the workspace stores the resolved root; on Windows TEMP may be an
@@ -118,13 +118,13 @@ def test_limit(tmp_path: Path) -> None:
 
 
 def test_empty_query_matches() -> None:
-    from yate.editor_view.palette import fuzzy_match
+    from yate.editor_components.palette import fuzzy_match
 
     assert fuzzy_match("", "anything") is not None
 
 
 def test_subsequence_order() -> None:
-    from yate.editor_view.palette import fuzzy_match
+    from yate.editor_components.palette import fuzzy_match
 
     assert fuzzy_match("wt", "write") is not None
     assert fuzzy_match("tw", "write") is None
@@ -133,7 +133,7 @@ def test_subsequence_order() -> None:
 
 
 def test_consecutive_ranks_better_than_gap() -> None:
-    from yate.editor_view.palette import fuzzy_match
+    from yate.editor_components.palette import fuzzy_match
 
     tight = fuzzy_match("set", "set")
     gappy = fuzzy_match("set", "reset")  # r-e-**s**-**e**-**t**: gap match
@@ -142,7 +142,7 @@ def test_consecutive_ranks_better_than_gap() -> None:
 
 
 def test_returns_matched_indices() -> None:
-    from yate.editor_view.palette import fuzzy_match
+    from yate.editor_components.palette import fuzzy_match
 
     match = fuzzy_match("bprev", "bprev")
     assert match is not None
@@ -156,7 +156,7 @@ def test_match_lowered_parity_with_fuzzy_match() -> None:
     (same score, same matched indices, same None) so the fast path cannot
     drift from the public helper.
     """
-    from yate.editor_view.palette import _match_lowered, fuzzy_match
+    from yate.editor_components.palette import _match_lowered, fuzzy_match
 
     cases = [
         ("", "anything"),
@@ -409,7 +409,7 @@ def test_delete_requires_confirmation(tmp_path: Path) -> None:
 
 
 def test_refresh_tree_keeps_expanded_dirs(tmp_path: Path) -> None:
-    from yate.editor_view.explorer import ExplorerTree
+    from yate.editor_components.explorer import ExplorerTree
 
     async def scenario() -> None:
         # workspace stores the resolved root; on Windows TEMP may be an
@@ -562,7 +562,7 @@ def test_palette_entries_exclude_palette_command() -> None:
     """Regression: the palette must not list the palette command itself
     (opening it from inside would be a no-op recursion)."""
     from yate.config import FilePreviewConfig
-    from yate.editor_view.palette import PaletteScreen
+    from yate.editor_components.palette import PaletteScreen
 
     async def scenario() -> None:
         app = YateApp()

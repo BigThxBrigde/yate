@@ -26,8 +26,8 @@ from textual.widgets import Input, Static
 from conftest import wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
 from yate.app import YateApp
-from yate.editor_view import theme as yate_theme
-from yate.editor_view.manual import (
+from yate.editor_components import theme as yate_theme
+from yate.editor_components.manual import (
     DocBody,
     MarkdownDocScreen,
     _strip_text,
@@ -62,7 +62,7 @@ def test_dismiss_within_debounce_window_leaves_no_pending_timer(
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -129,7 +129,7 @@ def test_search_within_debounce_window_runs_when_screen_stays_mounted(
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -168,7 +168,7 @@ def test_fire_search_flushed_immediately_still_works(
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             return_value=MANUAL_DOC_FIXTURE,
         ):
             async with app.run_test(size=(100, 30)) as pilot:
@@ -214,7 +214,7 @@ def test_unreadable_manual_degrades_to_an_error_row() -> None:
     async def scenario() -> None:
         app = YateApp()
         with patch(
-            "yate.editor_view.manual.load_doc_markdown",
+            "yate.editor_components.manual.load_doc_markdown",
             side_effect=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad"),
         ):
             async with app.run_test(size=(100, 30)) as pilot:
