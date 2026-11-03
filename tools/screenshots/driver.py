@@ -56,13 +56,13 @@ def make_app(
     config: YateConfig | None = None,
     diff_files: list[Path] | None = None,
     hex_file: Path | None = None,
-    filemanager_dir: Path | None = None,
+    file_manager_dir: Path | None = None,
 ) -> YateApp:
     """Construct a :class:`YateApp` through its public startup knobs.
 
     Mirrors the CLI startup forms (``yate/app.py``): a directory *target*
     opens in browse mode (explorer visible), a file *target* in edit mode;
-    ``diff_files`` / ``hex_file`` / ``filemanager_dir`` push their modal
+    ``diff_files`` / ``hex_file`` / ``file_manager_dir`` push their modal
     screen after mount.  No invariant-sweep registration happens.
     """
     return YateApp(
@@ -72,7 +72,7 @@ def make_app(
         config=config,
         diff_files=diff_files,
         hex_file=hex_file,
-        filemanager_dir=filemanager_dir,
+        file_manager_dir=file_manager_dir,
     )
 
 

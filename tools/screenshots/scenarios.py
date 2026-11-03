@@ -32,10 +32,10 @@ from tools.screenshots.cli_reports import (
 from tools.screenshots.driver import DriverFn, make_app, save_svg
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.config import ScreenSaverConfig, YateConfig
-from yate.editor_view import theme as yate_theme
-from yate.editor_view.canvas_screen import CanvasScreen
-from yate.editor_view.manual import MarkdownDocScreen
-from yate.editor_view.themes import DEFAULT_THEME
+from yate.editor_components import theme as yate_theme
+from yate.editor_components.canvas_screen import CanvasScreen
+from yate.editor_components.manual import MarkdownDocScreen
+from yate.editor_components.themes import DEFAULT_THEME
 
 __all__ = ["SCENARIOS", "Scenario"]
 
@@ -314,7 +314,7 @@ async def _game_snake(svg_path: Path, fixtures: Path) -> None:
 
 async def _file_manager(svg_path: Path, fixtures: Path) -> None:
     """``filemanager_dir=`` startup form: the fullscreen file manager."""
-    app = make_app(filemanager_dir=fixtures)
+    app = make_app(file_manager_dir=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await _require(
