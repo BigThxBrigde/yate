@@ -86,12 +86,16 @@ jobs:
         # sleep, so worker processes scale the suite near-linearly (measured
         # 2026-10-20: 308s serial -> 95s on 4 workers).  pytest-cov merges the
         # workers' data, so the coverage gate still reports one total.
+        # --dist=worksteal: idle workers steal pending tests instead of
+        # waiting on their pre-assigned chunk (2026-11-03 timing pass: the
+        # default `load` scheduler leaves workers idle at the tail while a
+        # few of them grind through the slow git/pilot-heavy files).
         env:
           TERM: xterm-256color
           PYTHONDONTWRITEBYTECODE: '1'
         run: >-
           python -m pytest tests --cov=yate --cov-branch
-          --cov-report=term-missing -n auto
+          --cov-report=term-missing -n auto --dist=worksteal
 
   # tools/smoke_test is outside pytest's testpaths (pyproject testpaths is
   # ["tests"]), so no CI job exercised the Textual end-to-end scenarios before

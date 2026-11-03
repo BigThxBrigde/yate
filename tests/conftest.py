@@ -153,9 +153,17 @@ def reset_theme_state() -> Iterator[None]:
 
 async def wait_until(  # noqa: Any - Textual pilot probe; no stubs
     pilot: Any, predicate: Callable[[], bool],
-    timeout: float = 5.0, step: float = 0.05,
+    timeout: float = 5.0, step: float = 0.01,
 ) -> bool:
-    """Pause until *predicate* holds; False on timeout (for worker tests)."""
+    """Pause until *predicate* holds; False on timeout (for worker tests).
+
+    ``step`` is the poll interval fed to ``pilot.pause``.  It stays small
+    (10ms): the suite has 300+ call sites and every call pays at least one
+    pause, so a coarse step is pure added latency -- the 2026-11-03 timing
+    pass measured the pilot-driven files (file manager, app find/replace)
+    losing seconds per file to it.  Predicates are cheap list/len checks,
+    so tighter polling costs nothing.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         # pilot.pause lets background workers/to_thread callbacks progress
