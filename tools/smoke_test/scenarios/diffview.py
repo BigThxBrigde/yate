@@ -9,7 +9,7 @@ only trace (no screen is ever pushed for them).
 ``DiffScreen`` exposes no public accessors for its mode, labels, selected
 hunk, region list or close-guard latch, so the read helpers below go
 through ``getattr`` + ``cast`` with the field names taken from
-``yate/editor_components/diffview.py`` (``DiffScreen.__init__``).  Direct
+``yate/editor_components/diff/screen.py`` (``DiffScreen.__init__``).  Direct
 attribute access would trip pyright's ``reportPrivateUsage``, which this
 repo's zero-diagnostic gate treats as an error.
 """

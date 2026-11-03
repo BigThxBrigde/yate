@@ -1,5 +1,5 @@
 /* DiffScreen stylesheet (class-scoped DEFAULT_CSS) --
-   loaded by editor_components/diffview.py via yate.paths.load_tcss.
+   loaded by editor_components/diff/screen.py via yate.paths.load_tcss.
    Layout skeleton only: exact diff tinting is painted by DiffPane from
    the yate theme palette (yate.editor_components.theme), colors here reference
    Textual theme variables (bridged from the active yate theme). */

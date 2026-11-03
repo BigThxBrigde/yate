@@ -322,7 +322,8 @@ MAX_SOURCE_LINES: int = 800
 #: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
 #: (big-module-split plan section 2).
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
-#: ``diff_pane.py``, ``editor_components/editor.py`` into ``highlighting.py`` +
+#: ``diff_pane.py`` (2026-11-03 further subpackaged as ``diff/``:
+#: ``screen.py`` + ``pane.py``), ``editor_components/editor.py`` into ``highlighting.py`` +
 #: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
 #: + ``theme_files.py`` (2026-11-03 further subpackaged as ``theme/``:
 #: ``__init__.py`` + ``themes.py`` + ``files.py``), ``editor_term/emulator.py`` into ``palette.py`` +
