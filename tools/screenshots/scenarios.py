@@ -35,7 +35,7 @@ from yate.config import ScreenSaverConfig, YateConfig
 from yate.editor_components import theme as yate_theme
 from yate.editor_components.canvas_screen import CanvasScreen
 from yate.editor_components.manual import MarkdownDocScreen
-from yate.editor_components.themes import DEFAULT_THEME
+from yate.editor_components.theme import DEFAULT_THEME
 
 __all__ = ["SCENARIOS", "Scenario"]
 
