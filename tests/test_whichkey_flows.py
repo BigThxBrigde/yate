@@ -367,3 +367,24 @@ def test_pinned_sheet_survives_disable_and_reenable() -> None:
     header, entries = panel.shown[-1]
     assert header == "vim"
     assert len(entries) == len(vim.bindings)
+
+
+def test_sheet_and_chord_labels_never_leak_control_bytes() -> None:
+    """Every panel label is printable -- no raw C0 byte reaches the UI.
+
+    ``_spec_label`` humanizes raw-byte specs through ``key_name``; a gap in
+    its C0 coverage (FS/GS/RS before the fix) put the literal 0x1d byte on
+    the vsc pinned sheet -- the defect the README gallery frame exposed.
+    Guards both label sources: the pinned sheet of each keymap and the
+    ctrl+w chord table.
+    """
+    for keymap, name in ((VimKeymap(), "vim"), (VscKeymap(), "vsc")):
+        flows, panel = _make_flows(KeymapSet({name: keymap}, name))
+        flows.toggle()
+        assert panel.last == "show"
+        header, entries = panel.shown[-1]
+        assert header == name
+        for entry in entries:
+            assert entry.key.isprintable(), (name, entry.key)
+    for label, _desc in WINDOW_CHORD_TABLE:
+        assert label.isprintable(), label

@@ -188,6 +188,11 @@ def test_key_name_decodes_single_control_characters() -> None:
     assert key_name(chr(1)) == "<ctrl-a>"
     assert key_name(chr(2)) == "<ctrl-b>"
     assert key_name(chr(26)) == "<ctrl-z>"
+    # The @.._ ctrl range has a tail the letters do not cover: FS/GS/RS are
+    # the C0 images of ctrl-\, ctrl-] and ctrl-^ (0x1f is ctrl-/ via alias).
+    assert key_name(chr(28)) == "<ctrl-\\>"
+    assert key_name(chr(29)) == "<ctrl-]>"
+    assert key_name(chr(30)) == "<ctrl-^>"
 
 
 def test_key_name_returns_plain_characters_unchanged() -> None:
@@ -201,6 +206,10 @@ def test_key_name_reports_a_two_byte_escape_sequence_as_alt() -> None:
     """ESC followed by one character is alt-<char>."""
     assert key_name("\x1ba") == "<alt-a>"
     assert key_name("\x1bA") == "<alt-A>"
+    # The suffixed byte is named through the same single-char path, so a
+    # special-key suffix reads as its name instead of a raw control byte.
+    assert key_name("\x1b\x7f") == "<alt-backspace>"
+    assert key_name("\x1b\x04") == "<alt-ctrl-d>"
 
 
 def test_key_name_decodes_csi_u_modifier_bits() -> None:
@@ -232,6 +241,9 @@ def test_key_name_inverts_parse_key_for_reversible_specs() -> None:
         "a",
         "<ctrl-s>",
         "<ctrl-space>",
+        "<ctrl-\\>",
+        "<ctrl-]>",
+        "<ctrl-^>",
         "<ctrl-1>",
         "<alt-a>",
         "<enter>",

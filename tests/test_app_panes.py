@@ -236,25 +236,35 @@ def test_split_independent_cursors_and_navigation(pane_root: Path) -> None:
             await pilot.pause()
             assert app.editor.session.buffer.cursor == (1, 0)
 
+            # Chord navigation switches the active pane asynchronously (the
+            # focus change retargets the session buffer); wait for each
+            # state instead of assuming one pause drains it -- one-pause
+            # assertions flaked under full-suite -n auto load (2026-11-03).
             # ctrl+w k jumps to the top pane: its cursor stayed at row 0
             await pilot.press("ctrl+w", "k")
-            await pilot.pause()
-            assert app.editor.session.buffer.cursor == (0, 0)
+            assert await wait_until(
+                pilot, lambda: app.editor.session.buffer.cursor == (0, 0)
+            )
             # ctrl+w j returns to the bottom pane and its row-1 cursor
             await pilot.press("ctrl+w", "j")
-            await pilot.pause()
-            assert app.editor.session.buffer.cursor == (1, 0)
+            assert await wait_until(
+                pilot, lambda: app.editor.session.buffer.cursor == (1, 0)
+            )
 
             # ctrl+w ctrl+w from the last editor pane wraps to the explorer,
             # then from the explorer back to the active editor pane
             await pilot.press("ctrl+w", "ctrl+w")
-            await pilot.pause()
-            assert app.focused is app.editor.explorer_tree
-            assert app.editor.session.buffer.cursor == (1, 0)
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is app.editor.explorer_tree
+                and app.editor.session.buffer.cursor == (1, 0),
+            )
             await pilot.press("ctrl+w", "ctrl+w")
-            await pilot.pause()
-            assert app.focused is app.editor.panes.active_view
-            assert app.editor.session.buffer.cursor == (1, 0)
+            assert await wait_until(
+                pilot,
+                lambda: app.focused is app.editor.panes.active_view
+                and app.editor.session.buffer.cursor == (1, 0),
+            )
 
     asyncio.run(scenario())
 
