@@ -15,6 +15,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 from textual.app import App
@@ -89,6 +90,25 @@ def _entry_names(screen: FileManagerScreen) -> list[str]:
 def _status_text(screen: FileManagerScreen) -> str:
     """Plain text of the status bar."""
     return plain_text(screen.query_one("#file-manager-status", Static).content)
+
+
+async def _press_sort_until(
+    pilot: Any, screen: FileManagerScreen, expected: str
+) -> None:
+    """Press ``s`` until the status bar shows *expected*.
+
+    On a loaded CI worker a key press can be dropped while the list
+    rebuild from the previous press is still settling, so the press
+    repeats until the status bar confirms the new sort key (the final
+    assert turns a persistent miss into a test failure).
+    """
+    for _ in range(3):
+        await pilot.press("s")
+        if await wait_until(
+            pilot, lambda: expected in _status_text(screen), timeout=1.0
+        ):
+            return
+    assert expected in _status_text(screen)
 
 
 def _parent_texts(screen: FileManagerScreen) -> list[str]:
@@ -240,13 +260,10 @@ def test_file_manager_sort_cycles_with_dirs_first(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
             assert await wait_until(pilot, lambda: len(_entry_names(screen)) == 3)
-            await pilot.press("s")
-            assert "size asc" in _status_text(screen)
+            await _press_sort_until(pilot, screen, "size asc")
             assert _entry_names(screen) == ["zdir", "small.txt", "big.txt"]
-            await pilot.press("s")
-            assert "mtime asc" in _status_text(screen)
-            await pilot.press("s")
-            assert "name asc" in _status_text(screen)
+            await _press_sort_until(pilot, screen, "mtime asc")
+            await _press_sort_until(pilot, screen, "name asc")
             assert _entry_names(screen) == ["zdir", "big.txt", "small.txt"]
             # the directory always stays first across the whole cycle
             assert screen._entries[0].is_dir

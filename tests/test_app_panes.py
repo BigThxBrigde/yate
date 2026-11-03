@@ -213,11 +213,17 @@ def test_split_independent_cursors_and_navigation(pane_root: Path) -> None:
             assert panes is not None
 
             app.editor.run_command("sp")
-            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            # leaf_count flips before the host reconciles the widget
+            # subtree, so the EditorView count must join the wait (the
+            # bare-count assert raced the mount on loaded CI workers).
+            assert await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 2
+                and len(app.query(EditorView)) == 2,
+            )
             root = panes.root
             assert isinstance(root, PaneSplit)
             assert root.axis == "horizontal"
-            assert len(app.query(EditorView)) == 2
             # The new view only owns the keyboard once it is mounted: a key
             # pressed before that lands on the previous pane, so wait for the
             # focus instead of assuming the split moved it synchronously.
@@ -276,9 +282,17 @@ def test_vsplit_with_file_and_only(pane_root: Path) -> None:
             assert app.editor.session.buffer.lines[0] == "bravo one"
             assert len(app.query(EditorView)) == 2
 
-            # :sp on the bravo pane clones it -> 3 panes
+            # :sp on the bravo pane clones it -> 3 panes.  The view count
+            # joins the wait so the reconcile has *finished* before :only
+            # is issued: :only runs in an exclusive pane worker and would
+            # otherwise cancel a still-running split reconcile mid-rebuild
+            # (stalled message pump on loaded CI workers).
             app.editor.run_command("split")
-            assert await wait_until(pilot, lambda: panes.leaf_count == 3)
+            assert await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 3
+                and len(app.query(EditorView)) == 3,
+            )
             # :only collapses back to the active (bravo) pane
             app.editor.run_command("only")
             # leaf_count flips to 1 before the host reconciles the widget
