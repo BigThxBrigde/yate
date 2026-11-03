@@ -11,6 +11,7 @@ here -- the cheapest possible place to notice a bypass before it merges.
 from __future__ import annotations
 
 import ast
+import re
 import tomllib
 from pathlib import Path
 from typing import cast
@@ -102,18 +103,49 @@ def test_coverage_threshold_is_not_hardcoded_on_the_ci_command_line() -> None:
     the Gitee pipeline (``.workflow/test.yml``).  Each one carrying its own
     ``--cov-fail-under=75`` is how the two silently drift apart, so the
     assertion sweeps both instead of one.
+
+    The one allowed value is ``--cov-fail-under=0`` on the GitHub shard legs
+    (2026-11-03): a shard alone covers far under the gate, so shards only
+    collect data; the real threshold is enforced by the coverage job via
+    ``coverage report`` reading pyproject -- see the combine guard below.
     """
     offenders: list[str] = []
     for pipeline in (WORKFLOW, GITEE_WORKFLOW):
         if not pipeline.exists():
             continue
-        if "--cov-fail-under" in pipeline.read_text(encoding="utf-8"):
-            offenders.append(pipeline.relative_to(PROJECT_ROOT).as_posix())
+        text = pipeline.read_text(encoding="utf-8")
+        for value in re.findall(r"--cov-fail-under=(\d+)", text):
+            if value != "0":
+                offenders.append(f"{pipeline.relative_to(PROJECT_ROOT).as_posix()}: {value}")
     assert not offenders, (
         "a pipeline hardcodes the coverage threshold again; it belongs in "
         "[tool.coverage.report] fail_under only, otherwise changing one place "
         f"silently disagrees with the other: {offenders}"
     )
+
+
+def test_ci_workflow_combines_shard_coverage_into_the_gate() -> None:
+    """The shard workflow must recombine the data and report the real gate.
+
+    The shard legs run with ``--cov-fail-under=0`` (see above), which makes
+    them pure data collectors: deleting the coverage job afterwards would
+    silence the 75% gate entirely, so this pins the enforcement leg to the
+    workflow (``coverage combine`` + ``coverage report``, each in a real
+    ``run:`` step, same style as the smoke guard below).
+    """
+    lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+    for needle in ("python -m coverage combine", "python -m coverage report"):
+        hits = [index for index, line in enumerate(lines) if needle in line]
+        assert hits, f"the CI workflow no longer runs {needle!r} at all"
+        in_run_step = any(
+            "run:" in lines[neighbour]
+            for index in hits
+            for neighbour in range(
+                max(0, index - RUN_STEP_WINDOW),
+                min(len(lines), index + RUN_STEP_WINDOW + 1),
+            )
+        )
+        assert in_run_step, f"{needle!r} appears in comments only, not in a run step"
 
 
 def test_pytest_addopts_does_not_enable_coverage() -> None:
