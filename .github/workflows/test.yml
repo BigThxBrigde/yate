@@ -2,7 +2,10 @@
 # GitHub picks up .github/workflows/ automatically: push to take effect,
 # no manual enablement needed.
 #
-# Triggers: push to master, and PRs targeting master.
+# Triggers: push to master, and PRs targeting master.  Docs churn (plans,
+# reviews, manuals, READMEs) skips the whole workflow via paths-ignore --
+# CHANGELOG* is deliberately NOT ignored because the changelog gate exists to
+# validate exactly those edits.
 # Reproduce locally:
 #   pip install -e ".[dev]"
 #   python -m pytest tests
@@ -16,8 +19,20 @@ name: yate-tests
 on:
   push:
     branches: [master]
+    paths-ignore:
+      - '.trae/**'
+      - 'README.md'
+      - 'README.zh.md'
+      - 'yate/docs/**'
+      - 'docs/**'
   pull_request:
     branches: [master]
+    paths-ignore:
+      - '.trae/**'
+      - 'README.md'
+      - 'README.zh.md'
+      - 'yate/docs/**'
+      - 'docs/**'
 
 # Least privilege: this workflow only checks out code and runs tests.
 permissions:
