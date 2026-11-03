@@ -1,6 +1,6 @@
 """Tab-completion candidates for the bottom prompt line.
 
-Covers the ``prompt_completions`` dispatch, the metadata-driven argument
+Covers the ``cmdline_completions`` dispatch, the metadata-driven argument
 completion (``arg_completer`` registered by the built-in command table)
 and the filesystem matching behind the path modes -- all through the
 public entry point.
@@ -25,7 +25,7 @@ from yate.commands import (
 )
 from yate.config import YateConfig
 from yate.editor_components import theme
-from yate.flows.prompt_completion import prompt_completions
+from yate.flows.cmdline_completions import cmdline_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
@@ -69,7 +69,7 @@ def _prompt(text: str, mode: str = "command", root: Path | None = None) -> list[
     workspace = Workspace()
     if root is not None:
         workspace.set_root(root)
-    return prompt_completions(
+    return cmdline_completions(
         text,
         mode,
         commands=_commands(workspace),
@@ -139,7 +139,7 @@ def test_command_completions_uses_registered_arg_completer() -> None:
     registry.register("demo", lambda _args: None, "test command",
                       arg_completer=lambda prefix: [prefix + "v"])
     workspace = Workspace()
-    assert prompt_completions(
+    assert cmdline_completions(
         "demo pre", "command", commands=registry,
         session=EditorSession(YateConfig()), workspace=workspace,
     ) == ["demo prev"]
@@ -150,7 +150,7 @@ def test_command_completions_returns_empty_when_no_arg_completer() -> None:
     registry = CommandRegistry()
     registry.register("plain", lambda _args: None, "test command")
     workspace = Workspace()
-    assert prompt_completions(
+    assert cmdline_completions(
         "plain foo", "command", commands=registry,
         session=EditorSession(YateConfig()), workspace=workspace,
     ) == []

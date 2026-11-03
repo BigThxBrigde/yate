@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 from textual.pilot import Pilot
 from yate.app import YateApp
-from yate.flows.prompt_completion import prompt_completions
+from yate.flows.cmdline_completions import cmdline_completions
 from yate.keymaps.vim import VimKeymap
 from conftest import message_text, wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
@@ -334,7 +334,7 @@ def test_tab_cycles_multiple_command_matches() -> None:
             await pilot.pause()
             inp = app.editor.prompt_bar.input if app.editor.prompt_bar else None
             assert inp is not None
-            matches = prompt_completions(
+            matches = cmdline_completions(
                 "w", "command", commands=app.editor.commands,
                 session=app.editor.session, workspace=app.editor.workspace,
             )
@@ -476,7 +476,7 @@ def test_tab_completions_for_filetype() -> None:
         app = YateApp(keymap="vim")
         async with app.run_test(size=(100, 30)) as pilot:
             def completions(text: str, mode: str) -> list[str]:
-                return prompt_completions(
+                return cmdline_completions(
                     text, mode, commands=app.editor.commands,
                     session=app.editor.session,
                     workspace=app.editor.workspace,

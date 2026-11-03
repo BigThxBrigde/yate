@@ -279,7 +279,7 @@ yate/
   cli.py          # 命令行入口
   commands.py     # 内置 `:` 命令表
   completion.py   # 补全编排：防抖、LSP/缓冲区查询、弹窗
-  prompt_completion.py  # 底部命令行的 Tab 补全候选（纯函数）
+  cmdline_completions.py  # 底部命令行的 Tab 补全候选（纯函数）
   diagnostics.py  # `yate --diag` 环境与配置诊断报告
   logs.py         # 崩溃报告 + 可选的运行时 trace 单例
   paths.py        # 统一资源定位（源码 / wheel / PyInstaller frozen 三种布局）

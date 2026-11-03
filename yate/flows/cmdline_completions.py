@@ -14,7 +14,7 @@ from yate.services.workspace import Workspace, path_matches
 from yate.session import EditorSession
 
 
-def prompt_completions(
+def cmdline_completions(
     text: str,
     mode: str,
     *,

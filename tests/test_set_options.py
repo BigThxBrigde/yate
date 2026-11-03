@@ -42,7 +42,7 @@ def test_terminal_height_parser_rejects_out_of_range() -> None:
     assert parse("12") == 12
 
 
-def test_set_option_names_feed_prompt_completion() -> None:
+def test_set_option_names_feed_cmdline_completions() -> None:
     """The ``:set`` completer candidates are exactly the table's spellings."""
     registry, _editor = _set_driver()
     entry = registry.get("set")

@@ -261,7 +261,7 @@ yate/
   cli.py          # command-line entry point
   commands.py     # the built-in `:` command table
   completion.py   # completion orchestration: debounce, LSP/buffer query, popup
-  prompt_completion.py  # Tab-completion candidates for the bottom prompt line (pure functions)
+  cmdline_completions.py  # Tab-completion candidates for the bottom prompt line (pure functions)
   diagnostics.py  # `yate --diag` environment & configuration report
   logs.py         # crash reports + opt-in runtime tracing singletons
   paths.py        # single resource-location authority (source / wheel / PyInstaller frozen layouts)

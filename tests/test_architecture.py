@@ -22,7 +22,7 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``flows/completion_flows.py`` / ``flows/prompt_completion.py`` /
+  (``flows/completion_flows.py`` / ``flows/cmdline_completions.py`` /
   ``flows/lsp_sync.py`` / ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
   / ``flows/prompt_flows.py``) keep that coupling frozen and never look
   upward.
