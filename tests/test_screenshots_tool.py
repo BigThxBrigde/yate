@@ -8,12 +8,15 @@ registries so no pilot is needed for them either.
 
 from __future__ import annotations
 
+import getpass
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
 
 import tools.screenshots.__main__ as screenshots_cli
+from tools.screenshots.driver import DriverFn
 from tools.screenshots.__main__ import main
 from tools.screenshots.gallery import render_gallery
 from tools.screenshots.scenarios import SCENARIOS, Scenario
@@ -152,3 +155,66 @@ def test_failing_scenario_is_reported_and_excluded(
     text = (out / "README.md").read_text(encoding="utf-8")
     assert "### stub-ok" in text
     assert "### stub-lazy" not in text
+
+
+def _single_stub(
+    monkeypatch: pytest.MonkeyPatch, name: str, driver: DriverFn
+) -> None:
+    """Point the CLI's registry at one stub scenario."""
+    stub = Scenario(
+        name=name,
+        title_en=f"{name} title",
+        title_zh=f"{name} 标题",
+        desc_en=f"English description for {name}.",
+        desc_zh=f"{name} 的中文说明。",
+        size=(100, 30),
+        driver=driver,
+    )
+    monkeypatch.setattr(screenshots_cli, "SCENARIOS", (stub,))
+
+
+def test_placeholders_and_controls_are_xml_safe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Scrubbed frames stay well-formed XML.
+
+    The stub frame carries the OS user name inside a home path plus a raw
+    control character: the runner must escape its placeholders and
+    caret-encode the control character, or viewers refuse to render the
+    image at all (the reported "broken image" defect).
+    """
+
+    async def _dirty(svg_path: Path, fixtures: Path) -> None:
+        svg_path.write_text(
+            "<svg><text>C:\\Users\\" + getpass.getuser()
+            + "\\x" + chr(0x1D) + "</text></svg>",
+            encoding="utf-8",
+        )
+
+    _single_stub(monkeypatch, "stub-dirty", _dirty)
+    out = tmp_path / "shots"
+    assert main(["--out", str(out)]) == 0
+    text = (out / "stub-dirty.svg").read_text(encoding="utf-8")
+    ET.fromstring(text)
+    assert "&lt;home&gt;" in text
+    assert "^]" in text
+
+
+def test_icon_font_is_embedded_for_pua_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A frame with private-use glyphs gets the icon font embedded."""
+
+    async def _icons(svg_path: Path, fixtures: Path) -> None:
+        svg_path.write_text(
+            "<svg><style>text { font-family: Fira Code, monospace; }"
+            "</style><text>" + chr(0xF07B) + "</text></svg>",
+            encoding="utf-8",
+        )
+
+    _single_stub(monkeypatch, "stub-icons", _icons)
+    out = tmp_path / "shots"
+    assert main(["--out", str(out)]) == 0
+    text = (out / "stub-icons.svg").read_text(encoding="utf-8")
+    assert 'font-family: Fira Code, "Yate NF Icons", monospace;' in text
+    assert "data:font/woff2;base64," in text

@@ -4,8 +4,8 @@ Report-style screenshots must show *real* command output (the overview
 forbids fabricating them): each command runs in a subprocess at the repo
 root with ANSI forced on, the captured text is parsed back into a Rich
 ``Text`` and printed on a recording console, and the console is exported as
-a standalone SVG.  Uncolored output (pyright) is wrapped in a Rich panel
-instead of being re-colored.
+a standalone SVG.  The pytest frame was dropped at the user's request
+(2026-11-03); its two-panel builder was removed with it.
 
 Reusing the smoke suite's ``Reporter`` was evaluated and rejected (overview
 research item 6): its record mode is bound to an HTML path and needs a
@@ -20,16 +20,13 @@ import subprocess
 import sys
 
 from rich.console import Console
-from rich.panel import Panel
 from rich.text import Text
 
 from tools.screenshots.driver import repo_root, scrub_text
 
-__all__ = ["diag_report_svg", "smoke_report_svg", "tests_report_svg"]
+__all__ = ["diag_report_svg", "smoke_report_svg"]
 
-#: Wall clock budgets: pytest is the long pole (about two minutes).
-_PYTEST_TIMEOUT_S: float = 900.0
-_PYRIGHT_TIMEOUT_S: float = 300.0
+#: Wall clock budgets for the remaining report subprocesses.
 _SMOKE_TIMEOUT_S: float = 300.0
 _DIAG_TIMEOUT_S: float = 120.0
 
@@ -110,31 +107,3 @@ def diag_report_svg() -> str:
     output = _capture([sys.executable, "-m", "yate", "--diag"],
                       timeout=_DIAG_TIMEOUT_S)
     return _ansi_svg(output, "yate --diag report")
-
-
-def tests_report_svg() -> str:
-    """Run pytest and pyright for real; render both reports in one frame.
-
-    pytest keeps its ANSI colors (``--color=yes``); pyright emits plain text,
-    so its output lands in a bordered panel.  One SVG, two stacked panels --
-    the registry entry documents this shape.
-    """
-    pytest_output = _capture(
-        [sys.executable, "-m", "pytest", "tests/", "-q", "-n", "auto",
-         "--color=yes"],
-        timeout=_PYTEST_TIMEOUT_S,
-    )
-    pyright_output = _capture([sys.executable, "-m", "pyright"],
-                              timeout=_PYRIGHT_TIMEOUT_S)
-    console = _recording_console()
-    console.print(Panel(
-        Text.from_ansi(pytest_output),
-        title="pytest tests/ -q -n auto",
-        border_style="green",
-    ))
-    console.print(Panel(
-        Text(pyright_output),
-        title="pyright",
-        border_style="cyan",
-    ))
-    return console.export_svg(title="yate test suite reports")

@@ -17,7 +17,12 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from tools.screenshots.driver import repo_root, scrub_svg, write_fixtures
+from tools.screenshots.driver import (
+    embed_icon_font,
+    repo_root,
+    scrub_svg,
+    write_fixtures,
+)
 from tools.screenshots.gallery import render_gallery
 from tools.screenshots.scenarios import SCENARIOS, Scenario
 
@@ -55,7 +60,7 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--skip-cli",
         action="store_true",
-        help="skip the three slow subprocess report scenarios",
+        help="skip the two slow subprocess report scenarios",
     )
     return parser.parse_args(argv)
 
@@ -107,6 +112,7 @@ def _run_one(scenario: Scenario, svg_path: Path) -> None:
     if not text.lstrip().startswith("<svg"):
         raise RuntimeError("no image written")
     scrub_svg(svg_path)
+    embed_icon_font(svg_path)
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -28,7 +28,6 @@ from typing import Any
 from tools.screenshots.cli_reports import (
     diag_report_svg,
     smoke_report_svg,
-    tests_report_svg,
 )
 from tools.screenshots.driver import DriverFn, make_app, save_svg
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
@@ -355,12 +354,16 @@ async def _diff_view(svg_path: Path, fixtures: Path) -> None:
 
 
 async def _which_key(svg_path: Path, fixtures: Path) -> None:
-    """``f9`` pins the full which-key keymap sheet."""
+    """``f9`` pins the full which-key keymap sheet.
+
+    The sheet opens with a staggered row animation; the extra settle pause
+    lets it finish so the captured frame is reproducible.
+    """
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("f9")
-        await pilot.pause()
+        await pilot.pause(1.5)
         save_svg(app, svg_path)
 
 
@@ -372,11 +375,6 @@ async def _smoke_report(svg_path: Path, fixtures: Path) -> None:
 async def _diag_report(svg_path: Path, fixtures: Path) -> None:
     """Real ``yate --diag`` run; ANSI output re-rendered via Rich."""
     svg_path.write_text(diag_report_svg(), encoding="utf-8")
-
-
-async def _pytest_pyright(svg_path: Path, fixtures: Path) -> None:
-    """Real pytest + pyright runs; two stacked panels in one frame."""
-    svg_path.write_text(tests_report_svg(), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------
@@ -615,19 +613,6 @@ SCENARIOS: tuple[Scenario, ...] = (
         desc_zh="真实运行 ``yate --diag`` 的环境与配置报告。",
         size=_SIZE,
         driver=_diag_report,
-        skip_cli=True,
-    ),
-    Scenario(
-        name="pytest-pyright",
-        title_en="pytest + pyright",
-        title_zh="pytest 与 pyright 报告",
-        desc_en=(
-            "Real pytest and pyright runs rendered as two stacked panels in "
-            "one frame."
-        ),
-        desc_zh="真实运行 pytest 与 pyright，同帧渲染为上下两个面板。",
-        size=_SIZE,
-        driver=_pytest_pyright,
         skip_cli=True,
     ),
 )

@@ -10,8 +10,12 @@ size and the deterministic SVG save.
 
 from __future__ import annotations
 
+import base64
 import getpass
 import re
+import subprocess
+import sys
+import tempfile
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
@@ -21,6 +25,7 @@ from yate.config import YateConfig
 
 __all__ = [
     "DriverFn",
+    "embed_icon_font",
     "make_app",
     "repo_root",
     "save_svg",
@@ -117,12 +122,99 @@ def scrub_text(text: str) -> str:
     return text
 
 
+#: Scrub placeholders are plain ``<tokens>`` in text output, but an SVG is
+#: XML: inside a frame they must land as escaped entities or the file stops
+#: being well-formed and viewers refuse to render it.
+_XML_ESCAPES: tuple[tuple[str, str], ...] = (
+    ("<home>", "&lt;home&gt;"),
+    ("<repo>", "&lt;repo&gt;"),
+    ("<user>", "&lt;user&gt;"),
+    ("<run>", "&lt;run&gt;"),
+)
+#: C0 control characters other than tab/newline/carriage return are invalid
+#: XML text: the which-key sheet renders a ``ctrl+]``-style chord as its raw
+#: control character, so frames sanitize them to caret notation instead.
+_C0_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+
+
 def scrub_svg(svg_path: Path) -> None:
-    """Rewrite the SVG file at *svg_path* in place via :func:`scrub_text`."""
-    svg_path.write_text(
-        scrub_text(svg_path.read_text(encoding="utf-8")),
-        encoding="utf-8",
+    """Rewrite the SVG file at *svg_path* in place, XML-safely.
+
+    Applies :func:`scrub_text`, then escapes the placeholders for XML text
+    and renders control characters in caret notation (``0x1d`` becomes
+    ``^]``) so the frame stays well-formed for every viewer.
+    """
+    text = scrub_text(svg_path.read_text(encoding="utf-8"))
+    for raw, escaped in _XML_ESCAPES:
+        text = text.replace(raw, escaped)
+    text = _C0_RE.sub(lambda m: "^" + chr(ord(m.group()) + 64), text)
+    text = text.replace("\x7f", "^?")
+    svg_path.write_text(text, encoding="utf-8")
+
+
+#: The bundled Nerd Font owns the private-use icon glyphs (file-type icons)
+#: that generic viewer fonts render as tofu; a per-frame subset of it is
+#: embedded so icons render on machines without a Nerd Font installed.
+_BUNDLED_FONT = (
+    repo_root() / "yate" / "resources" / "fonts"
+    / "JetBrainsMonoNerdFontMono-Regular.ttf"
+)
+_ICON_FONT_NAME = "Yate NF Icons"
+
+
+def embed_icon_font(svg_path: Path) -> None:
+    """Embed the frame's icon glyphs into *svg_path* as a WOFF2 data URI.
+
+    Textual's exported SVG renders the Nerd Font private-use glyphs as text;
+    without a locally installed Nerd Font a viewer shows boxes.  This builds
+    a subset of the bundled Nerd Font carrying exactly the private-use
+    codepoints the frame uses (via the fontTools CLI -- a subprocess keeps
+    the untyped package out of pyright strict) and registers it as
+    ``@font-face`` inside the SVG's style block, slotted between the web
+    font and ``monospace``: regular text still falls back to the viewer's
+    monospace, the icon glyphs hit the embedded face.
+    """
+    text = svg_path.read_text(encoding="utf-8")
+    codepoints = sorted({ord(c) for c in text if 0xE000 <= ord(c) <= 0xF8FF})
+    if not codepoints:
+        return
+    unicodes = ",".join(f"U+{cp:04X}" for cp in codepoints)
+    # The subset CLI has no usable stdout mode: without an explicit
+    # --output-file it silently writes next to the input font.  Always aim
+    # it at a temporary file we own.
+    with tempfile.TemporaryDirectory(prefix="yate-font-subset-") as tmp:
+        subset_path = Path(tmp) / "icons.woff2"
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "fontTools.subset",
+                str(_BUNDLED_FONT),
+                f"--unicodes={unicodes}",
+                "--flavor=woff2",
+                f"--output-file={subset_path}",
+            ],
+            capture_output=True,
+            check=False,
+        )
+        payload_bytes = subset_path.read_bytes() if subset_path.exists() else b""
+    if proc.returncode != 0 or not payload_bytes:
+        raise RuntimeError(
+            "font subset failed: " + proc.stderr.decode("utf-8", errors="replace")
+        )
+    payload = base64.b64encode(payload_bytes).decode("ascii")
+    face = (
+        f'@font-face {{ font-family: "{_ICON_FONT_NAME}"; '
+        f'src: url(data:font/woff2;base64,{payload}) format("woff2"); }}'
     )
+    if "</style>" not in text:
+        raise RuntimeError("no style block to embed the icon font into")
+    text = text.replace("</style>", f"{face}\n    </style>", 1)
+    text = text.replace(
+        "font-family: Fira Code, monospace;",
+        f'font-family: Fira Code, "{_ICON_FONT_NAME}", monospace;',
+    )
+    svg_path.write_text(text, encoding="utf-8")
 
 
 #: Sample Python source exercising the syntax highlighter (strings, f-string,
