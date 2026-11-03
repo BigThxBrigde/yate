@@ -173,3 +173,8 @@ pyright 全仓 0 诊断 / 架构 37 passed / pytest 全量全绿（10 skipped）
 覆盖率 92.81%（门槛 75）/ 冒烟 121/121 场景 · 1463/1463 checks。
 
 **评审登记**：`.trae/reviews/2026-11-02-readme-screenshots.md`（索引 #55）。
+
+**用户反馈修复轮（2026-11-03，第三轮）**：修裂图（脱敏占位符 XML 转义 +
+which-key 控制字符符化）、图标字体内嵌（bundled Nerd Font 每帧 WOFF2 子集，
+dev 依赖 +fonttools/+brotli）、按用户指示移除 pytest-pyright 场景（25→24）。
+场景清单以注册表为准；门禁复跑全绿。详见评审记录第八节。

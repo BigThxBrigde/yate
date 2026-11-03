@@ -104,3 +104,22 @@ pytest / 覆盖率 92.88% / 冒烟 121·1463。补充验证：25 图泄漏扫描
 （同批全量 pytest 通过、单跑即过、与本改动无关），复跑转绿后计门禁通过。
 
 **第二轮结论：可合并**（0 blocker / 0 major 残留；2 major 均当轮修复）。
+
+## 八、用户回归反馈修复轮（2026-11-03，第三轮）
+
+用户查看画廊后反馈三项：①部分图片裂开；②Nerd Font 图标显示为方框；
+③pytest 截图不再需要。诊断与修复（提交 `9104aee`）：
+
+| 问题 | 根因 | 修复 |
+|---|---|---|
+| ① 5 张裂图 | 脱敏占位符以裸 `<home>/<repo>/<user>/<run>` 写进 SVG 文本节点破坏 XML（game-snake/integrated-terminal/pytest-pyright/shell-overlay）＋ `which-key.svg` 内含原始控制字符 U+001D（which-key 表把 `ctrl+]` 弦渲染成字面控制字符，Rich 不转义 C0 控制） | `scrub_svg` XML 安全化：占位符转义为 `&lt;…&gt;`、控制字符按终端惯例符化（`0x1d`→`^]`）；重生成后 24 图 ET 解析全过 |
+| ② 图标方框 | Nerd Font PUA 字形依赖查看端字体 | 每帧内嵌 bundled `JetBrainsMonoNerdFontMono-Regular` 的 WOFF2 子集（恰含该帧用到的 PUA 码点；fontTools CLI 子进程——无 stdout 模式，必须显式 `--output-file` 指向自有临时文件，否则静默写进字体目录），`@font-face` data-URI 注入 style 块并插到 web 字体与 monospace 之间：正文本走查看端 monospace，图标命中内嵌字体，任何查看端生效。新增 dev 依赖 fonttools + brotli（pyproject dev 组） |
+| ③ pytest 帧 | — | 注册表移除 `pytest-pyright` 场景（25→24），删除 `tests_report_svg` 构建器与对应预算常量，孤儿 SVG 删除，画廊/测试同步 |
+
+附带：`which-key` 帧发现出场逐行动画致再生不确定 → 延长沉降等待 1.5s（双再生
+SHA256 一致）；子集输出确定性实测成立。门禁复跑全绿（pyright 0 / 架构 37 /
+全量 pytest / 覆盖率 92.80% / 冒烟 exit 0）；24 图 XML 全过、泄漏扫描归零、
+18 帧内嵌图标字体、画廊 24 节无孤儿无缺失。
+
+**产品侧遗留（另行立项）**：which-key 表对 `ctrl+]` 类弦渲染原始控制字符
+（应显示符号名），Rich 导出对 C0 控制不转义——本任务不改 yate/，登记待办。
