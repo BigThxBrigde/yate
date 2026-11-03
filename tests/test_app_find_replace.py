@@ -1008,7 +1008,12 @@ def test_scan_cap_shows_truncation_notice(
             screen, _messages, _notices = _push(app, tmp_path)
             await pilot.pause()
             _type_query(screen, "needle")
-            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            # convergence includes 5000 failed ghost stats in the scan
+            # thread (the cap itself is 5000), so the 5s default is too
+            # tight on a loaded CI worker
+            assert await wait_until(
+                pilot, lambda: len(screen._flat) == 1, timeout=30.0,
+            )
             assert "file cap" in _results_plain(screen)
 
     asyncio.run(scenario())
