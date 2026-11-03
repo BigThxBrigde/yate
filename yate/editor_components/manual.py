@@ -56,7 +56,7 @@ from yate.paths import load_tcss
 
 from yate.editor_components import theme
 from yate.editor_components.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
-from yate.editor_components.themes import Theme
+from yate.editor_components.theme.themes import Theme
 from yate.logs import tracing
 
 log = tracing.get_logger(__name__)

@@ -2,13 +2,13 @@
 
 A theme file is user-authored Python executed by design: it gets a tiny
 namespace injected (:func:`_theme_namespace`) and may call
-:func:`yate.editor_components.themes.register_theme` any number of times.  A broken
+:func:`yate.editor_components.theme.themes.register_theme` any number of times.  A broken
 theme file never raises -- :func:`load_theme_file` returns a human-readable
 problem string and :func:`load_theme_paths` collects those into an error list.
 
 Split from :mod:`yate.editor_components.theme` (big-module-split wave d); import
 direction is one-way: this module depends on
-:mod:`yate.editor_components.themes`, :mod:`yate.paths` and
+:mod:`yate.editor_components.theme.themes`, :mod:`yate.paths` and
 :mod:`yate.services.trust` (the last an L0 down edge for the
 workspace-theme trust gate).
 """
@@ -19,7 +19,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from yate.editor_components.themes import Theme, register_theme
+from yate.editor_components.theme.themes import Theme, register_theme
 from yate.paths import yate_home
 from yate.services.trust import is_trusted
 

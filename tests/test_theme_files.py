@@ -1,4 +1,4 @@
-"""Unit tests for ``yate.editor_components.theme_files`` (custom theme loader).
+"""Unit tests for ``yate.editor_components.theme.files`` (custom theme loader).
 
 Covers exec'ing a user ``*.py`` theme file into the global registry, the
 never-raise error string for broken files, the process-wide resolved-path
@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from yate.editor_components import theme_files, themes
-from yate.editor_components.theme_files import load_theme_file, load_theme_paths
+from yate.editor_components.theme import files, themes
+from yate.editor_components.theme.files import load_theme_file, load_theme_paths
 
 _THEME_SOURCE = """register_theme(Theme(
     name="{name}", label="RT Probe", dark=True,
@@ -45,7 +45,7 @@ _THEME_SOURCE = """register_theme(Theme(
 def restore_themes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Isolate the process-global theme registry and loader cache."""
     monkeypatch.setattr(themes, "THEMES", dict(themes.THEMES))
-    monkeypatch.setattr(theme_files, "_loaded_theme_files", set[Path]())
+    monkeypatch.setattr(files, "_loaded_theme_files", set[Path]())
 
 
 def _write_theme_file(path: Path, name: str) -> None:

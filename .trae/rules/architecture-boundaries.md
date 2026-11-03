@@ -272,7 +272,7 @@ flowchart TD
    ① 包根**默认惰性**：不 re-export 子模块符号，避免 `import yate.X` 连带加载整层；
    ② UI / 服务包（`editor_components` / `services`）**禁止** re-export（现状惯例成文化，
    `editor_components/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
-   声明为范本）；**唯一例外**：`editor_components/theme.py` 作为主题广播枢纽与门面再导出
+   声明为范本）；**唯一例外**：`editor_components/theme/__init__.py` 作为主题广播枢纽与门面再导出
   （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），以及
   `services/extensions/__init__.py` 门面（R14 冻结 14 名插件导入路径，
   2026-10-29 arch-sec-audit 审计登记，docstring 已自述例外）同为登记例外，
@@ -371,7 +371,9 @@ flowchart TD
      `editor_components/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
      Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件
      加载迁入 `theme_files.py`，原文件保留广播枢纽并作门面再导出，
-     拆分后四文件均低于阈值）；
+     拆分后四文件均低于阈值；2026-11-03 进一步子包化为 `theme/`：
+     `__init__.py` + `theme/themes.py` + `theme/files.py`，`cells.py` 留根，
+     门面导入路径不变）；
      `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
      按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
      `editor_lsp/manager.py`（2026-10-08 big-module-split f 波：线格式解析

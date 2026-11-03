@@ -12,15 +12,15 @@ from pathlib import Path
 
 import pytest
 
-from yate.editor_components import themes
-from yate.editor_components.theme_files import default_theme_dirs, load_theme_paths
+from yate.editor_components.theme import themes
+from yate.editor_components.theme.files import default_theme_dirs, load_theme_paths
 from yate.services import trust
 
 #: Content of the probe theme file: registers "trust-probe" when executed.
 PROBE_THEME = """\
 from dataclasses import replace
 
-from yate.editor_components.themes import THEMES
+from yate.editor_components.theme.themes import THEMES
 
 register_theme(replace(THEMES["mocha"], name="trust-probe"))
 """

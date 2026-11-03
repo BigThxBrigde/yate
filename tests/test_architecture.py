@@ -324,7 +324,8 @@ MAX_SOURCE_LINES: int = 800
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
 #: ``diff_pane.py``, ``editor_components/editor.py`` into ``highlighting.py`` +
 #: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
-#: + ``theme_files.py``, ``editor_term/emulator.py`` into ``palette.py`` +
+#: + ``theme_files.py`` (2026-11-03 further subpackaged as ``theme/``:
+#: ``__init__.py`` + ``themes.py`` + ``files.py``), ``editor_term/emulator.py`` into ``palette.py`` +
 #: ``keys.py``, ``editor_lsp/manager.py`` into ``parsing.py`` and
 #: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line

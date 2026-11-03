@@ -27,7 +27,7 @@ The *active* theme singleton and the theme-change broadcast live in
 theme data and validation.  Split from that module (big-module-split
 wave d); the character geometry helpers live in
 :mod:`yate.editor_components.cells`, the custom theme file loader in
-:mod:`yate.editor_components.theme_files`.
+:mod:`yate.editor_components.theme.files`.
 """
 
 from __future__ import annotations

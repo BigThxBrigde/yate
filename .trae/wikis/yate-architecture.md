@@ -23,7 +23,7 @@ flowchart LR
         FLOWS["flows/*<br/>(completion/document/window/<br/>prompt/shell/overlay/mouse<br/>+ lsp_sync/prompt_completion)"]
     end
     subgraph L2["L2 · 组件 (editor_view/)"]
-        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diff/screen / diff/pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme(hub) / themes / cells<br/>theme_files / icons"]
+        EV["EditorView / panes.py<br/>chrome / statusbar / commandline<br/>explorer / palette / modals<br/>diff/screen / diff/pane / manual<br/>terminal / completion / screensaver<br/>highlighting / welcome / scrollbars<br/>theme/(hub+facade) / theme/themes / theme/files / cells<br/>icons"]
     end
     subgraph L1["L1 · 会话与模型"]
         SES["session.py<br/>(EditorSession + 窗格树<br/>Leaf/Split/ViewState)"]
@@ -178,7 +178,7 @@ flowchart TB
 | `completion.py::CompletionPopup` | 补全弹出层 |
 | `screensaver.py::ScreensaverScreen` | 全屏屏保（`ModalScreen`，精灵队列调度与自我消解；不含精灵数据本身） |
 | `scrollbars.py` | 细滚动条按 widget 实例注入（`apply_slim_scrollbars(widget)`） |
-| `theme.py` | 主题广播枢纽 + 门面再导出（主题数据/校验/Textual 桥在 `themes.py`、字符几何在 `cells.py`、自定义主题文件加载在 `theme_files.py`；历史导入面不变） |
+| `theme/__init__.py` | 主题广播枢纽 + 门面再导出（主题数据/校验/Textual 桥在 `theme/themes.py`、字符几何在 `cells.py`、自定义主题文件加载在 `theme/files.py`；历史导入面不变） |
 
 > `keys.py` 已不存在：Textual 键名 → raw 字节翻译于 2026-09-28 核对确认已迁至
 > L0 叶包 `yate/keyproto/legacy.py`（`event_to_raw` / `textual_key_to_raw`）。
