@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
@@ -262,10 +263,15 @@ _FIXTURE_BIN = bytes(range(256)) * 2
 _FIXTURE_LEFT = "alpha\nbravo\ncharlie\n"
 _FIXTURE_RIGHT = "alpha\nbravo\ncharly\ndelta\n"
 
-#: Fixed mtime (the Unix epoch) stamped onto every fixture file: the file
-#: manager frame renders the cursor entry's mtime in its status bar, so
-#: real "now" timestamps would make the frame differ on every run.
-_FIXTURE_MTIME: float = 0.0
+#: Fixed mtime stamped onto every fixture file: the file manager frame
+#: renders the cursor entry's mtime in its status bar, so real "now"
+#: timestamps would make the frame differ on every run.  The constant is
+#: anchored in *local* time (``mktime`` of a fixed tuple) rather than the
+#: Unix epoch: the status bar formats the stamp with ``time.localtime()``,
+#: so an epoch constant would still render different wall-clock text on
+#: machines in different timezones, while this round-trip renders the
+#: same "Sat Jan 01 00:00:00 2000" everywhere.
+_FIXTURE_MTIME: float = time.mktime((2000, 1, 1, 0, 0, 0, 0, 0, -1))
 
 
 def write_fixtures(fixtures: Path) -> None:

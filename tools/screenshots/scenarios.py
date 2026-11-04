@@ -33,10 +33,13 @@ from tools.screenshots.cli_reports import (
 from tools.screenshots.driver import DriverFn, YateApp, make_app, save_svg
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.config import ScreenSaverConfig, YateConfig
-from yate.editor_components.file_manager.screen import PreviewLog
-from yate.editor_components.screensaver import ScreensaverScreen
 from yate.editor_components import theme as yate_theme
 from yate.editor_components.canvas_screen import CanvasScreen
+from yate.editor_components.file_manager.screen import (
+    FileManagerScreen,
+    PreviewLog,
+)
+from yate.editor_components.screensaver import ScreensaverScreen
 from yate.editor_components.manual import MarkdownDocScreen
 from yate.editor_components.theme import DEFAULT_THEME
 
@@ -92,7 +95,7 @@ def _file_manager_ready(app: YateApp) -> bool:
     "loading…" (worker in flight) before the cursor entry's content lands;
     the frame is only allowed once that final state is reached.
     """
-    if len(app.screen_stack) != 2:
+    if not isinstance(app.screen, FileManagerScreen):
         return False
     listing = app.screen.query_one("#file-manager-list", Widget)
     preview = app.screen.query_one("#file-manager-preview", PreviewLog)
@@ -332,10 +335,10 @@ async def _screensaver(svg_path: Path, fixtures: Path) -> None:
     """``alt+shift+s`` screensaver: the full roster fills the screen.
 
     The full character roster walks at once and the spawn window is
-    tightened to ``dist_bounds=(0.05, 0.15)`` so walkers hand off every
-    ~0.6-1.1s; the frame is saved once at least eight sprites are on
-    screen.  The sampled walk animation itself stays non-deterministic
-    (declared in the gallery Report note).
+    tightened to ``dist_bounds=(0.05, 0.15)`` of the journey (~0.5-1.7s
+    between spawns on a 100-column screen); the frame is saved once at
+    least eight sprites are on screen.  The sampled walk animation itself
+    stays non-deterministic (declared in the gallery Report note).
     """
     config = YateConfig(
         screen_saver=ScreenSaverConfig(
