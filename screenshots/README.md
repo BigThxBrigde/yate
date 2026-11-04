@@ -5,7 +5,7 @@ in `tools/screenshots/scenarios.py`.  The pilot shots are
 deterministic 100x30 SVGs captured from the real application through
 Textual's pilot; the report shots (smoke / diag) are Rich re-renders
 of real subprocess output.  Machine-specific paths are scrubbed to
-`&lt;home&gt;` / `&lt;repo&gt;` / `&lt;user&gt;` placeholders in every
+`<home>` / `<repo>` / `<user>` placeholders in every
 image.
 
 > **Font note**: text falls back to the viewer's monospace font (the

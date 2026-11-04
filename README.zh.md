@@ -28,7 +28,7 @@
 [screenshots 画廊](screenshots/README.md)——`python -m tools.screenshots`
 可经 Textual pilot 无头再生全部截图。
 
-![yate — 布局：文件树、标签栏与语法高亮](screenshots/syntax-highlighting.svg)
+![yate — 布局：文件树、标签栏与语法高亮](screenshots/layout-explorer.svg)
 
 ## 特性
 
