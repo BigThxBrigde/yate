@@ -86,12 +86,23 @@ def _preview_text(pane: PreviewLog) -> str:
 
 
 def _file_manager_ready(app: YateApp) -> bool:
-    """True once the listing has rows and the preview left "loading…"."""
+    """True once the listing has rows and the preview shows real content.
+
+    The preview pane walks through "(empty directory)" (no cursor yet) and
+    "loading…" (worker in flight) before the cursor entry's content lands;
+    the frame is only allowed once that final state is reached.
+    """
     if len(app.screen_stack) != 2:
         return False
     listing = app.screen.query_one("#file-manager-list", Widget)
     preview = app.screen.query_one("#file-manager-preview", PreviewLog)
-    return bool(listing.children) and "loading" not in _preview_text(preview)
+    text = _preview_text(preview)
+    return (
+        bool(listing.children)
+        and bool(text)
+        and "loading" not in text
+        and "empty directory" not in text
+    )
 
 
 def _screensaver_full(app: YateApp) -> bool:
@@ -388,9 +399,12 @@ async def _game_snake(svg_path: Path, fixtures: Path) -> None:
 async def _file_manager(svg_path: Path, fixtures: Path) -> None:
     """``filemanager_dir=`` startup form: the fullscreen file manager.
 
-    Listing rows mount through a ``call_after_refresh`` retry and the
-    preview pane first writes "loading…"; the driver waits until the
-    middle column has rows and the preview finished loading.
+    Listing rows mount through a ``call_after_refresh`` retry, the cursor
+    lands on the first entry via ``_restore_index``, and the preview pane
+    walks through "loading…" before the entry content lands; the driver
+    waits for that final state so the frame shows the populated listing
+    and preview.  No key is pressed: a keypress here races the row mount
+    and lands on a different entry between runs.
     """
     app = make_app(file_manager_dir=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
@@ -400,9 +414,6 @@ async def _file_manager(svg_path: Path, fixtures: Path) -> None:
             lambda: len(app.screen_stack) == 2,
             what="file manager screen",
         )
-        # The cursor starts on the parent-directory row (".."); move it to
-        # the first file so the preview pane shows real file content.
-        await pilot.press("down")
         await _require(
             pilot,
             lambda: _file_manager_ready(app),
