@@ -144,6 +144,7 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("__main__.py", 4),
     ("editor.py", 3),
     ("editor_compose.py", 3),
+    ("editor_dispatch.py", 3),
     ("actions.py", 3),
     ("commands.py", 3),
     ("diagnostics.py", 3),
@@ -320,8 +321,9 @@ BANNED_NAMES: set[str] = {"AppProtocol"}
 MAX_SOURCE_LINES: int = 800
 
 #: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
-#: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
-#: (big-module-split plan section 2).
+#: path.  ``keymaps/vim.py`` is a permanent exemption (big-module-split
+#: plan section 2); ``editor.py`` dropped out at big-module-split-2 wave-2
+#: (dispatch methods moved to ``editor_dispatch.py``).
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
 #: ``diff_pane.py`` (2026-11-03 further subpackaged as ``diff/``:
 #: ``screen.py`` + ``pane.py``), ``editor_components/editor.py`` into ``highlighting.py`` +
@@ -353,7 +355,6 @@ MAX_SOURCE_LINES: int = 800
 #: candidate instead.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
-    "editor.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",

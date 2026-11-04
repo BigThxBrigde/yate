@@ -17,6 +17,8 @@ L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`pyth
          入口 shim，仅 import cli；守卫 `_LAYER_RANKS` 已按 L4 计）
 L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，2026-11-04
          big-module-split-2 wave-1 自 editor.py 迁出，`_LAYER_RANKS` 按 L3 计）/
+         editor_dispatch.py（按键/鼠标分派函数，2026-11-04 big-module-split-2
+         wave-2 自 editor.py 迁出，`_LAYER_RANKS` 按 L3 计）/
          actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
@@ -301,22 +303,6 @@ flowchart TD
      VISUAL 前缀与整行操作符；pr-review 修复波 2026-10-23 复测 1528 行，
      新增 VISUAL count 累积与重复查找，
      motion/operator/text-object 单一键映射域，维持豁免）、
-     `editor.py`（构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07
-     复核仍超；extension-system-enhance 波 2026-10-13 实测 983 行；
-     2026-10-16 审计复测 1024 行；which-key 波 2026-10-20 复测 1060 行；
-     global-review-fixes 波 2026-10-22 复测 1136 行；
-     pr-review 修复波 2026-10-23 复测 1141 行，
-     构成职责随调度层操作增长，维持豁免，
-     chunked-loading-text-plan-b 波 2026-10-25 复测 1193 行，
-     新增 ChunkedFlows 组装与 ensure_row 渲染接线，维持豁免，
-     perf-audit-fixes 波 2026-10-26 复测 1229 行
-     （refresh_ui_soon 合帧 + cancel_prompt 挂接 live-search 取消），
-     维持豁免，
-     refresh-views-dirty 波 2026-10-27 复测 1238 行，multi-dim-review 波
-     2026-10-31 复测 1239 行
-     （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
-     维持豁免，
-     已登记为下一个 big-module-split 候选）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），

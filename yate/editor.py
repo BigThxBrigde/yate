@@ -36,8 +36,17 @@ from yate.editor_compose import (
     _build_widgets as _build_widgets,
     _open_startup_target as _open_startup_target,
 )
+from yate.editor_dispatch import (
+    _cancel_mouse_state as _cancel_mouse_state,
+    _execute_action as _execute_action,
+    _handle_key as _handle_key,
+    _handle_raw_key as _handle_raw_key,
+    _insert_char as _insert_char,
+    _on_view_mouse as _on_view_mouse,
+    _readonly_notice as _readonly_notice,
+)
 from yate.config import YateConfig
-from yate.editor_core import BufferReadOnlyError, Document
+from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
 from yate.editor_syntax import (
     format_filetype_candidates,
@@ -53,7 +62,7 @@ from yate.editor_components.editor import EditorView
 from yate.editor_components.explorer import ExplorerTree
 from yate.editor_components.panes import PaneHost, PaneManager
 from yate.editor_components.statusbar import StatusBar, mode_chip
-from yate.editor_components.terminal import TOGGLE_KEYS, TerminalPanel
+from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
@@ -67,9 +76,8 @@ from yate.flows.prompt_flows import PromptFlows
 from yate.flows.shell_flows import ShellFlows
 from yate.flows.whichkey_flows import WhichKeyFlows
 from yate.flows.window_flows import WindowFlows
-from yate.keymaps.base import ActionContext, KeyUi
+from yate.keymaps.base import KeyUi
 from yate.keymaps.registry import KeymapSet
-from yate.keyproto.legacy import event_to_raw
 from yate.logs import tracing
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.events import (
@@ -148,20 +156,18 @@ class Editor:
         self._mounted = False
         # Pending flag for refresh_ui_soon (coalesced refresh scheduling).
         self._refresh_pending = False
-        # ``--readonly`` startup flag: only the *file* argument is opened
-        # read-only (a directory argument keeps its normal behavior).
+        # ``--readonly``: only the *file* argument opens read-only (dirs normal).
         self.startup_readonly = readonly
         self._ext_messages: list[str] = [
             f"yaterc: {err}" for err in self.config.errors
         ]
-        # Assembly order: chunked_flows is built with the models (the
-        # session's on_opened attach hook fires for the startup document
-        # in _open_startup_target); whichkey needs keymaps / window_flows /
-        # which_key_panel ready; the window chord observer is bound right
-        # after WhichKeyFlows exists (see _build_pane_stack).  The file
-        # manager flows are built with the pane stack (overlays precedent);
-        # their fullscreen exit verb is bound by the app shell on mount
-        # (bind_file_manager_exit).
+        # Assembly order: chunked_flows is built with the models (the session's
+        # on_opened attach hook fires for the startup document in
+        # _open_startup_target); whichkey needs keymaps / window_flows /
+        # which_key_panel ready; the window chord observer is bound right after
+        # WhichKeyFlows exists (see _build_pane_stack).  The file manager flows
+        # are built with the pane stack (overlays precedent); their fullscreen
+        # exit verb is bound by the app shell on mount (bind_file_manager_exit).
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -306,14 +312,12 @@ class Editor:
                 yield self.tabbar
                 yield self.breadcrumbs
                 yield self.pane_host
-                # The which-key panel is absolutely positioned inside
-                # #editor-col (see resources/which-key.tcss): yielding it
-                # here keeps it on the layer above pane_host while #bottom
-                # (statusbar / prompt) no longer competes for vertical
-                # space -- the bug fix for "always shows VIM".
+                # The which-key panel is absolutely positioned inside #editor-col
+                # (see resources/which-key.tcss): yielding it here keeps it on the
+                # layer above pane_host while #bottom (statusbar / prompt) no longer
+                # competes for vertical space -- the bug fix for "always shows VIM".
                 yield self.which_key_panel
-        # Both live in one docked container so the terminal always sits
-        # directly above the status/prompt strip (VS Code layout).
+        # One docked container: the terminal sits directly above status/prompt.
         with Vertical(id="bottom-dock"):
             yield self.terminal_panel
             with Vertical(id="bottom"):
@@ -336,9 +340,8 @@ class Editor:
         if view is not None:
             view.focus()
 
-        # Chunked documents opened before mount (the startup target) start
-        # their background scan workers here; post-mount opens spawn from
-        # ChunkedFlows.attach directly.
+        # Chunked documents opened before mount (the startup target) start their
+        # background scan workers here; post-mount opens spawn from ChunkedFlows.
         for opened in self.session.docs:
             if opened.chunked is not None:
                 self.chunked_flows.start_scan(opened)
@@ -353,10 +356,9 @@ class Editor:
                 "Alt+Shift+P command palette"
             )
         self.refresh_ui()
-        # A binary startup target opened before the overlays existed defers
-        # to here (take_pending_hex); call_after_refresh lets the base
-        # screen finish its first layout pass before the modal screen is
-        # pushed (same safety layer as the --diff handoff in app.on_mount).
+        # A binary startup target opened before the overlays existed defers to
+        # here (take_pending_hex); call_after_refresh lets the base screen
+        # finish its layout pass before the modal push (like the --diff handoff).
         pending_hex = self.document_flows.take_pending_hex()
         if pending_hex is not None:
             self.app.call_after_refresh(
@@ -367,11 +369,10 @@ class Editor:
         """Tear the extension hooks, terminal and LSP services down in order."""
         # Each teardown is isolated: a failing terminal/LSP shutdown must not
         # leave the other background service (and its threads) untouched.
-        # Extension hooks run first (sync, while editor state is still
-        # intact); they release resources the extension owns, e.g. spawned
-        # subprocesses or timers. teardown_all isolates per extension, but
-        # even if the loader state itself is broken the call must not block
-        # the terminal/LSP cleanup below.
+        # Extension hooks run first (sync, while editor state is still intact);
+        # they release resources the extension owns (spawned subprocesses,
+        # timers). teardown_all isolates per extension, but even a broken
+        # loader state must not block the terminal/LSP cleanup below.
         try:
             self.extension_loader.teardown_all()
         except Exception:  # noqa: BLE001 - teardown must reach terminal/LSP
@@ -489,188 +490,28 @@ class Editor:
     # ============================================================== key routing
 
     def handle_key(self, event: Key) -> bool:
-        """Dispatch one key event; returns ``True`` when it was consumed.
-
-        Called both by the editor view (keys typed in a pane) and by the
-        application shell (keys that bubble up from other widgets).  The
-        dispatch is not side-effect free: the window flows arm and clear
-        the ``ctrl+w`` pending chord (``window_flows.try_window_prefix``)
-        and the completion-popup branch commits the highlighted candidate
-        (``completion.accept``).  A ``True`` return means the caller must
-        stop the event (R10) instead of letting it bubble into a second
-        dispatch.
-        """
-        if self.has_modal_screen():
-            return False  # a modal screen owns input
-        # Entry-level evidence: YATE_TRACE turns this into the ground truth of
-        # what event.key names a real terminal actually delivers (field reports
-        # and pilot synthesis can disagree; the log settles which side erred).
-        log.debug(
-            "key event: key=%s character=%r focused=%s",
-            event.key,
-            event.character,
-            type(self.app.focused).__name__ if self.app.focused else None,
-        )
-        editor_focused = isinstance(self.app.focused, EditorView)
-        # Ctrl+Space = manual completion. Checked BEFORE the terminal toggle.
-        # The NUL byte splits by driver: the legacy conhost path collapses
-        # Ctrl+Space / Ctrl+` / Ctrl+2 into one NUL byte that Textual names
-        # "ctrl+@" -- ambiguous, so with the editor focused it favors
-        # completion (Ctrl+` still closes the panel while the terminal is
-        # focused).  The chord driver keeps the chords distinct -- it names
-        # Ctrl+Space "ctrl+space" and the Ctrl+@ key (what the grave chord
-        # looks like on layouts where the physical ` sits on Shift+2)
-        # "ctrl+2"/"ctrl+shift+2"; those toggle the terminal via TOGGLE_KEYS
-        # below.
-        nul_keys = ("ctrl+space", "ctrl+@")
-        # The command line owns its Input: ctrl+space must not open the
-        # completion popup over it and must keep flowing to the prompt bar
-        # (the active_mode branch below hands the event back to the Input).
-        if event.key in nul_keys and not self.prompt_bar.active_mode:
-            if editor_focused or event.key == "ctrl+space":
-                self.completion.request(manual=True)
-                return True
-        if event.key in TOGGLE_KEYS and event.key not in nul_keys:
-            self.terminal_panel.toggle()
-            return True
-        # The completion popup owns a handful of keys while it is open; it
-        # never takes focus itself, so the keys arrive here.  Every other key
-        # falls through to the normal dispatch below: typing keeps filtering
-        # the candidates (``handle_raw_key`` ends in
-        # ``completion.after_editor_key``, which re-queries) and the global
-        # chords stay usable while the popup is up.
-        popup = self.completion_popup
-        if popup.is_open:
-            if event.key in ("tab", "enter"):
-                self.completion.accept()
-                return True
-            if event.key == "up":
-                popup.select_prev()
-                return True
-            if event.key == "down":
-                popup.select_next()
-                return True
-            if event.key == "escape":
-                popup.close()
-                return True
-        # vim ctrl+w window chord (armed or pending); before the other
-        # chords so the prefix is consumed wherever focus currently is.
-        # The panel follows via window_flows.on_chord_change -- no manual
-        # refresh here, the chord state owner notifies on every flip.
-        if self.window_flows.try_window_prefix(event):
-            return True
-        # Global chords that raw byte dispatch cannot represent reliably.
-        # alt+shift+p is the default: Windows Terminal reserves ctrl+shift+p
-        # for its own command palette, and ctrl+shift+a clashes with other
-        # terminal emulators; alt+shift+p is unbound in both.
-        if event.key == "alt+shift+p":
-            self.overlays.open_command_palette()
-            return True
-        if self.prompt_bar.active_mode:
-            # command line is editing; enter must bubble so the Input's own
-            # enter->submit binding can fire
-            return False
-        # alt+shift+s toggles the screensaver: alt+shift combos have no raw
-        # byte form (keyproto.legacy maps only single-modifier alt chords),
-        # so like alt+shift+p this must be intercepted by key name.  Kept
-        # below the prompt check: typing a :command must never toggle it.
-        if event.key == "alt+shift+s":
-            self.execute_action("toggle_screensaver")
-            return True
-        # alt+shift+f opens the file manager overlay: same alt+shift shape
-        # as the two chords above (no raw byte form, keymap row is
-        # help-only), so the real dispatch is by key name here.  The call
-        # itself goes through the action registry, so rebinding/wrapping
-        # the "file_manager" action takes effect.
-        if event.key == "alt+shift+f":
-            self.execute_action("file_manager")
-            return True
-        # vscode-style pane focus chords (CSI-u encodings, not in the raw
-        # byte table)
-        if event.key == "ctrl+shift+e":
-            self.focus_explorer()
-            return True
-        if event.key == "ctrl+1":
-            self.focus_editor()
-            return True
-        if event.key == "ctrl+p":
-            self.overlays.open_file_palette()
-            return True
-        if self.explorer_focused():
-            return False  # explorer consumes its own keys
-        raw = event_to_raw(event.key, event.character)
-        if raw is None:
-            # Unmapped names are normal (exotic terminals, widgets without a
-            # raw form), so this stays a debug log: YATE_TRACE turns it into
-            # evidence when chasing missing-key reports.
-            log.debug("unmapped key event: %s (character=%r)", event.key, event.character)
-            return False
-        return self.handle_raw_key(raw)
+        """Dispatch one key event; returns True when consumed."""
+        return _handle_key(self, event)
 
     def handle_raw_key(self, raw: str) -> bool:
-        """Dispatch one raw key to the active keymap, then refresh the UI."""
-        try:
-            handled = self.keymaps.active.handle_key(
-                ActionContext(self.session, self.key_ui), raw
-            )
-        except BufferReadOnlyError:
-            # Typing / vim operators / edit actions on a read-only buffer:
-            # the key is consumed (R10) with a notice instead of an edit.
-            self.readonly_notice()
-            return True
-        # Unconsumed keys pay nothing: only a handled key changed editor
-        # state worth repainting (plan-f P3).  The completion feed stays
-        # unconditional -- the popup needs every raw key even when the
-        # keymap ignored it.
-        if handled:
-            self.refresh_ui()
-        self.completion.after_editor_key(raw)
-        return handled
+        """Dispatch one raw key to the active keymap."""
+        return _handle_raw_key(self, raw)
 
     def _on_view_mouse(self, leaf_id: int, event: MouseEvent) -> bool:
-        """Dispatch one mouse event for the view of *leaf_id*."""
-        view = self.panes.views.get(leaf_id)
-        if view is None:
-            return False
-        return self.mouse_flows.handle_view_mouse(view, event)
+        """Dispatch one mouse event for the view of leaf_id."""
+        return _on_view_mouse(self, leaf_id, event)
 
     def cancel_mouse_state(self) -> None:
-        """Drop every in-flight mouse interaction (``:set support_mouse
-        off`` mid-drag): the app gate now drops all mouse events, so no
-        MouseUp path can release captures or clear drag flags."""
-        self.app.capture_mouse(None)  # view or PaneHost capture, whoever holds it
-        self.mouse_flows.cancel_drag()
-        host = self.panes.host
-        if host is not None:
-            host.cancel_drag()
+        """Drop every in-flight mouse interaction."""
+        _cancel_mouse_state(self)
 
     def execute_action(self, name: str) -> bool:
-        """Run a registered action by name; ``False`` when it is unknown.
-
-        Called by keymaps (which report an unknown name and let the key fall
-        through), the palette and the extension bridge.  A refused edit on a
-        read-only buffer also reports ``True`` (the request was consumed,
-        with a user notice) instead of propagating the error.
-        """
-        try:
-            handled = self.actions.execute(
-                name, ActionContext(self.session, self.key_ui)
-            )
-            if not handled:
-                log.debug("action not found: %s", name)
-            return handled
-        except BufferReadOnlyError:
-            self.readonly_notice()
-            # the refused action may have moved the cursor / changed anchors
-            # before raising; repaint so the view never goes stale
-            self.refresh_ui()
-            return True
+        """Run a registered action by name; ``False`` when it is unknown."""
+        return _execute_action(self, name)
 
     def readonly_notice(self) -> None:
         """User feedback for an edit refused on a read-only buffer."""
-        self.message(
-            "buffer is read-only (:set readonly=false to unlock)", kind="warn"
-        )
+        _readonly_notice(self)
 
     def reveal_match(self, path: Path, row: int, col: int) -> None:
         """Open *path* if needed and put the cursor on a project-search hit.
@@ -711,8 +552,8 @@ class Editor:
         self.refresh_ui()
 
     def insert_char(self, ch: str) -> None:
-        """Insert one character at the cursor (keymap ``insert_char``)."""
-        self.session.buffer.insert_text(ch)
+        """Insert one character at the cursor."""
+        _insert_char(self, ch)
 
     # ================================================================== focus
 
