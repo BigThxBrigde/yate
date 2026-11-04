@@ -143,6 +143,8 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("cli.py", 4),
     ("__main__.py", 4),
     ("editor.py", 3),
+    ("editor_compose.py", 3),
+    ("editor_dispatch.py", 3),
     ("actions.py", 3),
     ("commands.py", 3),
     ("diagnostics.py", 3),
@@ -319,8 +321,9 @@ BANNED_NAMES: set[str] = {"AppProtocol"}
 MAX_SOURCE_LINES: int = 800
 
 #: Files exempt from the size threshold (A11), keyed by ``yate/``-relative
-#: path.  ``keymaps/vim.py`` and ``editor.py`` are permanent exemptions
-#: (big-module-split plan section 2).
+#: path.  ``keymaps/vim.py`` is a permanent exemption (big-module-split
+#: plan section 2); ``editor.py`` dropped out at big-module-split-2 wave-2
+#: (dispatch methods moved to ``editor_dispatch.py``).
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
 #: ``diff_pane.py`` (2026-11-03 further subpackaged as ``diff/``:
 #: ``screen.py`` + ``pane.py``), ``editor_components/editor.py`` into ``highlighting.py`` +
@@ -332,7 +335,7 @@ MAX_SOURCE_LINES: int = 800
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line
 #: count (word motions moved to ``words.py``).
 #: 2026-10-09 closure sweep: the guard was extended to ``tools/`` --
-#: ``tools/pack/wiki.py`` is registered at 1487 lines (single-duty wiki
+#: ``tools/pack/wiki.py`` was registered at 1487 lines (single-duty wiki
 #: site generator/translator whose review rounds #29/#31/#33 all converged
 #: in that one file; splitting it is a standalone structural task, not a
 #: review fix).
@@ -342,22 +345,18 @@ MAX_SOURCE_LINES: int = 800
 #: (spec table + word-list constants) whose two public test-seam accessors
 #: pushed it past the threshold; splitting it would touch the in-place
 #: patch semantics pinned by big-module-split plan-a for zero behavior gain.
-#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` registered at 830 lines
+#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` was registered at 830 lines
 #: (841 as of the 2026-10-31 multi-dim review).
-#: The .yxp package lifecycle (archive validation, extraction, install,
-#: uninstall, records store) is one duty; its end-to-end symlink hardening
-#: (audit F1/N1: two-phase stale pruning plus uninstall and records guards)
-#: pushed it past the threshold.  Splitting a freshly hardened security
-#: module mid-round is churn, so the split is registered as a follow-up
-#: candidate instead.
+#: 2026-11-04 big-module-split-2 (issue IKSFMQ) landed: ``editor.py``
+#: (dispatch moved to ``editor_dispatch.py``), ``tools/pack/wiki.py``
+#: (subpackaged as ``tools/pack/wiki/``) and ``services/yxp.py``
+#: (subpackaged as ``yate/services/yxp/``) are all below the threshold
+#: and dropped from this list.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
-    "editor.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
-    "services/yxp.py",
-    "tools/pack/wiki.py",
 })
 
 #: Code points a code comment or docstring must not carry (misc-rules
