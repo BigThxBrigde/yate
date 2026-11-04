@@ -15,7 +15,11 @@ scene: architecture
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`python -m yate`
          入口 shim，仅 import cli；守卫 `_LAYER_RANKS` 已按 L4 计）
-L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
+L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，2026-11-04
+         big-module-split-2 wave-1 自 editor.py 迁出，`_LAYER_RANKS` 按 L3 计）/
+         editor_dispatch.py（按键/鼠标分派函数，2026-11-04 big-module-split-2
+         wave-2 自 editor.py 迁出，`_LAYER_RANKS` 按 L3 计）/
+         actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
          lsp_sync.py / cmdline_completions.py / mouse_flows.py / chunked_flows.py /
@@ -167,6 +171,10 @@ flowchart TD
   未被消费的键不得冒泡到外壳二次派发。
 - **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
   `log = tracing.get_logger(__name__)`（含无 App 上下文的驱动线程 / worker / 回调）；
+  **登记例外（2026-11-04，big-module-split-2）**：子包化模块可显式冻结门面级
+  logger 名（如 `services/yxp/` 三子模块均用 `tracing.get_logger("yate.services.yxp")`），
+  以保持子包化前后日志命名空间不变（caplog 断言依赖该名）；该形态须经
+  结构守卫锁定（`tests/test_yxp_subpackage.py`），不得作为新建模块的默认写法；
   **禁止**为访问 Textual devtools 日志（`app.log` / widget `self.log`）而
   `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
   devtools 可视化由 L4 `YateApp` 统一桥接：`textual.logging.TextualHandler`
@@ -235,7 +243,8 @@ flowchart TD
   状态栏改注入两个回调（各 bar 半区的 `(id, provider)` 段快照 + 已装载扩展计数），
   边界上只传纯数据与可调用，L2 不再 import 任何 L3 名字；§六 的层秩守卫
   `UPWARD_EDGES_FROZEN` 同步置为**空集**，L2 新增到 L3 的连线必须先在本条登记。
-  `yate/services/yxp.py`（`.yxp` 包装卸逻辑）**不随迁**本子包：它不含扩展运行时耦合，
+  `yate/services/yxp/`（`.yxp` 包装卸逻辑子包，2026-11-04 big-module-split-2
+  子包化，门面路径不变）**不随迁**本扩展子包：它不含扩展运行时耦合，
   归属仍为 `services/`（与 `events.py` / `user_setup.py` 同理）。
   **守卫**：§六「R14」条目（两条用例：直引拦截（零例外）+ 门面 14 名冻结）。
 - **R15 — 滚动条与弹窗主题一致（2026-10-24，hex-enh wave-1，issue IKINF3）**：
@@ -299,22 +308,6 @@ flowchart TD
      VISUAL 前缀与整行操作符；pr-review 修复波 2026-10-23 复测 1528 行，
      新增 VISUAL count 累积与重复查找，
      motion/operator/text-object 单一键映射域，维持豁免）、
-     `editor.py`（构造工厂约 300 行 + `:set` setter，A8 表驱动落地后 2026-10-07
-     复核仍超；extension-system-enhance 波 2026-10-13 实测 983 行；
-     2026-10-16 审计复测 1024 行；which-key 波 2026-10-20 复测 1060 行；
-     global-review-fixes 波 2026-10-22 复测 1136 行；
-     pr-review 修复波 2026-10-23 复测 1141 行，
-     构成职责随调度层操作增长，维持豁免，
-     chunked-loading-text-plan-b 波 2026-10-25 复测 1193 行，
-     新增 ChunkedFlows 组装与 ensure_row 渲染接线，维持豁免，
-     perf-audit-fixes 波 2026-10-26 复测 1229 行
-     （refresh_ui_soon 合帧 + cancel_prompt 挂接 live-search 取消），
-     维持豁免，
-     refresh-views-dirty 波 2026-10-27 复测 1238 行，multi-dim-review 波
-     2026-10-31 复测 1239 行
-     （`_refresh_views` 按需脏标记门控，issue IKQQNQ），
-     维持豁免，
-     已登记为下一个 big-module-split 候选）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
@@ -336,26 +329,10 @@ flowchart TD
      perf-audit-fixes 波 2026-10-26 复测 1565 行（撤销改行区间 delta、
      结构性增删行标脏覆盖到末行、take_dirty_range/dirty_range 契约），
      维持豁免）、
-     `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
-     2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
-     复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
-     复测 1735 行，新增 en 页哈希记录与内容比对；wiki-lint-parallel 波
-     2026-10-27 复测 1966 行，lint 改为"先读后并行 fix 再落盘"两相位
-     （同轮预评审修复：中断先发布已落地译页、双阈值池化、`_LandedPage`）；
-     lint-progress 波 2026-10-28 复测 2149 行，新增 `_LintPool`（run 单池
-     贯穿各 lint 相位）与 `_LintBar`（lint 进度条/汇总行）、`run` try/finally
-     teardown，维持豁免；
-     pack wiki 站点生成/翻译/进度单一职责，#29/#31/#33 三轮评审均在该文件收敛，
-     拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，multi-dim-review 波
      2026-10-31 复测 841 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
-     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，multi-dim-review
-     波 2026-10-31 复测 841 行，.yxp 包生命周期
-     单一职责——归档校验/解包/安装/卸载/记录存储一体；F1/N1 symlink 端到端加固
-     （两阶段 stale 清理 + uninstall/records 守卫）越线，刚完成两轮评审加固的
-     安全模块不当场拆分，拆分另行立项）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -383,7 +360,17 @@ flowchart TD
      `services/extensions.py`（2026-10-11 extensions-split：798 行临阈值
      预防性拆分，原文件保留门面再导出冻结插件导入路径，四文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
-     不再需要豁免。
+     不再需要豁免；
+     `yate/editor.py`（2026-11-04 big-module-split-2，issue IKSFMQ：组装工厂
+     迁出 `editor_compose.py`、按键/鼠标分派迁出 `editor_dispatch.py`，
+     `Editor` 留薄委托，拆分后 800 行，摘除豁免并登记 `_LAYER_RANKS` L3）；
+     `tools/pack/wiki.py`（2026-11-04 big-module-split-2，issue IKSFMQ：
+     子包化 `tools/pack/wiki/`（lint/sources/publish/translate/report/run +
+     门面 `__init__`），门面路径与 `python -m tools.pack wiki` 语义不变，
+     七文件均低于阈值）；
+     `services/yxp.py`（2026-11-04 big-module-split-2，issue IKSFMQ：子包化
+     `services/yxp/`（manifest/install/records + 门面 `__init__` 再导出），
+     `yate.services.yxp` 导入路径不变，消费者零改动，四文件均低于阈值）。
    - 负面清单：`logs.py`（2026-10-16 审计复测 690 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
      模块 docstring 已论证共存理由。
 8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
