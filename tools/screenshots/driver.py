@@ -252,6 +252,11 @@ _FIXTURE_A = "alpha\nbravo\ncharlie\n"
 _FIXTURE_B = "delta\necho\nfoxtrot\n"
 _FIXTURE_C = "golf\nhotel\nindia\n"
 
+#: 512 deterministic bytes (every value 0x00-0xFF twice): a 100x30 hex view
+#: shows 32 full dump rows (screen-filling, with a scrollbar) and exhibits
+#: every hexyl byte class (null / whitespace / printable / non-ascii).
+_FIXTURE_BIN = bytes(range(256)) * 2
+
 #: xxd-style diff pair: one changed word plus one added line.
 _FIXTURE_LEFT = "alpha\nbravo\ncharlie\n"
 _FIXTURE_RIGHT = "alpha\nbravo\ncharly\ndelta\n"
@@ -266,4 +271,4 @@ def write_fixtures(fixtures: Path) -> None:
     (fixtures / "c.txt").write_text(_FIXTURE_C, encoding="utf-8")
     (fixtures / "left.txt").write_text(_FIXTURE_LEFT, encoding="utf-8")
     (fixtures / "right.txt").write_text(_FIXTURE_RIGHT, encoding="utf-8")
-    (fixtures / "thing.bin").write_bytes(b"\x00\x01\x02\x03binary\xff\x00\x01")
+    (fixtures / "thing.bin").write_bytes(_FIXTURE_BIN)

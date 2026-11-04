@@ -25,13 +25,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from textual.widget import Widget
 from tools.screenshots.cli_reports import (
     diag_report_svg,
     smoke_report_svg,
 )
-from tools.screenshots.driver import DriverFn, make_app, save_svg
+from tools.screenshots.driver import DriverFn, YateApp, make_app, save_svg
 from tools.smoke_test.scenarios._base import run_command, type_text, wait_until
 from yate.config import ScreenSaverConfig, YateConfig
+from yate.editor_components.file_manager.screen import PreviewLog
+from yate.editor_components.screensaver import ScreensaverScreen
 from yate.editor_components import theme as yate_theme
 from yate.editor_components.canvas_screen import CanvasScreen
 from yate.editor_components.manual import MarkdownDocScreen
@@ -48,6 +51,7 @@ async def _require(  # noqa: Any - mirrors the shared wait_until signature
     predicate: Callable[[], bool],
     *,
     what: str,
+    timeout: float = 5.0,
 ) -> None:
     """Fail the scenario loudly when its awaited state never arrives.
 
@@ -55,8 +59,45 @@ async def _require(  # noqa: Any - mirrors the shared wait_until signature
     its result must be consumed: saving a screenshot of a state that was
     never reached would publish the wrong image as the feature's evidence.
     """
-    if not await wait_until(pilot, predicate):
+    if not await wait_until(pilot, predicate, timeout=timeout):
         raise RuntimeError(f"state not reached: {what}")
+
+
+def _highlight_landed(app: YateApp) -> bool:
+    """True when the active view's syntax tokens are current in the DOM.
+
+    Highlight tokens land on a background worker after the first frame;
+    :meth:`EditorView.highlight_probe` exposes the landing state.
+    """
+    view = app.editor.panes.active_view
+    if view is None:
+        return False
+    probe = view.highlight_probe()
+    return (
+        probe.tokens is not None
+        and probe.doc is view.doc
+        and probe.version == view.doc.buffer.content_version
+    )
+
+
+def _preview_text(pane: PreviewLog) -> str:
+    """Extract the rendered text of a preview ``RichLog`` pane."""
+    return "\n".join(strip.text for strip in pane.lines)
+
+
+def _file_manager_ready(app: YateApp) -> bool:
+    """True once the listing has rows and the preview left "loading…"."""
+    if len(app.screen_stack) != 2:
+        return False
+    listing = app.screen.query_one("#file-manager-list", Widget)
+    preview = app.screen.query_one("#file-manager-preview", PreviewLog)
+    return bool(listing.children) and "loading" not in _preview_text(preview)
+
+
+def _screensaver_full(app: YateApp) -> bool:
+    """True when the screensaver screen holds at least eight walkers."""
+    screen = app.screen
+    return isinstance(screen, ScreensaverScreen) and len(screen.walkers) >= 8
 
 
 @dataclass(frozen=True)
@@ -88,12 +129,19 @@ async def _welcome_screen(svg_path: Path, fixtures: Path) -> None:
 
 
 async def _layout_explorer(svg_path: Path, fixtures: Path) -> None:
-    """Directory startup (browse mode, explorer visible) with a file opened."""
+    """Directory startup (browse mode, explorer visible) with a file opened.
+
+    Syntax tokens land on a background worker; the driver waits for them
+    so the editor pane shows the highlighted buffer.
+    """
     app = make_app(target=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await run_command(pilot, "e sample.py")
         await pilot.pause()
+        await _require(
+            pilot, lambda: _highlight_landed(app), what="syntax tokens"
+        )
         save_svg(app, svg_path)
 
 
@@ -116,10 +164,17 @@ async def _keymap_vim(svg_path: Path, fixtures: Path) -> None:
 
 
 async def _syntax_highlighting(svg_path: Path, fixtures: Path) -> None:
-    """A Python file open: tree-sitter syntax highlighting."""
+    """A Python file open: tree-sitter syntax highlighting.
+
+    Tokens land on a background worker after the first frame; the driver
+    waits for them so the frame shows the colored buffer, not plain text.
+    """
     app = make_app(target=fixtures / "sample.py")
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
+        await _require(
+            pilot, lambda: _highlight_landed(app), what="syntax tokens"
+        )
         save_svg(app, svg_path)
 
 
@@ -238,33 +293,45 @@ async def _extensions(svg_path: Path, fixtures: Path) -> None:
 
 
 async def _lsp_completion(svg_path: Path, fixtures: Path) -> None:
-    """``ctrl+space`` completion popup (buffer-words fallback source).
+    """``ctrl+space`` completion popup over a Python buffer.
 
-    The fixture file carries repeated words; the cursor moves to the second
-    line and types ``al`` so the popup lists the words from the line above.
-    Without a language server this is the buffer fallback source, honestly
-    labeled in the gallery.
+    The cursor moves to an empty line of ``sample.py`` and types ``gr``;
+    the popup lists the Python identifiers from the buffer (Greeter,
+    greet, greeting).  The bundled ``python_lsp`` extension is disabled so
+    the run actually exercises the buffer fallback source, honestly
+    labeled in the gallery.  Syntax tokens must land before saving so the
+    buffer itself is highlighted.
     """
-    app = make_app(target=fixtures / "words.txt")
+    config = YateConfig(disabled_extensions=["python_lsp"])
+    app = make_app(target=fixtures / "sample.py", config=config)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
         await pilot.press("down")
-        await type_text(pilot, "al")
+        await type_text(pilot, "gr")
         await pilot.press("ctrl+space")
         popup = app.editor.completion_popup
         await _require(pilot, lambda: popup.is_open, what="completion popup")
+        await _require(
+            pilot, lambda: _highlight_landed(app), what="syntax tokens"
+        )
         save_svg(app, svg_path)
 
 
 async def _screensaver(svg_path: Path, fixtures: Path) -> None:
-    """``alt+shift+s`` screensaver with a fixed single-character roster.
+    """``alt+shift+s`` screensaver: the full roster fills the screen.
 
-    ``characters=("snake",)`` pins the walker roster for determinism; the
-    sampled frame still captures one point of the walk animation.
+    The full character roster walks at once and the spawn window is
+    tightened to ``dist_bounds=(0.05, 0.15)`` so walkers hand off every
+    ~0.6-1.1s; the frame is saved once at least eight sprites are on
+    screen.  The sampled walk animation itself stays non-deterministic
+    (declared in the gallery Report note).
     """
     config = YateConfig(
         screen_saver=ScreenSaverConfig(
-            enable=True, interval=0, characters=("snake",)
+            enable=True,
+            interval=0,
+            dist_lower_bound=0.05,
+            dist_upper_bound=0.15,
         )
     )
     app = make_app(config=config)
@@ -275,6 +342,12 @@ async def _screensaver(svg_path: Path, fixtures: Path) -> None:
             pilot,
             lambda: len(app.screen_stack) == 2,
             what="screensaver screen",
+        )
+        await _require(
+            pilot,
+            lambda: _screensaver_full(app),
+            what="screensaver walkers (>=8)",
+            timeout=45.0,
         )
         await pilot.pause(0.5)
         save_svg(app, svg_path)
@@ -313,7 +386,12 @@ async def _game_snake(svg_path: Path, fixtures: Path) -> None:
 
 
 async def _file_manager(svg_path: Path, fixtures: Path) -> None:
-    """``filemanager_dir=`` startup form: the fullscreen file manager."""
+    """``filemanager_dir=`` startup form: the fullscreen file manager.
+
+    Listing rows mount through a ``call_after_refresh`` retry and the
+    preview pane first writes "loading…"; the driver waits until the
+    middle column has rows and the preview finished loading.
+    """
     app = make_app(file_manager_dir=fixtures)
     async with app.run_test(size=_SIZE) as pilot:
         await pilot.pause()
@@ -321,6 +399,15 @@ async def _file_manager(svg_path: Path, fixtures: Path) -> None:
             pilot,
             lambda: len(app.screen_stack) == 2,
             what="file manager screen",
+        )
+        # The cursor starts on the parent-directory row (".."); move it to
+        # the first file so the preview pane shows real file content.
+        await pilot.press("down")
+        await _require(
+            pilot,
+            lambda: _file_manager_ready(app),
+            what="file manager listing and preview",
+            timeout=10.0,
         )
         save_svg(app, svg_path)
 
@@ -519,10 +606,10 @@ SCENARIOS: tuple[Scenario, ...] = (
         title_en="LSP support / completion",
         title_zh="LSP 支持与补全",
         desc_en=(
-            "``ctrl+space`` completion popup; without a language server this "
-            "is the buffer-words fallback source."
+            "``ctrl+space`` completion popup over a Python buffer; without "
+            "a language server this is the buffer-words fallback source."
         ),
-        desc_zh="按 ``ctrl+space`` 弹出补全框；无语言服务器时为缓冲区单词回退来源。",
+        desc_zh="在 Python 缓冲区按 ``ctrl+space`` 弹出补全框；无语言服务器时为缓冲区单词回退来源。",
         size=_SIZE,
         driver=_lsp_completion,
     ),
@@ -531,10 +618,10 @@ SCENARIOS: tuple[Scenario, ...] = (
         title_en="Screensaver mode",
         title_zh="屏保模式",
         desc_en=(
-            "``alt+shift+s`` screensaver with the roster pinned to one "
-            "character for determinism."
+            "``alt+shift+s`` screensaver: the full character roster fills "
+            "the screen."
         ),
-        desc_zh="按 ``alt+shift+s`` 进入屏保，角色白名单固定以保证确定性。",
+        desc_zh="按 ``alt+shift+s`` 进入屏保，全角色花名册精灵铺满屏幕。",
         size=_SIZE,
         driver=_screensaver,
     ),
@@ -560,8 +647,11 @@ SCENARIOS: tuple[Scenario, ...] = (
         name="file-manager",
         title_en="File manager",
         title_zh="文件管理器",
-        desc_en="``filemanager_dir=`` startup form: the fullscreen manager.",
-        desc_zh="``filemanager_dir=`` 启动形态：全屏文件管理器。",
+        desc_en=(
+            "``filemanager_dir=`` startup form: the fullscreen manager "
+            "with the listing and the preview pane populated."
+        ),
+        desc_zh="``filemanager_dir=`` 启动形态：全屏文件管理器，列表与预览均已填充。",
         size=_SIZE,
         driver=_file_manager,
     ),
