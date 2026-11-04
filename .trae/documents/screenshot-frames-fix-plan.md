@@ -145,3 +145,61 @@ flowchart LR
 | fixture 变更外溢 | 已核实冒烟/单测 fixture 各自独立（调研 4） | 还原 driver.py 单文件 |
 
 回滚路径：任一提交 `git revert`；SVG 均可由注册表随时再生。
+
+## 执行记录（2026-11-04 收尾回填，真实数字）
+
+**状态**：已闭环（2026-11-04 21:5x）。批准：用户 21:1x 明示「批准，开始执行」。
+
+**提交链**（7 笔，未推送）：
+
+| 提交 | 内容 |
+|---|---|
+| `45ceece` | `docs(plan)` 本方案 |
+| `8a81778` | `fix(screenshots)` step1 代码（driver fixture 512 字节 + scenarios 谓词与 5 驱动） |
+| `e1ee3fa` | `chore(screenshots)` 5 帧重拍 + 画廊（24 节不变） |
+| `91d2921` + `86bb3dc` | 评审迭代 F1：file-manager 帧确定性根修（去竞态 down 键 + fixture mtime）+ 帧重拍 |
+| `0b3eed5` + `728c8cb` | 评审迭代 F2：mtime 改本地时区锚定（mktime round-trip）+ isinstance 守卫 + 导入序 + docstring 校正 + 帧重拍 |
+
+**执行结构**：plan-executor（GLM-5.3-Flash，bypass）完成 step1-3 两笔提交 →
+主代理独立复核（§三.2）复跑 pyright/pytest/帧断言并二轮重拍比对 → 发现
+file-manager 帧两轮 DIFF → F1 根修 → code-review-expert（DeepSeek-V4.1-Flash，
+bypass）评审 **不 APPROVE**（1 major + 4 minor）→ F2 当轮修复 major 与 minor
+2/3/4，minor 5 撤销登记待办 → 门禁全绿。
+
+**帧断言实测**（复验口径，全部 PASS）：
+
+- file-manager：含 `a.txt`/`alpha`；无 `empty directory`/`loading`；状态栏
+  `Sat Jan 01 00:00:00 2000`（本地时区锚定，跨时区可复现）；
+- lsp-completion：候选 `Greeter`/`greet`/`greeting`（`guest` 不匹配前缀 `gr`，
+  主代理任务书笔误，帧无缺陷）；
+- hex-view：偏移行 `00000000`–`000001d0` 共 30 行满屏；ASCII 列逐字符 span
+  （hexyl 按字节分类着色，连续子串断言不适用，探针已修正）；
+- screensaver：distinct fill 颜色 旧 6 → 新 14；实测等待 ~9.3s（风险表预期内）；
+- layout-explorer：`<style>` 块色数 旧 11 → 新 15，含语法色 `#cba6f7`/`#a6e3a1`
+  （断言指标从 fill 属性改为 style 块——UI chrome 色两轮相同，语法色在 CSS class 里）；
+- 确定性：4 个 pilot 帧两轮重拍 sha256 与提交帧三方一致；screensaver 帧按
+  画廊 Report note 声明豁免。
+
+**偏离计划记录**（均有实测依据）：
+
+1. `_lsp_completion` 增加 `YateConfig(disabled_extensions=["python_lsp"])`：
+   内置 `python_lsp` 扩展把 `.py` 认领给 LSP 路径，无服务器时弹窗永不出现；
+   禁用扩展强制走 buffer 回退，与画廊"如实标注回退来源"意图一致（合法 config 旋钮）。
+2. 移除 executor 引入的 file-manager `down` 键（F1）：按键与行挂载/恢复竞态，
+   探针实证光标在 a.txt/b.txt 间摆动；根修为纯等待终态（`Highlighted` 触发
+   预览刷新），谓词补 "empty directory" 瞬态守卫。
+3. fixture mtime 两段演进（F1 epoch 0 → F2 mktime 本地锚定）：`localtime()`
+   渲染使 epoch 常量跨时区不可复现（评审 major 1），本地元组 round-trip 恒定。
+4. minor 5（`_require` 超时分支用例）撤销：tests 零私有访问先例 + pyright
+   strict 连 tests 计闸，`# pyright: ignore` 需评审特批——不为非阻塞项破红线。
+
+**遗留待办**：
+
+- `_require` 超时分支与三个新谓词无单测（tools/ 不计入覆盖率门禁；后续可经
+  公共入口 `main` 的 FAIL 路径间接覆盖）；
+- screensaver 帧为动画采样（画廊已声明），不纳入字节确定性契约。
+
+**收尾门禁（主代理亲跑，CI 并行口径，全 exit 0）**：
+
+pyright 全仓 0 诊断 / 架构 37 passed / pytest 全量 3381 passed·10 skipped /
+覆盖率 89.22%（门槛 75）/ 冒烟 121/121 场景 · 1463/1463 checks。
