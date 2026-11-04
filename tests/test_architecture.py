@@ -335,7 +335,7 @@ MAX_SOURCE_LINES: int = 800
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line
 #: count (word motions moved to ``words.py``).
 #: 2026-10-09 closure sweep: the guard was extended to ``tools/`` --
-#: ``tools/pack/wiki.py`` is registered at 1487 lines (single-duty wiki
+#: ``tools/pack/wiki.py`` was registered at 1487 lines (single-duty wiki
 #: site generator/translator whose review rounds #29/#31/#33 all converged
 #: in that one file; splitting it is a standalone structural task, not a
 #: review fix).
@@ -345,21 +345,18 @@ MAX_SOURCE_LINES: int = 800
 #: (spec table + word-list constants) whose two public test-seam accessors
 #: pushed it past the threshold; splitting it would touch the in-place
 #: patch semantics pinned by big-module-split plan-a for zero behavior gain.
-#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` registered at 830 lines
+#: 2026-10-29 arch-sec-audit: ``services/yxp.py`` was registered at 830 lines
 #: (841 as of the 2026-10-31 multi-dim review).
-#: The .yxp package lifecycle (archive validation, extraction, install,
-#: uninstall, records store) is one duty; its end-to-end symlink hardening
-#: (audit F1/N1: two-phase stale pruning plus uninstall and records guards)
-#: pushed it past the threshold.  Splitting a freshly hardened security
-#: module mid-round is churn, so the split is registered as a follow-up
-#: candidate instead.
+#: 2026-11-04 big-module-split-2 (issue IKSFMQ) landed: ``editor.py``
+#: (dispatch moved to ``editor_dispatch.py``), ``tools/pack/wiki.py``
+#: (subpackaged as ``tools/pack/wiki/``) and ``services/yxp.py``
+#: (subpackaged as ``yate/services/yxp/``) are all below the threshold
+#: and dropped from this list.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
-    "services/yxp.py",
-    "tools/pack/wiki.py",
 })
 
 #: Code points a code comment or docstring must not carry (misc-rules

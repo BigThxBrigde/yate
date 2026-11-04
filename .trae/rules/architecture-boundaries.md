@@ -239,7 +239,8 @@ flowchart TD
   状态栏改注入两个回调（各 bar 半区的 `(id, provider)` 段快照 + 已装载扩展计数），
   边界上只传纯数据与可调用，L2 不再 import 任何 L3 名字；§六 的层秩守卫
   `UPWARD_EDGES_FROZEN` 同步置为**空集**，L2 新增到 L3 的连线必须先在本条登记。
-  `yate/services/yxp.py`（`.yxp` 包装卸逻辑）**不随迁**本子包：它不含扩展运行时耦合，
+  `yate/services/yxp/`（`.yxp` 包装卸逻辑子包，2026-11-04 big-module-split-2
+  子包化，门面路径不变）**不随迁**本扩展子包：它不含扩展运行时耦合，
   归属仍为 `services/`（与 `events.py` / `user_setup.py` 同理）。
   **守卫**：§六「R14」条目（两条用例：直引拦截（零例外）+ 门面 14 名冻结）。
 - **R15 — 滚动条与弹窗主题一致（2026-10-24，hex-enh wave-1，issue IKINF3）**：
@@ -324,26 +325,10 @@ flowchart TD
      perf-audit-fixes 波 2026-10-26 复测 1565 行（撤销改行区间 delta、
      结构性增删行标脏覆盖到末行、take_dirty_range/dirty_range 契约），
      维持豁免）、
-     `tools/pack/wiki.py`（2026-10-09 登记 1487 行，2026-10-16 审计复测 1495 行；
-     2026-10-20 mdlint 波复测 1590 行；global-review-fixes 波 2026-10-22
-     复测 1695 行，新增孤儿英文页清理推导；pr-review 修复波 2026-10-23
-     复测 1735 行，新增 en 页哈希记录与内容比对；wiki-lint-parallel 波
-     2026-10-27 复测 1966 行，lint 改为"先读后并行 fix 再落盘"两相位
-     （同轮预评审修复：中断先发布已落地译页、双阈值池化、`_LandedPage`）；
-     lint-progress 波 2026-10-28 复测 2149 行，新增 `_LintPool`（run 单池
-     贯穿各 lint 相位）与 `_LintBar`（lint 进度条/汇总行）、`run` try/finally
-     teardown，维持豁免；
-     pack wiki 站点生成/翻译/进度单一职责，#29/#31/#33 三轮评审均在该文件收敛，
-     拆分另行立项）、
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，multi-dim-review 波
      2026-10-31 复测 841 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
-     `services/yxp.py`（2026-10-29 arch-sec-audit 登记 830 行，multi-dim-review
-     波 2026-10-31 复测 841 行，.yxp 包生命周期
-     单一职责——归档校验/解包/安装/卸载/记录存储一体；F1/N1 symlink 端到端加固
-     （两阶段 stale 清理 + uninstall/records 守卫）越线，刚完成两轮评审加固的
-     安全模块不当场拆分，拆分另行立项）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -371,7 +356,17 @@ flowchart TD
      `services/extensions.py`（2026-10-11 extensions-split：798 行临阈值
      预防性拆分，原文件保留门面再导出冻结插件导入路径，四文件均低于阈值）；
      `config.py` 拆分后 310 行（2026-10-07 A9，加载器迁入 `yaterc.py`），
-     不再需要豁免。
+     不再需要豁免；
+     `yate/editor.py`（2026-11-04 big-module-split-2，issue IKSFMQ：组装工厂
+     迁出 `editor_compose.py`、按键/鼠标分派迁出 `editor_dispatch.py`，
+     `Editor` 留薄委托，拆分后 800 行，摘除豁免并登记 `_LAYER_RANKS` L3）；
+     `tools/pack/wiki.py`（2026-11-04 big-module-split-2，issue IKSFMQ：
+     子包化 `tools/pack/wiki/`（lint/sources/publish/translate/report/run +
+     门面 `__init__`），门面路径与 `python -m tools.pack wiki` 语义不变，
+     七文件均低于阈值）；
+     `services/yxp.py`（2026-11-04 big-module-split-2，issue IKSFMQ：子包化
+     `services/yxp/`（manifest/install/records + 门面 `__init__` 再导出），
+     `yate.services.yxp` 导入路径不变，消费者零改动，四文件均低于阈值）。
    - 负面清单：`logs.py`（2026-10-16 审计复测 690 行）明确不拆——crash/tracing/devtools 桥三服务内聚，
      模块 docstring 已论证共存理由。
 8. **新增 L3 流程模块接入清单（评审 A18）**：保持构造显式注入，**不建共享 context 类型**
