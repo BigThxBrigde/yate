@@ -102,3 +102,42 @@ smoke 注意：修复使 `tools/release/`、`yate/extensions/lib/` 等被跟踪
 ## 七、回滚
 
 单 commit 改动，`git revert` 即可；无数据/配置迁移。
+
+## 八、执行记录（2026-11-05）
+
+按计划单波（a 波）执行完毕，commit `55ee38a`。
+
+### issue 条目对照
+
+| issue 项 | 处置 | 结果 |
+|---|---|---|
+| explorer / 文件管理器 / quick open / 全项目搜索不可见 | `_is_ignored` 单点修复（根级 anchored 模式按 root 相对路径匹配） | `list_dir` / `walk_files` 同批生效，`H` 无关性如 issue 所述（非 dotfile） |
+| `lib/` 与 `!yate/extensions/lib/` 的取反失效 | last-match-wins 保留，anchored 取反后命中 | `yate/extensions/lib` 复现可见（真仓库回归用例锁定） |
+| 前导 `/` 锚定（`/site`、`/_*.py`）同病 | 一并修复（先判锚定再剥前导 `/`） | 新用例覆盖根层命中 / 子层不误伤 |
+| 根因：basename 级 fnmatch | `_IgnorePattern.anchored` + `_is_ignored(path)` + `_anchored_match` 段数守卫 | 计划 §三 1-3 全部落地 |
+
+### 偏差记录
+
+- 无方案偏差。计划 §三 已预登记两项已知简化（每目录 ignore 不沿层级累积
+  ——既有限制；`**` 退化为普通 fnmatch 跨段近似），均未扩面。
+- 评审两项 MINOR（`any()` 逐条目扫描、真仓库用例耦合 `.gitignore` 内容）
+  经裁定不改：前者性能收益为负，后者失败即正确信号。已记录于评审结论。
+
+### 实测门禁数字
+
+| 门禁 | 实测 |
+|---|---|
+| `python -m pyright yate/ tests/ tools/` | 0 errors / 0 warnings / 0 informations |
+| `python -m pytest tests/ -q -n auto` | 全绿（1 skip 为既有 symlink 权限跳过） |
+| `python -m pytest tests/test_architecture.py -q` | 37 passed（含于全量） |
+| coverage（yate-only，--cov-branch，fail-under=75） | **92.82%** |
+| smoke run | 121/121 scenarios，1463/1463 checks |
+| smoke compare | 5 场景 DRIFT 与干净 master 复跑**逐项一致**（既有基线漂移：duplicate_delete_line / move_line_block / indent_outdent 的 `saved_matches_disk` 不变量、vim_registers_text_objects 两处行号、prompt_tab_completion 检查集），本分支**零新增漂移**，未重注册基线 |
+
+### 遗留项（不在本任务范围）
+
+- master 既有 smoke 基线漂移（见上表）：需单独核查基线与场景定义的版本
+  错位，建议另立任务重注册。
+- worktree 运行 pyright 需先 `New-Item -ItemType Junction -Path .venv
+  -Target <主仓库>/.venv`（pyproject `venvPath="."` 相对 worktree 解析）。
+
