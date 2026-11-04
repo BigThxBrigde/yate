@@ -1,7 +1,7 @@
 # ci-pilot-startup-stall-plan
 
 > 任务来源：CI `ubuntu-latest / py3.13` leg 红跑（2026-11-04 用户提供的 pytest 输出）。
-> 状态：**待用户批准**（批准后建 worktree `fix/ci-pilot-waitfor-stall`，本文件随任务分支首个提交入库）。
+> 状态：**已批准并实施闭环**（worktree `fix/ci-pilot-waitfor-stall`，五项门禁全绿，收尾数字见 §七）。
 
 ## 一、诊断结论（全部带证据）
 
@@ -105,7 +105,7 @@ CI worker 上的环境性停顿（邻居 worker fork 风暴 / cgroup 节流的�
 | 探针在超时路径再挂 2s（极端：全队列冻结） | 探针自身 `asyncio.wait` 硬超时 2s，`for task in pending: task.cancel()`；最坏额外 2s |
 | 包装层与未来 Textual 版本语义漂移 | 版本锚注释 + 探针只依赖公共面（`walk_children` / `call_later` / `screen`）；升级复核项写入注释 |
 | 诊断输出泄漏大对象到失败消息 | 摘要仅含类型名/id/状态/条数/前 3 条消息 repr（每条截断 120 字符） |
-| 真实死锁被"重抛"掩盖 | 不重试、不吞——原异常类型与消息保留，仅附加摘要；`raise ... from None` 保留原栈语义 |
+| 真实死锁被"重抛"掩盖 | 不重试、不吞——原异常类型与消息保留，仅附加摘要；**bare `raise` 重抛同一异常对象**（评审 M-3 确认：`from None` 会清 `__context__`，计划初稿此处写错，实现按 bare raise 为准） |
 
 回滚路径：单文件（conftest.py）+ 一个新测试文件，`git revert` 单提交即可整体回退；
 CI 行为在绿跑路径上零变化。
@@ -126,12 +126,49 @@ sequenceDiagram
     W->>P: 探针补测: call_later(probe) × M, asyncio.wait(2s)
     P-->>W: 应答泵集合 / 未应答泵集合
     W->>W: _format_pump_summary(未应答者: type#id/task/closing/qsize/队列摘要)
-    W--xT: raise WaitForScreenTimeout(+摘要) from None
+    W--xT: bare raise WaitForScreenTimeout(+摘要, 同一异常对象/原 traceback)
 ```
 
 ## 七、执行记录（收尾回填）
 
-- [ ] 步骤 1 worktree + 沙箱自举（自证 `import yate` 路径）
-- [ ] 步骤 2 conftest 埋点 + 单测（pyright / 局部 pytest 实测结果）
-- [ ] 步骤 3 全量门禁（五项实测数字与退出码）
-- [ ] 偏离记录（如有）
+- [x] 步骤 1 worktree + 沙箱自举：`d:/Programming/yate-ci-waitfor-stall`（分支
+  `fix/ci-pilot-waitfor-stall`），`.venv` 重建 + `pip install -e ".[dev]"`，
+  `import yate` 自证指向 worktree（editable Location 实测）。
+- [x] 步骤 2 conftest 埋点 + 单测：提交 82a8e96（实现）+ 913af4c（评审修复波）。
+  code-review-expert 评审（REQUEST_CHANGES：0 BLOCKER / 4 MAJOR / 7 MINOR）→
+  修复波全收：探针主体补 4 条桩驱动用例（silent/closed/walk-failed/broken-probe）、
+  包装器兜底捕获（探针自崩溃不得掩盖原超时）、摘要标注探针预算、repr 上限常量化、
+  ignore 补理由。修复波后：pyright 0 诊断；定向并行 45 passed；串行 31 passed。
+- [x] 步骤 3 全量门禁（主代理亲跑，worktree 内，退出码均为 0）：
+  | 门禁 | 实测 |
+  |---|---|
+  | pyright `yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations |
+  | `pytest tests/ -q -n auto` | exit 0（全绿） |
+  | `pytest tests/test_architecture.py -q` | 37 passed, exit 0 |
+  | `pytest tests/ --cov=yate --cov-branch --cov-fail-under=75 -n auto` | 3359 passed / 10 skipped，覆盖率 92.87%，exit 0 |
+  | `python -m tools.smoke_test run --jobs 4` | 121/121 scenarios，1463/1463 checks，exit 0 |
+  （评审代理独立复跑冒烟亦 121/121 / 1463 checks。）
+
+### 偏离记录（对已批准计划文本的口径修正，实现为准）
+
+1. **绿跑开销**：包装器在 `pilot.pause()` 高频路径上引入"一次协程帧转发"，
+   非"零开销"字面义；无实测可测差异，语义零变化。计划 §二"零可测开销"
+   按"无行为变化、无可测开销"理解与登记。
+2. **重抛方式**：计划 §五/§六误写 `from None`，实现为 bare `raise`（保留
+   原异常对象与 traceback，不清 `__context__`）——评审确认实现更正确，
+   计划文本已按实现修正。
+3. **探针预算 2s vs 已知 ≥90s 停顿**：2s 内"全部应答"分支预期低频命中；
+   摘要已标注预算时长，下次 CI 红跑可区分"2s 内自愈"与"仍冻结"，为
+   后续预算调整留证据。
+
+### 遗留问题（不在本任务范围，需另案）
+
+- **O-2（基线既有 flake）**：`test_file_manager_navigate_enter_dir_and_back_lands_on_origin`
+  在主仓 master（6bbc279，不含本改动）即可复现——`wait_until` 谓词只等
+  `_entry_names` 落位、未等两级 `call_after_refresh` 的游标恢复
+  （`screen.py:272-279` / `:428-429`）。评审统计：组合场景 11 轮 3 失败、
+  `-n 1` 串行通过。按 §4.7 属"并行时序假设须修用例"，建议另开任务把谓词
+  扩到 `_list(screen).index == 1`。
+- **上游观察项**：Textual 8.2.8 `_wait_for_screen` 在 CI 挤兑下的启动期
+  停顿机制未能在本地复现钉死；本埋点的下一次红跑输出将提供泵级证据，
+  视证据决定是否向 Textualize 上报或调整 CI 调度。
