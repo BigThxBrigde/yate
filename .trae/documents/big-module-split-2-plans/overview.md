@@ -166,11 +166,14 @@ Registered follow-ups (non-blocking, out of this branch's scope):
   polling passes vacuously and the test crashes at `views[0]`; seen
   once under full-suite parallel load, 0/10 solo, full rerun green.
   Fix: guard the settle loop with `views and ...`.
-- Coverage scope note: `--cov=yate` does not measure `tools/`; the
-  83.54% figure includes a tools-inclusive run, the 93% figure is
-  yate-only. Both above the 75 gate.
+- Coverage scope note: the gate is yate-only by config
+  (`source = ["yate"]`). An early run that also counted `tools/`
+  reported 83.54% -- a mixed-scope figure, not a regression.
+  Re-measured 2026-11-04 with the CI command
+  (`--cov=yate --cov-branch`): **92.90%** (19366 stmts / 1087 miss,
+  6190 branches / 578 partial).
 
 Final gates on HEAD (all exit 0): pyright strict 0 diagnostics;
 `pytest tests/ -q -n auto` green; architecture tests 37 passed;
-coverage 83.54% (>= 75); smoke 121/121 scenarios, 1463/1463 checks;
+coverage 92.90% (>= 75, yate-only); smoke 121/121 scenarios, 1463/1463 checks;
 `python -m tools.pack wiki --help` unchanged.
