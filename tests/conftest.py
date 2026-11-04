@@ -20,6 +20,7 @@ across the pilot-driven test modules.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -27,10 +28,11 @@ import zipfile
 from collections.abc import Awaitable, Callable, Iterator
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pyperclip
 import pytest
+from textual.pilot import Pilot, WaitForScreenTimeout
 
 # The bundled yate/extensions/ directory is auto-loaded with every YateApp;
 # make sure the Python LSP extension never probes PATH or spawns a real server
@@ -76,6 +78,161 @@ def _speed_up_pilot() -> None:
 
 
 _speed_up_pilot()
+
+
+#: Pristine ``Pilot._wait_for_screen`` implementation, captured before the
+#: diagnostic wrapper below is installed.  The wrapper tests re-point this
+#: with monkeypatch to drive the timeout and passthrough paths directly.
+#: Any-typed on purpose: Textual pilot internals, no stubs (see wait_until).
+_original_wait_for_screen: Any = cast(
+    Any, Pilot._wait_for_screen  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
+)
+
+
+#: Cap for one rendered queue entry inside a pump summary line: the probe
+#: dumps up to three entries per unresponsive pump and none of them may
+#: flood the failure block.
+_SUMMARY_REPR_LIMIT = 120
+
+
+def _truncate(text: str, limit: int = _SUMMARY_REPR_LIMIT) -> str:
+    """Clip *text* so one queued message cannot flood the failure output."""
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _describe_pump(pump: Any) -> str:  # noqa: Any - Textual pump probe; no stubs
+    """One-line state snapshot of *pump* for the ``WaitForScreenTimeout`` message.
+
+    Message pumps expose the interesting state privately (``_task`` /
+    ``_closing`` / ``_message_queue``), so every access goes through
+    ``getattr`` with a fallback: a missing attribute degrades to ``None``
+    instead of breaking the failure path this probe runs on.
+    """
+    task = getattr(pump, "_task", None)
+    if task is None:
+        task_state = "task=none"
+    elif task.done():
+        task_state = "task=done"
+    else:
+        task_state = "task=pending"
+    queue = getattr(pump, "_message_queue", None)
+    qsize = queue.qsize() if queue is not None else -1
+    peeked = [
+        _truncate(repr(message))
+        for message in list(getattr(queue, "_queue", ()))[:3]
+    ]
+    peek = f" queue={peeked}" if peeked else ""
+    return (
+        f"{type(pump).__name__}#{getattr(pump, 'id', None)}: {task_state}"
+        f" closing={getattr(pump, '_closing', None)}"
+        f" closed={getattr(pump, '_closed', None)}"
+        f" attached={getattr(pump, 'is_attached', None)}"
+        f" qsize={qsize}{peek}"
+    )
+
+
+def _format_pump_summary(
+    unresponsive: list[Any], watched: int, budget: float
+) -> str:
+    """Render the probe outcome for the ``WaitForScreenTimeout`` message.
+
+    *unresponsive* holds the pumps that did not process a probe callback
+    within the *budget* seconds out of *watched* armed pumps; an empty
+    list means every pump caught up after the original timeout -- a
+    transient stall, not a pump that stayed dead.  The budget travels
+    with the summary so a CI red can tell a stall that cleared inside the
+    probe window apart from one that outlasted it (the observed CI
+    windows ran >= 90s, far past this probe's cap).
+    """
+    if not unresponsive:
+        return (
+            f"(probe: all {watched} watched pumps answered within {budget:g}s"
+            " of the timeout - transient stall, no pump stayed unresponsive)"
+        )
+    lines = [
+        f"(probe: {len(unresponsive)}/{watched} pumps did not answer"
+        f" within {budget:g}s budget)"
+    ]
+    lines.extend(f"  {_describe_pump(pump)}" for pump in unresponsive)
+    return "\n".join(lines)
+
+
+async def _probe_unresponsive_pumps(pilot: Any, timeout: float = 2.0) -> str:  # noqa: Any - Textual pilot probe; no stubs
+    """Re-arm a callback on every pump of the current screen subtree.
+
+    The probe arms one ``call_later`` callback per pump (the same protocol
+    the original ``_wait_for_screen`` uses), waits up to *timeout* seconds
+    and returns the formatted summary of the pumps that never answered.
+    It runs only on the timeout path of ``_probed_wait_for_screen`` and is
+    hard-capped, so it cannot stretch a frozen run: every leftover probe
+    task is cancelled and awaited before returning.
+    """
+    try:
+        screen = pilot.app.screen
+    except Exception:  # noqa: BLE001 - any failure must degrade to a note here
+        return "(probe: no current screen - pump states unavailable)"
+    try:
+        # Any-typed on purpose: Textual pump internals, no stubs (see wait_until).
+        pumps: list[Any] = [pilot.app, *screen.walk_children(with_self=True)]
+    except Exception:  # noqa: BLE001 - a walk failure must not replace the timeout
+        return "(probe: subtree walk failed - pump states unavailable)"
+    armed: dict[asyncio.Task[bool], Any] = {}
+    for pump in pumps:
+        event = asyncio.Event()
+        if pump.call_later(event.set):
+            armed[asyncio.create_task(event.wait())] = pump
+    if not armed:
+        return "(probe: no pump accepted a probe callback - subtree closed)"
+    done, pending = await asyncio.wait(set(armed), timeout=timeout)
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+    unresponsive = [pump for task, pump in armed.items() if task not in done]
+    return _format_pump_summary(unresponsive, watched=len(armed), budget=timeout)
+
+
+async def _probed_wait_for_screen(
+    self: Any, timeout: float = 30.0  # noqa: Any - Textual pilot probe; no stubs
+) -> bool:
+    """Drop-in replacement for ``Pilot._wait_for_screen`` (Textual 8.2.8).
+
+    Delegates to the original implementation and returns its verdict
+    untouched.  Only when the original raises ``WaitForScreenTimeout`` does
+    the pump probe run, and its summary travels with the re-raised error:
+    the same exception object and traceback come out, with the probe
+    summary appended to the message, so a CI failure block becomes
+    self-diagnosing without any behaviour change on green runs.
+    """
+    try:
+        return await _original_wait_for_screen(self, timeout)
+    except WaitForScreenTimeout as error:
+        try:
+            summary = await _probe_unresponsive_pumps(self)
+        except Exception:  # noqa: BLE001 - the probe must never mask the timeout
+            summary = "(probe: the probe itself failed - original timeout preserved)"
+        detail = str(error.args[0]) if error.args else "timed out"
+        error.args = (f"{detail}\n{summary}",)
+        raise
+
+
+def _install_wait_for_screen_diagnostics() -> None:
+    """Swap :meth:`textual.pilot.Pilot._wait_for_screen` for the probe wrapper.
+
+    Idempotent on purpose: a repeated install (conftest re-import in the
+    same process) must not wrap the wrapper, or the saved original would
+    chain into unbounded recursion.
+    """
+    current: Any = cast(
+        Any, Pilot._wait_for_screen  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
+    )
+    if current is not _original_wait_for_screen:
+        return  # already installed: a double import must not wrap the wrapper
+    # upstream keeps the attribute private; same rationale as the capture above
+    Pilot._wait_for_screen = _probed_wait_for_screen  # pyright: ignore[reportPrivateUsage]
+
+
+_install_wait_for_screen_diagnostics()
 
 
 @pytest.fixture(autouse=True)
