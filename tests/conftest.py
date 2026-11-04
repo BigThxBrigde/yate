@@ -89,7 +89,13 @@ _original_wait_for_screen: Any = cast(
 )
 
 
-def _truncate(text: str, limit: int = 120) -> str:
+#: Cap for one rendered queue entry inside a pump summary line: the probe
+#: dumps up to three entries per unresponsive pump and none of them may
+#: flood the failure block.
+_SUMMARY_REPR_LIMIT = 120
+
+
+def _truncate(text: str, limit: int = _SUMMARY_REPR_LIMIT) -> str:
     """Clip *text* so one queued message cannot flood the failure output."""
     return text if len(text) <= limit else text[:limit] + "..."
 
@@ -125,20 +131,28 @@ def _describe_pump(pump: Any) -> str:  # noqa: Any - Textual pump probe; no stub
     )
 
 
-def _format_pump_summary(unresponsive: list[Any], watched: int) -> str:
+def _format_pump_summary(
+    unresponsive: list[Any], watched: int, budget: float
+) -> str:
     """Render the probe outcome for the ``WaitForScreenTimeout`` message.
 
     *unresponsive* holds the pumps that did not process a probe callback
-    within the probe budget out of *watched* armed pumps; an empty list
-    means every pump caught up after the original timeout -- a transient
-    stall, not a pump that stayed dead.
+    within the *budget* seconds out of *watched* armed pumps; an empty
+    list means every pump caught up after the original timeout -- a
+    transient stall, not a pump that stayed dead.  The budget travels
+    with the summary so a CI red can tell a stall that cleared inside the
+    probe window apart from one that outlasted it (the observed CI
+    windows ran >= 90s, far past this probe's cap).
     """
     if not unresponsive:
         return (
-            f"(probe: all {watched} watched pumps answered after the timeout"
-            " - transient stall, no pump stayed unresponsive)"
+            f"(probe: all {watched} watched pumps answered within {budget:g}s"
+            " of the timeout - transient stall, no pump stayed unresponsive)"
         )
-    lines = [f"(probe: {len(unresponsive)}/{watched} pumps did not answer)"]
+    lines = [
+        f"(probe: {len(unresponsive)}/{watched} pumps did not answer"
+        f" within {budget:g}s budget)"
+    ]
     lines.extend(f"  {_describe_pump(pump)}" for pump in unresponsive)
     return "\n".join(lines)
 
@@ -157,8 +171,11 @@ async def _probe_unresponsive_pumps(pilot: Any, timeout: float = 2.0) -> str:  #
         screen = pilot.app.screen
     except Exception:  # noqa: BLE001 - any failure must degrade to a note here
         return "(probe: no current screen - pump states unavailable)"
-    # Any-typed on purpose: Textual pump internals, no stubs (see wait_until).
-    pumps: list[Any] = [pilot.app, *screen.walk_children(with_self=True)]
+    try:
+        # Any-typed on purpose: Textual pump internals, no stubs (see wait_until).
+        pumps: list[Any] = [pilot.app, *screen.walk_children(with_self=True)]
+    except Exception:  # noqa: BLE001 - a walk failure must not replace the timeout
+        return "(probe: subtree walk failed - pump states unavailable)"
     armed: dict[asyncio.Task[bool], Any] = {}
     for pump in pumps:
         event = asyncio.Event()
@@ -172,7 +189,7 @@ async def _probe_unresponsive_pumps(pilot: Any, timeout: float = 2.0) -> str:  #
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
     unresponsive = [pump for task, pump in armed.items() if task not in done]
-    return _format_pump_summary(unresponsive, watched=len(armed))
+    return _format_pump_summary(unresponsive, watched=len(armed), budget=timeout)
 
 
 async def _probed_wait_for_screen(
@@ -190,7 +207,10 @@ async def _probed_wait_for_screen(
     try:
         return await _original_wait_for_screen(self, timeout)
     except WaitForScreenTimeout as error:
-        summary = await _probe_unresponsive_pumps(self)
+        try:
+            summary = await _probe_unresponsive_pumps(self)
+        except Exception:  # noqa: BLE001 - the probe must never mask the timeout
+            summary = "(probe: the probe itself failed - original timeout preserved)"
         detail = str(error.args[0]) if error.args else "timed out"
         error.args = (f"{detail}\n{summary}",)
         raise
@@ -208,6 +228,7 @@ def _install_wait_for_screen_diagnostics() -> None:
     )
     if current is not _original_wait_for_screen:
         return  # already installed: a double import must not wrap the wrapper
+    # upstream keeps the attribute private; same rationale as the capture above
     Pilot._wait_for_screen = _probed_wait_for_screen  # pyright: ignore[reportPrivateUsage]
 
 
