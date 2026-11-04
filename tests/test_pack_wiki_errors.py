@@ -794,11 +794,15 @@ def test_the_collect_policy_is_installed_inside_the_protected_region() -> None:
 
     .. warning::
         This guard pins the exact identifiers and literals of
-        ``wiki._translate_pending`` (``_translate_pending``, ``_emit_mode``,
+        ``tools.pack.wiki.translate._translate_pending``
+        (``_translate_pending``, ``_emit_mode`` -- assigned through the
+        late-bound facade object since the subpackage split --,
         ``"collect"``, ``.start``).  An equivalent refactor (renaming a
         symbol or changing a literal) must update this guard in lockstep.
     """
-    source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki" / "translate.py"
+    )
     tree = ast.parse(source.read_text(encoding="utf-8"))
     function = next(
         node
@@ -812,11 +816,30 @@ def test_the_collect_policy_is_installed_inside_the_protected_region() -> None:
         for statement in block.body
         for child in ast.walk(statement)
     }
+
+    def assigns_emit_mode(node: ast.expr) -> bool:
+        """Match ``_emit_mode = ...`` in both its pre- and post-split forms.
+
+        The subpackage split moved the assignment behind the late-bound
+        facade object (``_wiki_facade._emit_mode = ...``), because the test
+        suite patches the policy on the facade; both spellings assign the
+        very same process-global fact, so the guard accepts either.  The
+        constant and the protected-region requirement below are unchanged.
+        """
+        return (
+            isinstance(node, ast.Name)
+            and node.id == "_emit_mode"
+            or isinstance(node, ast.Attribute)
+            and node.attr == "_emit_mode"
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "_wiki_facade"
+        )
+
     installs = [
         node
         for node in ast.walk(function)
         if isinstance(node, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "_emit_mode" for t in node.targets)
+        and any(assigns_emit_mode(t) for t in node.targets)
         # The install is the one that switches the policy on; the restore in
         # the finally block assigns "print" and must stay outside.
         and isinstance(node.value, ast.Constant)
@@ -849,20 +872,29 @@ def test_every_drained_failure_is_rendered_the_same_way() -> None:
 
     .. warning::
         This guard pins the exact identifiers and literals of the drain
-        loops in ``wiki.py`` (``_drain_collected_failures``, ``.print``,
-        the ``markup`` / ``highlight`` keyword set).  An equivalent refactor
-        (renaming a symbol or changing a literal) must update this guard
-        in lockstep.
+        loops across the ``tools.pack.wiki`` subpackage
+        (``_drain_collected_failures`` -- called through the late-bound
+        facade object since the split --, ``.print``, the ``markup`` /
+        ``highlight`` keyword set).  An equivalent refactor (renaming a
+        symbol or changing a literal) must update this guard in lockstep.
     """
-    source = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki.py"
-    tree = ast.parse(source.read_text(encoding="utf-8"))
+    package = Path(__file__).resolve().parents[1] / "tools" / "pack" / "wiki"
+    trees = [
+        ast.parse(path.read_text(encoding="utf-8"))
+        for path in sorted(package.glob("*.py"))
+    ]
     drains = [
         node
+        for tree in trees
         for node in ast.walk(tree)
         if isinstance(node, ast.For)
         and isinstance(node.iter, ast.Call)
-        and isinstance(node.iter.func, ast.Name)
-        and node.iter.func.id == "_drain_collected_failures"
+        and (
+            isinstance(node.iter.func, ast.Name)
+            and node.iter.func.id == "_drain_collected_failures"
+            or isinstance(node.iter.func, ast.Attribute)
+            and node.iter.func.attr == "_drain_collected_failures"
+        )
     ]
     assert len(drains) == 2, "the entry drain and the finally drain must both be there"
     for drain in drains:
