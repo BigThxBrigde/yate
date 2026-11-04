@@ -139,3 +139,38 @@ publish.py / translate.py / report.py`; this plan refines the split
 based on actual AST analysis (see wiki sub-plan for the refined file
 list). The issue suggests `yate/services/yxp/` with `manifest.py /
 install.py / records.py`; this plan follows that direction.
+
+## Execution record (2026-11-04, closed loop)
+
+| Wave | Plan | Outcome | Commit |
+|---|---|---|---|
+| plans | overview + 4 sub-plans | landed, import-cycle wiring corrected by main agent | plans commit + ebe401e / 651a5b8 (corrections) |
+| wave-1 | editor plan-a | `_build_*` factories -> `editor_compose.py`; editor.py 1275 -> 959; `_LAYER_RANKS` +L3 | af92c07 |
+| wave-2 | editor plan-b | dispatch methods -> `editor_dispatch.py`; editor.py 959 -> 800; exemption dropped; `execute_action` fallback per plan pre-authorization | 6c48dc2 |
+| wave-3 | wiki plan-a | 2149-line wiki.py -> 7-file subpackage, facade with 48-name `__all__`, late-bound patch surface | a71c0da |
+| wave-3 | yxp plan-a | 841-line yxp.py -> 4-file subpackage, facade `__all__` 26 names == PATCH_SURFACE, frozen logger name | 6c0b31d |
+| governance | rule + guard sync | SIZE_EXEMPT_FILES drops 3 entries; rule text 3.7 exemption register shrunk, closed list extended; R12 gains the frozen-logger-name exception note | e3b3009 + final |
+
+Review (code-review-expert): **APPROVE** -- 0 blocker, 0 major,
+3 minor, 3 nit. 150 moved symbols verified byte-identical by AST
+body-dump. Fixups applied after review: dead escape clause removed in
+`tests/test_wiki_subpackage.py:138`; R12 exception note added.
+
+Registered follow-ups (non-blocking, out of this branch's scope):
+
+- `yate/editor.py` sits at exactly 800 lines (guard uses `>`), zero
+  headroom -- any later addition re-triggers the size guard until a
+  further extraction lands.
+- `tests/test_app_panes.py` has a pre-existing empty-snapshot hole
+  (L168-197): when `panes.all_views()` snapshots empty, the settle
+  polling passes vacuously and the test crashes at `views[0]`; seen
+  once under full-suite parallel load, 0/10 solo, full rerun green.
+  Fix: guard the settle loop with `views and ...`.
+- Coverage scope note: `--cov=yate` does not measure `tools/`; the
+  83.54% figure includes a tools-inclusive run, the 93% figure is
+  yate-only. Both above the 75 gate.
+
+Final gates on HEAD (all exit 0): pyright strict 0 diagnostics;
+`pytest tests/ -q -n auto` green; architecture tests 37 passed;
+coverage 83.54% (>= 75); smoke 121/121 scenarios, 1463/1463 checks;
+`python -m tools.pack wiki --help` unchanged.

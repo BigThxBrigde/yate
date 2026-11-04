@@ -171,6 +171,10 @@ flowchart TD
   未被消费的键不得冒泡到外壳二次派发。
 - **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级
   `log = tracing.get_logger(__name__)`（含无 App 上下文的驱动线程 / worker / 回调）；
+  **登记例外（2026-11-04，big-module-split-2）**：子包化模块可显式冻结门面级
+  logger 名（如 `services/yxp/` 三子模块均用 `tracing.get_logger("yate.services.yxp")`），
+  以保持子包化前后日志命名空间不变（caplog 断言依赖该名）；该形态须经
+  结构守卫锁定（`tests/test_yxp_subpackage.py`），不得作为新建模块的默认写法；
   **禁止**为访问 Textual devtools 日志（`app.log` / widget `self.log`）而
   `import textual.app` 或为 `app` 属性补类型注解，业务代码不得直连 devtools 通道。
   devtools 可视化由 L4 `YateApp` 统一桥接：`textual.logging.TextualHandler`

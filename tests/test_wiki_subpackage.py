@@ -135,6 +135,6 @@ def test_facade_reexports_resolve_at_runtime() -> None:
     """The facade's ``__all__`` names all resolve (no stale export)."""
     module = importlib.import_module("tools.pack.wiki")
     for name in module.__all__:
-        assert getattr(module, name) is not None or name == "_emit_mode", (
+        assert getattr(module, name) is not None, (
             f"facade export {name!r} does not resolve"
         )
