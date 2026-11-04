@@ -217,8 +217,9 @@ def test_file_manager_navigate_enter_dir_and_back_lands_on_origin(tmp_path: Path
                 lambda: _entry_names(screen)
                 == ["other", "sub", "alpha.txt", "beta.txt"],
             )
-            # the cursor landed back on the directory just left
-            assert _list(screen).index == 1
+            # the cursor landed back on the directory just left; the restore
+            # runs a refresh after the rebuilt rows, so wait for it to land
+            assert await wait_until(pilot, lambda: _list(screen).index == 1)
             assert open_calls == []
 
     asyncio.run(scenario())
@@ -1241,7 +1242,8 @@ def test_file_manager_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> 
                 == ["other", "sub", "alpha.txt", "beta.txt"],
             )
             assert screen._cwd == tmp_path
-            assert _list(screen).index == 1
+            # same deferred restore as the h-return above: wait for the landing
+            assert await wait_until(pilot, lambda: _list(screen).index == 1)
             assert open_calls == []
 
     asyncio.run(scenario())
