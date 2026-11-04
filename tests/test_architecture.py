@@ -143,6 +143,7 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("cli.py", 4),
     ("__main__.py", 4),
     ("editor.py", 3),
+    ("editor_compose.py", 3),
     ("actions.py", 3),
     ("commands.py", 3),
     ("diagnostics.py", 3),

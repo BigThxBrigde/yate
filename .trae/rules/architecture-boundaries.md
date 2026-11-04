@@ -15,7 +15,9 @@ scene: architecture
 ```
 L4 外壳：app.py（YateApp） / cli.py（唯一入口） / __main__.py（`python -m yate`
          入口 shim，仅 import cli；守卫 `_LAYER_RANKS` 已按 L4 计）
-L3 调度：editor.py（Editor）/ actions.py / commands.py / flows/ 子包
+L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，2026-11-04
+         big-module-split-2 wave-1 自 editor.py 迁出，`_LAYER_RANKS` 按 L3 计）/
+         actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
          lsp_sync.py / cmdline_completions.py / mouse_flows.py / chunked_flows.py /
