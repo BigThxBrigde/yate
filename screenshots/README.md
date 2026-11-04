@@ -5,7 +5,7 @@ in `tools/screenshots/scenarios.py`.  The pilot shots are
 deterministic 100x30 SVGs captured from the real application through
 Textual's pilot; the report shots (smoke / diag) are Rich re-renders
 of real subprocess output.  Machine-specific paths are scrubbed to
-`&lt;home&gt;` / `&lt;repo&gt;` / `&lt;user&gt;` placeholders in every
+`<home>` / `<repo>` / `<user>` placeholders in every
 image.
 
 > **Font note**: text falls back to the viewer's monospace font (the
@@ -136,17 +136,17 @@ Default startup with the bundled extensions loaded; the status bar lists the ext
 
 <img src="./lsp-completion.svg" width="720">
 
-``ctrl+space`` completion popup; without a language server this is the buffer-words fallback source.
+``ctrl+space`` completion popup over a Python buffer; without a language server this is the buffer-words fallback source.
 
-按 ``ctrl+space`` 弹出补全框；无语言服务器时为缓冲区单词回退来源。
+在 Python 缓冲区按 ``ctrl+space`` 弹出补全框；无语言服务器时为缓冲区单词回退来源。
 
 ### screensaver
 
 <img src="./screensaver.svg" width="720">
 
-``alt+shift+s`` screensaver with the roster pinned to one character for determinism.
+``alt+shift+s`` screensaver: the full character roster fills the screen.
 
-按 ``alt+shift+s`` 进入屏保，角色白名单固定以保证确定性。
+按 ``alt+shift+s`` 进入屏保，全角色花名册精灵铺满屏幕。
 
 ### manual
 
@@ -168,9 +168,9 @@ Default startup with the bundled extensions loaded; the status bar lists the ext
 
 <img src="./file-manager.svg" width="720">
 
-``filemanager_dir=`` startup form: the fullscreen manager.
+``filemanager_dir=`` startup form: the fullscreen manager with the listing and the preview pane populated.
 
-``filemanager_dir=`` 启动形态：全屏文件管理器。
+``filemanager_dir=`` 启动形态：全屏文件管理器，列表与预览均已填充。
 
 ### hex-view
 

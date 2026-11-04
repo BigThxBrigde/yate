@@ -31,7 +31,7 @@ Every feature has a generated screenshot with a scenario walkthrough in the
 [screenshots gallery](screenshots/README.md) — `python -m tools.screenshots`
 regenerates all of them headlessly via Textual's pilot.
 
-![yate — layout with explorer, tabs and syntax highlighting](screenshots/syntax-highlighting.svg)
+![yate — layout with explorer, tabs and syntax highlighting](screenshots/layout-explorer.svg)
 
 ## Features
 

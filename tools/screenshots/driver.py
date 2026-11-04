@@ -12,10 +12,12 @@ from __future__ import annotations
 
 import base64
 import getpass
+import os
 import re
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
@@ -252,9 +254,24 @@ _FIXTURE_A = "alpha\nbravo\ncharlie\n"
 _FIXTURE_B = "delta\necho\nfoxtrot\n"
 _FIXTURE_C = "golf\nhotel\nindia\n"
 
+#: 512 deterministic bytes (every value 0x00-0xFF twice): a 100x30 hex view
+#: shows 32 full dump rows (screen-filling, with a scrollbar) and exhibits
+#: every hexyl byte class (null / whitespace / printable / non-ascii).
+_FIXTURE_BIN = bytes(range(256)) * 2
+
 #: xxd-style diff pair: one changed word plus one added line.
 _FIXTURE_LEFT = "alpha\nbravo\ncharlie\n"
 _FIXTURE_RIGHT = "alpha\nbravo\ncharly\ndelta\n"
+
+#: Fixed mtime stamped onto every fixture file: the file manager frame
+#: renders the cursor entry's mtime in its status bar, so real "now"
+#: timestamps would make the frame differ on every run.  The constant is
+#: anchored in *local* time (``mktime`` of a fixed tuple) rather than the
+#: Unix epoch: the status bar formats the stamp with ``time.localtime()``,
+#: so an epoch constant would still render different wall-clock text on
+#: machines in different timezones, while this round-trip renders the
+#: same "Sat Jan 01 00:00:00 2000" everywhere.
+_FIXTURE_MTIME: float = time.mktime((2000, 1, 1, 0, 0, 0, 0, 0, -1))
 
 
 def write_fixtures(fixtures: Path) -> None:
@@ -266,4 +283,8 @@ def write_fixtures(fixtures: Path) -> None:
     (fixtures / "c.txt").write_text(_FIXTURE_C, encoding="utf-8")
     (fixtures / "left.txt").write_text(_FIXTURE_LEFT, encoding="utf-8")
     (fixtures / "right.txt").write_text(_FIXTURE_RIGHT, encoding="utf-8")
-    (fixtures / "thing.bin").write_bytes(b"\x00\x01\x02\x03binary\xff\x00\x01")
+    (fixtures / "thing.bin").write_bytes(_FIXTURE_BIN)
+    # Deterministic metadata: every stat display in a frame (the file
+    # manager status bar) must be a fixture constant, not wall-clock data.
+    for entry in sorted(fixtures.iterdir()):
+        os.utime(entry, (_FIXTURE_MTIME, _FIXTURE_MTIME))
