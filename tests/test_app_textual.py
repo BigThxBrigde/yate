@@ -100,7 +100,17 @@ def test_type_save_find_help_keymap(tmp_path: Path) -> None:
             # --- find prompt + live search
             await pilot.press("ctrl+f")
             assert prompt_bar.active_mode == "find"
+            # activate() focuses the input, but focus settles asynchronously:
+            # under a loaded worker keys pressed before that land elsewhere,
+            # and Enter then submits the still-empty input (empty search query
+            # under full-suite -n auto coverage load, 2026-11-05).
+            assert await wait_until(
+                pilot, lambda: app.focused is prompt_bar.input
+            )
             await pilot.press("l", "l")
+            assert await wait_until(
+                pilot, lambda: prompt_bar.input.value == "ll"
+            )
             await pilot.press("enter")
             assert app.editor.session.search.query == "ll"
             assert len(app.editor.session.search.matches) >= 1

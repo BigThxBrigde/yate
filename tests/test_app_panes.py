@@ -162,7 +162,14 @@ def test_pane_regions_stay_visible_after_split(pane_root: Path) -> None:
             app.editor.run_command("sp")
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.editor.run_command("vs")
-            assert await wait_until(pilot, lambda: panes.leaf_count == 3)
+            # leaf_count flips before the host reconciles the widget
+            # subtree: all_views() can still be empty, and an empty list
+            # makes the region check below pass vacuously (IndexError on
+            # views[0] under full-suite -n auto load, 2026-11-05).
+            assert await wait_until(
+                pilot,
+                lambda: panes.leaf_count == 3 and len(panes.all_views()) == 3,
+            )
             host = panes.host
             assert host is not None
             views = panes.all_views()
