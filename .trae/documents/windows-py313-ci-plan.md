@@ -118,9 +118,38 @@ flowchart TD
     W12 -. "new leg" .-> B13
 ```
 
-## 七、执行记录（待回填）
+## 七、执行记录（收尾回填，2026-11-05）
 
-- [ ] 步骤 1 方案文档（提交号）
-- [ ] 步骤 2 矩阵改动 + YAML/守卫/changelog 验收（提交号、实测组合）
-- [ ] 步骤 3 五项门禁实测（退出码、覆盖率、冒烟数字）
-- [ ] 偏离记录（如有）
+- [x] 步骤 1 方案文档：提交 `e1064cf`。
+- [x] 步骤 2 矩阵改动：提交 `66fc2f9`（唯一代码文件 `../../.github/workflows/test.yml`）。验收实测：
+  - PyYAML 解析 `strategy.matrix` → 4 组合 `(ubuntu-latest, 3.12/3.13)` +
+    `(windows-latest, 3.12/3.13)`，`include` 消失；`Run pytest suite` 仍为
+    `python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing -n auto`
+    （无 worksteal）；`jobs` 仍为 `lint / smoke / test`；`timeout-minutes: 15` 未变；
+    `YAML_ASSERTIONS=OK` / exit 0。
+  - `pytest tests/test_gate_config.py -q -n 1` → 5 passed / exit 0；
+    `python -m tools.changelog check` → exit 0。
+- [x] 步骤 3 全量门禁（主代理亲跑，退出码均为 0）：
+
+  | 门禁 | 实测 |
+  |---|---|
+  | `python -m pyright yate/ tests/ tools/ pack/` | 0 errors / 0 warnings / 0 informations |
+  | `python -m pytest tests/ -q -n auto` | exit 0（本环境 `-q` 无汇总行，按退出码为准） |
+  | `python -m pytest tests/test_architecture.py -q` | 37 passed |
+  | CI 原命令（含 `--cov-report=term-missing`） | 3382 passed / 10 skipped，TOTAL 92.86%，`fail_under=75` 通过，149.64s |
+  | `python -m tools.smoke_test run --jobs 4` | 121/121 scenarios，1463/1463 checks，78.59s |
+
+- [x] 提交状态：本任务三笔（`e1064cf` 方案 / `66fc2f9` 代码 / 本回填），
+  **只提交、不推送**。
+
+### 环境事实（非偏离）
+
+- 本任务开工时 `origin/master` 已同步到 `7072a39`（上一轮 worksteal 修复的 5 笔
+  已被推送，非主代理执行），故开工时 `master` 仅 ahead 1；本任务未执行 `git push`。
+- Windows / py3.13 腿的**实际 CI 墙钟尚未观测**：需推送后看 GitHub Actions；
+  以现有 470s 基线对 15min 预算仍有余量，若新腿超时再评估 `timeout-minutes`。
+
+### 偏离记录
+
+- 无。范围、文件清单、验收命令均按批准的方案 A 执行；未加矩阵文本守卫
+  （§三 E 已否决），未改 smoke / lint / Gitee 流水线。
