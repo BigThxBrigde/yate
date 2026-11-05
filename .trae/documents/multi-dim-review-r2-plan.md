@@ -51,18 +51,18 @@
 | A. 只审 `0ae1a64..75bccfa` 增量 diff（174 提交 / 366 文件 +32492−4469） | 用户指令为「使用 multi-dim-review」全维度审计路由，未给 `$ARGUMENTS` 限定范围；且 Step 6.4 要求对既往登记项复核当前有效性，增量 diff 无法覆盖存量契约回归面。 |
 | B. 单代理串行逐维度读完全仓 | 覆盖面约 125k 行 Python，单轮必然漏维；skill Step 6 与 `subagent-workflow.md` §一.1 明确要求按维度切分并行下发。 |
 | C. 审查员直接修复发现的问题 | skill 明文「read-only review framework … never edits product code；fixes go through the plan workflow」；修复须另立方案并走闭环【执行】。 |
-| D. 在主工作区 `d:/Programming/yate` 上直接评审与写记录 | 项目反馈：重跑全仓审计须新建 worktree + 新分支，不复用旧审计 worktree；且主工作区与 worktree 的 `.venv` 不共享，写记录到独立分支便于干净追溯。 |
+| D. 在主工作区直接评审与写记录 | 项目反馈：重跑全仓审计须新建 worktree + 新分支，不复用旧审计 worktree；且主工作区与 worktree 的 `.venv` 不共享，写记录到独立分支便于干净追溯。 |
 
 ## 三、分步实施（输入 / 独占文件 / 输出 / 验收命令）
 
 ### Step 0 【领会】环境准备（已完成，实测数据）
 
 - 输入：主仓 master `75bccfa`（clean、与 origin/master 同步）；`git worktree list`。
-- 命令：`git worktree add D:/Programming/yate-multi-dim-review-r2 -b enh/multi-dim-review-r2 master`；
-  `python -m venv .venv`；`.venv\Scripts\python.exe -m pip install -e ".[dev]" --quiet`。
+- 命令：从 master 新建独立 worktree 与分支（本轮为 `enh/multi-dim-review-r2`），
+  随后 `python -m venv .venv`；`.venv\Scripts\python.exe -m pip install -e ".[dev]" --quiet`。
 - 输出：独立 worktree + 分支 + 沙箱；自证
-  `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` →
-  `D:\Programming\yate-multi-dim-review-r2\yate\__init__.py`（Python 3.13.2）。
+  `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 指向该 worktree
+  内的 `yate/__init__.py`（实测 Python 3.13.2）。
 - 验收：`.venv\Scripts\python.exe -c "import pytest, pyright, textual; print('deps ok')"` → exit 0。
 
 ### Step 1 【方案】本文件（已完成）
@@ -218,8 +218,19 @@ flowchart TD
 
 ## 九、执行记录（回填区，禁写预期数字）
 
-> 本区只回填已实测的真实命令结果、退出码与偏离记录；开工时保持空。
+> 本区只回填已实测的真实命令结果、退出码与偏离记录。
 
 | 步骤 | 实测结果 | 退出码 | 偏离与依据 |
 |---|---|---|---|
-| Step 0 | 待回填 | — | — |
+| Step 0 | 新 worktree + 分支 `enh/multi-dim-review-r2`；`.venv` 重建（Python 3.13.2）；`import yate` 指向该 worktree | 0 | 无偏离；沙箱自证按 Step 0 命令执行 |
+| Step 1 | 主计划落盘并单独提交（首笔 `docs(plan)`） | 0 | `plan-architect-designer` 两次 spawn 因 frontmatter 模型未注册失败，主代理按 §三兜底并如实标注 |
+| Step 2 | 机械取证探针 2 支 + UTF-8 探针 1 支；覆盖 13 维度静态面、豁免集、双语配对、提交 subject | 0 | 探针为一次性脚本，验证后删除；证据清单随审查员任务书下发 |
+| Step 3 | 5 名只读审查员两波 fan-out 全部交付（SA/SB/SC，SD/SE），零写盘、零门禁 | 0 | 批大小 3 + 2，符合上限；无审查员零产出 |
+| Step 4 | 主代理逐条回读复核全部候选；2 MAJOR / 13 MINOR；Suspects 全保留；SA D1-13 以 `caplog` 检索反证删除 | — | 无静默丢弃；登记项复核清单见评审记录第八节 |
+| Step 5 | 基线六道门禁：pyright 0 / pytest 0 / 架构 0 / 覆盖率 1（safe-delete 钩子）/ 冒烟 0 / changelog 0；覆盖率单独复跑 0（92.85%，3391 passed / 10 skipped） | 见左 | 环境事故，非测试失败；按项目记忆分轮次执行并清理 43 个 `garbage-*` 目录 |
+| Step 6 | 评审记录 + README #57 索引行与增量段落盘 | — | 记录为只读事实文档，不含修复排期 |
+| Step 7 | 修复方案 + F1–F10 全部落盘；2 MAJOR 归零；13 MINOR 全修或登记不修 | 0 | 新增回归用例首次因数据落在 2048 窗口外转红，修正数据后转绿（先红后绿演练） |
+| Step 8 | `code-review-expert` 只读复核（92 次工具调用 / 250.09s）：0 BLOCKER / 0 MAJOR / 4 MINOR，四项全闭环；最终六道门禁全 0 | 0 | 复核者未复跑门禁、未逐条回读七维证据，范围限制已登记；新增边界用例改用公开 `next()` 避开 pyright `reportPrivateUsage` |
+| 最终门禁 | pyright `0 errors, 0 warnings, 0 informations`；pytest 0；架构 37/37；覆盖率 92.90%（3394 passed / 10 skipped）；冒烟 121/121 · 1463/1463；changelog `released changelog sections are up to date` | 全 0 | 六道均拆到独立轮次执行，规避 safe-delete 累计计数 |
+| 临时产物清理 | 一次性探针脚本 6 支（`_probe_*.py` / `_gate_*.py` / `_clean_garbage.py`）+ 复核者探针残留的两个未跟踪文件 `p)` / `pos)` 全部删除 | — | 均非交付物；删除前先在本行落盘登记，收尾 `git status` 复核；未触碰任何已跟踪文件 |
+| 提交 | 分步单独提交，**不推送** | — | 逐步 `git status` 核对，临时脚本删除后工作区干净 |
