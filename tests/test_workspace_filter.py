@@ -170,30 +170,43 @@ def test_visible_tree_respects_show_hidden(ws: Workspace) -> None:
 # --- _parse_ignore ----------------------------------------------------------
 
 
-def parse_ignore(text: str) -> list[tuple[str, bool, bool]]:
+def parse_ignore(text: str) -> list[tuple[str, bool, bool, bool]]:
     """Run *text* through the private parser and return plain tuples."""
     pats = Workspace._parse_ignore(text)
-    return [(p.pattern, p.negated, p.dir_only) for p in pats]
+    return [(p.pattern, p.negated, p.dir_only, p.anchored) for p in pats]
 
 
 def test_comments_and_blank_lines_skipped() -> None:
-    assert parse_ignore("# comment\n\n   \n*.log\n") == [("*.log", False, False)]
+    assert parse_ignore("# comment\n\n   \n*.log\n") == [
+        ("*.log", False, False, False)
+    ]
 
 
 def test_negation() -> None:
-    assert parse_ignore("!keep.txt") == [("keep.txt", True, False)]
+    assert parse_ignore("!keep.txt") == [("keep.txt", True, False, False)]
 
 
 def test_dir_only_marker() -> None:
-    assert parse_ignore("build/") == [("build", False, True)]
+    assert parse_ignore("build/") == [("build", False, True, False)]
 
 
 def test_patterns_lowercased() -> None:
-    assert parse_ignore("*.TMP") == [("*.tmp", False, False)]
+    assert parse_ignore("*.TMP") == [("*.tmp", False, False, False)]
 
 
 def test_bare_negation_or_slash_ignored() -> None:
     assert parse_ignore("!\n/\n") == []
+
+
+def test_middle_slash_anchors_the_pattern() -> None:
+    assert parse_ignore("yate/extensions/lib/") == [
+        ("yate/extensions/lib", False, True, True)
+    ]
+
+
+def test_leading_slash_is_stripped_but_still_anchors() -> None:
+    assert parse_ignore("/site") == [("site", False, False, True)]
+    assert parse_ignore("/_*.py") == [("_*.py", False, False, True)]
 
 
 # --- ignore rules -----------------------------------------------------------
@@ -275,6 +288,136 @@ def test_sub_dir_rule_overrides_root_rule(tmp_path: Path) -> None:
     got = list_names(ws, sub)
     assert "special.log" in got
     assert "other.log" not in got
+
+
+# --- path-anchored patterns (issue IKSFTX) -----------------------------------
+
+
+def test_anchored_negation_reincludes_a_tracked_directory(tmp_path: Path) -> None:
+    """``lib/`` hides every lib dir; ``!yate/extensions/lib/`` un-hides one.
+
+    The basename rule matches first, the later anchored negation wins last
+    (last match decides), so only the anchored path and its files come
+    back while other ``lib`` directories stay hidden.
+    """
+    (tmp_path / ".gitignore").write_text(
+        "lib/\n!yate/extensions/lib/\n", encoding="utf-8"
+    )
+    ext = tmp_path / "yate" / "extensions"
+    lib = ext / "lib"
+    lib.mkdir(parents=True)
+    (lib / "engine_json.lua").write_text("x\n", encoding="utf-8")
+    (lib / "engine_layout.lua").write_text("x\n", encoding="utf-8")
+    other = tmp_path / "build" / "lib"
+    other.mkdir(parents=True)
+    (other / "junk.o").write_bytes(b"")
+    ws = Workspace(tmp_path)
+
+    assert "lib" in list_names(ws, ext)
+
+    files = {p.name for p in ws.walk_files()}
+    assert {"engine_json.lua", "engine_layout.lua"} <= files
+    assert "junk.o" not in files
+
+
+def test_anchored_rule_only_matches_its_own_path(tmp_path: Path) -> None:
+    """The anchored negation does not resurrect sibling lib directories."""
+    (tmp_path / ".gitignore").write_text(
+        "lib/\n!yate/extensions/lib/\n", encoding="utf-8"
+    )
+    (tmp_path / "yate" / "lib").mkdir(parents=True)
+    ws = Workspace(tmp_path)
+
+    assert "lib" not in list_names(ws, tmp_path / "yate")
+
+
+def test_leading_slash_anchors_to_the_root(tmp_path: Path) -> None:
+    """``/_*.py`` hides root-level smoke scripts but not nested ones."""
+    (tmp_path / ".gitignore").write_text("/_*.py\n", encoding="utf-8")
+    (tmp_path / "_smoke.py").write_text("x\n", encoding="utf-8")
+    nested = tmp_path / "pkg"
+    nested.mkdir()
+    (nested / "_inner.py").write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    assert "_smoke.py" not in list_names(ws)
+    assert "pkg" in list_names(ws)
+    assert "_inner.py" in list_names(ws, nested)
+
+
+def test_anchored_negation_reincludes_a_file(tmp_path: Path) -> None:
+    """``*.spec`` + ``!pack/*.spec`` brings the tracked spec back."""
+    (tmp_path / ".gitignore").write_text(
+        "*.spec\n!pack/*.spec\n", encoding="utf-8"
+    )
+    pack = tmp_path / "pack"
+    pack.mkdir()
+    (pack / "yate.spec").write_text("x\n", encoding="utf-8")
+    (tmp_path / "stray.spec").write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    assert "yate.spec" in list_names(ws, pack)
+    assert "stray.spec" not in list_names(ws)
+
+
+def test_anchored_star_does_not_cross_directories(tmp_path: Path) -> None:
+    """Without ``**`` an anchored ``*`` stays inside one path segment."""
+    (tmp_path / ".gitignore").write_text(
+        "*.spec\n!pack/*.spec\n", encoding="utf-8"
+    )
+    pack = tmp_path / "pack"
+    (pack / "sub").mkdir(parents=True)
+    (pack / "y.spec").write_text("x\n", encoding="utf-8")
+    (pack / "sub" / "x.spec").write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    assert "y.spec" in list_names(ws, pack)
+    assert "x.spec" not in list_names(ws, pack / "sub")
+
+
+def test_anchored_rules_are_skipped_outside_the_root(tmp_path: Path) -> None:
+    """Listing a tree outside the root neither crashes nor leaks the
+    anchored rule; basename rules keep their previous behaviour."""
+    rooted = tmp_path / "rooted"
+    rooted.mkdir()
+    (rooted / ".gitignore").write_text(
+        "lib/\n!yate/extensions/lib/\n", encoding="utf-8"
+    )
+    outside = tmp_path / "outside"
+    (outside / "lib").mkdir(parents=True)
+    (outside / "plain.py").write_text("x\n", encoding="utf-8")
+    ws = Workspace(rooted)
+
+    got = list_names(ws, outside)
+
+    assert "plain.py" in got
+    assert "lib" not in got
+
+
+def test_yate_repo_anchored_negation_shows_bundled_lua_dir() -> None:
+    """Regression for IKSFTX: ``!yate/extensions/lib/`` must beat ``lib/``.
+
+    Opens this repository as the workspace and requires the tracked
+    ``yate/extensions/lib`` directory (the shared Lua modules shipped to
+    extensions) to be visible in an explorer listing.
+    """
+    repo_root = Path(__file__).resolve().parents[1]
+    gitignore = repo_root / ".gitignore"
+    rules = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if "!yate/extensions/lib/" not in rules:
+        pytest.fail(
+            "the repo .gitignore no longer declares '!yate/extensions/lib/';"
+            " this regression test pins that rule (issue IKSFTX) -- update"
+            " the rule and the test together"
+        )
+    ext = repo_root / "yate" / "extensions"
+    if not (ext / "lib").is_dir():
+        pytest.skip("bundled lua lib directory not present in this checkout")
+    ws = Workspace(repo_root)
+
+    assert "lib" in list_names(ws, ext)
+    lib_names = {e.name for e in ws.list_dir(ext / "lib")}
+    assert lib_names  # the re-included directory lists its lua modules
 
 
 def test_ignored_names_always_hidden_even_with_show_hidden(tmp_path: Path) -> None:

@@ -119,6 +119,9 @@ class _IgnorePattern:
     pattern: str  # fnmatch pattern (already lowercased for matching)
     negated: bool  # ``!`` prefix: re-include even if an earlier line ignored
     dir_only: bool  # trailing ``/``: only match directories
+    #: A ``/`` at the start or middle (git anchoring): match the entry's
+    #: path relative to the ignore file's own directory, not its basename.
+    anchored: bool
 
 
 class Workspace:
@@ -176,6 +179,7 @@ class Workspace:
         """Read ``.gitignore`` / ``.yateignore`` from the workspace root."""
         self._root_ignores = []
         if self.root is None:
+            self._root_has_anchored = False
             return
         for name in IGNORE_FILENAMES:
             ignore_file = self.root / name
@@ -184,6 +188,12 @@ class Workspace:
             except OSError:
                 continue
             self._root_ignores.extend(self._parse_ignore(text))
+        # Cached so the per-entry check in _is_ignored stays O(1): rescanning
+        # the pattern list for every walked entry would multiply over long
+        # directory traversals.
+        self._root_has_anchored = any(
+            pat.anchored for pat in self._root_ignores
+        )
 
     @staticmethod
     def _parse_ignore(text: str) -> list[_IgnorePattern]:
@@ -193,7 +203,11 @@ class Workspace:
         * ``#`` comment and blank lines — skipped
         * ``!pattern`` — negation (re-include)
         * ``pattern/`` — directory only
-        * ``pattern`` — match basename via ``fnmatch``
+        * ``pattern`` — match the basename via ``fnmatch`` at any depth
+        * ``a/b/pattern`` or ``/pattern`` — path-anchored: matched against
+          the entry's path relative to the ignore file's own directory
+          (a leading ``/`` just pins the pattern to that directory and is
+          stripped)
         """
         patterns: list[_IgnorePattern] = []
         for line in text.splitlines():
@@ -209,8 +223,14 @@ class Workspace:
             line = line.strip()
             if not line:
                 continue
+            # A leading "/" anchors too, so detect before stripping it.
+            anchored = "/" in line
+            if line.startswith("/"):
+                line = line.lstrip("/")
+                if not line:
+                    continue
             patterns.append(
-                _IgnorePattern(line.lower(), negated, dir_only)
+                _IgnorePattern(line.lower(), negated, dir_only, anchored)
             )
         return patterns
 
@@ -245,21 +265,41 @@ class Workspace:
 
     def _is_ignored(
         self,
-        name: str,
+        path: Path,
         is_dir: bool,
         dir_ignores: list[_IgnorePattern] | None = None,
     ) -> bool:
         """Check ignore patterns (root + directory-level) for one entry.
 
-        Later patterns win (last match decides), mirroring ``.gitignore``
-        semantics.
+        Basename patterns match the entry name at any depth; anchored
+        patterns (a ``/`` at the start or middle) match the entry's path
+        relative to the ignore file's own directory -- the workspace root
+        for root files.  Per-directory patterns only ever see the direct
+        children of their own directory, whose relative path is the bare
+        name, so they match on the name either way.  Later patterns win
+        (last match decides), mirroring ``.gitignore`` semantics.
         """
-        lower = name.lower()
+        lower = path.name.lower()
+        # Anchored root rules need the root-relative path; compute it lazily
+        # so pattern-free workspaces (e.g. the synthetic 1500-level chain
+        # tests) never pay the O(depth) relative_to per entry.
+        rel: str | None = None
+        if self.root is not None and self._root_has_anchored:
+            try:
+                rel = path.relative_to(self.root).as_posix().lower()
+            except ValueError:
+                # Listed outside the workspace root (the file manager can
+                # browse any tree): anchored root rules cannot apply, while
+                # basename rules keep their previous behaviour.
+                rel = None
         ignored = False
         for pat in self._root_ignores:
             if pat.dir_only and not is_dir:
                 continue
-            if fnmatch.fnmatch(lower, pat.pattern):
+            if pat.anchored:
+                if rel is not None and _anchored_match(rel, pat.pattern):
+                    ignored = not pat.negated
+            elif fnmatch.fnmatch(lower, pat.pattern):
                 ignored = not pat.negated
         if dir_ignores is not None:
             for pat in dir_ignores:
@@ -295,7 +335,7 @@ class Workspace:
                 continue
             if not self.show_hidden and name.startswith("."):
                 continue
-            if self._is_ignored(name, is_dir, dir_ignores):
+            if self._is_ignored(child, is_dir, dir_ignores):
                 continue
             entries.append(Entry(child, name, is_dir))
         return entries
@@ -356,7 +396,7 @@ class Workspace:
                     continue
                 if not self.show_hidden and name.startswith("."):
                     continue
-                if self._is_ignored(name, is_dir, dir_ignores):
+                if self._is_ignored(child, is_dir, dir_ignores):
                     continue
                 if is_dir and child.is_symlink():
                     # Never follow symlinked directories: a link pointing at
@@ -597,6 +637,22 @@ class Workspace:
             if drive_root.exists():
                 drives.append(Entry(drive_root, f"{letter}:", True))
         return drives
+
+
+def _anchored_match(rel: str, pattern: str) -> bool:
+    """Match an anchored pattern against a root-relative posix path.
+
+    ``fnmatch`` translates ``*`` into "any run of characters", which would
+    let it cross ``/``; git keeps ``*`` inside one path segment.  While the
+    pattern holds no ``**``, requiring equal segment counts first restores
+    that per-segment behaviour cheaply (``pack/*.spec`` then still matches
+    ``pack/x.spec`` but no longer ``pack/sub/x.spec``).  Patterns with
+    ``**`` fall back to plain ``fnmatch`` (crossing allowed), which is the
+    documented approximation for multi-directory globs.
+    """
+    if "**" not in pattern and rel.count("/") != pattern.count("/"):
+        return False
+    return fnmatch.fnmatch(rel, pattern)
 
 
 def _owner_group_names(st_uid: int, st_gid: int) -> tuple[str | None, str | None]:
