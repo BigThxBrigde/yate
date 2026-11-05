@@ -179,6 +179,7 @@ class Workspace:
         """Read ``.gitignore`` / ``.yateignore`` from the workspace root."""
         self._root_ignores = []
         if self.root is None:
+            self._root_has_anchored = False
             return
         for name in IGNORE_FILENAMES:
             ignore_file = self.root / name
@@ -187,6 +188,12 @@ class Workspace:
             except OSError:
                 continue
             self._root_ignores.extend(self._parse_ignore(text))
+        # Cached so the per-entry check in _is_ignored stays O(1): rescanning
+        # the pattern list for every walked entry would multiply over long
+        # directory traversals.
+        self._root_has_anchored = any(
+            pat.anchored for pat in self._root_ignores
+        )
 
     @staticmethod
     def _parse_ignore(text: str) -> list[_IgnorePattern]:
@@ -277,9 +284,7 @@ class Workspace:
         # so pattern-free workspaces (e.g. the synthetic 1500-level chain
         # tests) never pay the O(depth) relative_to per entry.
         rel: str | None = None
-        if self.root is not None and any(
-            pat.anchored for pat in self._root_ignores
-        ):
+        if self.root is not None and self._root_has_anchored:
             try:
                 rel = path.relative_to(self.root).as_posix().lower()
             except ValueError:

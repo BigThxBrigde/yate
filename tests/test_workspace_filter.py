@@ -402,6 +402,14 @@ def test_yate_repo_anchored_negation_shows_bundled_lua_dir() -> None:
     extensions) to be visible in an explorer listing.
     """
     repo_root = Path(__file__).resolve().parents[1]
+    gitignore = repo_root / ".gitignore"
+    rules = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
+    if "!yate/extensions/lib/" not in rules:
+        pytest.fail(
+            "the repo .gitignore no longer declares '!yate/extensions/lib/';"
+            " this regression test pins that rule (issue IKSFTX) -- update"
+            " the rule and the test together"
+        )
     ext = repo_root / "yate" / "extensions"
     if not (ext / "lib").is_dir():
         pytest.skip("bundled lua lib directory not present in this checkout")

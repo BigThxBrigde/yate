@@ -141,3 +141,15 @@ smoke 注意：修复使 `tools/release/`、`yate/extensions/lib/` 等被跟踪
 - worktree 运行 pyright 需先 `New-Item -ItemType Junction -Path .venv
   -Target <主仓库>/.venv`（pyproject `venvPath="."` 相对 worktree 解析）。
 
+### 评审修复轮（2026-11-05，第二轮）
+
+pr-review 两项 MINOR 经用户裁定均需修复，已落地：
+
+| 发现 | 处置 |
+|---|---|
+| `_is_ignored` 每条目 `any()` 重扫根模式表（O(P)/条目） | `_load_root_ignores` 末尾缓存 `_root_has_anchored` 布尔位，条目级检查降为 O(1)；两个赋值分支（root 为 None 早退 / 正常加载）均覆盖 |
+| 真仓库回归用例隐性耦合 `.gitignore` 内容 | 耦合显式化为契约：规则行缺失时 `pytest.fail` 给出自解释信息（规则与测试须同步更新），保留防护信号不降级为 skip |
+
+复测门禁：pyright 0 诊断；`pytest tests/test_workspace_filter.py` 全绿；
+全量 pytest 全绿（见下轮记录）。
+
