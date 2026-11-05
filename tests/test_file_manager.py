@@ -32,6 +32,24 @@ from yate.services.workspace import Entry, EntryStat, Workspace
 from conftest import plain_text, wait_until
 
 
+@pytest.fixture
+def tmp_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A workspace root whose parent holds only that root.
+
+    pytest's built-in ``tmp_path`` sits directly in the xdist worker's
+    shared temp root, which also holds every other test's temp directory.
+    ``FileManagerScreen._render_parent`` lists that parent and mounts two
+    widgets per sibling, so a worker that has run thousands of tests arms
+    thousands of ``call_later`` callbacks in ``Pilot._wait_for_screen``
+    and can exhaust its 30s budget (Ubuntu py3.13 CI, 2026-11-05).
+    Nesting the root one level deeper keeps that listing at one entry and
+    makes the startup wait independent of the scheduler and suite size.
+    """
+    root = tmp_path_factory.mktemp("file_manager") / "workspace"
+    root.mkdir()
+    return root
+
+
 class _Host(App[None]):
     """Minimal host app that pushes the FileManagerScreen under test."""
 
@@ -167,6 +185,16 @@ def _make_tree(tmp_path: Path) -> None:
     (tmp_path / "other").mkdir()
     (tmp_path / "alpha.txt").write_text("alpha\n", encoding="utf-8")
     (tmp_path / "beta.txt").write_text("beta\n", encoding="utf-8")
+
+
+def test_file_manager_workspace_parent_stays_bounded(tmp_path: Path) -> None:
+    """A nested workspace root keeps the parent pane at one sibling.
+
+    A shared xdist worker temp root grows by one directory per test and
+    every sibling becomes two widgets in the parent pane, which can starve
+    ``Pilot._wait_for_screen`` on a loaded CI leg.
+    """
+    assert [entry.name for entry in tmp_path.parent.iterdir()] == [tmp_path.name]
 
 
 def test_file_manager_renders_three_panes_and_status(tmp_path: Path) -> None:
