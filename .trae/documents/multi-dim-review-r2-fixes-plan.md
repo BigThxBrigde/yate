@@ -86,7 +86,7 @@
 
 - 证据：`.trae/documents/multi-dim-review-r2-plan.md:54,61,65`（worktree 绝对路径）。
 - 改法：改为中性表述（如「主工作区」「独立 worktree 根目录」），去掉盘符与用户目录。
-- 验收：全文 grep `[A-Za-z]:[\\/]` 与 `C:\Users` 命中 0。
+- 验收：全文 grep 盘符路径与用户目录字面量命中 0。
 
 ### F9 [MINOR] D7 规则文本登记漂移（仅文档，不动代码语义）
 
