@@ -224,7 +224,7 @@ def _run_parallel(
     try:
         for lang in sorted({lang for _, lang in items}):
             LintEngine(lang)
-    except Exception as exc:  # backend failure: plugin load, config, etc.
+    except Exception as exc:  # noqa: BLE001 - backend/plugin startup failure
         print(f"error: {error_message(exc)}", file=sys.stderr)
         return 0, 1
     total = 0
@@ -235,7 +235,7 @@ def _run_parallel(
             total += violations
             failed += broken
             advance()
-    except Exception as exc:  # pool start-up failure: interpreter, plugins
+    except Exception as exc:  # noqa: BLE001 - lint pool startup failure
         print(f"error: {error_message(exc)}", file=sys.stderr)
         return total, failed + 1
     return total, failed
@@ -321,7 +321,7 @@ def _run_sequential(
     try:
         for lang in sorted(langs):
             engines[lang] = LintEngine(lang)
-    except Exception as exc:  # backend failure: plugin load, config, etc.
+    except Exception as exc:  # noqa: BLE001 - backend/plugin startup failure
         print(f"error: {error_message(exc)}", file=sys.stderr)
         return 0, 1
 

@@ -174,8 +174,9 @@ def read_package(package_path: Path) -> YxpPackage:
                 n for n in file_names if n not in (MANIFEST_NAME, CHECKSUM_NAME)
             ]
             _check_file_list(manifest, payload, package_path.name)
+            payload_names = set(payload)
             total_size = sum(
-                zi.file_size for zi in zf.infolist() if zi.filename in payload
+                zi.file_size for zi in zf.infolist() if zi.filename in payload_names
             )
             if total_size > MAX_PAYLOAD_BYTES:
                 raise YxpError(

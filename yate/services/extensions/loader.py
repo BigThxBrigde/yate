@@ -70,9 +70,11 @@ class ExtensionLoader:
 
     api: ExtensionAPI
     loaded: list[LoadedExtension] = field(default_factory=list[LoadedExtension])
-    #: Resolved paths of :attr:`loaded`, kept in sync by ``load_file`` /
-    #: ``_load_lua``; the de-duplication query is a set membership test.
-    _resolved: set[Path] = field(default_factory=set[Path])
+    #: Direct index so a repeated path returns its record in O(1);
+    #: kept in sync at the two append sites.
+    _by_resolved: dict[Path, LoadedExtension] = field(
+        default_factory=dict[Path, LoadedExtension]
+    )
 
     def load_directory(
         self,
@@ -108,17 +110,16 @@ class ExtensionLoader:
         # The same script can be reached via several sources (an rc-declared
         # path, the default ./extensions directory, a --ext flag); loading it
         # twice would double-register commands and bindings.  The resolved
-        # path is computed once and compared against the already-loaded
-        # records' cached resolved paths (a set query), so the lookup is
-        # O(1) instead of re-resolving every record per call.
+        # path is computed once and looked up in a direct index, so a repeat
+        # returns the earlier record in O(1) without re-resolving or scanning
+        # every loaded record.
         try:
             resolved = path.resolve()
         except OSError:
             resolved = path.absolute()
-        if resolved in self._resolved:
-            for existing in self.loaded:
-                if existing.resolved == resolved:
-                    return existing
+        duplicate = self._by_resolved.get(resolved)
+        if duplicate is not None:
+            return duplicate
         if path.suffix == ".lua":
             return self._load_lua(path, resolved)
         # The resolved-path hash keeps same-stem extensions from different
@@ -169,7 +170,7 @@ class ExtensionLoader:
             self.api.end_scope()
             log.debug("extension loaded: %s", path)
         self.loaded.append(record)
-        self._resolved.add(record.resolved)
+        self._by_resolved[record.resolved] = record
         return record
 
     def _load_lua(self, path: Path, resolved: Path) -> LoadedExtension:
@@ -201,7 +202,7 @@ class ExtensionLoader:
                 self.api.end_scope()
                 log.debug("extension loaded: %s", path)
         self.loaded.append(record)
-        self._resolved.add(record.resolved)
+        self._by_resolved[record.resolved] = record
         return record
 
     def teardown_all(self) -> None:

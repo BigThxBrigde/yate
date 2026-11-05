@@ -114,8 +114,13 @@ def _nav_documents(pages: list[WikiPage]) -> tuple[str, str, str, str]:
         sidebar_zh.append(f"- **{_ZH_SECTION_LABELS[section]}**")
         sidebar_en.append(f"- **{_EN_SECTION_LABELS[section]}**")
         if section == SECTION_SETS:
+            grouped: dict[str, list[WikiPage]] = {group: [] for group in groups}
+            for page in bucket:
+                group = page.group
+                if group in grouped:
+                    grouped[group].append(page)
             for group in groups:
-                members = [p for p in bucket if p.group == group]
+                members = grouped[group]
                 home_zh.append(f"### {group}")
                 home_en.append(f"### {group}")
                 home_zh.extend(zh_entry(p, False) for p in members)

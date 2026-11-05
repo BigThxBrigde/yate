@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import fnmatch
 import importlib
 import os
@@ -421,7 +422,7 @@ class Workspace:
             self.show_hidden,
             files,
         )
-        return files
+        return files.copy()
 
     def invalidate(self) -> None:
         """Drop the :meth:`walk_files` TTL cache.
@@ -567,7 +568,8 @@ class Workspace:
         ...) are trusted without sniffing.  Every other file (unknown
         suffix or extension-less) reads the first 2048 bytes: UTF-8
         decodable + no NUL byte => text.  This prevents unknown-suffix
-        text files from being misclassified as binary.
+        text files from being misclassified as binary.  Only a multi-byte
+        sequence cut by that 2048-byte boundary is tolerated.
         """
         name = path.name.lower()
         if name in ("dockerfile", "makefile", "readme", "license"):
@@ -578,13 +580,9 @@ class Workspace:
         try:
             with path.open("rb") as fh:
                 chunk = fh.read(2048)
-            try:
-                chunk.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                # The 2048-byte cut can land inside a multi-byte UTF-8
-                # sequence; retry without the truncated tail before
-                # calling a legitimate (e.g. Chinese) text file binary.
-                chunk[: exc.start].decode("utf-8")
+            # final=False buffers a trailing partial multi-byte sequence;
+            # any other invalid byte still raises and is reported as binary.
+            codecs.getincrementaldecoder("utf-8")().decode(chunk, final=False)
             return b"\x00" not in chunk
         except (OSError, UnicodeDecodeError):
             return False

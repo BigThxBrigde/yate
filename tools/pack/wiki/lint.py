@@ -126,7 +126,7 @@ def _require_lint_engine(lang: str):
     """
     try:
         return _wiki_facade._get_lint_engine(lang)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - lint engine construction failure
         raise WikiError(
             f"markdown lint engine unavailable: {exc}",
             code=Code.WIKI_LINT_FAILED,
@@ -351,7 +351,7 @@ def _lint_texts_in_pool(
             pool=lint_pool.ensure(),
             progress=advance,
         )
-    except Exception as exc:  # pool start-up failure: interpreter, plugins
+    except Exception as exc:  # noqa: BLE001 - lint pool startup failure
         raise WikiError(
             f"markdown lint pool failed: {exc}",
             code=Code.WIKI_LINT_FAILED,

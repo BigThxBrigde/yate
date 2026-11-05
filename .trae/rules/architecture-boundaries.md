@@ -307,7 +307,8 @@ flowchart TD
      复测 1361 行；global-review-fixes 波 2026-10-22 复测 1480 行，新增
      VISUAL 前缀与整行操作符；pr-review 修复波 2026-10-23 复测 1528 行，
      新增 VISUAL count 累积与重复查找，
-     motion/operator/text-object 单一键映射域，维持豁免）、
+     motion/operator/text-object 单一键映射域；2026-11-05 multi-dim-review r2
+     复测 1531 行，维持豁免）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
@@ -316,7 +317,7 @@ flowchart TD
      is_attached 守卫重试）+ M1 盘符虚拟层状态机 + M4 会话同步回调注入越线；
      2026-11-02 filemgr-wrapup plan-a 包迁移（issue IKS4CT，见
      [`filemgr-wrapup-plans`](../documents/filemgr-wrapup-plans/overview.md)）：
-     平铺三件套收进 `editor_components/filemgr/` 子包（screen/model/keys），
+     平铺三件套收进 `editor_components/file_manager/` 子包（screen/model/keys），
      迁移时复测 882 行；2026-11-02 plan-b 增量刷新波复测 954 行
      （目录级列表缓存 + m11 预览记忆化越线）；同日 review-fixes 波
      docstring 增补后复测 963 行，维持豁免）、

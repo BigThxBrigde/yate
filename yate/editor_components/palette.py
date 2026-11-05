@@ -231,7 +231,8 @@ class PaletteScreen(ModalScreen[None]):
         """
         try:
             entries = await asyncio.to_thread(self._collect_file_entries)
-        except OSError:
+        except OSError as exc:
+            log.warning("palette file index failed: %s", exc)
             entries = []
         # is_mounted never resets on unmount; is_attached mirrors Textual's
         # own mount check.

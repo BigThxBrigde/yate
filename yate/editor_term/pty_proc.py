@@ -180,7 +180,7 @@ class PtyProcess:
                 try:
                     future.set_result(code)
                 except asyncio.InvalidStateError:
-                    pass
+                    log.debug("PTY exit future was already settled")
 
         self._post(loop, _done)
 
@@ -202,8 +202,8 @@ class PtyProcess:
             return
         try:
             loop.call_soon_threadsafe(*args)
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            log.debug("PTY event loop closed before callback was posted: %s", exc)
 
     # Bridges used by the platform implementation objects.
     def emit_output(self, data: bytes) -> None:
@@ -286,11 +286,11 @@ if os.name == "posix":
             self._master = master
             try:
                 self.resize(self._owner.cols, self._owner.rows)
-            except OSError:
+            except OSError as exc:
                 # Best effort: the child is already running, so a failed
                 # initial TIOCSWINSZ must not orphan it -- the reader loop
                 # still has to start and own the eventual cleanup.
-                pass
+                log.debug("initial PTY resize failed: %s", exc)
 
         def read_loop(self) -> None:
             """Pump master-fd output until EOF, then report the exit code.
@@ -316,8 +316,8 @@ if os.name == "posix":
                 if self._master >= 0:
                     try:
                         os.close(self._master)
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        log.debug("closing the PTY master failed: %s", exc)
                     self._master = -1
             self._owner.process_finished(code)
 
@@ -343,11 +343,12 @@ if os.name == "posix":
                 return
             try:
                 os.killpg(proc.pid, signal.SIGTERM)
-            except (OSError, ProcessLookupError):
+            except (OSError, ProcessLookupError) as exc:
+                log.debug("PTY process-group SIGTERM failed: %s", exc)
                 try:
                     proc.terminate()
-                except OSError:
-                    pass
+                except OSError as fallback_exc:
+                    log.debug("PTY terminate fallback failed: %s", fallback_exc)
 
             def _kill_later() -> None:
                 try:
@@ -355,8 +356,8 @@ if os.name == "posix":
                 except subprocess.TimeoutExpired:
                     try:
                         os.killpg(proc.pid, signal.SIGKILL)
-                    except (OSError, ProcessLookupError):
-                        pass
+                    except (OSError, ProcessLookupError) as exc:
+                        log.debug("PTY SIGKILL escalation failed: %s", exc)
 
             threading.Thread(target=_kill_later, daemon=True).start()
 
