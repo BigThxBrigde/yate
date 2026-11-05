@@ -319,7 +319,9 @@ flowchart TD
      平铺三件套收进 `editor_components/filemgr/` 子包（screen/model/keys），
      迁移时复测 882 行；2026-11-02 plan-b 增量刷新波复测 954 行
      （目录级列表缓存 + m11 预览记忆化越线）；同日 review-fixes 波
-     docstring 增补后复测 963 行，维持豁免）、
+     docstring 增补后复测 963 行；2026-11-06 filemgr-theme-beautify 波
+     （栏头 / 边框 / 整行高亮 / 主题图标调色板 / 三段状态栏接线）
+     复测 1044 行，维持豁免）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
