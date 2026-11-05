@@ -65,6 +65,11 @@ PR 级预评审，17 提交 / 41 文件 +7230−2；0 BLOCKER / 0 MAJOR / 3 MINO
 补 FS/GS/RS 逆向 + alt 后缀复合命名，守护测试连带抓出 `<alt-backspace>`
 漏 DEL）、panes 弦驱动断言 wait_until 加固、SVG 体量基线维持登记；
 修复后门禁五项全绿。
+**2026-11-05 multi-dim-review r2 增量**：新增 #57（全仓库 13 维度第二轮只读评审，
+master `75bccfa`；5 只读审查员两波 fan-out + 主代理机械取证与逐条回读复核 +
+主代理亲跑六道硬门禁）。基线 0 BLOCKER / 2 MAJOR / 13 MINOR（二进制嗅探误判、
+terminal 静默吞异常为 major），全部当轮修复闭环；收尾复核者提出 4 条 MINOR
+（冗余状态 / 索引断链 / 回填未完成 / 方案陈述不实）亦全闭环；修复后六道门禁全 exit 0。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -129,6 +134,7 @@ PR 级预评审，17 提交 / 41 文件 +7230−2；0 BLOCKER / 0 MAJOR / 3 MINO
 | 54 | 2026-11-02 | filemgr-wrapup 闭环评审（issue IKS4CT，`4a4f900..HEAD` 9 提交；分支 `ref/filemgr-wrapup`）：第一轮 python-code-review = MINOR ISSUES（3 WARNING：R15 守卫扫描面被包迁移击穿 / coarse-mtime 同刻度残余窗口 / docstring 修正游离未提交 + 3 SUGGESTION）；第二轮 pr-review = **APPROVE**（1 MINOR：豁免行数登记落后）。全部当轮修复 | ✅ 已修（W1 glob→rglob 恢复递归扫描面 + 规则文档同步 `7bdad83`/`a7bf55c`；W2/S1/S2 docstring 边界登记；S3 测试注释归因修正；行数 963 同步；门禁 pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.81% + 冒烟 121/121·1463 checks + filemanager 基线 MATCH；方案与执行记录 [filemgr-wrapup-plans/](../documents/filemgr-wrapup-plans/overview.md)） | [2026-11-02-filemgr-wrapup.md](2026-11-02-filemgr-wrapup.md) |
 | 55 | 2026-11-02 | `feat/readme-screenshots` 分支评审（`2e311e8..afcaf5f` 5 提交：tools/screenshots 无头截图工具 / 25 SVG + 画廊 / 双语 README 链接）：1 major = 画廊按「本次成功子集」渲染，`--only` 部分再生把 `screenshots/README.md` 缩水（且 wave-2 提交的画廊已被旧代码的确定性抽查覆写成 1 节，提交前未复检） | ✅ 已修（画廊改全量注册表 × SVG 存在性过滤 `afcaf5f`，部分再生字节一致实测 SHA256 相等，回归用例 `test_partial_regen_preserves_full_gallery` 在位；门禁五项全绿：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.81% + 冒烟 121/121·1463 checks；评审子代理零产出，主代理按剧本兜底） | [2026-11-02-readme-screenshots.md](2026-11-02-readme-screenshots.md) |
 | 56 | 2026-11-03 | `feat/readme-screenshots` 合并前 pr-review（17 提交 / 41 文件 +7230−2，含用户反馈修复轮：XML 转义 / WOFF2 图标字体嵌入 / pytest 报告帧移除；两次 master 合并适配 `editor_components` 与 `file_manager_dir` 重命名）：0 blocker / 0 major / 3 minor（panes `-n auto` 负载 flake 属上游 `dbe28c7` 存量，`-n 1` 26/26 + 全量复跑双证；which-key 控制字符渲染为已登记另案；SVG 产物 2037 KB 为画廊刚需体量基线） | ✅ **APPROVE**（3 MINOR 同轮全闭环：键名 C0 泄漏根因修复 / panes 等待加固 / 体量基线维持；修复后门禁五项全绿：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.82% + 冒烟 121/121·1463 checks，全 exit 0） | [2026-11-03-pr-review-feat-readme-screenshots.md](2026-11-03-pr-review-feat-readme-screenshots.md) |
+| 57 | 2026-11-05 | **全仓库多维度评审第二轮**（multi-dim-review 13 维度；master `75bccfa`，距上轮基线 174 提交 / 366 文件 +32492−4469；5 只读审查员两波 fan-out + 主代理机械取证与逐条回读复核 + 主代理亲跑六道硬门禁）：0 BLOCKER / **2 MAJOR**（`Workspace.is_text_file` 把非法 UTF-8 但无 NUL 的二进制判为文本，PNG 等文件可被当文本打开；`terminal.shutdown` 静默吞 `wait_closed` 异常）/ 13 MINOR（5 处 noqa 形式缺失、pty 六处内层静默 pass、3 处跨层失败无 tracing、5 处有标准低复杂度替代的朴素算法、缓存共享列表、新建文档本机路径、规则文本行数/目录登记漂移）；D3/D5/D8/D9/D11/D13 判 clean，Suspects 与既往登记项复核清单见记录 | ✅ 已修（F1–F10 全部闭环，2 MAJOR 归零；收尾复核 4 MINOR 亦全闭环；修复方案与记录互链；六道门禁 pyright 0 / 全量 pytest 0 / 架构 37 / 覆盖率 >75 阈值 / 冒烟 121/121·1463 / changelog 0，全 exit 0；覆盖率门禁首次触发本机 safe-delete 钩子，分轮次复跑后归零） | [2026-11-05-multi-dim-review-r2.md](2026-11-05-multi-dim-review-r2.md) |
 
 ---
 
