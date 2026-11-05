@@ -44,13 +44,14 @@ from yate.editor_components.file_manager.model import (
     build_row_text,
     count_children,
     filter_entries,
-    format_status,
+    format_status_text,
     memory_key,
     next_sort,
     parent_and_siblings,
     sort_entries,
+    themed_icon_palette,
 )
-from yate.editor_components.icons import icon_color, icon_for_path
+from yate.editor_components.icons import IconPalette, icon_color, icon_for_path
 from yate.editor_components.preview import (
     PreviewCache,
     PreviewData,
@@ -91,6 +92,23 @@ class _Row(Static):
         """Render *text* for entry *index* (baked at rebuild time)."""
         super().__init__(text)
         self.index = index
+
+    @override
+    def render(self) -> Text:
+        """Drop span colors on the highlighted row so theme cursor colors win.
+
+        Textual paints ``ListItem.-highlight`` with its theme cursor tokens,
+        but Rich spans carrying explicit styles keep their own colors.  An
+        unstyled :class:`~rich.text.Text` lets the CSS color cover the whole
+        row, which is the full-row emphasis the reference screenshot shows.
+        """
+        content = self.content
+        if not isinstance(content, Text):
+            return Text(str(content))
+        parent = self.parent
+        if parent is not None and parent.has_class("-highlight"):
+            return Text(content.plain)
+        return content
 
     def on_click(self, event: Click) -> None:
         """Consume the click and report it to the screen (see class doc)."""
@@ -197,11 +215,19 @@ class FileManagerScreen(ModalScreen[None]):
         self._prompt_target: Path | None = None
         self._last_click_index: int = -1
         self._last_click_time: float = 0.0
+        #: Theme-derived icon colors for this screen only (explorer keeps Seti).
+        self._icon_palette: IconPalette = themed_icon_palette(theme.active())
+        #: Previously highlighted row index, used to repaint the row pair.
+        self._highlighted_index: int | None = None
 
     @override
     def compose(self) -> ComposeResult:
-        """Compose the three panes, the bottom input and the status bar."""
+        """Compose the header row, three panes, input and status bar."""
         with Vertical(id="file-manager"):
+            with Horizontal(id="file-manager-head"):
+                yield Static("PARENT", id="file-manager-parent-head")
+                yield Static("CURRENT", id="file-manager-list-head")
+                yield Static("PREVIEW", id="file-manager-preview-head")
             with Horizontal(id="file-manager-body"):
                 parent = ListView(id="file-manager-parent")
                 parent.can_focus = False
@@ -248,10 +274,12 @@ class FileManagerScreen(ModalScreen[None]):
         theme.detach(self)
 
     def _apply_theme(self) -> None:
-        """Repaint scrollbars, rows and status bar from the active theme (R13)."""
+        """Repaint scrollbars, rows, headers and status from the theme (R13)."""
         apply_scrollbar_theme(self.query_one("#file-manager-parent", ListView))
         apply_scrollbar_theme(self.query_one("#file-manager-list", _FileListView))
         apply_scrollbar_theme(self.query_one("#file-manager-preview", PreviewLog))
+        self._icon_palette = themed_icon_palette(theme.active())
+        self._refresh_headers()
         if self._entries:
             self._rebuild_rows()
             self._render_list(previous=self._cursor_path())
@@ -403,6 +431,7 @@ class FileManagerScreen(ModalScreen[None]):
                 entry.path in self._marked,
                 dir_child_count=self._child_counts.get(entry.path),
                 sort_key=self._sort,
+                icon_palette=self._icon_palette,
             )
             for entry in self._entries
         ]
@@ -414,6 +443,7 @@ class FileManagerScreen(ModalScreen[None]):
         *previous*, then the top."""
         list_view = self.query_one("#file-manager-list", _FileListView)
         list_view.clear()
+        self._highlighted_index = None
         list_view.extend(
             ListItem(_Row(row_text, index))
             for index, row_text in enumerate(self._rows)
@@ -448,19 +478,22 @@ class FileManagerScreen(ModalScreen[None]):
             else:
                 rows = [
                     self._icon_text(
-                        e.name, e.is_dir, t.accent if e.is_dir else t.fg
+                        e.name, e.is_dir, t.accent if e.is_dir else t.fg,
+                        self._icon_palette,
                     )
                     for e in entries
                 ]
         pane.extend(ListItem(Static(row)) for row in rows)
 
     @staticmethod
-    def _icon_text(name: str, is_dir: bool, name_style: str) -> Text:
+    def _icon_text(
+        name: str, is_dir: bool, name_style: str, palette: IconPalette
+    ) -> Text:
         """One ``icon + name`` row text with the theme-colored glyph."""
         text = Text()
         text.append(
             icon_for_path(name, is_dir) + " ",
-            style=icon_color(name, is_dir, theme.active().accent),
+            style=icon_color(name, is_dir, theme.active().accent, palette),
         )
         text.append(name, style=name_style)
         return text
@@ -510,7 +543,9 @@ class FileManagerScreen(ModalScreen[None]):
         text = Text()
         for child in shown:
             name_style = t.accent if child.is_dir else t.fg
-            text.append_text(self._icon_text(child.name, child.is_dir, name_style))
+            text.append_text(
+                self._icon_text(child.name, child.is_dir, name_style, self._icon_palette)
+            )
             text.append("\n")
         if len(children) > _DIR_PREVIEW_CAP:
             text.append(f"… +{len(children) - _DIR_PREVIEW_CAP} more", style=t.fg_dim)
@@ -550,18 +585,63 @@ class FileManagerScreen(ModalScreen[None]):
         entry = self._cursor_entry()
         index = self.query_one("#file-manager-list", _FileListView).index
         stat = self._stats.get(entry.path) if entry is not None else None
-        status = format_status(
-            stat,
-            index if index is not None else 0,
-            len(self._entries),
-            self._sort,
-            self._desc,
-            self._filter,
-            len(self._marked),
+        status_bar = self.query_one("#file-manager-status", Static)
+        t = theme.active()
+        status_bar.update(
+            format_status_text(
+                stat,
+                index if index is not None else 0,
+                len(self._entries),
+                self._sort,
+                self._desc,
+                self._filter,
+                len(self._marked),
+                fg=t.fg,
+                fg_dim=t.fg_dim,
+                width=max(0, status_bar.size.width - 2),
+            )
         )
-        self.query_one("#file-manager-status", Static).update(
-            Text(status, style=theme.active().fg)
+        self._refresh_headers()
+
+    def _refresh_headers(self) -> None:
+        """Refresh the three column titles and the frame path.
+
+        The titles are plain strings: TCSS design tokens own their colors, so
+        a theme switch repaints them without any inline styling (R13).
+        """
+        cwd = self._cwd
+        parent = cwd.parent if cwd is not None else None
+        entry = self._cursor_entry()
+        self.query_one("#file-manager-parent-head", Static).update(
+            parent.name or str(parent) if parent is not None else "PARENT"
         )
+        self.query_one("#file-manager-list-head", Static).update(
+            cwd.name or str(cwd) if cwd is not None else "DRIVES"
+        )
+        self.query_one("#file-manager-preview-head", Static).update(
+            entry.name if entry is not None else "PREVIEW"
+        )
+        self.query_one("#file-manager", Vertical).border_title = (
+            str(cwd) if cwd is not None else "DRIVES"
+        )
+
+    def _refresh_highlight_rows(self, new_index: int | None) -> None:
+        """Repaint the old and new cursor rows so span colors follow the highlight.
+
+        ``ListView.watch_index`` toggles the ``-highlight`` class before it
+        posts ``Highlighted`` (Textual 8.2.8), so refreshing the two affected
+        rows here is enough for :meth:`_Row.render` to see the new state.
+        """
+        list_view = self.query_one("#file-manager-list", _FileListView)
+        old_index = self._highlighted_index
+        self._highlighted_index = new_index
+        children = list(list_view.children)
+        for index in (old_index, new_index):
+            if index is None or not 0 <= index < len(children):
+                continue
+            item = children[index]
+            if isinstance(item, ListItem):
+                item.query_one(_Row).refresh()
 
     def _repaint_row(self, index: int) -> None:
         """Re-render a single row in place (mark toggles keep the cursor)."""
@@ -623,9 +703,10 @@ class FileManagerScreen(ModalScreen[None]):
         self.action_open()
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        """Cursor moves repaint the preview and the status bar."""
+        """Cursor moves repaint the row pair, preview and status bar."""
         if event.list_view.id != "file-manager-list":
             return
+        self._refresh_highlight_rows(event.list_view.index)
         self._refresh_preview()
         self._refresh_status()
 
