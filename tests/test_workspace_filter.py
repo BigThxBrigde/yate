@@ -61,6 +61,13 @@ def test_is_text_file_rejects_invalid_continuation_at_boundary(tmp_path: Path) -
     assert not Workspace.is_text_file(blob)
 
 
+def test_is_text_file_rejects_truncated_tail_in_short_file(tmp_path: Path) -> None:
+    """A short file ending in an incomplete UTF-8 sequence is binary."""
+    blob = tmp_path / "noext"
+    blob.write_bytes(b"plain\n" + b"\xe4\xb8")
+    assert not Workspace.is_text_file(blob)
+
+
 def entry_names(entries: list[Entry]) -> list[str]:
     """Map a listed entry batch to its names."""
     return [e.name for e in entries]

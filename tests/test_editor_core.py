@@ -432,6 +432,7 @@ def test_find_all_matches() -> None:
 
 
 def test_nearest_index_bisect_boundaries() -> None:
+    """Nearest-match lookup wraps correctly at both bisect boundaries."""
     buf = TextBuffer("abcdefghij\nabcdefghij")
     cases: list[tuple[tuple[int, int], bool, int]] = [
         ((0, 0), True, 0),

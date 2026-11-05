@@ -35,6 +35,7 @@ class SearchEngine:
         self.case_sensitive: bool = False
         self.use_regex: bool = False
         self.whole_word: bool = False
+        # Kept sorted by (row, start); _nearest_index's bisect_left relies on it.
         self.matches: list[Match] = []
         self.index: int = -1
 

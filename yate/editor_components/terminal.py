@@ -180,10 +180,10 @@ class TerminalView(Widget):
         try:
             await proc.wait_closed()
         except Exception as exc:  # noqa: BLE001 - best-effort teardown; must still detach
-            # Cancelled teardown (or a PTY error) must still detach the
-            # process so its reader thread can never post into the closed
-            # event loop after yate is gone.
-            log.debug("terminal wait_closed failed: %s", exc)
+            # A PTY error must still detach the process so its reader thread
+            # can never post into the closed event loop after yate is gone.
+            # Cancellation is not caught on purpose; the finally block runs.
+            log.debug("terminal wait_closed failed: %s", exc, exc_info=True)
         finally:
             proc.detach()
 

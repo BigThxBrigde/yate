@@ -183,7 +183,7 @@ SA D1-2 由 m-11 直接修复销账；SA D2-5 降级 Suggestion（见下）。
 | `PaneHost`（`panes.py:463` 等） | `BANNED_SUFFIX_WHITELIST`（命名守卫） |
 | — | `SCROLLBAR_EXEMPT` = `HOME_PATH_EXEMPT` = `UPWARD_EDGES_FROZEN` = 空集，无候选被吸收 |
 
-D1/D2 的 3 条 MAJOR/MINOR 均**不在**任何豁免集覆盖范围内，不构成「豁免变宽」；
+D1/D2 的 5 条 MAJOR/MINOR（2 MAJOR + 3 MINOR）均**不在**任何豁免集覆盖范围内，不构成「豁免变宽」（2026-11-06 pr-review 订正：原写 3 条，按 13 维度表计数应为 5 条）；
 `tools/mdlint/cli.py` 的 print 属 §六 #35「`tools/` CLI 产品输出不在扫描面」，非库模块调试打印。
 
 ## 八、既往登记项有效性复核（Step 6.4，默认不重提）
@@ -215,6 +215,11 @@ D1/D2 的 3 条 MAJOR/MINOR 均**不在**任何豁免集覆盖范围内，不构
 | 冒烟 | `-m tools.smoke_test run --jobs 4` | **0** | `121/121 scenarios passed`、`1463/1463 checks (100%)`、77.69s |
 | changelog | `-m tools.changelog check` | **0** | `released changelog sections are up to date`；unreleased 滞后 87 提交属生成物语义 |
 
+> **2026-11-06 pr-review 订正**：本表 pyright 命令按 `task-orchestration.md` §二.7
+> 应为 `-m pyright yate/ tests/ tools/ pack/`（`pyproject.toml` 的 `include` 亦含 `pack`）；
+> 基线态实际按三路径执行，CI bare `pyright` 受 include 管辖未漏扫。本轮按四路径补跑，
+> 结果见 [2026-11-06 记录](2026-11-06-pr-review-enh-multi-dim-review-r2.md)。
+
 覆盖率门禁处置：先以原生 `rmdir /s /q` 清理 `%TEMP%\pytest-of-*`
 下 43 个轮换 `garbage-*` 目录（682531 条目），再**单独一个轮次**复跑覆盖率门禁，
 避免多个 pytest 在同一 turn 累计删除量越界；未使用仓库内 `--basetemp`。
@@ -230,6 +235,12 @@ D1/D2 的 3 条 MAJOR/MINOR 均**不在**任何豁免集覆盖范围内，不构
 |---|---|
 | 修复项 | F1–F10 全部落盘：2 MAJOR（F1 `is_text_file` 改增量解码 + 2 条负向回归用例、F2 `terminal.shutdown` 日志）；13 MINOR 含 F3/F4/F5 可观测性三组、F6a–e 五处低复杂度替代、F7 缓存副本、F8 文档路径、F9 规则登记；D1–D8 登记不修项在第五节逐条列理由。 |
 | 收尾复核 | `code-review-expert` 按 `.trae/agents/code-review-expert.md` 剧本只读复核（92 次工具调用 / 250.09s），总裁定 REQUEST_CHANGES：0 BLOCKER / 0 MAJOR / **4 MINOR**（`_resolved` 冗余状态与注释失真、README 索引断链、本区待回填、修复方案 F6d「既有单测」陈述不实且建议补边界用例）。四项全部闭环：删 `_resolved` 字段及两处写入、补 #57 索引行与增量段、本区回填、更正风险行并新增 `test_nearest_index_bisect_boundaries`（改走公开 `next()` 以避开 pyright `reportPrivateUsage`）。复核者未复跑门禁（主代理已亲跑）、未逐条回读 D3/D5/D6/D8/D10/D11/D12 七维证据，范围限制如实登记。 |
-| 六道门禁 | 最终态（全部主代理亲跑；`-q` 无汇总行时以 exit code 为准）：pyright **0**（`0 errors, 0 warnings, 0 informations`）；全量 pytest `-n auto` **0**；架构 **0**（37/37 守卫）；覆盖率 `--cov=yate --cov-branch -n auto` **0**（`3394 passed, 10 skipped in 157.48s`，`Total coverage: 92.90%`，阈值 75 单源于 `pyproject.toml`）；冒烟 `--jobs 4` **0**（`121/121 scenarios passed`、`1463/1463 checks (100%)`、81.74s）；changelog check **0**（`released changelog sections are up to date`）。 |
+| 六道门禁 | 代码最终态（全部主代理亲跑；`-q` 无汇总行时以 exit code 为准；`b80505a` 为纯文档改动，按 `misc-rules.md` §三 豁免测试，该笔之后未重跑）：pyright **0**（`0 errors, 0 warnings, 0 informations`）；全量 pytest `-n auto` **0**；架构 **0**（37/37 守卫）；覆盖率 `--cov=yate --cov-branch -n auto` **0**（`3394 passed, 10 skipped in 157.48s`，`Total coverage: 92.90%`，阈值 75 单源于 `pyproject.toml`）；冒烟 `--jobs 4` **0**（`121/121 scenarios passed`、`1463/1463 checks (100%)`、81.74s）；changelog check **0**（`released changelog sections are up to date`）。 |
 | safe-delete 处置 | 覆盖率与架构门禁在「同一 turn 连跑多个 pytest」时两次被本机钩子以 `count 18377 / 13054 > threshold 9999` 杀进程（无 FAILED、无汇总行）；按项目记忆以原生 `rmdir /s /q` 分批清 `%TEMP%\pytest-of-*` 下 43 个 `garbage-*` 目录，并把每道门禁拆到独立轮次执行，六道最终全绿。未使用仓库内 `--basetemp`。 |
 | 复核裁定 | **APPROVE**：0 BLOCKER / 0 MAJOR；13 MINOR 全部修复或按理由登记不修，收尾复核 4 MINOR 亦销账，六道门禁全 exit 0。 |
+
+> **2026-11-06 pr-review 订正**：第十节「四项全部闭环」中，`_resolved` 相关的注释失真
+> （`LoadedExtension` 类 docstring）与 F6e 修复方案的双写描述当时未同步；F6d 风险行
+> 仅 F6d 一行被更正。此外 `is_text_file` 的 `final=False` 无条件形参使短文件末尾截断
+> 序列被放行，与 docstring 契约不符。上述残留已在本轮 pr-review 修复波中销账，
+> 详见 [本轮记录](2026-11-06-pr-review-enh-multi-dim-review-r2.md)。

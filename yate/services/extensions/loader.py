@@ -51,8 +51,8 @@ class LoadedExtension:
     A healthy load fills ``module`` and ``teardown`` and leaves ``error``
     ``None``; any failure stores the exception summary there.  ``lua``
     records keep ``module`` ``None`` (Lua extensions carry no Python module).
-    ``resolved`` is the path resolved once at load time, so the
-    de-duplication lookup stays a set query instead of re-resolving every
+    ``resolved`` is the path resolved once at load time, so the loader can
+    de-duplicate through its direct index instead of re-resolving every
     already-loaded record on each ``load_file`` call.
     """
 

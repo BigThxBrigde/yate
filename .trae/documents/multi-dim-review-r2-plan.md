@@ -118,7 +118,7 @@
 
 ```powershell
 $env:PATH = "$env:LOCALAPPDATA\pyright-python\nodeenv\Scripts;$env:PATH"
-.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
 .venv\Scripts\python.exe -m pytest tests/ -q -n auto
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 .venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch -n auto
@@ -202,8 +202,9 @@ flowchart TD
 
 ## 七、门禁与提交纪律
 
-- 六道门禁命令见 Step 5；收尾门禁（pyright + pytest + 架构测试，覆盖率
-  `--cov-fail-under=75`）由主代理亲自跑，不得由子代理数字代跑。
+- 六道门禁命令见 Step 5；收尾门禁（pyright + pytest + 架构测试，覆盖率阈值
+  75 单源于 `pyproject.toml` 的 `[tool.coverage.report] fail_under`）由主代理亲自跑，
+  不得由子代理数字代跑。
 - 每一步产物单独提交一次，禁止多步攒成一笔；闭环内禁止 `git push`。
 - 纯文档变更按 `misc-rules.md` §三可豁免测试，但本轮含机械取证与硬门禁实测，
   **不援引豁免**（混合变更按最高风险判定）。
@@ -234,3 +235,5 @@ flowchart TD
 | 最终门禁 | pyright `0 errors, 0 warnings, 0 informations`；pytest 0；架构 37/37；覆盖率 92.90%（3394 passed / 10 skipped）；冒烟 121/121 · 1463/1463；changelog `released changelog sections are up to date` | 全 0 | 六道均拆到独立轮次执行，规避 safe-delete 累计计数 |
 | 临时产物清理 | 一次性探针脚本 6 支（`_probe_*.py` / `_gate_*.py` / `_clean_garbage.py`）+ 复核者探针残留的两个未跟踪文件 `p)` / `pos)` 全部删除 | — | 均非交付物；删除前先在本行落盘登记，收尾 `git status` 复核；未触碰任何已跟踪文件 |
 | 提交 | 分步单独提交，**不推送** | — | 逐步 `git status` 核对，临时脚本删除后工作区干净 |
+| 提交顺序偏离（2026-11-06 pr-review 补登） | 实际为「修复方案 → 评审记录」，与计划 Step 6/Step 7 预期顺序相反；`084c74a` 的修复方案链接指向当时尚未落盘的评审记录（中间态文档互链断链，最终态闭合） | — | 分支未推送但不做交互式 rebase；按 `task-orchestration.md` §三显式登记，逐笔 tree 已用 `git diff-tree` 复核无夹带 |
+| pyright 口径订正（2026-11-06 pr-review 补登） | 原 Step 5 命令漏 `pack/`，与 `task-orchestration.md` §二.7 及 `pyproject.toml` 的 `include` 不一致 | 见本轮 pr-review 记录 | 按 §二.7 四路径补跑并订正 Step 5 命令；CI bare `pyright` 受 include 管辖未漏扫，本 PR 未改 `pack/` |

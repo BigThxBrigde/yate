@@ -31,7 +31,7 @@
 
 - 证据：`yate/editor_components/terminal.py:182-186`，`except Exception: pass`（有
   `# noqa: BLE001` 但无日志），违反 `python-coding-style.md` §4.5。
-- 改法：`except Exception as exc:  # noqa: BLE001 - ...` + 
+- 改法：`except Exception as exc:  # noqa: BLE001 - ...` +
   `log.debug("terminal wait_closed failed: %s", exc)`（模块已有 `log`）。
 - 验收：`pytest tests/test_terminal.py tests/test_app_terminal.py -q` → exit 0。
 
@@ -71,7 +71,7 @@
 | F6b | `yate/yaterc_options.py:103,151` | `_extract_path_list` 用 `seen = set(target)` 累加；`_extract_disabled_extensions` 用 `seen = set(config.disabled_extensions)` 累加（保持 list 顺序与类型） |
 | F6c | `tools/pack/wiki/report.py:116-119` | 先按 `page.group` 分桶一次 `dict[str, list[WikiPage]]`，循环内直接取桶 |
 | F6d | `yate/editor_core/search.py:72-84` | `_nearest_index` 用 `bisect_left(self.matches, (row, col), key=lambda m: (m.row, m.start))` 替代线性扫描（matches 已按 row/start 升序产生） |
-| F6e | `yate/services/extensions/loader.py:119,170-172,202-204` | 新增 `_by_resolved: dict[Path, LoadedExtension]` 索引，两处 `self._resolved.add(...)` 同步写入，`load_file` 命中重复路径直接返回索引记录 |
+| F6e | `yate/services/extensions/loader.py:119,170-172,202-204` | 以 `_by_resolved: dict[Path, LoadedExtension]` 取代 `_resolved` 集合，两处 append 同步写索引，`load_file` 命中重复路径直接返回索引记录（2026-11-06 pr-review 按收尾复核订正） |
 
 - 验收：`pytest tests/test_yxp.py tests/test_yaterc.py tests/test_pack_wiki_report.py tests/test_editor_core.py tests/test_extensions.py -q` → exit 0；
   若用例文件名不符，以 `-q -k "yxp or yaterc or wiki or search or extension"` 收口并以 exit code 为准。
@@ -99,9 +99,10 @@
 
 ### F10 [MINOR] D13 计划文档验收命令中的覆盖率阈值口径
 
-- 证据：主计划 Step 5 命令未带 `--cov-fail-under`，与 `misc-rules.md` §三「覆盖率阈值
-  75 单源于 pyproject.toml」一致；无需改代码，只在评审记录门禁表写明「阈值来自
-  pyproject.toml，未额外覆盖」作为事实登记。
+- 证据：主计划 Step 5 命令未带 `--cov-fail-under`，阈值 75 单源于
+  `pyproject.toml` 的 `[tool.coverage.report] fail_under`（`tests/test_gate_config.py`
+  断言 CI 不得硬编码该参数，见 `task-orchestration.md` §二.7）；无需改代码，只在
+  评审记录门禁表写明「阈值来自 `pyproject.toml`，未额外覆盖」作为事实登记。
 
 ## 二、登记不修（Deferred，评审记录须逐条列理由）
 
@@ -144,8 +145,8 @@
 
 | 风险 | 处置 |
 |---|---|
-| F6d bisect 假设 matches 有序被打破 | `next()` 的既有间接用例（前向/后向/回绕）+ 本轮新增 `test_nearest_index_bisect_boundaries`（经公开 `next()` 覆盖 cursor=0 / cursor=len / 前后向回绕 / 空集，避免 pyright `reportPrivateUsage`）；如任何用例失败立即回退该子项并降级为 Suggestion |
-| F6e 新增索引与 `_resolved` 不同步 | 两处写入点成对修改；`teardown_all` 遍历 `loaded` 语义不变 |
+| F6d bisect 假设 matches 有序被打破 | `next()` 的既有间接用例（前向/后向/回绕）+ 本轮新增 `test_nearest_index_bisect_boundaries`（经公开 `next()` 覆盖 cursor=0 / cursor=len / 前后向回绕；空集由 `next()` 提前返回，该用例是等价性守卫而非差异化验证，避免 pyright `reportPrivateUsage`）；如任何用例失败立即回退该子项并降级为 Suggestion |
+| F6e 索引与 `loaded` 不同步 | 收尾复核订正后只保留 `_by_resolved`，两处 append 由同一 record 同步写索引、无双集合；`teardown_all` 遍历 `loaded` 语义不变 |
 | F4 在 reader 线程新增日志 | 仅 `log.debug`，tracing 默认静默，不改变线程/控制流 |
 | F1 增量解码器改变既有截断用例行为 | `test_is_text_file_tolerates_a_cut_multibyte_sequence` 为守门用例，先跑旧用例再跑新用例 |
 | 规则文本改动触发守卫 | F9 不改 `SIZE_EXEMPT_FILES` 集合内容，`pytest tests/test_architecture.py` 必须 37/37 |

@@ -569,7 +569,8 @@ class Workspace:
         suffix or extension-less) reads the first 2048 bytes: UTF-8
         decodable + no NUL byte => text.  This prevents unknown-suffix
         text files from being misclassified as binary.  Only a multi-byte
-        sequence cut by that 2048-byte boundary is tolerated.
+        sequence cut by that 2048-byte boundary is tolerated: a shorter
+        read reached EOF, where a truncated tail is real corruption.
         """
         name = path.name.lower()
         if name in ("dockerfile", "makefile", "readme", "license"):
@@ -580,9 +581,11 @@ class Workspace:
         try:
             with path.open("rb") as fh:
                 chunk = fh.read(2048)
-            # final=False buffers a trailing partial multi-byte sequence;
-            # any other invalid byte still raises and is reported as binary.
-            codecs.getincrementaldecoder("utf-8")().decode(chunk, final=False)
+            # Only a full 2048-byte read can cut a multi-byte sequence at
+            # the window edge; a shorter read hit EOF, so final=True makes
+            # its truncated tail an error instead of a buffered prefix.
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            decoder.decode(chunk, final=len(chunk) < 2048)
             return b"\x00" not in chunk
         except (OSError, UnicodeDecodeError):
             return False
