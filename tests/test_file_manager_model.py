@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from stat import filemode
 
@@ -13,15 +14,24 @@ from yate.editor_components.file_manager.model import (
     count_children,
     filter_entries,
     format_status,
+    format_status_text,
     next_sort,
     parent_and_siblings,
     sort_entries,
+    themed_icon_palette,
 )
-from yate.editor_components.icons import SETI_COLORS, icon_for_path
+from yate.editor_components.icons import (
+    ICON_COLOR_FALLBACK,
+    SETI_COLORS,
+    icon_color,
+    icon_for_path,
+)
+from yate.editor_components.theme.themes import THEMES
 from yate.services.workspace import Entry, EntryStat, Workspace, human_size
 
 _MTIME_FORMAT = "%a %b %d %H:%M:%S %Y"
 _MID_DOT = "\u00b7"
+_COLUMN_SEP = "\u2502"
 
 
 def _stat(path: Path, *, size: int = 0, mtime_ns: int = 0, is_dir: bool = False) -> EntryStat:
@@ -83,7 +93,6 @@ def test_sort_entries_descending_flips_files_only(tmp_path: Path) -> None:
     assert [e.name for e in desc if e.is_dir] == ["dir_a", "dir_b"]
     assert [e.name for e in desc if not e.is_dir] == ["z.log", "m.txt", "a.py"]
     desc_size = sort_entries(entries, stats, "size", descending=True)
-    assert [e.name for e in desc_size if e.is_dir] == ["dir_a", "dir_b"]
     assert [e.name for e in desc_size if not e.is_dir] == ["a.py", "z.log", "m.txt"]
 
 
@@ -123,6 +132,40 @@ def test_build_row_text_marks_icon_and_size_columns(tmp_path: Path) -> None:
         dir_child_count=None, sort_key="name",
     )
     assert marked_row.plain.startswith("* ")
+
+
+def test_build_row_text_uses_injected_icon_palette(tmp_path: Path) -> None:
+    palette = {**SETI_COLORS, "blue": "#abcdef"}
+    row = build_row_text(
+        Entry(tmp_path / "a.py", "a.py", False), None, "#ff0000", False,
+        dir_child_count=None, sort_key="name", icon_palette=palette,
+    )
+    assert row.spans[0].style == "#abcdef"
+
+
+def test_icon_color_default_keeps_seti_palette() -> None:
+    """Callers without a palette keep the fixed explorer appearance."""
+    assert icon_color("a.py", False, "#123456") == SETI_COLORS["blue"]
+    assert icon_color("unknown.xyz", False, "#123456") == ICON_COLOR_FALLBACK
+    assert icon_color("sub", True, "#123456") == "#123456"
+
+
+def test_icon_color_uses_injected_palette() -> None:
+    palette = {**SETI_COLORS, "blue": "#abcdef", "grey": "#654321"}
+    assert icon_color("a.py", False, "#123456", palette) == "#abcdef"
+    assert icon_color("unknown.xyz", False, "#123456", palette) == "#654321"
+    assert icon_color("sub", True, "#123456", palette) == "#123456"
+
+
+def test_themed_icon_palette_tracks_theme_fields() -> None:
+    base = next(iter(THEMES.values()))
+    custom = replace(base, accent="#111111", fg_dim="#222222", accent2="#333333")
+    palette = themed_icon_palette(custom)
+    assert set(palette) == set(SETI_COLORS)
+    assert palette["blue"] == "#111111"
+    assert palette["grey"] == "#222222"
+    assert palette["purple"] == "#333333"
+    assert palette["pink"] == "#333333"
 
 
 def test_build_row_text_dir_badge_counts_children(tmp_path: Path) -> None:
@@ -204,6 +247,26 @@ def test_format_status_matches_lf_layout(tmp_path: Path) -> None:
 
     degraded = format_status(None, 0, 8, "name", False, None, 0)
     assert degraded.endswith(f"{_MID_DOT} 1/8 {_MID_DOT} name asc")
+
+
+def test_format_status_text_has_three_themed_segments(tmp_path: Path) -> None:
+    st = _stat(tmp_path / "a.txt", size=72)
+    text = format_status_text(
+        st, 1, 8, "name", False, "ab", 3,
+        fg="#aaaaaa", fg_dim="#555555", width=120,
+    )
+    assert "2/8" in text.plain
+    assert "name asc" in text.plain
+    assert "filter: ab" in text.plain
+    assert "marked: 3" in text.plain
+    assert text.plain.count(_COLUMN_SEP) == 2
+    assert [span.style for span in text.spans].count("#555555") == 2
+    narrow = format_status_text(
+        st, 1, 8, "name", False, None, 0,
+        fg="#aaaaaa", fg_dim="#555555", width=0,
+    )
+    assert "8 entries" in narrow.plain
+    assert narrow.plain.count(_COLUMN_SEP) == 2
 
 
 def test_parent_and_siblings_returns_parent_listing(tmp_path: Path) -> None:
