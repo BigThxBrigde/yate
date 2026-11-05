@@ -106,9 +106,45 @@ flowchart TD
     K["default load scheduler<br/>balanced chunks"] --> B
 ```
 
-## 七、执行记录（待回填）
+## 七、执行记录（收尾回填，2026-11-05）
 
-- [ ] 步骤 1 CI 工作流（提交号 / 命令 / 结果）
-- [ ] 步骤 2 测试隔离（提交号 / 定向用例数 / pyright 结果）
-- [ ] 步骤 3 全量门禁五项实测（退出码、覆盖率、冒烟数字）
-- [ ] 偏离记录（如有）
+- [x] 步骤 1 CI 工作流：提交 `91a1190`。`git grep -n "dist=worksteal" -- . ':!.trae'` 零命中；
+  `python -m pytest tests/test_gate_config.py -q -n 1` → 5 passed / exit 0。
+- [x] 步骤 2 测试隔离：提交 `52328fd`。`tests/test_file_manager.py` 串行 32 passed、
+  并行 32 passed（两段 exit 0）；新增不变量用例
+  `test_file_manager_workspace_parent_stays_bounded` 断言父目录仅含 `workspace`。
+- [x] 步骤 3 全量门禁（主代理亲跑，最终代码状态，退出码均为 0）：
+
+  | 门禁 | 实测 |
+  |---|---|
+  | `python -m pyright yate/ tests/ tools/ pack/` | 0 errors / 0 warnings / 0 informations |
+  | `python -m pytest tests/ -q -n auto` | exit 0（本环境 `-q` 无汇总行，按环境坑以退出码为准） |
+  | `python -m pytest tests/test_architecture.py -q` | 37 passed / exit 0 |
+  | CI 原命令（无 worksteal）`python -m pytest tests --cov=yate --cov-branch --cov-report=term-missing -n auto` | 3382 passed / 10 skipped，TOTAL 92.84%，`fail_under=75` 通过，148.73s |
+  | `python -m tools.smoke_test run --jobs 4` | 121/121 scenarios，1463/1463 checks，86.30s，exit 0 |
+
+- [x] 方案文档：首笔提交 `7f698f5`，本回填另笔 `docs(plan)`。全部改动**只提交、未推送**。
+
+### 偏离记录（已显式列出，附实测依据）
+
+1. **范围从 2 个文件扩到 4 个**：收尾覆盖率门禁在 `-n auto` 下连续暴露两处既有并行时序 flake，
+   按 `task-orchestration.md` §二.7 / `python-coding-style.md` §4.7「并行下出现时序 flake 必须用
+   `-n 1` 复核并修用例，不得记成偶发、重跑即过」必须修用例，故追加
+   `../../tests/test_app_panes.py` 与 `../../tests/test_app_textual.py`（提交 `28d9a5b`）。
+   两处均先 `-n 1` 串行复核通过（仅并行失败），按同文件既有 `wait_until` 先例修复：
+   - `test_pane_regions_stay_visible_after_split`：`leaf_count == 3` 为真时
+     `panes.all_views()` 仍可能为空，`all([])` 使区域收敛判据真空通过，随后 `views[0]`
+     抛 `IndexError`；改为等 `len(panes.all_views()) == 3` 再取快照。
+   - `test_type_save_find_help_keymap`：`ctrl+f` 的 `input.focus()` 异步落位，高负载下
+     `l`、`l` 未落到输入框、Enter 提交空值 → `search.query == ""`；改为等焦点与
+     `input.value == "ll"` 再提交。
+   - 两次失败分别发生在 147.28s / 144.56s 的覆盖率并行门禁，与本次 worksteal /
+     文件管理器改动无因果关系（用例文件、fixture 均无交集）；修复后第三次 CI 原命令
+     门禁全绿（148.73s）。此偏差在收尾汇报中同步列出。
+2. **本地探针口径**：§一事实 5 的 widget 数 / 耗时来自一次性 `python -` 探针
+   （monkeypatch `Workspace.list_dir` 只伪造父目录返回 N 条），按 `misc-rules.md` §二
+   未落盘为仓库内脚本。
+3. **CI 墙钟未实测**：去掉 worksteal 后的 Linux / Windows CI 墙钟须由用户推送后观察；
+   本地 Windows 覆盖率门禁 148.73s，相对 15min 预算裕度充足。
+4. **注释微调在门禁之后**：全量门禁跑完后仅整理 `../../.github/workflows/test.yml`
+   注释折行（纯注释、零行为变化），随后补跑 `test_gate_config.py` 5 passed / exit 0。
