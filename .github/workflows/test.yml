@@ -46,15 +46,13 @@ jobs:
     strategy:
       # one failing platform must not cancel the other's results
       fail-fast: false
+      # Both OS legs run both versions (A14's original 2x2 matrix):
+      # requires-python is >=3.12, the Windows/3.13 combination is already
+      # exercised by the local dev environment, and the tree-sitter <0.26
+      # pin guards the py3.13 heap corruption on either platform.
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ['3.12']
-        # A14: 3.13 runs on the Linux leg only (cost control);
-        # requires-python >=3.12 was never verified on 3.13 before, and the
-        # tree-sitter <0.26 pin already guards the 3.13 heap corruption
-        include:
-          - os: ubuntu-latest
-            python-version: '3.13'
+        python-version: ['3.12', '3.13']
 
     steps:
       - uses: actions/checkout@v4
