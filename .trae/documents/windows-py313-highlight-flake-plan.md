@@ -117,7 +117,7 @@ sequenceDiagram
 
 - 改动清单：[windows-py313-ci-plan.md](windows-py313-ci-plan.md) §七「环境事实」
   （补 Windows / py3.13 腿首次 CI 实测 231.89s 与本 flake 的闭环指向） +
-  本文件新增「§五 执行记录」。
+  本文件「§六 执行记录」。
 - 验收命令：`git diff --check`。
 - 输出：`docs(plan)` 单独提交。
 
@@ -150,7 +150,25 @@ sequenceDiagram
 
 ## 六、执行记录（收尾回填）
 
-（待批准后回填：每步提交号、验收命令实测结果与退出码、偏离记录。）
+- [x] 步骤 1 方案文档：提交 `48a29f8`（`docs(plan)`）；用户 2026-11-06 批准方案 A。
+- [x] 步骤 2 测试修复：提交 `a4ced50`（`test(app)`），唯一代码文件
+  `../../tests/test_app_find.py`，净 -12 / +8 行。验收实测：
+  - `pyright yate/ tests/ tools/ pack/` → 0 errors / 0 warnings / 0 informations，exit 0；
+  - 单用例连续 30 次 `pytest -q -n 1` → `failures=0/30`
+    （修复前同期 13 次单跑有 1 次失败）；
+  - `pytest tests/test_app_find.py -q -n auto` → exit 0。
+- [x] 步骤 3 回填文档：本笔 `docs(plan)`；`git diff --check` exit 0。
+- [ ] 步骤 4 全量门禁与 CI 原命令复跑：结果见下方「门禁实测」。
+
+### 门禁实测（步骤 4 回填，2026-11-06）
+
+（待回填：五项门禁 + CI 原命令的真实数字与退出码。）
+
+### 偏离记录
+
+- 无范围偏离：改动文件、实施步骤、验收命令均按批准的方案 A 执行。
+- 文档措辞校正一处：§四 步骤 3 原写「本文件新增『§五 执行记录』」，实际章节号为
+  §六，回填时同步改为 §六（仅章节引用，不涉及范围或验收口径变化）。
 
 ### 子代理调度说明
 

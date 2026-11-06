@@ -146,8 +146,13 @@ flowchart TD
 
 - 本任务开工时 `origin/master` 已同步到 `7072a39`（上一轮 worksteal 修复的 5 笔
   已被推送，非主代理执行），故开工时 `master` 仅 ahead 1；本任务未执行 `git push`。
-- Windows / py3.13 腿的**实际 CI 墙钟尚未观测**：需推送后看 GitHub Actions；
-  以现有 470s 基线对 15min 预算仍有余量，若新腿超时再评估 `timeout-minutes`。
+- Windows / py3.13 腿的**首次 CI 实测**（2026-11-06）：231.89s（0:03:51），
+  1 failed / 3394 passed / 10 skipped，TOTAL 92.86%。墙钟对
+  `timeout-minutes: 15` 预算充足，无需调整。唯一失败是
+  `tests/test_app_find.py::test_highlighting_follows_the_override` 的 5s 超时，
+  属该用例自身的时序契约缺陷（空 buffer 的 welcome 页不调度 tokenize pass），
+  与矩阵无关；根因与修复见
+  [windows-py313-highlight-flake-plan.md](windows-py313-highlight-flake-plan.md)。
 
 ### 偏离记录
 
