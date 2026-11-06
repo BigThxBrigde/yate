@@ -100,6 +100,16 @@ def test_enew_with_quoted_filename_warns_and_creates_no_buffer() -> None:
     assert fx.editor.notes == [(_USAGE_MESSAGE, "warn")]
 
 
+def test_enew_with_multiple_arguments_warns_and_creates_no_buffer() -> None:
+    """Multiple arguments still count as arguments: warns, no buffer."""
+    fx = _EnrewFixture()
+
+    fx.entry.func("a.py b.py")
+
+    assert fx.flows.new_buffer_calls == []
+    assert fx.editor.notes == [(_USAGE_MESSAGE, "warn")]
+
+
 def test_enew_registration_description_states_no_arguments() -> None:
     """The registration description pins the no-arguments contract."""
     fx = _EnrewFixture()

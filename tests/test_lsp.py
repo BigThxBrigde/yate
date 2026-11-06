@@ -2279,3 +2279,270 @@ def test_on_document_closed_still_clears_state_after_uri_extraction(
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
+
+
+# ------------------------------------------------- retarget equivalence (plan-e)
+
+
+def test_on_document_retargeted_same_uri_with_different_spelling_only_sends_did_save(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """A save-as to a different spelling of the same resolved path counts as
+    *the same* document: only didSave, no didClose/didOpen round trip, and
+    no duplicate URI-cache key."""
+    async def scenario() -> None:
+        from yate.editor_core.buffer import TextBuffer
+
+        mgr = session.mgr
+        doc = Document(tmp_path / "a.py", buffer=TextBuffer("value = 1\n"))
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        assert len([m for m, _ in client.sent
+                    if m == "textDocument/didOpen"]) == 1
+
+        doc.path = tmp_path / "sub" / ".." / "a.py"
+        await mgr.on_document_retargeted(doc, tmp_path / "a.py")
+
+        assert [m for m, _ in client.sent
+                if m == "textDocument/didClose"] == []
+        opens = [m for m, _ in client.sent if m == "textDocument/didOpen"]
+        assert opens == ["textDocument/didOpen"]
+        saves = [m for m, _ in client.sent if m == "textDocument/didSave"]
+        assert saves == ["textDocument/didSave"]
+        assert mgr.is_open(doc) is True
+        assert len(cast(Any, mgr)._uri_cache) == 1
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_to_uri_owned_by_another_document_reopens_for_new_owner(
+    session: ManagerSession,
+) -> None:
+    """Saving tab *a* onto tab *b*'s path must steal the URI: both old and
+    target URIs get didClose, and the didOpen for the target URI carries
+    *a*'s text; _open then maps the URI to *a*."""
+    async def scenario() -> None:
+        from yate.editor_core.buffer import TextBuffer
+
+        mgr = session.mgr
+        a = Document(Path("x.py"), buffer=TextBuffer("a\n"))
+        b = Document(Path("y.py"), buffer=TextBuffer("b\n"))
+        await mgr.on_document_shown(a)
+        await mgr.on_document_shown(b)
+        client = session.client()
+        new_uri = protocol.path_to_uri(Path("y.py"))
+        old_uri = protocol.path_to_uri(Path("x.py"))
+
+        b_path = b.path
+        assert b_path is not None
+        a.path = b_path
+        await mgr.on_document_retargeted(a, Path("x.py"))
+
+        closes = [p["textDocument"]["uri"] for m, p in client.sent
+                  if m == "textDocument/didClose"]
+        assert old_uri in closes
+        assert new_uri in closes
+        opens = [p for m, p in client.sent
+                 if m == "textDocument/didOpen"
+                 and p["textDocument"]["uri"] == new_uri
+                 and p["textDocument"]["text"] == "a\n"]
+        assert len(opens) == 1
+        assert opens[0]["textDocument"]["text"] == "a\n"
+        assert cast(Any, mgr)._open[new_uri].doc is a
+        assert mgr.is_open(a) is True
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_without_path_is_noop(
+    session: ManagerSession,
+) -> None:
+    """A still-unnamed buffer cannot be retargeted: nothing happens."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = Document(None)
+
+        await mgr.on_document_retargeted(doc, None)
+
+        assert session.fakes == []
+        assert cast(Any, mgr)._open == {}
+        assert cast(Any, mgr)._opening == set()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_shown_without_path_is_noop(
+    session: ManagerSession,
+) -> None:
+    """An unnamed buffer never reaches a server even with a known filetype."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = Document(None)
+        doc.filetype_override = "py"
+
+        await mgr.on_document_shown(doc)
+
+        assert session.fakes == []
+        assert cast(Any, mgr)._open == {}
+        assert cast(Any, mgr)._opening == set()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_shown_notify_failure_leaves_no_open_state(
+    session: ManagerSession,
+) -> None:
+    """A failed didOpen notification must not leave a ghost _open entry nor
+    raise out of on_document_shown."""
+    async def scenario() -> None:
+        class BoomOpenClient(FakeClient):
+            """FakeClient whose didOpen notify fails."""
+
+            @override
+            async def notify(self, method: str, params: Any) -> None:
+                if method == "textDocument/didOpen":
+                    raise LspError("boom")
+                self.sent.append((method, params))
+
+        mgr = LspManager(
+            workspace_root=lambda: session.doc.path,
+            client_factory=cast(Any, BoomOpenClient),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = session.doc
+
+        await mgr.on_document_shown(doc)
+
+        assert cast(Any, mgr)._open == {}
+        assert cast(Any, mgr)._opening == set()
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_closed_during_open_handshake_leaves_no_ghost_state(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """A close that lands while the didOpen handshake is in flight wins:
+    the opener aborts instead of resurrecting the URI into _open."""
+    async def scenario() -> None:
+        class YieldStartClient(FakeClient):
+            """FakeClient whose start() yields once, widening the race."""
+
+            @override
+            async def start(self) -> None:
+                """Fake start that suspends so a close can race in."""
+                self.started = True
+                await asyncio.sleep(0)
+
+        fakes: list[FakeClient] = []
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            fake = YieldStartClient(config, path)
+            fakes.append(fake)
+            return fake
+
+        mgr = LspManager(
+            workspace_root=lambda: tmp_path,
+            client_factory=cast(Any, factory),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+
+        task = asyncio.create_task(mgr.on_document_shown(doc))
+        for _ in range(100):
+            if uri in cast(Any, mgr)._opening:
+                break
+            await asyncio.sleep(0)
+        await mgr.on_document_closed(doc)
+        await task
+
+        client = fakes[0]
+        assert [m for m, _ in client.sent
+                if m == "textDocument/didOpen"] == []
+        assert cast(Any, mgr)._opening == set()
+        assert uri not in cast(Any, mgr)._open
+        assert mgr.is_open(doc) is False
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_same_uri_does_not_leave_duplicate_cache_keys(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """The old spelling's _uri_cache key is dropped on an equivalent-path
+    save-as, so the cache never accumulates duplicate keys per URI."""
+    async def scenario() -> None:
+        from yate.editor_core.buffer import TextBuffer
+
+        mgr = session.mgr
+        doc = Document(tmp_path / "a.py", buffer=TextBuffer("x = 1\n"))
+        await mgr.on_document_shown(doc)
+        uri = protocol.path_to_uri(tmp_path / "a.py")
+
+        doc.path = tmp_path / "sub" / ".." / "a.py"
+        await mgr.on_document_retargeted(doc, tmp_path / "a.py")
+
+        values = list(cast(Any, mgr)._uri_cache.values())
+        assert values.count(uri) == 1
+        assert tmp_path / "a.py" not in cast(Any, mgr)._uri_cache
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_closed_during_didopen_notify_leaves_no_open_state(
+    tmp_path: Path,
+) -> None:
+    """A close landing inside the didOpen notify aborts the post-notify check."""
+    async def scenario() -> None:
+        class ClosingNotifyClient(FakeClient):
+            """FakeClient that closes its document while didOpen is sent."""
+
+            def __init__(
+                self,
+                config: ServerConfig,
+                root: Path,
+                manager: LspManager,
+                document: Document,
+            ) -> None:
+                super().__init__(config, root)
+                self._manager = manager
+                self._document = document
+                self.open_attempts = 0
+
+            @override
+            async def notify(self, method: str, params: Any) -> None:
+                if method == "textDocument/didOpen":
+                    self.open_attempts += 1
+                    await self._manager.on_document_closed(self._document)
+                    return
+                self.sent.append((method, params))
+
+        mgr = LspManager(workspace_root=lambda: tmp_path)
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        fakes: list[ClosingNotifyClient] = []
+
+        def factory(config: ServerConfig, root: Path) -> FakeClient:
+            fake = ClosingNotifyClient(config, root, mgr, doc)
+            fakes.append(fake)
+            return fake
+
+        mgr.set_client_factory(cast(Any, factory))
+        await mgr.on_document_shown(doc)
+
+        assert fakes[0].open_attempts == 1
+        assert uri not in cast(Any, mgr)._open
+        assert cast(Any, mgr)._opening == set()
+        assert mgr.is_open(doc) is False
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())

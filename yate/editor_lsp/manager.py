@@ -371,7 +371,10 @@ class LspManager:
         self._opening.add(uri)
         try:
             client = await self.ensure_client(doc)
-            if client is None:
+            # _close_uri drops the uri from _opening, so a close during the
+            # handshake aborts this open instead of writing a ghost entry
+            # back into _open.
+            if client is None or uri not in self._opening:
                 return
             root = self.root_for(config, doc)
             text = doc.buffer.get_text()
@@ -385,6 +388,8 @@ class LspManager:
                     },
                 })
             except (LspError, OSError):
+                return
+            if uri not in self._opening:
                 return
             self._open[uri] = OpenDocState(
                 uri=uri,
@@ -405,6 +410,9 @@ class LspManager:
     async def _close_uri(self, uri: str) -> None:
         """Forget one open URI and best-effort notify its server with didClose."""
         state = self._open.pop(uri, None)
+        # A close during an in-flight didOpen wins: the opener checks this set
+        # after each await and must not resurrect the URI.
+        self._opening.discard(uri)
         self._change_timers.pop(uri, None)
         # Queued senders for this uri hold their own lock reference and
         # bail out on the pre-notify state check; dropping the entry here
@@ -435,19 +443,25 @@ class LspManager:
     ) -> None:
         """Rebind a saved-as document on its server.
 
-        *previous_path* is the path the document had *before* the successful
-        write (``None`` for a buffer that was unnamed).  An unchanged path keeps
-        the ordinary didSave; a changed one drops the old URI (with didClose)
-        before the new document is opened.  A first path is treated exactly like
-        a document-shown event, so ``:saveas test.py`` really attaches the server.
+        *previous_path* is the path before the successful write (``None`` for a
+        buffer that was unnamed).  Paths are compared by URI, not spelling: an
+        unchanged URI keeps didSave, a changed one closes the old URI before
+        didOpen.  A first path is treated as a document-shown event.  When another
+        tab owns the target URI, its entry is closed so this document can own it.
         """
         if doc.path is None:
             return
-        if previous_path is not None and Path(previous_path) == doc.path:
-            await self.notify_saved(doc)
-            return
+        new_uri = self._uri(doc)
         if previous_path is not None:
-            await self._close_uri(protocol.path_to_uri(previous_path))
+            previous_uri = protocol.path_to_uri(previous_path)
+            if previous_uri == new_uri:
+                self._uri_cache.pop(previous_path, None)
+                await self.notify_saved(doc)
+                return
+            await self._close_uri(previous_uri)
+        owner = self._open.get(new_uri)
+        if owner is not None and owner.doc is not doc:
+            await self._close_uri(new_uri)
         await self.on_document_shown(doc)
 
     def notify_edit(self, doc: Document) -> None:
