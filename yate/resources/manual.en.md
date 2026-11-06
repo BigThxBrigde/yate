@@ -771,7 +771,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:vsplit [path]` | `:vs` | Vertical split; no argument clones the current document (see 8.1) |
 | `:only` | — | Keep only the active pane |
 | `:close` | `:cl` | Close the active pane (no-op on the last pane) |
-| `:enew` | — | New empty buffer (also dismisses the welcome page for this session) |
+| `:enew` | — | New empty buffer (no arguments; also dismisses the welcome page for this session). `:enew FILE` is rejected with a usage warning — use `:e FILE` to open/create a named buffer or `:saveas FILE` to name this one |
 | `:welcome` | — | Show the welcome page again (on an empty unnamed buffer) |
 | `:bn` | `:bnext` | Next buffer / tab |
 | `:bp` | `:bprev` | Previous buffer / tab |
@@ -1416,6 +1416,10 @@ Rules:
   extra keys are ignored.
 - Merely configuring servers spawns nothing; unnamed buffers and
   non-matching files are completely unaffected.
+- An unnamed buffer has no file URI, so no server starts and no LSP state is
+  shown for it, even after `:set filetype=`. Once `:saveas FILE` (or the
+  `Save as: ` prompt from `:w`) gives it a path, yate opens it on the matching
+  server automatically.
 
 ### 16.3 Registering servers from an extension
 

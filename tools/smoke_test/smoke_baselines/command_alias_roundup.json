@@ -7,6 +7,12 @@
       "ok": true
     },
     {
+      "label": "enew_rejects_args",
+      "expected": 2,
+      "actual": 2,
+      "ok": true
+    },
+    {
       "label": "bd",
       "expected": 1,
       "actual": 1,
