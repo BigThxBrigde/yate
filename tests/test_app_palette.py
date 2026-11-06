@@ -148,6 +148,56 @@ def test_command_palette_lists_all_commands_and_actions() -> None:
     asyncio.run(scenario())
 
 
+def test_command_palette_dedupes_hyphen_underscore_aliases() -> None:
+    """One verb must not appear twice just because the two tables disagree on case.
+
+    ``:`` commands are kebab-case (``file-manager``), keymap actions are
+    snake_case (``file_manager``); the palette merged them into two rows.
+    """
+    from yate.editor_components.palette import PaletteScreen
+
+    async def scenario() -> None:
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            app.editor.overlays.open_command_palette()
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, PaletteScreen)
+            entries = cast(Any, screen)._entries
+            names = [name for name, _hint, _payload in entries]
+            assert "file_manager" not in names
+            assert "project_replace" not in names
+            by_name = {name: payload for name, _hint, payload in entries}
+            assert by_name["file-manager"] == ("command", "file-manager")
+            assert by_name["project-replace"] == ("command", "project-replace")
+            # the surviving row keeps the ex-command spelling and its hint
+            hinted = {name: hint for name, hint, _payload in entries}
+            assert "Alt+Shift+F" in hinted["file-manager"]
+            # both spellings still find that same single row
+            for query in ("file_manager", "file-manager"):
+                screen.refilter(query)
+                hits = [
+                    entries[cast(Any, screen)._filtered[i][2]][0]
+                    for i in range(screen.filtered_count)
+                ]
+                assert "file-manager" in hits
+                assert "file_manager" not in hits
+
+    asyncio.run(scenario())
+
+
+def test_command_palette_folding_keeps_index_alignment() -> None:
+    """Folding is length-preserving so matched indices still address display."""
+    from yate.editor_components.palette import _fold_name, fuzzy_match
+
+    for name in ("file-manager", "file_manager", "project-replace", "a-b_c"):
+        assert len(_fold_name(name)) == len(name)
+    match = fuzzy_match(_fold_name("file-manager"), _fold_name("file_manager"))
+    assert match is not None
+    _score, hits = match
+    assert hits == list(range(len("file_manager")))
+
+
 def test_command_palette_runs_action_by_full_name() -> None:
     from yate.editor_components.palette import PaletteScreen
 

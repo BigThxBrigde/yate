@@ -98,6 +98,17 @@ def _match_lowered(
     return (score, matched)
 
 
+def _fold_name(name: str) -> str:
+    """Collapse ``-`` / ``_`` so one verb cannot be listed twice.
+
+    ``:`` commands are kebab-case (``file-manager``) while keymap actions are
+    snake_case (``file_manager``); both tables feed this palette.  Folding is
+    length-preserving, so matched indices from :func:`_match_lowered` still
+    address the original display string.
+    """
+    return name.lower().replace("-", "_")
+
+
 class PaletteScreen(ModalScreen[None]):
     """Fuzzy palette overlay for files (quick open) or commands."""
 
@@ -200,7 +211,10 @@ class PaletteScreen(ModalScreen[None]):
         ``move_left`` ...) -- including ones registered by extensions --
         are reachable from the palette.  A name present in both tables
         resolves to the ``:`` command (the same spelling typed on the ex
-        line) and the raw action duplicate is dropped.
+        line) and the raw action duplicate is dropped.  ``:`` commands use
+        kebab-case while actions use snake_case, so deduplication folds
+        ``-`` / ``_``; otherwise ``file-manager`` and ``file_manager``
+        both show up for the same verb (issue: command palette duplicate).
         """
         entries: list[tuple[str, str, Any]] = []
         for name in self.commands.names():
@@ -209,19 +223,31 @@ class PaletteScreen(ModalScreen[None]):
             if name == "palette":
                 continue
             entries.append((name, self.commands.describe(name), ("command", name)))
-        command_names = {name for name, _h, _p in entries}
+        command_names = {_fold_name(name) for name, _h, _p in entries}
         for name, description in self.actions.describe():
-            if name in command_names:
+            if _fold_name(name) in command_names:
                 continue
             entries.append((name, description, ("action", name)))
         entries.sort(key=lambda entry: entry[0])
         self._set_entries(entries)
 
     def _set_entries(self, entries: list[tuple[str, str, Any]]) -> None:
-        """Store *entries* and the lower-cased mirrors :meth:`refilter` scores against."""
+        """Store *entries* and the lower-cased mirrors :meth:`refilter` scores against.
+
+        Commands mode folds ``-`` / ``_`` in the mirrors so the surviving
+        ``:`` command stays reachable under either spelling; files mode keeps
+        paths verbatim (a filename's hyphen must not match an underscore).
+        """
         self._entries = entries
-        self._entries_lower = [display.lower() for display, _hint, _payload in entries]
-        self._hints_lower = [hint.lower() for _display, hint, _payload in entries]
+        fold = self.mode == "commands"
+        self._entries_lower = [
+            _fold_name(display) if fold else display.lower()
+            for display, _hint, _payload in entries
+        ]
+        self._hints_lower = [
+            _fold_name(hint) if fold else hint.lower()
+            for _display, hint, _payload in entries
+        ]
 
     async def _index_files(self) -> None:
         """Build the file list in a thread so large workspaces do not
@@ -250,8 +276,8 @@ class PaletteScreen(ModalScreen[None]):
         per-candidate ``str.lower()`` allocations used to dominate large
         workspaces (issue IKKSHY profiling).
         """
-        q = query.lower()
         commands_mode = self.mode == "commands"
+        q = _fold_name(query) if commands_mode else query.lower()
         scored: list[tuple[int, list[int], int]] = []
         for i, (display, hint, _payload) in enumerate(self._entries):
             match = _match_lowered(q, self._entries_lower[i], query, display)
