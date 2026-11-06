@@ -11,9 +11,9 @@ Branch: `fix/iksfs7` · worktree: `../yate-iksfs7` (relative to the main repo).
 | 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (`D:\Programming\yate-iksfs7\yate\__init__.py`); issue notes committed `7011ff2` |
 | 2 方案 | done (this document + `iksfs7-plans/`) | plan-architect-designer spawn failed twice with `Model "qwen-3.7-plus" not found` (retry per §一.3.5 exhausted); **main agent executed the role script directly — 子代理零产出**, recorded per §三 |
 | 3 批准 | waived | user explicitly requested unattended mode ("进入无人值守模式，所有问题无须过问") on 2026-11-06; per workspace rule §二.5 no approval/question is raised; the plan is treated as approved |
-| 4 执行 | pending | see [`iksfs7-plans/overview.md`](iksfs7-plans/overview.md) wave table |
-| 5 审核 | pending | code-review-expert script, gate commands in §7 |
-| 6 迭代 | pending | blocker/major → back to step 2; minor → backlog |
+| 4 执行 | wave-1/2 done, wave-3 pending | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; main agent independently re-ran their tests/pyright/architecture (all exit 0); see [`iksfs7-plans/overview.md`](iksfs7-plans/overview.md) |
+| 5 审核 | round 1 done | code-review-expert: **0 blocker / 2 major / 4 minor**, all five gate commands exit 0 (3413 passed / 92.86% coverage / smoke 121/121); report stored in the review record |
+| 6 迭代 | in progress | 2 majors → back to step 2: new design rulings in §3 C' and [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md) (wave-3); minors #3/#4/#6 folded into that wave, minor #5 tracked by the line-count assertion |
 | 7 收尾 | pending | main agent runs the full gate, backfills §7 with real numbers, per-step commits, no push |
 
 ## 1. Goals / non-goals
@@ -175,6 +175,36 @@ Rejected alternatives:
   discards diagnostics for no reason. The `previous_path == doc.path` branch
   keeps the existing `didSave` behavior.
 
+### C' Review round-1 boundary rulings (step-6 iteration, wave-3)
+
+Step-5 review round 1 found two majors in the chosen C design, both caused by
+treating `Path` equality as document identity. The design is amended (full
+detail in [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md)):
+
+1. **URI identity**: `previous_path` and `doc.path` are compared by
+   `protocol.path_to_uri(...)`, which resolves the path (F10). `sub/../a.py`
+   and `a.py` are the same server document, so they take the didSave branch
+   mandated by rejected alternative C4; the stale spelling's `_uri_cache` key
+   is dropped to avoid duplicate keys.
+2. **URI ownership**: when `_open[new_uri]` belongs to another tab (reachable
+   because `EditorSession` lets two tabs share a path after `:saveas`), that
+   entry is closed first so `on_document_shown` can open the retargeted
+   document instead of short-circuiting on `uri in self._open`.
+3. **Close beats in-flight open**: `_close_uri` discards the URI from
+   `_opening`, and `on_document_shown` re-checks membership after both awaits
+   before writing `_open`, closing the narrow ghost-entry window.
+4. **Rejected here**: normalizing/symlink-resolving the save path in
+   `DocumentFlows` (changes which file a save targets), splitting
+   `editor_lsp/lifecycle.py` (manager is 783 lines, in-place rewrites stay
+   below the 800-line §三.7 guard), and forbidding `:saveas` onto an
+   already-open path (a product-behavior change outside this issue; the
+   residual "two tabs, one URI" limitation is registered as a follow-up).
+
+The four review minors are folded in as follows: #3 is fixed by ruling 3,
+#4 by three new no-path/notify-failure tests, #6 by a multi-argument `:enew`
+test, #5 by an explicit `< 800` line-count assertion in the wave-3 acceptance
+commands. No minor is silently dropped.
+
 ### D. Manual/smoke updates — chosen: bilingual manual sync + one smoke check
 
 Chosen: update `manual.en.md` / `manual.zh.md` (`:enew` command table row,
@@ -260,6 +290,14 @@ Wave-2 starts only after **both** wave-1 plans pass their acceptance commands.
 | `_uri_cache` keeps stale entries after retarget | `_close_uri` calls `_drop_uri_cache(old_uri)` (F10); named→named test asserts the old URI is gone and the new URI is live | same as above |
 | Manual baseline drift from a new smoke check | regenerate only the one affected baseline with `snapshot --scenario command_alias_roundup`, then verify `compare`; do not bulk-regenerate baselines | revert the scenario + baseline file |
 | File-size guard (§三.7, >800 lines) | all touched modules are below 800 lines and grow by <60 lines each; executor re-measures with `python -c "len(Path(...).read_text().splitlines())"` | not applicable |
+| **Review major#1**: `:saveas` onto a URI already owned by another tab leaves the server bound to the wrong document | wave-3 ruling 2 closes the previous owner's `_open` entry before re-opening; pinned by `test_on_document_retargeted_to_uri_owned_by_another_document_reopens_for_new_owner` | revert wave-3 commit (majors return; review round 2 must be repeated) |
+| **Review major#2**: different spellings of the same path (`sub/../a.py`) trigger a needless didClose+didOpen and split `_uri_cache` keys | wave-3 ruling 1 compares URIs and drops the stale spelling's cache key; pinned by two new same-URI tests | same as above |
+
+Residual backlog (registered, not fixed in this issue): two tabs bound to one
+path after `:saveas` still share a single LSP URI, so the tab that is not the
+current owner can send didChange against the other tab's `OpenDocState`.
+`EditorSession` permits duplicate paths today; forbidding save-as onto an
+already-open path is a product-behavior change that needs its own issue.
 
 General rollback: every wave is one commit; `git revert <sha>` of the wave
 commit restores the previous state without touching unrelated worktrees.
