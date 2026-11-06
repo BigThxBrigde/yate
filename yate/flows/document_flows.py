@@ -461,12 +461,16 @@ class DocumentFlows:
         the lift survives a successful save; any failure -- caught
         (``OSError`` / ``UnicodeError``) or not -- restores the lock in the
         ``finally`` below, so the buffer never stays silently writable.
+        On a successful write the LSP manager is asked to rebind the
+        document, which sends didOpen for the newly acquired URI (and
+        didClose for a replaced one).
         """
         text = text.strip()
         if not text:
             self._message("save cancelled", "info")
             return
         doc = self.session.doc
+        previous_path = doc.path
         if doc.chunked is not None:
             # A chunked document is a read-only viewport over partially
             # loaded content: writing it out would persist placeholder rows
@@ -486,7 +490,7 @@ class DocumentFlows:
         path = self.resolve_input_path(Path(text))
         saved = False
         try:
-            self.session.doc.save(path)
+            doc.save(path)
             # ``saved`` flips right after the write (review 2026-10-02 #43.1):
             # once the file is on disk the lift survives, even if the
             # workspace/explorer bookkeeping below were to raise.
@@ -502,11 +506,16 @@ class DocumentFlows:
             self._events.emit(
                 EditorEvent.DOCUMENT_SAVED, DocumentSaved(self.session.doc)
             )
+            self._spawn(
+                partial(self.lsp.on_document_retargeted, doc, previous_path),
+                group="lsp-sync", exclusive=False, exit_on_error=False,
+            )
         except (OSError, UnicodeError) as exc:
             self._message(f"save failed: {exc}", "error")
         finally:
             if locked and not saved:
                 buf.read_only = True
+        self._refresh_ui()
 
     # ============================================================== prompts
 
