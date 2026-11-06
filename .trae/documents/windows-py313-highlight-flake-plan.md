@@ -158,11 +158,26 @@ sequenceDiagram
     （修复前同期 13 次单跑有 1 次失败）；
   - `pytest tests/test_app_find.py -q -n auto` → exit 0。
 - [x] 步骤 3 回填文档：本笔 `docs(plan)`；`git diff --check` exit 0。
-- [ ] 步骤 4 全量门禁与 CI 原命令复跑：结果见下方「门禁实测」。
+- [x] 步骤 4 全量门禁与 CI 原命令复跑：结果见下方「门禁实测」；本笔
+  `docs(plan)` 回填。
 
 ### 门禁实测（步骤 4 回填，2026-11-06）
 
-（待回填：五项门禁 + CI 原命令的真实数字与退出码。）
+主代理亲自逐项执行，退出码均为 0：
+
+| 门禁 | 实测 |
+|---|---|
+| `pyright yate/ tests/ tools/ pack/` | 0 errors / 0 warnings / 0 informations |
+| `pytest tests/ -q -n auto` | 进度 100%，exit 0（本环境 `-q` 无汇总行，按退出码为准） |
+| `pytest tests/test_architecture.py -q` | 37 passed / exit 0 |
+| CI 原命令 `pytest tests --cov=yate --cov-branch --cov-report=term-missing -n auto` | 3395 passed / 10 skipped，TOTAL 92.86%，`fail_under=75` 通过，148.23s |
+| `python -m tools.smoke_test run --jobs 4` | 121/121 scenarios，1463/1463 checks（100%），78.87s，exit 0 |
+
+覆盖率门禁沿用前案同款口径，以 CI 原命令执行（比 §四 步骤 4 第 4 条多
+`--cov-report=term-missing`，仅报告输出格式不同，覆盖率数据与 `fail_under`
+判定等价），同时兼作「CI 原命令复跑」。用例数 3395 与红跑的
+3394 passed + 1 failed 一致，无用例增删；并行口径下未出现时序 flake，
+无需 `-n 1` 复核修用例。
 
 ### 偏离记录
 
@@ -177,3 +192,18 @@ CodeBuddy 插件环境已多次实证 `plan-architect-designer` 定义文件 fro
 `qwen-3.7-plus` 未注册，spawn 必败且任务书指定模型无效（见项目记忆
 `reference_codebuddy_env_quirks`），不再重复无效 spawn；如实标注「子代理零产出」，
 方案内容以本文件 §二 的实测证据为唯一依据。
+
+【审核】步骤同样由主代理按 §三 兜底执行：按 `code-review-expert` 剧本逐项复核
+上述五项门禁的实测结果与退出码，并自查 `git diff 401b1e5..HEAD`（3 文件、
+194 insertions / 14 deletions，仅为批准的 1 个测试文件与 2 份方案文档，无意外
+附带改动；`read_lints` 0 诊断）。结论：**0 blocker / 0 major / 0 minor**，
+无需迭代。依据「子代理是加速手段、不得阻塞主任务」及本机已多次实证的
+运行时不稳（模型未注册 / 零产出 / 交付窗口约 30 分钟），不重复无效 spawn；
+如实登记「子代理零产出」，不把主代理自审记成子代理成果。
+
+### 提交状态
+
+本次共 4 笔提交：`48a29f8`（方案）/ `a4ced50`（修复）/ `8e60598`（回填）/
+本笔（门禁回填）。会话期间 `origin/master` 被同步到 `48a29f8`（用户 / IDE
+推送，非主代理执行），故收尾时 `master` 相对 `origin/master` ahead 3；
+主代理**只提交、不推送**，Windows / py3.13 腿的下一轮 CI 结果需推送后观察。
