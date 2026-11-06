@@ -2067,3 +2067,215 @@ def test_no_did_change_after_did_open_without_edits(tmp_path: Path) -> None:
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
+
+
+# ------------------------ path gate / URI retarget / single didOpen (plan-b)
+
+
+def test_state_for_doc_is_none_for_unnamed_buffer_with_filetype_override(
+) -> None:
+    """An unnamed document has no URI so no server can ever serve it:
+    ``state_for_doc`` returns ``None`` like ``supports``/``ensure_client``
+    instead of advertising a configured server."""
+    mgr = LspManager()
+    mgr.register_server(PY_CONFIG)
+    doc = Document(None)
+    doc.filetype_override = "py"
+
+    async def scenario() -> None:
+        assert mgr.state_for_doc(doc) is None
+        assert mgr.supports(doc) is False
+        assert await mgr.ensure_client(doc) is None
+
+    asyncio.run(scenario())
+    assert mgr._clients == {}
+
+
+def test_state_for_doc_reports_configured_for_named_buffer() -> None:
+    """A named document with a matching server still reports CONFIGURED."""
+    mgr = LspManager()
+    mgr.register_server(PY_CONFIG)
+    doc = Document(Path("a.py"))
+    assert mgr.state_for_doc(doc) is ServerState.CONFIGURED
+    assert mgr.supports(doc) is True
+
+
+def test_on_document_retargeted_from_unnamed_sends_did_open(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """:saveas on an unnamed buffer attaches the server exactly like a
+    document-shown event: one didOpen with the new URI."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = Document(None)
+        doc.filetype_override = "py"
+        doc.buffer.insert_text("x = 1\n")
+        doc.path = tmp_path / "new.py"
+
+        await mgr.on_document_retargeted(doc, None)
+
+        client = session.client()
+        opens = [p for m, p in client.sent if m == "textDocument/didOpen"]
+        assert len(opens) == 1
+        params = opens[0]["textDocument"]
+        assert params["uri"] == protocol.path_to_uri(doc.path)
+        assert params["languageId"] == PY_CONFIG.language_id("py")
+        assert params["text"] == "x = 1\n"
+        assert mgr.is_open(doc) is True
+        assert client.started is True
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_from_named_path_closes_old_uri_and_opens_new(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """A save-as to a new path drops the old URI (with didClose) before the
+    new document is opened; the old URI leaves _open and the URI cache."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        internals = cast(Any, mgr)
+        doc = session.doc
+        old = tmp_path / "old.py"
+        new = tmp_path / "new.py"
+        doc.path = old
+        await mgr.on_document_shown(doc)
+        old_uri = protocol.path_to_uri(old)
+        assert old_uri in internals._open
+
+        doc.path = new
+        await mgr.on_document_retargeted(doc, old)
+
+        client = session.client()
+        closes = [p for m, p in client.sent if m == "textDocument/didClose"]
+        assert len(closes) == 1
+        assert closes[0]["textDocument"]["uri"] == old_uri
+        opens = [p for m, p in client.sent
+                 if m == "textDocument/didOpen"
+                 and p["textDocument"]["uri"] == protocol.path_to_uri(new)]
+        assert len(opens) == 1
+        assert mgr.is_open(doc) is True
+        new_uri = protocol.path_to_uri(new)
+        assert old_uri not in internals._open
+        assert new_uri in internals._open
+        assert old_uri not in internals._uri_cache.values()
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_same_path_only_sends_did_save(
+    session: ManagerSession,
+) -> None:
+    """An unchanged path keeps the ordinary didSave; nothing is closed or
+    re-opened."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        client = session.client()
+        opens = [m for m, _ in client.sent if m == "textDocument/didOpen"]
+        assert opens == ["textDocument/didOpen"]
+
+        await mgr.on_document_retargeted(doc, doc.path)
+
+        saves = [m for m, _ in client.sent if m == "textDocument/didSave"]
+        assert saves == ["textDocument/didSave"]
+        opens = [m for m, _ in client.sent if m == "textDocument/didOpen"]
+        assert opens == ["textDocument/didOpen"]
+        closes = [m for m, _ in client.sent if m == "textDocument/didClose"]
+        assert closes == []
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_retargeted_without_matching_server_is_noop(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """A document whose filetype no server claims stays unopened: no client
+    is started and the open table stays empty."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        doc = Document(None)
+        doc.path = tmp_path / "note.txt"
+
+        await mgr.on_document_retargeted(doc, None)
+
+        assert session.fakes == []
+        assert mgr.is_open(doc) is False
+        assert cast(Any, mgr)._open == {}
+
+    asyncio.run(scenario())
+
+
+def test_concurrent_document_shown_sends_single_did_open(
+    session: ManagerSession, tmp_path: Path
+) -> None:
+    """Two overlapping refresh workers must not both send didOpen for the
+    same uri: the in-flight handshake set serializes them."""
+    async def scenario() -> None:
+        class YieldStartClient(FakeClient):
+            """FakeClient whose start() yields once, opening a race window."""
+
+            @override
+            async def start(self) -> None:
+                """Fake start that suspends so a second caller can race in."""
+                self.started = True
+                await asyncio.sleep(0)
+
+        fakes: list[FakeClient] = []
+
+        def factory(config: ServerConfig, path: Path) -> FakeClient:
+            fake = YieldStartClient(config, path)
+            fakes.append(fake)
+            return fake
+
+        mgr = LspManager(
+            workspace_root=lambda: tmp_path,
+            client_factory=cast(Any, factory),
+        )
+        mgr.register_server(PY_CONFIG)
+        doc = make_python_doc(str(tmp_path))
+        tasks = [
+            asyncio.create_task(mgr.on_document_shown(doc)) for _ in range(2)
+        ]
+        await asyncio.gather(*tasks)
+        client = fakes[0]
+        opens = [m for m, _ in client.sent if m == "textDocument/didOpen"]
+        assert opens == ["textDocument/didOpen"]
+        assert len(cast(Any, mgr)._open) == 1
+        assert cast(Any, mgr)._opening == set()
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_on_document_closed_still_clears_state_after_uri_extraction(
+    session: ManagerSession,
+) -> None:
+    """After the ``_close_uri`` extraction the close path still forgets the
+    open state, the change timer and the cached URI, and sends didClose."""
+    async def scenario() -> None:
+        mgr = session.mgr
+        internals = cast(Any, mgr)
+        doc = session.doc
+        await mgr.on_document_shown(doc)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("x")
+        mgr.notify_edit(doc)
+        assert uri in internals._change_timers
+
+        await mgr.on_document_closed(doc)
+
+        client = session.client()
+        closes = [m for m, _ in client.sent if m == "textDocument/didClose"]
+        assert closes == ["textDocument/didClose"]
+        assert uri not in internals._change_timers
+        # Check the cache before is_open: that call re-populates it.
+        assert uri not in internals._uri_cache.values()
+        assert mgr.is_open(doc) is False
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
