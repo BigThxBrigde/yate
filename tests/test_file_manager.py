@@ -1334,6 +1334,50 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_file_manager_header_and_footer_are_vertically_centered(
+    tmp_path: Path,
+) -> None:
+    """Bands need vertical excess space: 1-row boxes cannot centre glyphs."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            head = screen.query_one("#file-manager-head")
+            status = screen.query_one("#file-manager-status", Static)
+            for widget in (head, *list(head.query(Static)), status):
+                assert widget.styles.height is not None
+                assert widget.styles.height.value == 3
+            for key in ("parent", "list", "preview"):
+                label = screen.query_one(f"#file-manager-{key}-head", Static)
+                assert label.styles.content_align == ("left", "middle")
+            assert status.styles.content_align == ("left", "middle")
+            # The label occupies the middle row: one blank cell (~24 SVG
+            # units) sits directly above and below it.  SVG encodes spaces as
+            # &#160;, so "blank" means the row carries no letters at all.
+            rows = extract_svg_rows(app.export_screenshot())
+            title = str(screen.query_one("#file-manager-list-head", Static).content)
+            keys = sorted(rows)
+            title_y = next(y for y, text in rows.items() if title in text)
+            blank_above = [y for y in keys if 20 <= title_y - y <= 25]
+            blank_below = [y for y in keys if 20 <= y - title_y <= 25]
+            assert blank_above and blank_below
+            for y in (*blank_above, *blank_below):
+                assert not any(ch.isalpha() for ch in rows[y])
+            # The status bar is the last painted widget; its text row must
+            # likewise have a blank row above it rather than hugging the top.
+            status_y = keys[-1]
+            before_status = max(y for y in keys if y < status_y)
+            assert 20 <= status_y - before_status <= 25
+            assert not any(ch.isalpha() for ch in rows[before_status])
+
+    asyncio.run(scenario())
+
+
 def test_file_manager_fullscreen_keeps_inner_rules(tmp_path: Path) -> None:
     """The fullscreen form fills the terminal without an outer frame."""
     _make_tree(tmp_path)

@@ -15,15 +15,20 @@ FileManagerScreen.fullscreen #file-manager {
     width: 100%;
     height: 100%;
 }
+/* Three-row bands: a one-row box has no vertical excess space, so Textual's
+   middle alignment is a no-op there and the glyphs sit at the band's edge.
+   height 3 + middle puts the label on the centre row with one blank row
+   above and below (verified against the exported SVG geometry). */
 FileManagerScreen #file-manager-head {
-    height: 1;
+    height: 3;
     background: $surface;
 }
 FileManagerScreen #file-manager-head > Static {
-    height: 1;
+    height: 3;
     color: $primary;
     text-style: bold;
     padding: 0 1;
+    content-align: left middle;
 }
 FileManagerScreen #file-manager-parent-head {
     width: 1fr;
@@ -78,9 +83,10 @@ FileManagerScreen #file-manager-input.active {
     border-top: solid $foreground 12%;
 }
 FileManagerScreen #file-manager-status {
-    height: 1;
+    height: 3;
     padding: 0 1;
     background: $surface;
+    content-align: left middle;
 }
 FileManagerScreen Widget {
     scrollbar-size-vertical: 1;
