@@ -124,15 +124,17 @@ real timing assumption before declaring success.
 
 | Command | Result | Exit code |
 |---|---|---|
-| negative drill (case #3 before edit) | pending | — |
-| `pytest tests/test_cmd_enew.py -q` | pending | — |
-| `pytest ... -n auto` | pending | — |
-| `pyright ...` | pending | — |
-| `pytest tests/test_architecture.py -q` | pending | — |
-| line count `yate/commands.py` | pending | — |
+| negative drill (case #3 before edit) | FAILED as expected: `new_buffer_calls == 1`, `notes == []` (old `_enew` ignored the argument) | 1 (negative drill) |
+| `pytest tests/test_cmd_enew.py -q` | 5 passed | 0 |
+| `pytest ... -n auto` (cmd_cd / set_options / action_table regressions) | all passed; main-agent independent wave-1 rerun: 143 passed | 0 |
+| `pyright ...` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| line count `yate/commands.py` | 617 | 0 |
 
-Deviations: none recorded yet — any change to the warning text, the file list
-or the test list must be written here with evidence.
+Deviations: none. wave-3 later appended one multi-argument regression case
+(`test_enew_with_multiple_arguments_warns_and_creates_no_buffer`) as a review
+round-1 minor; both files stayed within plan-a's exclusive list and the final
+step-7 gate records 3422 passed.
 
 ## 7. Risks and rollback
 

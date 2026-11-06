@@ -117,15 +117,20 @@ command; running it here does not replace the main agent's final gate.
 
 | Command | Result | Exit code |
 |---|---|---|
-| `snapshot --scenario command_alias_roundup` | pending | — |
-| `compare --scenario command_alias_roundup` | pending | — |
-| `run --scenario command_alias_roundup --jobs 1` | pending | — |
-| `run --jobs 4` | pending | — |
-| `git diff --check` | pending | — |
-| `pytest tests/test_architecture.py -q` | pending | — |
-| bilingual check | pending | — |
+| `snapshot --scenario command_alias_roundup` | one baseline regenerated (`enew_rejects_args` added) | 0 |
+| `compare --scenario command_alias_roundup` | `MATCH 18/18` (main-agent independent rerun) | 0 |
+| `run --scenario command_alias_roundup --jobs 1` | passed | 0 |
+| `run --jobs 4` | **deferred** to step 7 (see deviations); main agent executed it there: `121/121 scenarios`, `1464/1464 checks`, exit 0 | 0 (step 7) |
+| `git diff --check` | clean | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| bilingual check | `bilingual :enew rows synced` | 0 |
 
-Deviations: none recorded yet.
+Deviations (one, evidence-backed): the full `run --jobs 4` was deferred from
+wave-2 because a parallel wave-2 member was running Textual pilots at the same
+time (`subagent-workflow.md` §三.3 concurrency interference). It was executed
+by review round 1 (`121/121`) and again by the main agent in the step-7 gate
+(`121/121`, `1464/1464 checks`), so no gate was skipped — only its timing moved.
+No other baseline file or SVG row changed.
 
 ## 6. Risks and rollback
 

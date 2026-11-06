@@ -188,16 +188,26 @@ fixed, not recorded as a flake.
 
 | Command | Result | Exit code |
 |---|---|---|
-| negative drills (#1, #2 before edit) | pending | — |
-| `pytest tests/test_lsp.py tests/test_cmd_enew.py -q -n auto` | pending | — |
-| `pytest ... -n 1` | pending | — |
-| `pytest tests/test_document_flows_saveas.py tests/test_app_lsp.py -q -n auto` | pending | — |
-| `pyright ...` | pending | — |
-| `pytest tests/test_architecture.py -q` | pending | — |
-| local coverage `--cov-fail-under=0` | pending | — |
-| line count `manager.py` | pending | — |
+| negative drills (#1, #2 before edit) | both FAILED on the old implementation (`assert ['textDocument/didClose'] == []`, `assert new_uri in closes`); review round 2 re-ran 4/4 wave-3 cases against a clone of `383affe` — all 4 failed there, all pass on `28a5fdf` | 1 (negative drills) |
+| `pytest tests/test_lsp.py tests/test_cmd_enew.py -q -n auto` | main-agent independent rerun: 96 passed (incl. flows/app_lsp); final step-7 full suite: 3422 passed, 10 skipped | 0 |
+| `pytest ... -n 1` | agrees with `-n auto` (review round 2: 83 passed on the focused set) | 0 |
+| `pytest tests/test_document_flows_saveas.py tests/test_app_lsp.py -q -n auto` | all passed | 0 |
+| `pyright ...` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| local coverage `--cov-fail-under=0` | `manager.py` 88% on the focused set; full-suite `--cov-fail-under=75`: `Total coverage: 92.86%`; original `:364`, `:387-388`, `:445` and the new second `_opening` re-check are all covered | 0 |
+| line count `manager.py` | 797 (`< 800`, no `SIZE_EXEMPT_FILES` registration) | 0 |
 
-Deviations: none recorded yet.
+Deviations (two, evidence-backed):
+1. Case #2's didOpen assertion filters by the new URI's `text == "a\n"`
+   (the plan already said "filter by new URI"), because two documents were
+   opened beforehand and the total didOpen count is 3.
+2. The main agent appended one extra test
+   `test_on_document_closed_during_didopen_notify_leaves_no_open_state` to cover
+   the second `_opening` re-check branch that the plan's §3.2 added; measured
+   focused coverage went from an uncovered `:393` to no uncovered added lines.
+
+Both deviations are test-only, within plan-e's exclusive file list, and verified
+by pyright 0 / 72 passed / review round 2 (0 blocker / 0 major).
 
 ## 7. Risks and rollback
 

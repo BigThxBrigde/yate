@@ -98,9 +98,24 @@ Step 7 (main agent only) additionally runs the smoke `run --jobs 4` and the
 full coverage command with `--cov-fail-under=75`, then backfills §7 of the main
 plan with real before/after numbers and exit codes.
 
-## 6. Progress backfill
+## 6. Progress backfill (done at step 7)
 
-Each plan writes its measured results (commands + exit codes + deviations) into
-its own §"Execution record" section. The main agent backfills the main plan's
-§7 and the review record after step 5/6. Deviations in thresholds, scope or
-selection must be explicit and evidence-backed (`plan-before-execute.md` §二.4).
+All five sub-plans (a-e) now contain measured execution records (commands,
+exit codes, negative drills and deviations); the main plan §0/§6/§7 carries the
+process state, review conclusions, residual backlog and final gate numbers;
+both review rounds are archived under `.trae/reviews/` and indexed in its
+README (#59, #60). Execution facts:
+
+| Wave | Commit(s) | Independent main-agent verification |
+|---|---|---|
+| wave-1 | `df91f5c`, `429ff18` | 143 passed / pyright 0 / architecture 37 |
+| wave-2 | `c7fb803`, `383affe` | 74 passed (focused) / pyright 0 / architecture 37 / smoke `compare` MATCH 18/18 |
+| wave-3 | `28a5fdf` | 96 passed (focused) / pyright 0 / architecture 37 / `manager.py` 797 lines |
+
+Step-7 full gate (main agent, all exit 0): pyright 0 errors; pytest `-n auto`
+3422 passed / 10 skipped; architecture 37 passed; coverage `--cov-fail-under=75`
+`Total coverage: 92.86%`; smoke `run --jobs 4` 121/121 scenarios, 1464/1464
+checks. Review round 2: 0 blocker / 0 major / 2 minor (one backfill obligation
+resolved here, one residual backlog registered in main plan §6). Deviations in
+thresholds, scope or selection are recorded per plan with evidence
+(`plan-before-execute.md` §二.4).

@@ -165,15 +165,19 @@ requires plan-b's product change to be present (wave-1 gate).
 
 | Command | Result | Exit code |
 |---|---|---|
-| negative drill (case #1 before edit) | pending | — |
-| `pytest tests/test_document_flows_saveas.py -q` | pending | — |
-| `pytest ... -n auto` (flows regressions) | pending | — |
-| `pytest tests/test_lsp.py -q -n auto` | pending | — |
-| `pyright ...` | pending | — |
-| `pytest tests/test_architecture.py -q` | pending | — |
-| line count `document_flows.py` | pending | — |
+| negative drill (case #1 before edit) | FAILED as expected: `spawn count == 0`, `refresh_ui calls == 0` | 1 (negative drill) |
+| `pytest tests/test_document_flows_saveas.py -q` | 5 passed | 0 |
+| `pytest ... -n auto` (cmd_cd / shell_flows / overlay_flows_hex) | all passed | 0 |
+| `pytest tests/test_lsp.py -q -n auto` | all passed | 0 |
+| `pyright ...` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| line count `document_flows.py` | 533 | 0 |
 
-Deviations: none recorded yet.
+Deviations (one, evidence-backed): case #4 calls
+`cast(Any, fx.flows)._submit_save_as(...)` instead of the private method
+directly, because pyright strict reports `reportPrivateUsage` on the direct
+call; using `cast(Any, ...)` is the plan's documented seam. Verified in review
+round 1 §4. No product behavior changed.
 
 ## 7. Risks and rollback
 

@@ -239,15 +239,19 @@ architecture suite 37 passed; `manager.py` stays below 800 lines.
 
 | Command | Result | Exit code |
 |---|---|---|
-| negative drill (case #1, #7 before edit) | pending | — |
-| `pytest tests/test_lsp.py -q -n auto` | pending | — |
-| `pytest tests/test_lsp.py -q -n 1` | pending | — |
-| `pytest tests/test_app_lsp.py tests/test_lsp_diff.py -q -n auto` | pending | — |
-| `pyright ...` | pending | — |
-| `pytest tests/test_architecture.py -q` | pending | — |
-| line count `manager.py` | pending | — |
+| negative drill (case #1, #7 before edit) | `state_for_doc` returned `CONFIGURED` on an unnamed doc; two overlapping `on_document_shown` workers sent two didOpen — both assertions FAILED as expected | 1 (negative drill) |
+| `pytest tests/test_lsp.py -q -n auto` | 64 passed (plan-b wave); 72+ after wave-3 additions | 0 |
+| `pytest tests/test_lsp.py -q -n 1` | agrees with `-n auto`, no flake | 0 |
+| `pytest tests/test_app_lsp.py tests/test_lsp_diff.py -q -n auto` | all passed | 0 |
+| `pyright ...` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| line count `manager.py` | 783 after plan-b; 797 after wave-3 (still `< 800`) | 0 |
 
-Deviations: none recorded yet.
+Deviations: none at wave-1. Step-5 review round 1 later found two major design
+gaps in §3.5's `Path`-based comparison; they were redesigned in
+[`iksfs7-review-fixes-plan-e.md`](iksfs7-review-fixes-plan-e.md) and fixed in
+wave-3, with 4/4 negative drills failing on the old implementation. The
+current code follows plan-e, not the original §3.5 snippet above.
 
 ## 7. Risks and rollback
 

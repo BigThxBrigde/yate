@@ -11,10 +11,10 @@ Branch: `fix/iksfs7` · worktree: `../yate-iksfs7` (relative to the main repo).
 | 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (`D:\Programming\yate-iksfs7\yate\__init__.py`); issue notes committed `7011ff2` |
 | 2 方案 | done (this document + `iksfs7-plans/`) | plan-architect-designer spawn failed twice with `Model "qwen-3.7-plus" not found` (retry per §一.3.5 exhausted); **main agent executed the role script directly — 子代理零产出**, recorded per §三 |
 | 3 批准 | waived | user explicitly requested unattended mode ("进入无人值守模式，所有问题无须过问") on 2026-11-06; per workspace rule §二.5 no approval/question is raised; the plan is treated as approved |
-| 4 执行 | wave-1/2 done, wave-3 pending | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; main agent independently re-ran their tests/pyright/architecture (all exit 0); see [`iksfs7-plans/overview.md`](iksfs7-plans/overview.md) |
-| 5 审核 | round 1 done | code-review-expert: **0 blocker / 2 major / 4 minor**, all five gate commands exit 0 (3413 passed / 92.86% coverage / smoke 121/121); report stored in the review record |
-| 6 迭代 | in progress | 2 majors → back to step 2: new design rulings in §3 C' and [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md) (wave-3); minors #3/#4/#6 folded into that wave, minor #5 tracked by the line-count assertion |
-| 7 收尾 | pending | main agent runs the full gate, backfills §7 with real numbers, per-step commits, no push |
+| 4 执行 | done | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; wave-3: `28a5fdf`; main agent independently re-ran every wave's tests/pyright/architecture (all exit 0); see [`iksfs7-plans/overview.md`](iksfs7-plans/overview.md) |
+| 5 审核 | done (2 rounds) | round 1: **0 blocker / 2 major / 4 minor** ([record](../reviews/2026-11-06-iksfs7-review-round1.md)); round 2 after iteration: **0 blocker / 0 major / 2 minor** ([record](../reviews/2026-11-06-iksfs7-review-round2.md)); both rounds ran all five gate commands, all exit 0 |
+| 6 迭代 | done | 2 majors → step-2 redesign in §3 C' + [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md) (wave-3, 4/4 negative drills failing on the old code); minors #3/#4/#6 folded into that wave, #5 by the `< 800` line assertion; round-2 minor#1 resolved by step-7 backfill, minor#2 registered as backlog (§6) |
+| 7 收尾 | done | main agent ran the full gate (§7), backfilled every sub-plan's execution record, archived both review records, committed per step, no push |
 
 ## 1. Goals / non-goals
 
@@ -299,6 +299,16 @@ current owner can send didChange against the other tab's `OpenDocState`.
 `EditorSession` permits duplicate paths today; forbidding save-as onto an
 already-open path is a product-behavior change that needs its own issue.
 
+Review round-2 minor#2 (registered, not fixed per §二.6 "minor-only →
+backlog"): `on_document_retargeted` takes the didSave branch when
+`previous_uri == new_uri`; if that URI was never in `_open`, `notify_saved`
+returns silently and no client/didOpen is created. Measured in review round 2:
+`_open == []`, `is_open == False`, `_clients == 0`. The normal UI path is
+covered by `_submit_save_as`'s trailing `_refresh_ui()` → `doc_shown_later()`
+→ didOpen, hence the minor grade. A future fix should fall back to
+`on_document_shown(doc)` when `new_uri not in self._open` and pin it with a
+test, while respecting the `manager.py` 800-line §三.7 guard (currently 797).
+
 General rollback: every wave is one commit; `git revert <sha>` of the wave
 commit restores the previous state without touching unrelated worktrees.
 
@@ -314,12 +324,29 @@ Gate commands (main agent, worktree root, parallel CI口径):
 .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
 ```
 
-| Check | Baseline (before) | Result (after) | Exit code |
+| Check | Baseline (before) | Result (after, main agent step 7) | Exit code |
 |---|---|---|---|
-| pyright | — | pending | — |
-| pytest `-n auto` | — | pending | — |
-| architecture | 37 passed | pending | — |
-| coverage | — | pending | — |
-| smoke | — | pending | — |
+| pyright | 0 errors | `0 errors, 0 warnings, 0 informations` (`yate/ tests/ tools/ pack/`) | 0 |
+| pytest `-n auto` | 3093-era master baseline | `3422 passed, 10 skipped` | 0 |
+| architecture | 37 passed | `37 passed` | 0 |
+| coverage | master ≥75% | `3422 passed, 10 skipped`; `TOTAL 19425 / 1097 miss / 6206 branch / 93%`; `Total coverage: 92.86%` (`--cov-fail-under=75` satisfied; review round 2 measured 92.97%, both above threshold) | 0 |
+| smoke | 117/117 on older master | `121/121 scenarios`, `1464/1464 checks (100%)`, 76.84s | 0 |
 
-Deviations from this plan must be recorded here with measured evidence.
+Additional step-7 measurements: `manager.py` 797 lines (`< 800`, no
+`SIZE_EXEMPT_FILES` registration); `-n 1` focused recheck agrees with
+`-n auto`; `git diff --check` clean; smoke `compare --scenario
+command_alias_roundup` MATCH 18/18.
+
+Deviations from this plan, all evidence-backed and recorded in the owning
+sub-plan's execution record:
+1. plan-c case #4 uses `cast(Any, fx.flows)._submit_save_as(...)` to satisfy
+   pyright strict's `reportPrivateUsage` (test-only).
+2. plan-d's full `run --jobs 4` was deferred out of the parallel wave-2 window
+   (Textual pilot interference) and executed by review round 1 and by the
+   step-7 gate above; no gate was skipped.
+3. plan-e case #2 filters didOpen by the new URI's payload (the plan already
+   required "filter by new URI"); the main agent appended one extra test to
+   cover the second `_opening` re-check branch.
+4. Step-5 review round 1 produced 2 majors, which forced the step-2 redesign
+   §3 C' / wave-3 plan-e. The current `on_document_retargeted` follows plan-e
+   (URI identity), not plan-b's original `Path`-equality snippet.
