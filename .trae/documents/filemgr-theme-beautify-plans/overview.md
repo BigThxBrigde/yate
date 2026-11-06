@@ -166,3 +166,49 @@ flowchart TD
     `screenshots/file-manager.svg`（重生成）。重生成 SVG 实测：首行即三栏头、
     `▔` / `▁` 计数 0、`#181825` 计数 0、`#313244` 计数 237。详见
     `filemgr-theme-beautify-issue.md` §四。
+11. **2026-11-06 用户反馈第二波（本轮）**：两条独立缺陷，均属既有验收项的
+    「实现未达标」修复，非新需求：
+    - **command palette 重复**：`palette.py::_build_command_entries` 用**精确名**去重，
+      而 action 用 snake_case、`:` 命令用 kebab-case，导致 `file_manager` /
+      `file-manager` 同时出现（截图实锤），`project_replace` / `project-replace`
+      是同类对撞。方案：新增 `_fold_name()` 做**等长折叠**（小写化 + `-` → `_`），
+      仅在 commands 模式用于三处：去重集合、`_set_entries` 的 display / hint 镜像、
+      `refilter` 的 query；files 模式路径保持原样，不折叠。折叠不改长度，
+      `_match_lowered` 返回的 hits 仍可索引原显示串，因此两种拼写都命中同一行，
+      且保留 `:command` 拼写与快捷键 hint。否决「重命名 action / 命令」（破坏
+      keymap 与 `:file-manager` 兼容）、否决「在 files 模式折叠路径」（带连字符的
+      文件名会被下划线查询误匹配）。
+    - **页眉 / 页脚文字垂直下坠**：Textual 8.2.8 的 1 行盒 `content-align: left top`
+      是默认且 `middle` 在 `height=1` 时为 no-op（`strip.py:212-218` 实证：
+      `vertical_excess_space=0`）；探针实测 `height=2 + middle` 文字落第 1 行、
+      `height=3 + middle` 文字落在第 2 行（上下各 1 行留白）。方案：取
+      **`height: 3` + `content-align: left middle`**（保留水平左对齐，只修垂直），
+      文字落在条带正中；三栏头 `Static` 与状态栏 `Static` 同步，配色仍全走主题令牌。
+      代价：浮层 80% 高度下内容区少 4 行。
+    - **实测几何**（100×30 pilot，只读取证脚本）：head `region.y=0, height=3`、
+      status `region.y=27, height=3`；三栏头文字在 SVG `y=44`，上下 `y=20` / `y=68`
+      为空白行；状态栏文字在 `y=703`，上方 `y=678` 为空白行，下方一行完全空白
+      （无 `<text>` 元素）。`screenshots/file-manager.svg` 在 worktree 沙箱内重生成
+      两次，diff 稳定在 17/17 行；`screenshots/README.md` 无差异。
+    - **验收追加**：`tests/test_app_palette.py` 两条用例（去重 + 折叠索引对齐）；
+      `tests/test_file_manager.py` 一条用例，断言 `height=3` / `left middle`，并用
+      SVG 断言标题上下各有一行空白、状态栏文字上方有一行空白（防止回退到贴边
+      渲染）。面板查询结果中 `file` 只出现一条 `file-manager`（命令），
+      `file_manager` 不再出现；`project` 同理。
+
+### 第二波迭代回填（2026-11-06，真实数字）
+
+| 项 | 结果 |
+| --- | --- |
+| 【方案】 | 本轮方案登记在 §八 偏离 11；issue 整理稿追加 §五；chrome 子计划追加「第二次视觉修订」 |
+| 【执行】提交 | `4c2c782`（palette 去重 + 2 条用例）、`7c31b80`（页眉页脚居中 + 1 条用例 + SVG 基线） |
+| 【审核】 | 既有闭环内的用户反馈迭代波：主代理按 `code-review-expert` 剧本自审本轮 7 个文件的 diff（无新增 blocker / major），并亲跑全量门禁；未单独派发评审子代理，与上一轮视觉修订波一致。首轮评审记录 `../../reviews/2026-11-06-filemgr-theme-beautify.md` 是时点快照，仍为本轮基线 |
+| pyright | `yate/ tests/ tools/ pack/`：0 errors / 0 warnings / 0 informations，exit 0 |
+| pytest | `tests/ -q -n auto` exit 0；3407 passed / 10 skipped（较首轮 +3 条用例） |
+| 架构 | `tests/test_architecture.py` 37 passed，exit 0 |
+| 覆盖率 | `--cov=yate --cov-branch -n auto --cov-fail-under=75`：TOTAL 92.88%，`Required test coverage of 75% reached`，exit 0 |
+| 冒烟 | `run --jobs 4`：121/121 scenarios、1463/1463 checks (100%)，exit 0 |
+| 场景对比 | `compare --scenario file_manager_startup_navigation`：MATCH、17/17 checks，exit 0 |
+| 截图 | `--only file-manager` 在 worktree 沙箱内重生成两次：generated 1/1、failed 0、exit 0；SVG diff 稳定 17/17 行，`screenshots/README.md` 零差异 |
+| 清理与核查 | 一次性取证脚本 `probe_iter.py` 已删除（未入库）；`git diff --check` exit 0；沙箱自证 `import yate` 指向本 worktree |
+| 【收尾】提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |

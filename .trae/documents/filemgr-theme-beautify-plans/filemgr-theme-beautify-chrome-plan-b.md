@@ -114,3 +114,17 @@ W3 用例的边框断言随之改到 body，并新增 SVG 栏头可见性守卫�
 竖向 `solid` 分隔与 `#file-manager-body` 的上下横向规则。用例改为断言
 `frame.border_title` 为空、外框非 `tall`、页头页脚背景与容器同色、SVG 无
 `▔` / `▁`；自定义主题用例改断言背景跟随 `custom.surface`。
+
+## 第二次视觉修订（2026-11-06 用户反馈第二波）
+
+页眉 / 页脚的单行文字贴着条带上沿（用户反馈「垂直往下掉不居中」）。Textual 8.2.8
+的 1 行盒 `vertical_excess_space=0`，`content-align: ... middle` 是 no-op；探针实测
+`height: 2 + middle` 文字仍落第 1 行，`height: 3 + middle` 才落在第 2 行。本波把
+`#file-manager-head`、`#file-manager-head > Static` 与 `#file-manager-status` 统一改为
+`height: 3` + `content-align: left middle`（水平仍左对齐），文字落在条带正中、上下各
+1 行留白；配色不动，仍全走主题令牌。代价：浮层 80% 高度下内容区少 4 行。
+
+验收：`tests/test_file_manager.py` 新增
+`test_file_manager_header_and_footer_are_vertically_centered`（styles + SVG 上下空白行
+断言），`screenshots/file-manager.svg` 重生成；几何实测与另一缺陷（命令面板重复，
+不属本子计划范围）见本目录 `overview.md` §八 偏离 11。
