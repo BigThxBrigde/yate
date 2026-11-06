@@ -443,21 +443,17 @@ def test_highlighting_follows_the_override() -> None:
             editor = app.editor.panes.active_view
             assert editor is not None
             app.editor.session.buffer.insert_text("def foo():\n    pass\n")
-            # Plain-text detection for an unnamed buffer -> no tokens.
-            # Wait for the background pass: a direct buffer edit does not
-            # refresh the view, and the startup pass for the pre-edit
-            # (empty) buffer is discarded, so a single pilot.pause() does
-            # not guarantee the pass has stored its result.
-            assert await wait_until(
-                pilot,
-                lambda: editor.highlight_probe().filetype == "plaintext",
-                timeout=5.0,
-            )
-
             app.editor.run_command("set filetype=python")
+            # An empty unnamed buffer paints the welcome page, which never
+            # touches the token cache, and a direct buffer edit does not
+            # refresh the view. Drive the render path explicitly so a
+            # tokenize pass is actually scheduled for the new filetype
+            # instead of waiting for an unrelated repaint.
+            assert editor.tokens_for(0) == []
             changed = await wait_until(
                 pilot,
-                lambda: editor.highlight_probe().filetype == "py",
+                lambda: editor.highlight_probe().filetype == "py"
+                and editor.highlight_probe().tokens is not None,
                 timeout=5.0,
             )
             assert changed
