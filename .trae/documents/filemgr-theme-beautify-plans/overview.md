@@ -158,3 +158,11 @@ flowchart TD
    本次未触碰键位 / 导航 / 文件操作语义，故按 W3 计划不改。
 9. **遗留（另案）**：smoke / diag 报告类截图内容随重生成变化、`format_status` 的
    单行字符串语义、中栏万级条目增量刷新，均不在本任务范围。
+10. **2026-11-06 用户视觉修订（覆盖原 §二.1 / 验收 2）**：按实机截图去掉最上面的
+    路径行（`border_title`）、把页头 / 页脚背景由 `$panel` 调浅为 `$surface`、
+    删除最外层 `border: tall $panel`；浮层与全屏均只保留三栏竖向分隔与
+    `#file-manager-body` 上下横向规则。对应改动落在 `file-manager-screen.tcss`、
+    `screen.py`（删 border_title 赋值）、`tests/test_file_manager.py`（改 3 条断言）与
+    `screenshots/file-manager.svg`（重生成）。重生成 SVG 实测：首行即三栏头、
+    `▔` / `▁` 计数 0、`#181825` 计数 0、`#313244` 计数 237。详见
+    `filemgr-theme-beautify-issue.md` §四。

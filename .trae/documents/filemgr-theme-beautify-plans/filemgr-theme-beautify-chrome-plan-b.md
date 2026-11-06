@@ -104,3 +104,13 @@ git diff --check
 `border-top` / `border-bottom`，栏头与状态栏不再自带纵向边框。评审 M3 后
 `#file-manager-input.active` 另补 `height: 2 + border-top`，避免同一问题复发。
 W3 用例的边框断言随之改到 body，并新增 SVG 栏头可见性守卫。
+
+## 后续视觉修订（2026-11-06 用户反馈）
+
+按实机截图：删除 `#file-manager` 的 `border: tall $panel` 与三条 `border-title-*`
+（最外层黑框与顶部路径行一并去掉），`screen.py` 不再设置 `border_title`；
+`#file-manager-head` / `#file-manager-status` 背景由 `$panel` 改为 `$surface`
+（`mocha` 下 `#181825` → `#313244`）。浮层 / 全屏两形态均不设外框，但仍保留三栏
+竖向 `solid` 分隔与 `#file-manager-body` 的上下横向规则。用例改为断言
+`frame.border_title` 为空、外框非 `tall`、页头页脚背景与容器同色、SVG 无
+`▔` / `▁`；自定义主题用例改断言背景跟随 `custom.surface`。

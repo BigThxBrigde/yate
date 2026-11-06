@@ -172,3 +172,20 @@ lf / ranger 风格三栏（父目录 · 当前目录 · 预览），顶部选中
   `yate-multi-dim-review-r2`；Windows PowerShell；本机 CodeBuddy safe-delete 钩子
   在单轮删除 >9999 文件时会杀 pytest（本轮每道门禁须拆到独立工具调用轮次）；
   `pytest -q` 无汇总行，以 exit code 为权威信号。
+
+## 四、后续视觉修订（2026-11-06 用户反馈，覆盖上文对应条款）
+
+用户按实际运行截图提出三点，优先级高于上文 §二.1 与 §四.2 的原描述：
+
+1. **删除最上面的路径行**：不再设置 `#file-manager` 的 `border_title`，顶部不再显示
+   当前目录完整路径；三栏头即首行。
+2. **页头 / 页脚背景调浅**：`#file-manager-head` 与 `#file-manager-status` 的背景由
+   `$panel`（mocha `#181825`）改为 `$surface`（mocha `#313244`），与容器同色。
+3. **移除最外层黑色边框**：删除 `#file-manager` 的 `border: tall $panel` 及三条
+   `border-title-*`；浮层与全屏形态都不再有外框。三栏之间的竖向 `solid` 分隔与
+   `#file-manager-body` 的上下横向规则**保留**，仍是本 issue 要求的「有边框」。
+
+因此 §二.1「浮层形态与全屏形态都要有边框」修订为「两种形态都保留内部分隔线、
+不设外框」；§四.2「全屏态与输入行激活态仍存在边框」修订为「全屏态无外框但内部
+规则可见，输入行激活态仍有上边框」。验收以重生成的 `screenshots/file-manager.svg`
+为准：首行是三栏头、无 `▔` / `▁` 外框字符、无 `$panel` 深色条带。
