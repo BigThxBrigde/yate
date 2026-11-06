@@ -431,6 +431,26 @@ def test_find_all_matches() -> None:
     assert len(matches) == 2
 
 
+def test_nearest_index_bisect_boundaries() -> None:
+    """Nearest-match lookup wraps correctly at both bisect boundaries."""
+    buf = TextBuffer("abcdefghij\nabcdefghij")
+    cases: list[tuple[tuple[int, int], bool, int]] = [
+        ((0, 0), True, 0),
+        ((0, 1), True, 1),
+        ((1, 3), True, 0),
+        ((0, 0), False, 2),
+        ((0, 5), False, 1),
+        ((1, 9), False, 2),
+    ]
+    for pos, forward, expected in cases:
+        engine = SearchEngine()
+        engine.matches = [Match(0, 0, 1), Match(0, 4, 5), Match(1, 2, 3)]
+        match = engine.next(buf, forward=forward, from_pos=pos)
+        assert match is engine.matches[expected]
+    empty = SearchEngine()
+    assert empty.next(buf) is None
+
+
 def test_next_wraps_around() -> None:
     buf = TextBuffer("cat\ncat")
     engine = SearchEngine()

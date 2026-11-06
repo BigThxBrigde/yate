@@ -17,10 +17,13 @@ from pathlib import Path
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.modals import OutputScreen
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
+from yate.logs import tracing
 from yate.services import fonts
 from yate.services.shell import ShellResult, run_shell, shell_name
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
+
+log = tracing.get_logger(__name__)
 
 
 class ShellFlows:
@@ -137,6 +140,7 @@ class ShellFlows:
         except Exception as exc:  # noqa: BLE001 - report instead of dying silently
             # The worker is spawned with exit_on_error=False, so an escaping
             # exception would vanish and leave the "checking…" message up.
+            log.warning("font setup failed: %s", exc)
             if self._mounted():
                 self._message(f"font setup failed: {exc}", "error")
             return

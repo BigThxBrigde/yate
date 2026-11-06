@@ -179,11 +179,11 @@ class TerminalView(Widget):
         proc.terminate()
         try:
             await proc.wait_closed()
-        except Exception:  # noqa: BLE001 - best-effort teardown; must still detach
-            # Cancelled teardown (or a PTY error) must still detach the
-            # process so its reader thread can never post into the closed
-            # event loop after yate is gone.
-            pass
+        except Exception as exc:  # noqa: BLE001 - best-effort teardown; must still detach
+            # A PTY error must still detach the process so its reader thread
+            # can never post into the closed event loop after yate is gone.
+            # Cancellation is not caught on purpose; the finally block runs.
+            log.debug("terminal wait_closed failed: %s", exc, exc_info=True)
         finally:
             proc.detach()
 
@@ -575,8 +575,10 @@ class TerminalPanel(Vertical):
             try:
                 await self.view.start(argv, cwd, factory=self.view_factory)
             except PtyProcessError as exc:
+                log.warning("terminal failed to start: %s", exc)
                 self.prompt.write(f"terminal: {exc}", kind="warn")
             except OSError as exc:
+                log.warning("terminal failed to start: %s", exc)
                 self.prompt.write(f"terminal: {exc}", kind="warn")
             finally:
                 self._starting = False

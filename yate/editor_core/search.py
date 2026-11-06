@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from dataclasses import dataclass
 
 from yate.editor_core import project_search
@@ -34,6 +35,7 @@ class SearchEngine:
         self.case_sensitive: bool = False
         self.use_regex: bool = False
         self.whole_word: bool = False
+        # Kept sorted by (row, start); _nearest_index's bisect_left relies on it.
         self.matches: list[Match] = []
         self.index: int = -1
 
@@ -69,16 +71,12 @@ class SearchEngine:
         if not self.matches:
             return -1
         row, col = pos
+        cursor = bisect_left(
+            self.matches, (row, col), key=lambda m: (m.row, m.start)
+        )
         if forward:
-            for i, m in enumerate(self.matches):
-                if (m.row, m.start) >= (row, col):
-                    return i
-            return 0
-        for i in range(len(self.matches) - 1, -1, -1):
-            m = self.matches[i]
-            if (m.row, m.start) < (row, col):
-                return i
-        return len(self.matches) - 1
+            return cursor if cursor < len(self.matches) else 0
+        return cursor - 1 if cursor else len(self.matches) - 1
 
     def next(
         self, buffer: TextBuffer, *, forward: bool = True, from_pos: Pos | None = None

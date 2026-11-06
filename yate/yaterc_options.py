@@ -87,6 +87,7 @@ def _extract_path_list(  # noqa: Any - raw yaterc exec-namespace values, narrowe
             f"{key} must be a path string or a list of strings, got {raw!r}"
         )
         return
+    seen = set(target)
     for entry in entries:
         if not isinstance(entry, str) or not entry.strip():
             config.errors.append(
@@ -100,7 +101,8 @@ def _extract_path_list(  # noqa: Any - raw yaterc exec-namespace values, narrowe
             config.errors.append(f"{key} path does not exist: {entry}")
             continue
         resolved = path.resolve()
-        if resolved not in target:
+        if resolved not in seen:
+            seen.add(resolved)
             target.append(resolved)
 
 
@@ -141,6 +143,7 @@ def _extract_disabled_extensions(  # noqa: Any - raw yaterc exec-namespace value
             f"disabled_extensions must be a string or a list of strings, got {raw!r}"
         )
         return
+    seen = set(config.disabled_extensions)
     for entry in entries:
         if not isinstance(entry, str) or not entry.strip():
             config.errors.append(
@@ -148,7 +151,8 @@ def _extract_disabled_extensions(  # noqa: Any - raw yaterc exec-namespace value
             )
             continue
         name = entry.strip()
-        if name not in config.disabled_extensions:
+        if name not in seen:
+            seen.add(name)
             config.disabled_extensions.append(name)
 
 

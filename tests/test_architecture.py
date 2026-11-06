@@ -352,6 +352,8 @@ MAX_SOURCE_LINES: int = 800
 #: (subpackaged as ``tools/pack/wiki/``) and ``services/yxp.py``
 #: (subpackaged as ``yate/services/yxp/``) are all below the threshold
 #: and dropped from this list.
+#: 2026-11-05 multi-dim-review r2: ``vim.py`` re-measured at 1531 splitlines;
+#: the other three entries are unchanged (963 / 1565 / 841).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",

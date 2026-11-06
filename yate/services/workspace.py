@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import fnmatch
 import importlib
 import os
@@ -421,7 +422,7 @@ class Workspace:
             self.show_hidden,
             files,
         )
-        return files
+        return files.copy()
 
     def invalidate(self) -> None:
         """Drop the :meth:`walk_files` TTL cache.
@@ -567,7 +568,9 @@ class Workspace:
         ...) are trusted without sniffing.  Every other file (unknown
         suffix or extension-less) reads the first 2048 bytes: UTF-8
         decodable + no NUL byte => text.  This prevents unknown-suffix
-        text files from being misclassified as binary.
+        text files from being misclassified as binary.  Only a multi-byte
+        sequence cut by that 2048-byte boundary is tolerated: a shorter
+        read reached EOF, where a truncated tail is real corruption.
         """
         name = path.name.lower()
         if name in ("dockerfile", "makefile", "readme", "license"):
@@ -578,13 +581,11 @@ class Workspace:
         try:
             with path.open("rb") as fh:
                 chunk = fh.read(2048)
-            try:
-                chunk.decode("utf-8")
-            except UnicodeDecodeError as exc:
-                # The 2048-byte cut can land inside a multi-byte UTF-8
-                # sequence; retry without the truncated tail before
-                # calling a legitimate (e.g. Chinese) text file binary.
-                chunk[: exc.start].decode("utf-8")
+            # Only a full 2048-byte read can cut a multi-byte sequence at
+            # the window edge; a shorter read hit EOF, so final=True makes
+            # its truncated tail an error instead of a buffered prefix.
+            decoder = codecs.getincrementaldecoder("utf-8")()
+            decoder.decode(chunk, final=len(chunk) < 2048)
             return b"\x00" not in chunk
         except (OSError, UnicodeDecodeError):
             return False
