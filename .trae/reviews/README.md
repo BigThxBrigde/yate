@@ -83,6 +83,17 @@ APPROVE，六道门禁全 exit 0（覆盖率 92.82% / 3395 passed·10 skipped）
 冒烟 121/121·1464 checks，`-n 1` 复核一致）。两 major 经主代理裁定为方案设计
 缺口而非实现偏离，已回到步骤 2 补设计并记录于
 [iksfs7-review-fixes-plan-e.md](../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md)。
+**2026-11-06 IKSFS7 第 2 轮增量**：新增 #60（`fix/iksfs7` 迭代后复审，
+范围 `383affe..HEAD` + 全量 `8e60598..HEAD`复核）。LOOKS GOOD：
+0 blocker / 0 major / 2 minor；首轮 2 major 全部闭环（URI 归属重绑 + URI 级
+路径等价，4/4 负向演练在旧实现全红）、4 minor 全部处置。
+五道门禁全绿（pyright 0 / 3422 passed·10 skipped / 架构 37 / 覆盖率 92.97% /
+冒烟 121/121·1464 checks，`-n 1` 一致；`manager.py` 797 行）。
+minor#1（plan-e §6 回填义务）已由主代理在步骤 7 回填全部子计划执行记录解决；
+minor#2（同 URI 且从未 shown 时静默不 attach，常规 UI 由 `_refresh_ui` 兜底）
+按规则 §二.6 登记为主计划 §6 residual backlog，不在本 issue 修。
+主代理步骤 7 亲自复跑五道门禁全 exit 0（覆盖率 92.86%，与评审 92.97% 的
+差异为并行覆盖率正常波动，均 ≥75%）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
