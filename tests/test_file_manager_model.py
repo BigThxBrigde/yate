@@ -93,6 +93,7 @@ def test_sort_entries_descending_flips_files_only(tmp_path: Path) -> None:
     assert [e.name for e in desc if e.is_dir] == ["dir_a", "dir_b"]
     assert [e.name for e in desc if not e.is_dir] == ["z.log", "m.txt", "a.py"]
     desc_size = sort_entries(entries, stats, "size", descending=True)
+    assert [e.name for e in desc_size if e.is_dir] == ["dir_a", "dir_b"]
     assert [e.name for e in desc_size if not e.is_dir] == ["a.py", "z.log", "m.txt"]
 
 
@@ -276,3 +277,20 @@ def test_parent_and_siblings_returns_parent_listing(tmp_path: Path) -> None:
     parent, siblings = parent_and_siblings(tmp_path, ws)
     assert parent == tmp_path.parent
     assert any(e.path == tmp_path for e in siblings)
+
+
+def test_format_status_text_clips_columns_on_narrow_terminal(tmp_path: Path) -> None:
+    """Overflow keeps the filter column and never exceeds the given width."""
+    st = _stat(tmp_path / "a.txt", size=72)
+    text = format_status_text(
+        st, 1, 8, "name", False, "x" * 20, 3,
+        fg="#aaaaaa", fg_dim="#555555", width=64,
+    )
+    assert len(text.plain) <= 64
+    assert "filter:" in text.plain
+    assert "2/8" in text.plain
+    tiny = format_status_text(
+        st, 1, 8, "name", False, None, 0,
+        fg="#aaaaaa", fg_dim="#555555", width=2,
+    )
+    assert len(tiny.plain) <= 2

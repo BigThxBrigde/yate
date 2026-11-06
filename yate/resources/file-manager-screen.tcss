@@ -78,6 +78,8 @@ FileManagerScreen #file-manager-input {
 }
 FileManagerScreen #file-manager-input.active {
     display: block;
+    height: 2;
+    border-top: solid $foreground 12%;
 }
 FileManagerScreen #file-manager-status {
     height: 1;

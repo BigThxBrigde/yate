@@ -167,6 +167,10 @@ flowchart TD
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
   `load_tcss()` 供 L2 组件同源装载自有 tcss，如 `screensaver.tcss`；文件头注释即声明
   "selector ids are frozen by R9"）：改 id 必须同步改该 `.tcss` 文件。
+  `FileManagerScreen` 的 `#file-manager*` 组 id（含 2026-11-06 新增的
+  `#file-manager-head` 与三个 `*-head` 栏头）由组件自持、清单见
+  `yate/resources/file-manager-screen.tcss` 头注释，不被外壳 CSS 引用，
+  属于上述组件自持先例；新增或改名同样须同步该 `.tcss`。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
 - **R12 — 日志统一 tracing（2026-09-27）**：yate 内全部运行时日志一律走模块级

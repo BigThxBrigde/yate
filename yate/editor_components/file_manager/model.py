@@ -300,6 +300,17 @@ def format_status(
     )
 
 
+def _clip_column(value: str, budget: int) -> str:
+    """Clip *value* to *budget* cells, marking the cut with an ellipsis."""
+    if budget <= 0:
+        return ""
+    if len(value) <= budget:
+        return value
+    if budget == 1:
+        return value[:1]
+    return value[: budget - 1] + "\u2026"
+
+
 def format_status_text(
     stat: EntryStat | None,
     index: int,
@@ -318,10 +329,15 @@ def format_status_text(
     The left column keeps the lf entry metadata, the middle one the 1-based
     cursor and sort hint, and the right one the filter / marker segments or
     an ``N entries`` count.  *fg* / *fg_dim* are theme fields supplied by
-    the caller; *width* lets the Screen pad the middle column so the right
-    column lands at the right edge, and a non-positive width simply drops
-    the padding.  This is the UI form of :func:`format_status`, whose plain
-    string contract stays unchanged.
+    the caller; *width* pads the middle column so the right one lands at the
+    right edge, and a non-positive width simply drops the padding.
+
+    When the columns do not fit, the right column is preserved first (it
+    carries the state that changes without a cursor move), then the middle
+    one, and the long metadata column shrinks last.  The returned text never
+    exceeds *width* cells, which is the truncation that
+    :func:`format_status` delegates to the display layer.  That plain-string
+    contract itself stays unchanged.
     """
     parts = _status_parts(
         stat, index, total, sort_key, descending, filter_active, marked_count
@@ -329,7 +345,15 @@ def format_status_text(
     left = parts[0]
     center = _SEP.join(parts[1:3])
     right = _SEP.join(parts[3:]) if len(parts) > 3 else f"{total} entries"
-    used = len(left) + len(center) + len(right) + 2 * len(_STATUS_COLUMN_SEP)
+    sep_len = 2 * len(_STATUS_COLUMN_SEP)
+    used = len(left) + len(center) + len(right) + sep_len
+    if width > 0 and used > width:
+        right = _clip_column(right, max(0, width - sep_len))
+        center = _clip_column(center, max(0, width - sep_len - len(right)))
+        left = _clip_column(
+            left, max(0, width - sep_len - len(right) - len(center))
+        )
+        used = len(left) + len(center) + len(right) + sep_len
     pad = max(0, width - used)
     text = Text()
     text.append(left, style=fg)
@@ -339,6 +363,8 @@ def format_status_text(
         text.append(" " * pad)
     text.append(_STATUS_COLUMN_SEP, style=fg_dim)
     text.append(right, style=fg)
+    if width > 0 and len(text.plain) > width:
+        text.truncate(width, overflow="ellipsis")
     return text
 
 

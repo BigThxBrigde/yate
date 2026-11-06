@@ -662,10 +662,14 @@ SCENARIOS: tuple[Scenario, ...] = (
         title_en="File manager",
         title_zh="文件管理器",
         desc_en=(
-            "``filemanager_dir=`` startup form: the fullscreen manager "
-            "with the listing and the preview pane populated."
+            "``filemanager_dir=`` startup form: the fullscreen manager with "
+            "theme-aligned borders, three column headers, a full-row "
+            "highlighted cursor and a populated listing / preview."
         ),
-        desc_zh="``filemanager_dir=`` 启动形态：全屏文件管理器，列表与预览均已填充。",
+        desc_zh=(
+            "``filemanager_dir=`` 启动形态：全屏文件管理器，边框与栏头配色随主题、"
+            "光标行整行高亮，列表与预览均已填充。"
+        ),
         size=_SIZE,
         driver=_file_manager,
     ),

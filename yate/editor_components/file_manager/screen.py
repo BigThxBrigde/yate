@@ -279,11 +279,10 @@ class FileManagerScreen(ModalScreen[None]):
         apply_scrollbar_theme(self.query_one("#file-manager-list", _FileListView))
         apply_scrollbar_theme(self.query_one("#file-manager-preview", PreviewLog))
         self._icon_palette = themed_icon_palette(theme.active())
-        self._refresh_headers()
         if self._entries:
             self._rebuild_rows()
             self._render_list(previous=self._cursor_path())
-            self._refresh_status()
+        self._refresh_status()
 
     def _cursor_entry(self) -> Entry | None:
         """Entry under the middle-pane cursor (``None`` on an empty listing)."""
@@ -613,10 +612,10 @@ class FileManagerScreen(ModalScreen[None]):
         parent = cwd.parent if cwd is not None else None
         entry = self._cursor_entry()
         self.query_one("#file-manager-parent-head", Static).update(
-            parent.name or str(parent) if parent is not None else "PARENT"
+            (parent.name or str(parent)) if parent is not None else "PARENT"
         )
         self.query_one("#file-manager-list-head", Static).update(
-            cwd.name or str(cwd) if cwd is not None else "DRIVES"
+            (cwd.name or str(cwd)) if cwd is not None else "DRIVES"
         )
         self.query_one("#file-manager-preview-head", Static).update(
             entry.name if entry is not None else "PREVIEW"
@@ -631,6 +630,8 @@ class FileManagerScreen(ModalScreen[None]):
         ``ListView.watch_index`` toggles the ``-highlight`` class before it
         posts ``Highlighted`` (Textual 8.2.8), so refreshing the two affected
         rows here is enough for :meth:`_Row.render` to see the new state.
+        The index and type guards are defensive: a rebuilt list may leave a
+        stale index, and only ``ListItem`` children carry a :class:`_Row`.
         """
         list_view = self.query_one("#file-manager-list", _FileListView)
         old_index = self._highlighted_index

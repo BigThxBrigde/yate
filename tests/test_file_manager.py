@@ -1324,6 +1324,7 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
             assert item.has_class("-highlight")
             head = screen.query_one("#file-manager-parent-head", Static)
             assert head.styles.color == item.styles.background
+            screen._refresh_highlight_rows(999)
 
     asyncio.run(scenario())
 
@@ -1375,6 +1376,11 @@ def test_file_manager_highlight_row_drops_span_colors(tmp_path: Path) -> None:
             assert first.query_one(_Row).render().spans
             assert second.has_class("-highlight")
             assert second.query_one(_Row).render().spans == []
+            await pilot.press("k")
+            assert await wait_until(pilot, lambda: listing.index == 0)
+            assert first.has_class("-highlight")
+            assert first.query_one(_Row).render().spans == []
+            assert second.query_one(_Row).render().spans
 
     asyncio.run(scenario())
 
@@ -1458,3 +1464,31 @@ def test_file_manager_custom_theme_repaints_chrome(tmp_path: Path) -> None:
     finally:
         theme.set_theme(original.name)
         THEMES.pop(custom.name, None)
+
+
+def test_file_manager_filter_input_keeps_visible_border(tmp_path: Path) -> None:
+    """The active input row keeps a theme-token border and readable text."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            await pilot.press("slash")
+            assert await wait_until(pilot, lambda: _input_visible(screen))
+            input_widget = screen.query_one("#file-manager-input", Input)
+            assert input_widget.styles.border_top[0] == "solid"
+            rows = extract_svg_rows(app.export_screenshot())
+            assert any("filter" in row and "name" in row for row in rows.values())
+
+    asyncio.run(scenario())
+
+
+def test_row_render_falls_back_for_non_text_content() -> None:
+    """Static content that is not a Text still renders as plain text."""
+    row = _Row(Text("alpha"), 0)
+    row.update("plain")
+    assert row.render().plain == "plain"

@@ -5,7 +5,7 @@ in `tools/screenshots/scenarios.py`.  The pilot shots are
 deterministic 100x30 SVGs captured from the real application through
 Textual's pilot; the report shots (smoke / diag) are Rich re-renders
 of real subprocess output.  Machine-specific paths are scrubbed to
-`&lt;home&gt;` / `&lt;repo&gt;` / `&lt;user&gt;` placeholders in every
+`<home>` / `<repo>` / `<user>` placeholders in every
 image.
 
 > **Font note**: text falls back to the viewer's monospace font (the
@@ -168,9 +168,9 @@ Default startup with the bundled extensions loaded; the status bar lists the ext
 
 <img src="./file-manager.svg" width="720">
 
-``filemanager_dir=`` startup form: the fullscreen manager with the listing and the preview pane populated.
+``filemanager_dir=`` startup form: the fullscreen manager with theme-aligned borders, three column headers, a full-row highlighted cursor and a populated listing / preview.
 
-``filemanager_dir=`` 启动形态：全屏文件管理器，列表与预览均已填充。
+``filemanager_dir=`` 启动形态：全屏文件管理器，边框与栏头配色随主题、光标行整行高亮，列表与预览均已填充。
 
 ### hex-view
 
