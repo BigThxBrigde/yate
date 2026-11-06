@@ -9,10 +9,6 @@ FileManagerScreen {
 FileManagerScreen #file-manager {
     width: 90%;
     height: 80%;
-    border: tall $panel;
-    border-title-color: $primary;
-    border-title-style: bold;
-    border-title-align: left;
     background: $surface;
 }
 FileManagerScreen.fullscreen #file-manager {
@@ -21,7 +17,7 @@ FileManagerScreen.fullscreen #file-manager {
 }
 FileManagerScreen #file-manager-head {
     height: 1;
-    background: $panel;
+    background: $surface;
 }
 FileManagerScreen #file-manager-head > Static {
     height: 1;
@@ -84,7 +80,7 @@ FileManagerScreen #file-manager-input.active {
 FileManagerScreen #file-manager-status {
     height: 1;
     padding: 0 1;
-    background: $panel;
+    background: $surface;
 }
 FileManagerScreen Widget {
     scrollbar-size-vertical: 1;

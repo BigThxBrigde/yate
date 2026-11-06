@@ -1304,10 +1304,15 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
             assert isinstance(screen, FileManagerScreen)
             assert await wait_until(pilot, lambda: bool(screen._rows))
             frame = screen.query_one("#file-manager", Vertical)
-            assert tmp_path.name in (frame.border_title or "")
+            assert not frame.border_title
+            assert frame.styles.border.top[0] != "tall"
             for key in ("parent", "list", "preview"):
                 head = screen.query_one(f"#file-manager-{key}-head", Static)
                 assert str(head.content)
+            head_row = screen.query_one("#file-manager-head")
+            status_bar = screen.query_one("#file-manager-status", Static)
+            assert head_row.styles.background == frame.styles.background
+            assert status_bar.styles.background == frame.styles.background
             parent = screen.query_one("#file-manager-parent")
             listing = screen.query_one("#file-manager-list")
             body = screen.query_one("#file-manager-body")
@@ -1315,10 +1320,10 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
             assert listing.styles.border_right[0] == "solid"
             assert body.styles.border_top[0] == "solid"
             assert body.styles.border_bottom[0] == "solid"
-            assert frame.styles.border.top[0] == "tall"
             rows = extract_svg_rows(app.export_screenshot())
             title = str(screen.query_one("#file-manager-list-head", Static).content)
             assert any(title in row for row in rows.values())
+            assert not any("▔" in row or "▁" in row for row in rows.values())
             item = _list(screen).children[_list(screen).index or 0]
             assert isinstance(item, ListItem)
             assert item.has_class("-highlight")
@@ -1329,8 +1334,8 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_file_manager_fullscreen_keeps_outer_border(tmp_path: Path) -> None:
-    """The fullscreen form keeps the themed outer frame."""
+def test_file_manager_fullscreen_keeps_inner_rules(tmp_path: Path) -> None:
+    """The fullscreen form fills the terminal without an outer frame."""
     _make_tree(tmp_path)
 
     async def scenario() -> None:
@@ -1341,7 +1346,11 @@ def test_file_manager_fullscreen_keeps_outer_border(tmp_path: Path) -> None:
             assert isinstance(screen, FileManagerScreen)
             assert screen.has_class("fullscreen")
             frame = screen.query_one("#file-manager", Vertical)
-            assert frame.styles.border.top[0] == "tall"
+            assert not frame.border_title
+            assert frame.styles.border.top[0] != "tall"
+            body = screen.query_one("#file-manager-body")
+            assert body.styles.border_top[0] == "solid"
+            assert body.styles.border_bottom[0] == "solid"
             assert await wait_until(
                 pilot, lambda: frame.region.size == (100, 30)
             )
@@ -1429,6 +1438,7 @@ def test_file_manager_custom_theme_repaints_chrome(tmp_path: Path) -> None:
         name="fm-custom",
         label="FM Custom",
         panel="#112233",
+        surface="#556677",
         accent="#aabbcc",
         accent2="#445566",
         fg="#778899",
@@ -1452,7 +1462,13 @@ def test_file_manager_custom_theme_repaints_chrome(tmp_path: Path) -> None:
             item = _list(screen).children[_list(screen).index or 0]
             assert head.styles.color == Color.parse(custom.accent2)
             assert item.styles.background == Color.parse(custom.accent2)
-            assert frame.styles.border.top[1] == Color.parse(custom.panel)
+            assert frame.styles.background == Color.parse(custom.surface)
+            assert screen.query_one("#file-manager-head").styles.background == (
+                Color.parse(custom.surface)
+            )
+            assert screen.query_one("#file-manager-status", Static).styles.background == (
+                Color.parse(custom.surface)
+            )
             assert screen._icon_palette["blue"] == custom.accent
             status = screen.query_one("#file-manager-status", Static).content
             assert isinstance(status, Text)

@@ -620,10 +620,6 @@ class FileManagerScreen(ModalScreen[None]):
         self.query_one("#file-manager-preview-head", Static).update(
             entry.name if entry is not None else "PREVIEW"
         )
-        self.query_one("#file-manager", Vertical).border_title = (
-            str(cwd) if cwd is not None else "DRIVES"
-        )
-
     def _refresh_highlight_rows(self, new_index: int | None) -> None:
         """Repaint the old and new cursor rows so span colors follow the highlight.
 
