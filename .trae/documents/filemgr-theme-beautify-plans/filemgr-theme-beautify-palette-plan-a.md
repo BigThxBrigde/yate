@@ -66,7 +66,7 @@
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/test_file_manager_model.py -q
 .venv\Scripts\python.exe -m pyright yate/editor_components/icons.py yate/editor_components/file_manager/model.py
-git -C D:/Programming/yate-filemgr-theme-beautify diff --check
+git diff --check
 ```
 
 判据：pytest exit code 0（本机 `-q` 无汇总行）；pyright 零诊断；`format_status` 字符串逐字不变。

@@ -77,7 +77,7 @@
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
 .venv\Scripts\python.exe -m tools.screenshots --only file-manager
 .venv\Scripts\python.exe -m tools.smoke_test compare --scenario file_manager_startup_navigation
-git -C D:/Programming/yate-filemgr-theme-beautify diff --check
+git diff --check
 ```
 
 判据：pytest exit 0（`tests/test_architecture.py` 由 W4 全量门禁跑）；
@@ -91,3 +91,14 @@ pyright 零诊断；截图 exit 0；`compare` 的 checks 不漂移（`svg_rows` 
 - 若自定义主题注册触发全局状态污染，用例须在 `finally` 里 `register_theme` 恢复原主题
   并 `theme.set_theme(original)`。
 - 回滚：四文件 `git checkout HEAD -- <file>`（SVG 为二进制式大文本，同样可回滚）。
+
+## 实现偏离（已回填总纲 §八.3 / §八.5）
+
+1. `screenshots/README.md` 是 `tools/screenshots/gallery.py` 从 `scenarios.py` 的
+   `desc_en` / `desc_zh` 生成的产物，直接改会被重生成覆盖；双语说明改到唯一来源
+   `tools/screenshots/scenarios.py`，并用 `render_gallery` 重生成 README。
+2. 状态区上边框断言从 `status.styles.border_top` 改到 `#file-manager-body` 的
+   `border_top` / `border_bottom`（W2 布局修复，正向偏离）。
+3. 评审迭代波补齐：按 `k` 回退后 span 恢复、输入行激活态边框与 SVG 可见性、
+   `_Row` 非 Text 回退、`_refresh_highlight_rows` 越界分支、状态栏窄宽截断、
+   恢复被误删的目录组排序断言。

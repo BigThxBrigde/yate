@@ -82,7 +82,7 @@
 .venv\Scripts\python.exe -m pyright yate/editor_components/file_manager/screen.py
 .venv\Scripts\python.exe -m pytest tests/test_file_manager.py -q
 .venv\Scripts\python.exe -m tools.screenshots --only file-manager
-git -C D:/Programming/yate-filemgr-theme-beautify diff --check
+git diff --check
 ```
 
 判据：pyright 零诊断；既有 `tests/test_file_manager.py` 全绿（尤其
@@ -95,3 +95,12 @@ git -C D:/Programming/yate-filemgr-theme-beautify diff --check
   在 `_restore_index` / `action_*` 的索引赋值点补 `call_after_refresh` 重绘，并回填偏离记录。
 - R3：全屏 region 断言若因边框变化失败，先实测 region 语义，按「改断言不改需求」处理并记录。
 - 回滚：两文件 `git checkout HEAD -- <file>`。
+
+## 实现偏离（W3 修复波，已回填总纲 §八.2）
+
+初版把 `border-bottom` / `border-top` 放在高 1 的 `#file-manager-head` /
+`#file-manager-status` 上；探针 + SVG 实证这两个容器被自身边框吃掉唯一的内容行，
+栏头与状态栏文字完全不可见。改为由 `height: 1fr` 的 `#file-manager-body` 承载
+`border-top` / `border-bottom`，栏头与状态栏不再自带纵向边框。评审 M3 后
+`#file-manager-input.active` 另补 `height: 2 + border-top`，避免同一问题复发。
+W3 用例的边框断言随之改到 body，并新增 SVG 栏头可见性守卫。

@@ -1,12 +1,14 @@
 ﻿# 2026-11-06 filemgr-theme-beautify 评审记录
 
 - 角色：code-review-expert（【审核】，task-orchestration.md 闭环步骤 5）
-- worktree：`D:/Programming/yate-filemgr-theme-beautify`
+- worktree：`../yate-filemgr-theme-beautify`（相对主仓）
 - 分支：`enh/filemgr-theme-beautify`
 - 审查范围：`git diff 859ed8b^..HEAD`（13 文件，+948 / -94）
 - 需求唯一规范来源：`.trae/documents/filemgr-theme-beautify-issue.md`
 - 计划：`.trae/documents/filemgr-theme-beautify-plans/overview.md`（W1 plan-a / W2 plan-b / W3 plan-c）
 - 规则基线：`.trae/rules/` 8 份必读规则全文已读
+- 说明：本报告是评审时点快照；正文中的「待回填」等指认均已在【迭代】/【收尾】
+  提交中销账，真实结果见 `.trae/documents/filemgr-theme-beautify-plans/overview.md` §八。
 
 ## 一、Skill 加载与模型偏差（如实登记）
 

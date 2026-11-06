@@ -7,11 +7,16 @@
   （`yate.__file__` 指向本 worktree）。主仓 `75bccfa` 干净。
 - 【领会】产物：`.trae/documents/filemgr-theme-beautify-issue.md`（提交 `859ed8b`），是需求原文与取证情报的唯一来源。
 - 【批准】：用户显式「进入无人值守，所有问题无须过问」→ 方案审批按通过处理。
-- 【方案 / 执行 / 审核】角色：两次 spawn 均被运行时按注册定义强制解析为未注册模型
+- 【方案 / 执行】角色：两次 spawn 均被运行时按注册定义强制解析为未注册模型
   `qwen-3.7-plus`（任务书指定 hy4 与 `.trae/agents/*-hy4.md` 派生副本均无效），
   按 `task-orchestration.md` §一.3.5 / §三 由主代理兜底亲自按剧本执行，如实标注
-  **「子代理零产出」**。用户指定 `model=hy4` 未能落地的原因如实登记；未修改任何既有
-  agent 定义文件，派生副本为未跟踪临时文件、收尾删除。
+  **「子代理零产出」**。
+- 【审核】角色：`code-review-expert` 本轮由运行时按会话模型 **Hy4 preview** 成功派发
+  （剧本 frontmatter 的 `DeepSeek-V4.1-Flash` 未生效），落盘
+  `.trae/reviews/2026-11-06-filemgr-theme-beautify.md`（289 行，
+  0 blocker / 3 major / 8 minor）。
+- 用户指定 `model=hy4` 在【方案 / 执行】环节因运行时模型注册限制未能落地、在【审核】
+  环节落地；未修改任何既有 agent 定义文件，hy4 派生副本为未跟踪临时文件、收尾已删除。
 
 ## 二、目标与非目标
 
@@ -106,7 +111,50 @@ flowchart TD
 | 项 | 结果 |
 | --- | --- |
 | 【领会】提交 | `859ed8b` |
-| 【方案】提交 | 待回填 |
-| W1 / W2 / W3 / W4 提交 | 待回填 |
-| pyright / pytest / 架构 / 覆盖率 / 冒烟 | 待回填 |
-| 偏离计划与依据 | 待回填 |
+| 【方案】提交 | `5b4f1a0` |
+| W1 / W2 / W3 提交 | `b6bd077` / `6eef8c9` / `81c1eed` |
+| 【审核】评审记录提交 | `c64dc64` |
+| 【迭代】评审修复提交 | `c2f3ae0` |
+| 【收尾】回填提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |
+| pyright | `yate/ tests/ tools/ pack/`：0 errors / 0 warnings / 0 informations，exit 0 |
+| pytest | 全量 `tests/ -q -n auto` exit 0；收集 3414 条（3404 passed / 10 skipped） |
+| 架构 | `tests/test_architecture.py` 37 passed，exit 0 |
+| 覆盖率 | `--cov=yate --cov-branch -n auto --cov-fail-under=75`：TOTAL 92.86%，`Required test coverage of 75% reached`，exit 0 |
+| 冒烟 | `run --jobs 4`：121/121 scenarios、1463/1463 checks (100%)，exit 0 |
+| 场景对比 | `compare --scenario file_manager_startup_navigation`：MATCH、17/17 checks，exit 0 |
+| 截图 | `--only file-manager`：generated 1/1、failed 0，exit 0；重生成后 `git diff` 显示 SVG 与基线字节一致 |
+| 偏离计划与依据 | 见下方逐条登记 |
+
+### 偏离与依据（逐条）
+
+1. **【方案 / 执行】子代理零产出**：两次 spawn 被运行时按注册定义强制解析为未注册模型
+   `qwen-3.7-plus`；按 `task-orchestration.md` §一.3.5 / §三 由主代理亲自按剧本执行。
+   用户指定 `model=hy4` 在该环节未能落地；【审核】环节 `code-review-expert` 以
+   `Hy4 preview` 成功派发。hy4 派生副本未入库、收尾已删除。
+2. **W2 正向偏离（1 行高容器 border 吃掉内容行）**：原设计把 `border-bottom` /
+   `border-top` 放在高 1 的栏头 / 状态栏上，探针与 SVG 实证其文字完全不可见。
+   改为由 `height: 1fr` 的 `#file-manager-body` 承载 `border-top` / `border-bottom`，
+   栏头与状态栏保持单行文本；W3 用例断言随之改到 body，并新增「SVG 中栏头标题可见」
+   守卫。regen 后的 SVG 实测：`y=44.4` 三栏头、`y=68.8` / `y=678` 横线、
+   `y=703.2` 三段状态栏。
+3. **双语说明来源偏离**：W3 计划写 `screenshots/README.md`，实际该文件由
+   `tools/screenshots/gallery.py` 从 `scenarios.py` 的 `desc_en` / `desc_zh` 生成，
+   直接改 README 会被每次重生成覆盖。改到唯一来源 `tools/screenshots/scenarios.py`，
+   并用 `render_gallery` 重生成 README；同时修正 gallery 头部把 Markdown 占位符写成
+   XML 实体的问题（评审 m7）。
+4. **评审 M3**：给 `#file-manager-input.active` 补 `height: 2 + border-top:
+   solid $foreground 12%`，并新增「边框令牌 + SVG 中占位符可见」用例；height 2 是
+   为避免 1 行高控件被自身边框吃掉文本（同偏离 2 的教训）。
+5. **评审 M1 / M2 / m1 / m2 / m3 / m8**：状态栏按宽度分级截断（右段优先，
+   `format_status` 纯字符串契约不变）；恢复误删的目录组排序断言；空列表时状态栏也随
+   主题重刷；条件表达式加括号；防御分支文档化 + 越界/非 Text 回退用例；R9 新增
+   `#file-manager*` 组 id 在 `architecture-boundaries.md` 登记。
+6. **评审 m4 / m6**：`probe_w2.py` 与三个 `*-hy4.md` 临时文件已删除；
+   审核、迭代、收尾三笔新提交均带 body（前 5 笔不追溯改写历史）。
+7. **评审未解决项 2**：`tools/screenshots/driver.py` 的 `_FIXTURE_PREFIX_RE`
+   字符类补下划线，避免 TEMP 目录名含 `_` 时 scrub 失效把机器路径写进公开 SVG；
+   实测 `yate-screenshots-_rp9ycuv` 可被匹配。
+8. **不改手册**：`yate/resources/manual.{en,zh}.md` 与 `yate/docs/` 只描述命令与行为，
+   本次未触碰键位 / 导航 / 文件操作语义，故按 W3 计划不改。
+9. **遗留（另案）**：smoke / diag 报告类截图内容随重生成变化、`format_status` 的
+   单行字符串语义、中栏万级条目增量刷新，均不在本任务范围。
