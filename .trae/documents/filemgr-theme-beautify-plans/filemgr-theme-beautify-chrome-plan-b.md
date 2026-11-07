@@ -124,7 +124,23 @@ W3 用例的边框断言随之改到 body，并新增 SVG 栏头可见性守卫�
 `height: 3` + `content-align: left middle`（水平仍左对齐），文字落在条带正中、上下各
 1 行留白；配色不动，仍全走主题令牌。代价：浮层 80% 高度下内容区少 4 行。
 
-验收：`tests/test_file_manager.py` 新增
-`test_file_manager_header_and_footer_are_vertically_centered`（styles + SVG 上下空白行
-断言），`screenshots/file-manager.svg` 重生成；几何实测与另一缺陷（命令面板重复，
-不属本子计划范围）见本目录 `overview.md` §八 偏离 11。
+验收：`tests/test_file_manager.py` 新增居中用例（styles + SVG 上下空白行断言），
+`screenshots/file-manager.svg` 重生成；该用例在下一波按「一行即可」要求更名并改写
+契约。几何实测与另一缺陷（命令面板重复，不属本子计划范围）见本目录
+`overview.md` §八 偏离 11。
+
+## 第三次视觉修订（2026-11-07 用户反馈第三波，覆盖上节）
+
+用户看完 3 行条带后要求「一行即可」：`#file-manager-head`、
+`#file-manager-head > Static`、`#file-manager-status` 全部回到 `height: 1`，并删除
+两处 `content-align: left middle`（1 行盒无垂直余量，声明不改变渲染）。浮层内容区
+因此多回 4 行；配色、三栏竖向分隔与 body 上下横线不变。
+
+Textual 8.2.8 的 1 行盒无法在 CSS 层做垂直居中，本波如实接受文字与相邻内容行同
+基线，不再用留白伪造居中。用例更名为
+`test_file_manager_header_and_footer_are_single_row_bands`，断言 4 个 widget 的
+`height=1`、head / status 的 `region.height=1`，并保留 W2 守卫（栏头文字仍被绘制）。
+
+实测（100×30 全屏 pilot）：head `region.y=0, height=1`、status `region.y=29, height=1`；
+三栏头文字 `y=20` 紧接 body 上横线 `y=44`，状态文字 `y=727` 紧接下横线 `y=703`，
+无填充空白行。截图基线首行 `y=20` 为三栏头、`y=44` 为上横线、末行 `y=727` 为状态栏。

@@ -212,3 +212,38 @@ flowchart TD
 | 截图 | `--only file-manager` 在 worktree 沙箱内重生成两次：generated 1/1、failed 0、exit 0；SVG diff 稳定 17/17 行，`screenshots/README.md` 零差异 |
 | 清理与核查 | 一次性取证脚本 `probe_iter.py` 已删除（未入库）；`git diff --check` exit 0；沙箱自证 `import yate` 指向本 worktree |
 | 【收尾】提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |
+
+12. **2026-11-07 用户反馈第三波（覆盖偏离 11 的居中方案）**：用户看完 3 行条带的
+    实机效果后要求「那行数太宽了，一行即可」。裁定：紧凑优先，
+    `#file-manager-head`、`#file-manager-head > Static`、`#file-manager-status` 全部
+    回到 `height: 1`，删除两处 `content-align: left middle`。依据：Textual 8.2.8 的
+    1 行盒 `vertical_excess_space=0`，`middle` 不改变字形位置；要「上下留白」必然要
+    额外行高，与本轮要求直接冲突，故如实放弃居中、接受文字与相邻内容行同基线，
+    不伪造。否决「用 `offset` / 半行 padding 微调」：`offset` 以单元格为单位，
+    1 行内平移会裁切字形或把文字推出条带。代价：浮层内容区较 3 行版本多 4 行。
+    - **实测几何**（100×30 全屏 pilot）：head `region.y=0, height=1`、
+      status `region.y=29, height=1`；三栏头 `y=20` → 上横线 `y=44`（差 24），
+      下横线 `y=703` → 状态文字 `y=727`（差 24），条带内无填充行。截图基线
+      `--only file-manager` 重生成 1/1，首行 / 末行同上，README 零差异。
+    - **验收改写**：`test_file_manager_header_and_footer_are_vertically_centered`
+      更名为 `test_file_manager_header_and_footer_are_single_row_bands`，断言 4 个
+      widget 的 `height=1`、head / status `region.height=1`，并保留 W2「栏头文字仍绘制」
+      守卫（1 行容器被自身 border 吃掉内容行的历史缺陷）。
+
+### 第三波迭代回填（2026-11-07，真实数字）
+
+| 项 | 结果 |
+| --- | --- |
+| 【方案】 | 本轮方案登记在 §八 偏离 12；issue 追加 §六；chrome 子计划追加「第三次视觉修订」并校正用例名 |
+| 【执行】提交 | `4179939`（一行条带 + 用例改写 + SVG 基线）、`aa75782`（并行时序 flake 修复） |
+| 【审核】 | 同第二波：既有闭环迭代波，主代理按 `code-review-expert` 剧本自审 diff 并亲跑全量门禁，未单独派发评审子代理；首轮评审记录为基线 |
+| 并行 flake 处置 | 首次 `tests/ -q -n auto` 在 `test_file_palette_filters_and_opens` 失败（`doc.name` 仍为 `[no name]`）；`-n 1` 复核通过，按 §二.7 改 `wait_until` 轮询（未按偶发放过）；其后纯 pytest 与覆盖率两次全量 `-n auto` 均 exit 0 |
+| pyright | `yate/ tests/ tools/ pack/`：0 errors / 0 warnings / 0 informations，exit 0 |
+| pytest | `tests/ -q -n auto` exit 0；3407 passed / 10 skipped |
+| 架构 | `tests/test_architecture.py` 37 passed，exit 0 |
+| 覆盖率 | `--cov=yate --cov-branch -n auto --cov-fail-under=75`：TOTAL 92.87%，`Required test coverage of 75% reached`，exit 0 |
+| 冒烟 | `run --jobs 4`：121/121 scenarios、1463/1463 checks (100%)，exit 0 |
+| 场景对比 | `compare --scenario file_manager_startup_navigation`：MATCH、17/17 checks，exit 0 |
+| 截图 | `--only file-manager`：generated 1/1、failed 0、exit 0；SVG diff 17/17 行，`screenshots/README.md` 零差异 |
+| 清理与核查 | 一次性取证脚本 `probe_band.py` 已删除（未入库）；`git diff --check` exit 0 |
+| 【收尾】提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |
