@@ -16,6 +16,7 @@ from typing import Any, cast
 
 import pytest
 
+from yate.cmdline_completions import cmdline_completions
 from yate.commands import (
     _filetype_completer,
     _make_path_completer,
@@ -25,7 +26,6 @@ from yate.commands import (
 )
 from yate.config import YateConfig
 from yate.editor_components import theme
-from yate.flows.cmdline_completions import cmdline_completions
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
 from yate.session import EditorSession

@@ -20,6 +20,7 @@ from typing import Literal
 
 from textual.containers import Vertical
 
+from yate.cmdline_completions import cmdline_completions
 from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup
@@ -30,7 +31,6 @@ from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
 from yate.editor_lsp.manager import LspManager
 from yate.flows.chunked_flows import ChunkedFlows
-from yate.flows.cmdline_completions import cmdline_completions
 from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows

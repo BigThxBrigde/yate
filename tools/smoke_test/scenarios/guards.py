@@ -197,7 +197,7 @@ async def _prompt_tab_completion(tmp: Path) -> ScenarioResult:
     remaining candidates on the message slot instead of applying one right
     away, and the next tab applies the first candidate, with further tabs
     cycling while the value is one of the matches.  The candidates come
-    from ``cmdline_completions`` (yate/flows/cmdline_completions.py): command
+    from ``cmdline_completions`` (yate/cmdline_completions.py): command
     names, the ``:set`` option list, the per-option value enums and
     filesystem entries for the open prompt.
 

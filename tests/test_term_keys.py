@@ -9,7 +9,7 @@ keyproto codec path for modified special keys.
 from __future__ import annotations
 
 from yate.editor_term.keys import key_to_terminal
-from yate.keyproto.legacy import modified_key_sequence
+from yate.keyproto.key_codec import modified_key_sequence
 
 
 def test_key_to_terminal_printable_with_character_returns_character() -> None:

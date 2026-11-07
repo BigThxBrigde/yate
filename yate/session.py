@@ -269,7 +269,7 @@ class EditorSession:
 # UI-free window layout model: a Leaf is an editor window slot bound to a
 # Document, a Split arranges several of them horizontally/vertically.  It
 # lives here next to EditorSession (both L1, editor_core-only dependencies),
-# so the L2 modules editor_components/editor.py and editor_components/panes.py can import
+# so the L2 modules editor_components/view.py and editor_components/panes.py can import
 # it directly and no intermediate type-only module (the deleted
 # editor_components/pane_types.py) is needed.  The window layout itself is still
 # composed by Editor (L3) and owned by PaneManager (L2): EditorSession stays

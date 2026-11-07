@@ -37,7 +37,7 @@ from yate.editor_term import (
     resolve_shell,
     shell_label,
 )
-from yate.editor_components.editor import LEFT_BUTTON
+from yate.editor_components.view import LEFT_BUTTON
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.services.workspace import Workspace

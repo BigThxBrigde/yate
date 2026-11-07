@@ -10,7 +10,7 @@ model, plus the byte-level codecs the rest of yate already speaks:
 - :mod:`yate.keyproto.chords` -- the :class:`KeyChord` record and VK codes;
 - :mod:`yate.keyproto.aliases` -- chord -> canonical Textual key name and
   chord -> legacy C0 byte;
-- :mod:`yate.keyproto.legacy` -- Textual key name -> raw byte (the codec
+- :mod:`yate.keyproto.key_codec` -- Textual key name -> raw byte (the codec
   formerly living in ``yate.editor_components.keys``).
 
 L0 leaf package: apart from the Windows driver, the package modules depend

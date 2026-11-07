@@ -20,7 +20,7 @@ from yate.editor_syntax.tokens import Token
 from yate.editor_components.chrome import TabBar
 from yate.editor_components.icons import LOCK
 from yate.keymaps.base import ActionContext
-from yate.keyproto.legacy import event_to_raw
+from yate.keyproto.key_codec import event_to_raw
 from yate.session import replace_node
 from conftest import message_text, wait_until
 

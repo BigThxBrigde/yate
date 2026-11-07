@@ -1,5 +1,10 @@
-"""Legacy key codec: translation from Textual key names to the raw byte
-sequences yate keymaps use (control codes / ANSI escape sequences).
+"""Current key codec for legacy terminal key names.
+
+Translates Textual key names into the raw byte sequences yate keymaps use
+(control codes / ANSI escape sequences).  "Legacy" here describes the
+terminal key-name system those bytes come from, not a deprecated module:
+this is the only active codec, shared by the keymaps, the driver layer and
+the app from the L0 leaf package.
 
 Formerly ``yate.editor_components.keys``; moved into the L0 leaf package so
 keymaps, the driver layer and the app can share one codec without touching

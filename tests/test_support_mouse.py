@@ -28,7 +28,7 @@ from textual.pilot import _get_mouse_message_arguments
 from textual.widget import Widget
 from yate.app import YateApp
 from yate.config import YateConfig
-from yate.editor_components.editor import EditorView
+from yate.editor_components.view import EditorView
 from conftest import wait_until
 from test_app_terminal import _FakePty
 

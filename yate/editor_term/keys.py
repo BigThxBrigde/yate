@@ -1,7 +1,7 @@
 """Translate Textual ``event.key`` names to the byte sequences a PTY expects.
 
 The terminal dock feeds these sequences to the PTY writer.  Modified special
-keys resolve through :func:`yate.keyproto.legacy.modified_key_sequence` so
+keys resolve through :func:`yate.keyproto.key_codec.modified_key_sequence` so
 this table cannot drift from the driver-side codec (the former local copy
 missed ctrl+shift arrows and modified home/end, silently dropping those keys
 in the integrated terminal).
@@ -9,7 +9,7 @@ in the integrated terminal).
 
 from __future__ import annotations
 
-from yate.keyproto.legacy import modified_key_sequence
+from yate.keyproto.key_codec import modified_key_sequence
 
 #: Byte sequences for the named (non-printable) keys, keyed by
 #: ``event.key`` name.
