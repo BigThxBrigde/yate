@@ -19,9 +19,9 @@ naming, relative-path, commit-format and honest-reporting requirements.
 | 2 方案 | done: this document |
 | 3 批准 | waived: the user's standing unattended instruction ("进入无人值守模式，所有问题无须过问") plus this message's "取个有意义的名字" delegate the naming decision; no question/approval is raised (workspace rule §二.5) |
 | 4 执行 | done: §3 (commits `9c90c8d`, `06e6743`; 10 renames detected at 86-96% similarity) |
-| 5 审核 | round 1: **0 blocker / 4 major / 2 minor**; round 2: **0 blocker / 1 major / 0 minor** (dangling deviation #7); round 3 pending — all read-only consistency reviews under the `misc-rules.md` §三 pure-document exemption |
-| 6 迭代 | done: §6 iteration design (`4ea44fc`), M1/M2/M3 fixes (`1123856`), and the §4 deviation #7/#8 backfill in this commit |
-| 7 收尾 | in progress: §4 measured results backfilled; final round-3 verdict, per-step commits, `git status --short` empty, no push |
+| 5 审核 | done: round 1 **0 blocker / 4 major / 2 minor** → round 2 **0 blocker / 1 major / 0 minor** (dangling deviation #7) → round 3 **0 blocker / 0 major / 2 minor** (both non-blocking wording/count notes); all three read-only consistency reviews under the `misc-rules.md` §三 pure-document exemption |
+| 6 迭代 | done: §6 iteration design (`4ea44fc`), M1/M2/M3 fixes (`1123856`), §4 deviation #7/#8 backfill (`9d3721b`) |
+| 7 收尾 | done: §4 measured results backfilled, round-3 verdict recorded, per-step commits, `git status --short` empty, no push |
 
 Sub-agents: not dispatched for the mechanical rename because the files are
 **not independently verifiable** — every document's links depend on the other
@@ -182,7 +182,7 @@ empty, no push.
 | `git diff --check` | empty (no whitespace errors / conflict markers) | 0 |
 | `git status --short` at close | empty after every per-step commit; re-run in the step-7 final gate | 0 |
 | `git diff 0619086..HEAD -M --summary` | **10 renames** at 86%-96% similarity + 1 `create mode` (this plan); code diff = 1 line docstring in `tests/test_document_flows_saveas.py` | 0 |
-| worktree metadata / venv probes | `.git` `gitdir:` + admin key both use the new name; `git worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` = 0 with no stale or `locked` entry; `.venv` recursive scan of 8244 text files = **0** `yate-iksfs7`; `activate.bat` `VIRTUAL_ENV` path exists | 0 |
+| worktree metadata / venv probes | `.git` `gitdir:` + admin key both use the new name; `git worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` = 0 with no stale or `locked` entry; `.venv` recursive scan of 8244 text files at the time of measurement = **0** `yate-iksfs7` (a later re-scan counted 8248 due to probe-generated `.pyc` files, still 0 hits); `activate.bat` `VIRTUAL_ENV` path exists | 0 |
 
 Deviations (recorded per §5; all with measured evidence):
 
@@ -221,8 +221,9 @@ Deviations (recorded per §5; all with measured evidence):
 7. **Iteration wave was environment-only and initially unrecorded**: M1
    renamed the main repo's git admin key `.git/worktrees/yate-iksfs7` to
    `yate-enew-args-lsp-attach` (bracketed by `git worktree lock` / `unlock`),
-   and M2 rewrote four venv text files (`activate`, `activate.bat`,
-   `activate.fish`, `pyvenv.cfg`; `Activate.ps1` had no hit) in place. Neither
+   and M2 rewrote the four venv text files that carried the token
+   (`activate`, `activate.bat`, `activate.fish`, `pyvenv.cfg`) in place out of
+   five candidates checked (`Activate.ps1` carried no hit). Neither
    produces a tracked diff or a commit — `.venv` is gitignored and `.git`
    metadata is machine-local — so `git status --short` stayed empty.
    `git worktree repair` **first returned exit 1** with `error: unable to
@@ -243,8 +244,12 @@ Deviations (recorded per §5; all with measured evidence):
 Review round 1 (0 blocker / 4 major / 2 minor) found two environment/metadata
 residuals and one wording deviation; all were fixed in the §6 iteration wave
 and recorded in #5, #7 and #8. Review round 2 (0 blocker / 1 major / 0 minor)
-found the dangling "deviation #7" promise; this backfill adds #7/#8. The
-round-3 verdict is recorded in the §0 state table when the loop closes.
+found the dangling "deviation #7" promise; the backfill added #7/#8. Review
+round 3 (0 blocker / 0 major / 2 minor) confirmed the closure; its two minors
+were wording/count clarifications and are folded into the closing commit (#7
+now states "4 of 5 candidates", and the `.venv` scan count carries a
+measurement-time qualifier). Pyright / pytest / architecture / coverage /
+smoke were not run at any round (`misc-rules.md` §三 pure-document exemption).
 
 ## 5. Risks and rollback
 
