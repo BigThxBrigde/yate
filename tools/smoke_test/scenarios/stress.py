@@ -32,6 +32,9 @@ _FUZZ_KEYS: Sequence[str] = (
     + ["enter", "backspace", "left", "right", "up", "down", "home", "end"]
 )
 
+#: Consecutive aligned polls required before reading the toggled-back state.
+_SETTLED_POLLS: int = 3
+
 
 async def _stress_key_fuzz(tmp: Path) -> ScenarioResult:
     """200 seeded random keystrokes must never break the editor."""
@@ -135,18 +138,21 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
         # Late keystrokes from the storm can still land after one convergence
         # poll; require the flag and the widget to stay aligned for several
         # consecutive polls before reading the assertion value.
-        settled = {"streak": 0}
+        streak = 0
 
         def toggled_back() -> bool:
-            """Return True once the state has stayed converged for 3 polls."""
+            """Return True once the state has stayed converged for several polls."""
+            nonlocal streak
             aligned = (
                 (sidebar.display if sidebar else None)
                 == app.editor.explorer_visible
             )
             stable = aligned and app.editor.explorer_visible == before
-            settled["streak"] = settled["streak"] + 1 if stable else 0
-            return settled["streak"] >= 3
+            streak = streak + 1 if stable else 0
+            return streak >= _SETTLED_POLLS
 
+        # A False return (timeout) is already covered by the toggles_back
+        # check below; a second Check would inflate the frozen smoke baseline.
         await wait_until(pilot, toggled_back)
         checks.append(Check("toggles_back", before, app.editor.explorer_visible))
         checks.append(Check("still_no_crash", None, app.return_code))
