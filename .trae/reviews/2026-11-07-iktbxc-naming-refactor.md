@@ -4,7 +4,7 @@
 > 主代理原样登记（2026-11-07 无人值守会话）。报告 §九「未解决项 1」已由本次代写闭环；
 > 其余未解决项保持原样登记，修复处置见 [iktbxc-review-fixes-plan.md](../documents/iktbxc-review-fixes-plan.md)。
 
-- Worktree：`yate-iktbxc`，分支 `ref/iktbxc`，基线 `3e92532`
+- Worktree：`yate-naming-hygiene`，分支 `ref/naming-hygiene`，基线 `3e92532`（评审后按语义化命名要求重命名，仅同步元信息，评审结论与实测数字不变）
 - 评审范围：`3e615a9`（wave-1 key_codec 更名）、`55aee7e`（wave-2 view 更名）、`f3299a1`（wave-3 cmdline_completions 归位），`3e92532..HEAD` 共 44 文件 / +1139 / −65
 - 上下文：`.trae/documents/iktbxc-issue-notes.md`、`iktbxc-reference-inventory.md`、`iktbxc-plan.md`、`iktbxc-plans/*.md`
 - 结论：**0 个 blocker，1 个 major，3 个 minor**
@@ -119,7 +119,7 @@ git grep -n -E "keyproto[.]legacy|editor_components[.]editor|flows[.]cmdline_com
 
 ## 六、实测命令与退出码（本次评审真实执行）
 
-环境：`d:/Programming/yate-iktbxc`，解释器 `.venv/Scripts/python.exe`（Python 3.13.2 / Textual 8.2.8 / rich 15.0.0 / Windows）。
+环境：`d:/Programming/yate-naming-hygiene`，解释器 `.venv/Scripts/python.exe`（Python 3.13.2 / Textual 8.2.8 / rich 15.0.0 / Windows；评审阶段为重命名前的 worktree，重命名后于新 worktree 复跑门禁，见主计划 §9.7）。
 
 | 命令 | 结果 | 退出码 |
 |---|---|---|

@@ -1,6 +1,6 @@
 # IKTBXC reference-surface inventory (facts only, no design)
 
-Collected by a read-only `code-explorer` sweep over worktree `yate-iktbxc`
+Collected by a read-only `code-explorer` sweep over worktree `yate-naming-hygiene`
 (master `3e92532`), plus coordinator spot-checks. Intended as the single factual
 input for the plan designer. No analysis, no proposed design.
 

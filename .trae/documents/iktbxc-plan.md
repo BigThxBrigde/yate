@@ -3,8 +3,10 @@
 Status: **approved** -- unattended session (user instruction 2026-11-07: no
 questions, no approvals). Per workspace rule §二.5, approvals are treated as
 granted while rule loading and the closing gate remain mandatory.
-Base: `master@3e92532`; worktree `yate-iktbxc`; branch `ref/iktbxc`; independent
-`.venv` verified at `D:\Programming\yate-iktbxc\yate\__init__.py`.
+Base: `master@3e92532`; worktree `yate-naming-hygiene`; branch
+`ref/naming-hygiene`; independent `.venv` verified at
+`D:\Programming\yate-naming-hygiene\yate\__init__.py` (renamed on 2026-11-07;
+see §9.7).
 
 ## 1. Inputs (single source of truth)
 
@@ -264,4 +266,28 @@ sub-plans -> `3e615a9` wave-1 -> `55aee7e` wave-2 -> `f3299a1` wave-3 ->
   the 2026-11-02 package-level rename not performed.
 - P2-4 (editor_sprites characters/chars) and P2-5 (palette tri-homonym) remain
   separate review topics per the issue.
+
+### 9.7 Branch / worktree rename (2026-11-07 follow-up)
+
+User correction: an issue id must not be used as a branch name; the branch needs
+a meaningful name. The original issue-id branch was renamed via `git branch -m`
+to `ref/naming-hygiene`, and the worktree to
+`D:/Programming/yate-naming-hygiene`.
+
+`git worktree move` failed twice on Windows with `Permission denied` (the old
+directory was held by another process; the orphan pytest worker PID 14680 was
+terminated without releasing the handle). Per unattended §二.5, the removal of
+the old untracked worktree was recorded in memory before execution, then
+`git worktree remove --force` plus `git worktree add ... ref/naming-hygiene`
+rebuilt the worktree at `80ad791`. All 10 commits live on the branch; the
+ignored `.venv` was rebuilt from scratch. Verified: registry key
+`yate-naming-hygiene`, no issue-id branch left, old directory absent, venv
+contains 0 old-path strings, `yate.__file__` resolves inside the new worktree,
+`git status --short` empty.
+
+All 9 in-repo references to the old names were synced in this commit (issue
+notes, main plan, reference inventory, review record metadata, review index);
+review conclusions and measured numbers are unchanged. The closing gate is
+re-run in the new worktree by the main agent; results are recorded in the
+following backfill commit.
 

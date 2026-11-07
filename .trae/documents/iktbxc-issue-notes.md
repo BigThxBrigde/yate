@@ -3,7 +3,7 @@
 Issue: <https://gitee.com/jermaine/yate/issues/IKTBXC>
 Title: `refactor: keyproto/legacy.py、editor_components/editor.py 更名与 cmdline_completions 层级归位 —— 命名自查修复、守卫与规则文档同步`
 State: 待办的 / enhancement / created 2026-11-06 10:22 / 0 comments.
-Worktree: `yate-iktbxc`, branch `ref/iktbxc`, base `master@3e92532`.
+Worktree: `yate-naming-hygiene`, branch `ref/naming-hygiene`, base `master@3e92532`.
 
 ## Stated goal
 
