@@ -177,3 +177,56 @@ Deviations：收尾逐条如实登记（含子代理零产出、门禁口径、�
 
 General rollback：`git revert` 本轮新增的文档提交；评审记录为只读事实文档，
 不删改既有 #59/#60 段。无历史改写、无 push。
+
+## 6. 迭代设计（步骤 5 回到步骤 2）
+
+触发：3 名审查员报告 + 主代理逐条回读复核，基线 `REQUEST_CHANGES`
+（P3 报 2 MAJOR / 3 MINOR，P1 报 3 MINOR，P2 首轮零产出、重试后 2 MINOR）。
+按 `task-orchestration.md` §二.6 回到步骤 2，本节是重设计，批准仍按总纲 §二.5 豁免。
+
+### 6.1 主代理复核裁定（逐条引反证）
+
+| 来源 | 初判 | 复核 | 依据 |
+|---|---|---|---|
+| P3-1 | MAJOR：`naming-plan.md:50-51` 称「12 条既有 subject 不含 issue 编号名」 | **确认保留（MAJOR）** | `git log --format=%s 8e60598..9c90c8d` 实测 12 条中 **6 条含 `IKSFS7`**（`7011ff2`/`68a1ada`/`2c6989b`/`20e6b9c`/`6ec91ec`/`0619086`），断言与事实相反 |
+| P3-2 | MAJOR：`naming-plan.md` 11 行盘符路径违反 `doc-conventions.md` §五 | **降级 Deferred，不翻案** | 命名迁移 round-1/2/3 三轮一致性评审已就同一事实裁定不成立：这些是 worktree 迁移的**目标产物路径**与实测输出证据，§五 约束的是仓库内文件引用与环境信息；§6 命令块若改占位符即失去可执行性（`plan-before-execute.md` §二.2）；§五 末条存量迁移。**采纳其自我矛盾点**：订正 §2 末段措辞，写明 portable-wording 承诺只针对主计划 §0 的证据行 |
+| P3-3 | MINOR：`tests/test_cmd_enew.py` 的 `_Enrew*` 拼写 | **确认保留（修）** | 实测 9 处 `_Enrew`；`enew` 词根应拼 `_Enew*` |
+| P3-4 | MINOR：冒烟未断言 usage 警告文本 | **登记 Deferred** | `tests/test_cmd_enew.py` 已精确断言警告全文；新增 check 需重新生成 `command_alias_roundup.json` 基线，属已知风险面（SVG 行 / mtime 锚定），无行为收益 |
+| P3-5 | MINOR：`§二.5` 引用在 `.trae/rules/` 零命中 | **降级为措辞澄清（修）** | 引用的是 **always-applied workspace 总纲 §二.5**（无人值守 bypass），不是 git 跟踪的 `.trae/rules/`；两处引用补明来源以消除歧义 |
+| P1-1 | MINOR：等价路径 save-as 后 `_uri_cache` 被销毁、每次按键重算 `resolve()` | **删除（误报）** | `manager.py:454` 的 `new_uri = self._uri(doc)` 在 `:458` 的 `pop` **之前**已按新 spelling 建键；`tests/test_lsp.py:2485-2493` 断言去重后 `values.count(uri) == 1` 且旧键不在缓存 → 缓存命中，不存在重复 syscall |
+| P1-2 | MINOR：same-URI 且从未 shown 的路径无测试 | **登记 Deferred** | 与 #60 minor#2 同源，主计划 §6 residual backlog 已在位；补测试会把待修行为固化 |
+| P1-3 | MINOR：`previous_path` 捕获时机无负向演练 | **删除（误报）** | `tests/test_document_flows_saveas.py:180-181` 同时断言 `work.args == (doc, source)` 与 `doc.path == renamed`；实现若把捕获放到 `doc.save()` 之后会拿到 `renamed`，用例即红，已是差异化验证 |
+| P2-1（重试） | MINOR：`_uri_cache` 单条旧键延迟清理 | **登记 Deferred** | 审查员自述「有测试背书、可接受不动」；`_drop_uri_cache` 按 URI 值清理，非无界增长 |
+| P2-2（重试） | MINOR：同 client 的 didClose+didOpen 空转 | **登记 Deferred** | `enew-args-lsp-attach-review-plan-e.md` §7 已登记「旧 URI 让位 / close wins」为显式设计取舍 |
+
+复核后基线：**0 BLOCKER / 1 MAJOR / 4 MINOR**（4 MINOR 中 2 条修、2 条登记；
+另有 4 条审查员 MINOR 经反证删除或降级 Deferred）。「吞异常」候选由 P2 重试
+以 `path_to_uri` 的 4 个异常输入探针（NUL / 孤立代理码位 / 3000 字符 / UNC）
+实测全部不抛错，且 `on_document_shown` 同类路径风险不高于改动前 → 不成立。
+
+### 6.2 修复设计（独占文件）
+
+| 文件 | 改动 | 验收 |
+|---|---|---|
+| `.trae/documents/enew-args-lsp-attach-naming-plan.md` | ① §1 非目标改为「6 条 subject 仍含 issue 编号，属已知且接受的偏离，不改写历史」；② §2 末段明确 portable-wording 承诺范围；③ §0 与 §6 两处 `§二.5` 补明 always-applied 总纲来源；④ §4 追加偏离 #9；⑤ §4 结尾补 pr-review 修复一句 | `git diff --check` 0；全文不再出现 `contain no issue-number name`；相对链接 0 断链 |
+| `tests/test_cmd_enew.py` | 9 处 `_Enrew` → `_Enew` | `pytest tests/test_cmd_enew.py -q` exit 0（6 passed）；`pyright` 四路径 0 诊断 |
+| `.trae/reviews/README.md` | 追加 #61 索引段 | 相对链接目标存在 |
+
+**不改动**：`yate/**` 产品代码、`tools/smoke_test/**`、10 份既有计划/评审文档、
+既有提交信息（无 amend / rebase / force）。
+
+### 6.3 复审与门禁
+
+修复仅涉及文档措辞与测试替身重命名，无产品代码，故复审由**主代理**执行
+（不再派子代理，避免重复开销）：局部 `pytest tests/test_cmd_enew.py -q` +
+pyright 四路径 + `git diff --check` + 一致性扫描；随后按 §3 Step 5 亲跑
+六道全量门禁（本 PR 为混合变更，`misc-rules.md` §三 豁免不适用）。
+六道门禁全 exit 0 且 MAJOR 归零 → 修复后 `APPROVE`。
+
+### 6.4 风险与回滚
+
+| 风险 | 缓解 | 回滚 |
+|---|---|---|
+| 文档订正引入新的不实陈述 | 每条订正附实测命令与哈希；复核者可按命令复现 | `git revert` 修复提交 |
+| 测试替身重命名漏改 | 全局计数从 9 → 0；`pytest` 与 pyright 双验 | 反向替换 |
+| 门禁并行 flake | 独立轮次串行发起；失败用 `-n 1` / `--jobs 1` 复核并修用例 | 不记成「偶发」 |
