@@ -8,7 +8,7 @@ Branch: `fix/enew-args-lsp-attach` · worktree: `../yate-enew-args-lsp-attach` (
 
 | Step | State | Evidence |
 |---|---|---|
-| 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (`../../yate/__init__.py`); issue notes committed `7011ff2` |
+| 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (the worktree-local `yate` package); issue notes committed `7011ff2` |
 | 2 方案 | done (this document + `enew-args-lsp-attach-plans/`) | plan-architect-designer spawn failed twice with `Model "qwen-3.7-plus" not found` (retry per §一.3.5 exhausted); **main agent executed the role script directly — 子代理零产出**, recorded per §三 |
 | 3 批准 | waived | user explicitly requested unattended mode ("进入无人值守模式，所有问题无须过问") on 2026-11-06; per workspace rule §二.5 no approval/question is raised; the plan is treated as approved |
 | 4 执行 | done | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; wave-3: `28a5fdf`; main agent independently re-ran every wave's tests/pyright/architecture (all exit 0); see [`enew-args-lsp-attach-plans/overview.md`](enew-args-lsp-attach-plans/overview.md) |
