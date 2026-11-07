@@ -25,10 +25,10 @@
 | 1 领会 | done: skill + 8 规则加载，三点范围 / merge-base / 冲突面 / 门禁口径实测 |
 | 2 方案 | done: 本文档 |
 | 3 批准 | waived: 用户既有无人值守授权（「所有问题无须过问」），按总纲 §二.5 不发起询问或审批 |
-| 4 执行 | pending: 3 名只读审查员一波并行（≤6，`subagent-workflow.md` §五.5） |
-| 5 审核 | pending: 主代理逐条回读复核 + 归并去重 + 归档记录 + README #61 登记 |
-| 6 迭代 | pending: 有 BLOCKER/MAJOR 则回步骤 2 补设计并修复；仅 MINOR 则销账或登记 |
-| 7 收尾 | pending: 主代理亲跑六道硬门禁、回填真实数字、按步提交、`git status --short` 空、不推送 |
+| 4 执行 | done: 3 名只读审查员一波并行；P2 首轮零产出，按 `subagent-workflow.md` §五.4 变更粒度重试一次，最终 3/3 有效交付 |
+| 5 审核 | done: 主代理逐条回读复核（1 MAJOR 保留 / 1 MAJOR 降级 / 2 MINOR 删除 / 其余登记）；[评审记录](../reviews/2026-11-07-pr-review-fix-enew-args-lsp-attach.md) + README #61 落盘 |
+| 6 迭代 | done: §6 迭代设计（`5bf3eb8`）→ 修复波（`623422e`）→ 修复后 `0 BLOCKER / 0 MAJOR`，APPROVE |
+| 7 收尾 | done: 六道硬门禁全 exit 0、§4 回填、按步提交、`git status --short` 空、不推送 |
 
 `plan-architect-designer` 依既有记忆（frontmatter `qwen-3.7-plus` 在本运行时未注册、任务书
 指定模型无效）不再重复 spawn；本方案由主代理按 `task-orchestration.md` §三 亲自产出，
@@ -151,18 +151,34 @@ git diff --check master...HEAD
 | 项 | 结果 | 退出码 |
 |---|---|---|
 | 三点范围 / merge-base / 冲突面 | `8e60598`；17 提交 / 24 文件 / +3111−44；master 零重叠、merge-tree exit 0 | 0 |
-| 3 名审查员 | pending | — |
-| 复核后 Verdict | pending | — |
-| pyright（四路径） | pending | — |
-| pytest `-n auto` | pending | — |
-| 架构 37 守卫 | pending | — |
-| 覆盖率 `--cov-branch` | pending | — |
-| 冒烟 `--jobs 4` | pending | — |
-| changelog check | pending | — |
-| `git diff --check master...HEAD` | pending | — |
-| 终态 `git status --short` | pending | — |
+| 3 名审查员 | 3/3 有效交付；P2 首轮交付上下文压缩摘要（零产出），变更任务粒度重试一次后交付 APPROVE / 2 MINOR | — |
+| 复核后 Verdict | 基线 `REQUEST_CHANGES` 0 BLOCKER / 1 MAJOR / 4 MINOR → 修复后 `APPROVE` 0 BLOCKER / 0 MAJOR | — |
+| pyright（四路径） | `0 errors, 0 warnings, 0 informations`（`yate/ tests/ tools/ pack/`） | 0 |
+| pytest `-n auto` | exit 0；`-q` 无汇总行，`--junitxml` 取回 `tests=3432 failures=0 errors=0 skipped=10` | 0 |
+| 架构 37 守卫 | 37 passed | 0 |
+| 覆盖率 `--cov-branch` | `3422 passed, 10 skipped in 147.12s`；`TOTAL 19425/1093/6206/570 = 93%`；`Required test coverage of 75.0% reached. Total coverage: 92.90%` | 0 |
+| 冒烟 `--jobs 4` | `121/121 scenarios passed`、`1464/1464 checks (100%)`、79.05s | 0 |
+| changelog check | `released changelog sections are up to date`；unreleased 滞后为发布期刷新 | 0 |
+| `git diff --check master...HEAD` | 无空白错误 / 冲突标记 | 0 |
+| 终态 `git status --short` | 空（`-uall` 复核） | 0 |
 
-Deviations：收尾逐条如实登记（含子代理零产出、门禁口径、豁免依据等）。
+Deviations（逐条如实登记）：
+
+1. `plan-architect-designer` 未 spawn：既有记忆显示其 frontmatter 模型在本运行时
+   未注册、任务书指定模型无效，故由主代理按 `task-orchestration.md` §三亲自产出
+   方案，如实标注「该环节子代理零产出」。
+2. P2 首轮零产出（交付上下文压缩摘要而非评审报告），按 `subagent-workflow.md`
+   §五.4 变更任务粒度重试 **一次** 后交付；未原样重试、未重建团队。
+3. 审查员零全量门禁（`subagent-workflow.md` §三.3 并发干扰），六道门禁由主代理
+   在独立轮次亲跑（§二.7）。
+4. `pytest -q -n auto` 无汇总行，按既有记忆以 exit code 为权威信号，另用
+   `--junitxml` 取回精确计数；临时 XML 落 `%TEMP%` 并已删除。
+5. 混合变更（含产品代码）**不适用** `misc-rules.md` §三 纯文档豁免；命名迁移三轮
+   评审的豁免记录已在 `enew-args-lsp-attach-naming-plan.md` §4 注明豁免在 PR 级失效。
+6. 评审记录归档发生在修复与门禁之后，故一次性写入完整实测数据；步骤 3/5 产物在
+   最终态合并为一份只读事实文档（#61）。
+7. MAJOR-2（盘符路径）未做批量脱敏，沿用命名迁移 round-1/2/3 三轮在案裁决；
+   仅采纳其「自我矛盾」子点订正措辞（§6.1）。
 
 ## 5. 风险与回滚
 
