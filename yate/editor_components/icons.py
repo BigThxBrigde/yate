@@ -6,6 +6,11 @@ Each constant is a single private-use-area codepoint.
 
 from __future__ import annotations
 
+#: Optional icon color palette keyed exactly like :data:`SETI_COLORS`.
+#: Theme-aware components inject one; callers that omit it keep the fixed
+#: Seti appearance (the explorer tree, issue IKINF3).
+type IconPalette = dict[str, str]
+
 # --- files & folders (nf-fa / nf-seti)
 FOLDER: str = "\uf07b"          # 
 FOLDER_OPEN: str = "\uf07c"     # 
@@ -167,13 +172,20 @@ FILE_ICON_COLORS: dict[str, str] = {
 }
 
 
-def icon_color(name: str, is_dir: bool, dir_color: str) -> str:
+def icon_color(
+    name: str, is_dir: bool, dir_color: str, palette: IconPalette | None = None
+) -> str:
     """Return the icon color for a tree entry.
 
-    Directories take *dir_color* (the active theme accent); file icons use
-    the fixed Seti palette keyed by extension and fall back to grey.
+    Directories take *dir_color* (the active theme accent).  File icons use
+    the fixed Seti palette keyed by extension and fall back to grey when no
+    *palette* is supplied; a theme-aware caller injects one built from
+    :data:`Theme` fields so its icons follow color-scheme changes while the
+    explorer tree keeps the original appearance.
     """
     if is_dir:
         return dir_color
     key = FILE_ICON_COLORS.get(extension_of(name))
+    if palette is not None:
+        return palette.get(key or "grey", palette.get("grey", ICON_COLOR_FALLBACK))
     return SETI_COLORS[key] if key is not None else ICON_COLOR_FALLBACK

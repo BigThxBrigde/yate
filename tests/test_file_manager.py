@@ -13,21 +13,33 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.text import Text
 from textual.app import App
 from textual.color import Color
-from textual.widgets import Input, ListView, Static
+from textual.containers import Vertical
+from textual.widgets import Input, ListItem, ListView, Static
 
 from yate.config import FilePreviewConfig
+from yate.paths import load_tcss
 from yate.editor_components import theme
 import yate.editor_components.file_manager.screen as file_manager
-from yate.editor_components.file_manager.screen import FileManagerScreen, _FileListView
+from yate.editor_components.file_manager.screen import (
+    FileManagerScreen,
+    _FileListView,
+    _Row,
+)
+from yate.editor_components.icons import SETI_COLORS, icon_color
 from yate.editor_components.preview import PreviewLog
+from yate.editor_components.theme.themes import THEMES, to_textual_theme
 from yate.services.workspace import Entry, EntryStat, Workspace
+from tools.smoke_test.harness import extract_svg_rows
 
 from conftest import plain_text, wait_until
 
@@ -1275,3 +1287,240 @@ def test_file_manager_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> 
             assert open_calls == []
 
     asyncio.run(scenario())
+
+
+def test_file_manager_theme_driven_borders_without_header(tmp_path: Path) -> None:
+    """Borders and the highlight row come from tokens; no header band exists."""
+    _make_tree(tmp_path)
+    css = load_tcss("file-manager-screen.tcss")
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
+    assert "rgb(" not in css
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            frame = screen.query_one("#file-manager", Vertical)
+            assert not frame.border_title
+            assert frame.styles.border.top[0] != "tall"
+            assert len(screen.query("#file-manager-head")) == 0
+            assert len(screen.query("#file-manager-list-head")) == 0
+            status_bar = screen.query_one("#file-manager-status", Static)
+            assert status_bar.styles.background == frame.styles.background
+            parent = screen.query_one("#file-manager-parent")
+            listing = screen.query_one("#file-manager-list")
+            body = screen.query_one("#file-manager-body")
+            assert parent.styles.border_right[0] == "solid"
+            assert listing.styles.border_right[0] == "solid"
+            assert body.styles.border_top[0] == "solid"
+            assert body.styles.border_bottom[0] == "solid"
+            rows = extract_svg_rows(app.export_screenshot())
+            assert not any("▔" in row or "▁" in row for row in rows.values())
+            item = _list(screen).children[_list(screen).index or 0]
+            assert isinstance(item, ListItem)
+            assert item.has_class("-highlight")
+            screen._refresh_highlight_rows(999)
+
+    asyncio.run(scenario())
+
+
+def test_file_manager_footer_is_the_only_single_row_band(tmp_path: Path) -> None:
+    """The header band is gone; the footer keeps its original one-row layout."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            assert len(screen.query("#file-manager-head")) == 0
+            status = screen.query_one("#file-manager-status", Static)
+            assert status.styles.height is not None
+            assert status.styles.height.value == 1
+            assert status.region.height == 1
+            # W2 regression: a one-row box with its own border loses the
+            # only content row, so verify the status text is still painted.
+            rows = extract_svg_rows(app.export_screenshot())
+            content = status.content
+            assert isinstance(content, Text)
+            first_token = content.plain.split()[0]
+            assert any(first_token in text for text in rows.values())
+
+    asyncio.run(scenario())
+
+
+def test_file_manager_fullscreen_keeps_inner_rules(tmp_path: Path) -> None:
+    """The fullscreen form fills the terminal without an outer frame."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], [], fullscreen=True))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert screen.has_class("fullscreen")
+            frame = screen.query_one("#file-manager", Vertical)
+            assert not frame.border_title
+            assert frame.styles.border.top[0] != "tall"
+            body = screen.query_one("#file-manager-body")
+            assert body.styles.border_top[0] == "solid"
+            assert body.styles.border_bottom[0] == "solid"
+            assert await wait_until(
+                pilot, lambda: frame.region.size == (100, 30)
+            )
+
+    asyncio.run(scenario())
+
+
+def test_file_manager_highlight_row_drops_span_colors(tmp_path: Path) -> None:
+    """Cursor moves strip the new row's spans and restore the old row's ones."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(
+                pilot, lambda: len(list(_list(screen).children)) == 4
+            )
+            listing = _list(screen)
+            assert listing.index == 0
+            first = listing.children[0]
+            assert isinstance(first, ListItem)
+            assert first.has_class("-highlight")
+            assert first.query_one(_Row).render().spans == []
+            await pilot.press("j")
+            assert await wait_until(pilot, lambda: listing.index == 1)
+            second = listing.children[1]
+            assert isinstance(second, ListItem)
+            assert not first.has_class("-highlight")
+            assert first.query_one(_Row).render().spans
+            assert second.has_class("-highlight")
+            assert second.query_one(_Row).render().spans == []
+            await pilot.press("k")
+            assert await wait_until(pilot, lambda: listing.index == 0)
+            assert first.has_class("-highlight")
+            assert first.query_one(_Row).render().spans == []
+            assert second.query_one(_Row).render().spans
+
+    asyncio.run(scenario())
+
+
+def test_file_manager_icon_colors_follow_theme_but_explorer_does_not(
+    tmp_path: Path,
+) -> None:
+    """Themed icons follow yate themes while the default Seti path is intact."""
+    _make_tree(tmp_path)
+    original = theme.active()
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            assert screen._icon_palette["blue"] == original.accent
+            before = screen._icon_palette["blue"]
+            switched = "latte" if original.name == "mocha" else "mocha"
+            theme.set_theme(switched)
+            assert await wait_until(
+                pilot,
+                lambda: screen._icon_palette["blue"] == theme.active().accent,
+            )
+            assert screen._icon_palette["blue"] != before
+            palette_colors = set(screen._icon_palette.values())
+            assert any(
+                span.style in palette_colors for span in screen._rows[2].spans
+            )
+            assert icon_color("a.py", False, "#123456") == SETI_COLORS["blue"]
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        theme.set_theme(original.name)
+
+
+def test_file_manager_custom_theme_repaints_chrome(tmp_path: Path) -> None:
+    """A custom Theme override repaints both TCSS tokens and Rich styles."""
+    _make_tree(tmp_path)
+    original = theme.active()
+    custom = replace(
+        original,
+        name="fm-custom",
+        label="FM Custom",
+        panel="#112233",
+        surface="#556677",
+        accent="#aabbcc",
+        accent2="#445566",
+        fg="#778899",
+        fg_dim="#99aabb",
+    )
+    theme.register_theme(custom)
+    textual_theme = to_textual_theme(custom)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        app.register_theme(textual_theme)
+        app.theme = textual_theme.name
+        theme.set_theme(custom.name)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            frame = screen.query_one("#file-manager", Vertical)
+            assert len(screen.query("#file-manager-head")) == 0
+            item = _list(screen).children[_list(screen).index or 0]
+            assert item.styles.background == Color.parse(custom.accent2)
+            assert frame.styles.background == Color.parse(custom.surface)
+            assert screen.query_one("#file-manager-status", Static).styles.background == (
+                Color.parse(custom.surface)
+            )
+            assert screen._icon_palette["blue"] == custom.accent
+            status = screen.query_one("#file-manager-status", Static).content
+            assert isinstance(status, Text)
+            assert any(span.style == custom.fg for span in status.spans)
+            assert any(span.style == custom.fg_dim for span in status.spans)
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        theme.set_theme(original.name)
+        THEMES.pop(custom.name, None)
+
+
+def test_file_manager_filter_input_keeps_visible_border(tmp_path: Path) -> None:
+    """The active input row keeps a theme-token border and readable text."""
+    _make_tree(tmp_path)
+
+    async def scenario() -> None:
+        app = _Host(_screen(tmp_path, [], []))
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, FileManagerScreen)
+            assert await wait_until(pilot, lambda: bool(screen._rows))
+            await pilot.press("slash")
+            assert await wait_until(pilot, lambda: _input_visible(screen))
+            input_widget = screen.query_one("#file-manager-input", Input)
+            assert input_widget.styles.border_top[0] == "solid"
+            rows = extract_svg_rows(app.export_screenshot())
+            assert any("filter" in row and "name" in row for row in rows.values())
+
+    asyncio.run(scenario())
+
+
+def test_row_render_falls_back_for_non_text_content() -> None:
+    """Static content that is not a Text still renders as plain text."""
+    row = _Row(Text("alpha"), 0)
+    row.update("plain")
+    assert row.render().plain == "plain"

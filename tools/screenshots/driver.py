@@ -93,7 +93,7 @@ _HOME_POSIX_RE = re.compile(r"/ho" r"me/[^/\s\"'<>]+")
 _REPO_FORWARD: str = str(repo_root()).replace("\\", "/")
 #: This tool's own temporary fixture prefix: its random per-run token must
 #: not reach a screenshot, or regenerations stop being byte-identical.
-_FIXTURE_PREFIX_RE = re.compile(r"yate-screenshots-[0-9a-z]+")
+_FIXTURE_PREFIX_RE = re.compile(r"yate-screenshots-[0-9a-z_]+")
 #: Rich's exported-SVG element id: ``adler32`` over the recorded segment
 #: stream, which jitters for timing-sensitive frames even when the visible
 #: content is identical.  Normalizing it keeps regenerations byte-identical
