@@ -115,7 +115,29 @@ Only commits, no `git push` (task-orchestration.md §二).
 Parallel `-n auto` flakes must be re-checked with `-n 1` and fixed, never
 recorded as "occasional". Coverage must be >= 75 with `--cov-fail-under=75`.
 
-## 9. Backfill (filled at close)
+## 9. Backfill (2026-11-07, closed)
 
-Wave acceptance results, negative drill results, review outcome, gate numbers,
-deviations, and final commit list go here and in the main plan §9.
+Wave table (all exit code 0; grep no-match exit 1 = 0 hits):
+
+| Wave | pyright | arch | full pytest | smoke | negative drill | commit |
+|---|---|---|---|---|---|---|
+| 1 | 0 | 37 | 0 | n/a | naming guard RED 1 / GREEN 0 | `3e615a9` |
+| 2 | 0 | 37 | 0 | 121/121 · 1463/1463 | R2 + R11 RED 1 / GREEN 0 | `55aee7e` |
+| 3 | 0 | 37 | 0 | 121/121 · 1463/1463 | rank RED 1 (2 upward edges) / GREEN 0 | `f3299a1` |
+
+Review: `code-review-expert` 0 blocker / 1 major / 3 minor; record at
+[../reviews/2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md),
+fix plan at [../iktbxc-review-fixes-plan.md](../iktbxc-review-fixes-plan.md).
+M1 (7 one-shot scripts) deleted, m2/m3 rule text fixed, m1 deferred; the
+`stress_rapid_toggles` timing flake was fixed per §二.7 in `c9f5589`.
+
+Closing gate (main agent, real numbers): pyright `0 errors, 0 warnings`;
+`pytest -q -n auto` exit 0; architecture 37 dots exit 0; coverage
+`TOTAL ... 93%`, `Total coverage: 92.84%`, `3395 passed, 10 skipped`, exit 0;
+smoke `1463/1463 checks`, `121/121 scenarios`, exit 0; `python -m yate --help`
+exit 0; combined residual grep 0 hits (exit 1).
+
+Final commits (9, no push): `efd4551` / `6539b90` / `e7c2d67` / `3e615a9` /
+`55aee7e` / `f3299a1` / `506b38c` / `adca72b` / `c9f5589`, plus this backfill
+commit. Deviations, anomalies and deferred items: main plan §9.3 / §9.6.
+`git status --short` empty at close.

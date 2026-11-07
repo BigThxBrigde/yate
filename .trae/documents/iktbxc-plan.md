@@ -177,7 +177,91 @@ isolates the main repo.
 - No new behavior tests: the task changes no runtime behavior; guard coverage is
   proven by the four negative drills plus the full 37-case architecture suite.
 
-## 9. Closing backfill (filled by the main agent at the end)
+## 9. Closing backfill (2026-11-07, main agent)
 
-To be filled with real numbers, command exit codes, deviations, review outcome,
-and the final commit list.
+### 9.1 Wave acceptance (real results)
+
+| Wave | pyright | arch | focused | full pytest | smoke | residual grep | commit |
+|---|---|---|---|---|---|---|---|
+| 1 | 0 errors | 37 dots / exit 0 | 80 tests / exit 0 | exit 0 | n/a | 0 hits (exit 1) | `3e615a9` (rename 93%) |
+| 2 | 0 errors | 37 dots / exit 0 | 74 tests / exit 0 | exit 0 | 121/121 · 1463/1463 / exit 0 | 0 hits (exit 1) | `55aee7e` (rename 100%) |
+| 3 | 0 errors | 37 dots / exit 0 | 4 files / exit 0 | exit 0 | 121/121 · 1463/1463 / exit 0 | 0 hits (exit 1) | `f3299a1` (rename 100%) |
+
+Negative drills: drill-1 naming guard RED exit 1 -> GREEN exit 0; drill-2a
+`ALLOWED_PROTOCOLS` RED 1 -> GREEN 0; drill-2b `UI_FROZEN_FILES` RED 1 -> GREEN 0;
+drill-3 rank RED 1 (both `-> yate.registries` / `-> yate.session` edges observed)
+-> GREEN 0. Every drill verified on-disk restore + `__pycache__` cleanup.
+
+Two execution anomalies, both recorded:
+
+- The wave-1 baseline command was run twice by the shell wrapper; the second
+  pass saw the renamed intermediate state (pytest exit 4, `git mv` "bad source").
+  The pre-change baseline was re-measured in the clean main repo: 37 passed,
+  exit 0. No product change was affected.
+- The wave-3 applier stopped at edit 17/22 because the §二 table phrase used
+  inline backticks; the first 16 edits were already on disk. A resume applier
+  applied the remaining 6 with the same per-edit uniqueness assertions; both
+  path forms then grep-clean.
+
+### 9.2 Review and iteration
+
+`code-review-expert` (`bypassPermissions`, DeepSeek-V4.1-Flash) delivered
+**0 blocker / 1 major / 3 minor** at
+[2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md)
+(reviewer had no write tool; the main agent persisted the record verbatim and
+registered index #59). M1 (7 one-shot scripts) removed, m2/m3 rule text
+clarified, m1 registered as deferred; the smoke timing flake was fixed per
+`task-orchestration.md` §二.7. Iteration re-verification: pyright 0, arch 37,
+`--repeat 5 --jobs 4` stress 12/12, full smoke 121/121 · 1463/1463.
+
+### 9.3 Deviations (with evidence)
+
+1. `cmdline_completions` landed at root L1 (issue's second suggested target)
+   with `("cmdline_completions.py", 1)` in `_LAYER_RANKS`, not at `services/`
+   L0 -- drill-3 proved the rank entry load-bearing (§3/C4).
+2. `tools/smoke_test/scenarios/stress.py` convergence fix is outside issue §五's
+   diff scope, but §二.7 requires fixing a timing flake after `-n 1` /
+   `--jobs 1` re-check; isolated in commit `c9f5589`, never mixed into the three
+   implementation commits (see
+   [iktbxc-review-fixes-plan.md](iktbxc-review-fixes-plan.md) §四).
+3. `plan-architect-designer` spawned twice, both failed with model-not-registered;
+   main agent produced the plan (§8, subagent zero output for planning).
+4. All three waves executed by the main agent: `subagent-workflow.md` §一.3
+   forbids subagent edits to `yate/`.
+5. Unattended §二.5 record: 7 untracked one-shot tools were deleted after the
+   deletion list was written to disk (review fixes plan §三):
+   `.iktbxc_wave1.py`, `.iktbxc_wave2.py`, `.iktbxc_wave3.py`,
+   `.iktbxc_wave3b.py`, `.iktbxc_drill1.py`, `.iktbxc_drill2.py`,
+   `.iktbxc_drill3.py`. Final `git status --short` is empty.
+
+### 9.4 Closing gate (main agent, all exit code 0 unless noted)
+
+| Command | Real result |
+|---|---|
+| `pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations`, exit 0 |
+| `pytest tests/ -q -n auto` | exit 0 |
+| `pytest tests/test_architecture.py -q` | 37 dots, exit 0 |
+| `pytest tests/ --cov=yate --cov-branch -n auto --cov-fail-under=75` | `TOTAL 19392 / 1100 miss / 6190 branch / 573 partial = 93%`; `Required test coverage of 75% reached. Total coverage: 92.84%`; `3395 passed, 10 skipped in 165.91s`, exit 0 |
+| `tools.smoke_test run --jobs 4` | `1463/1463 checks (100%)`, `121/121 scenarios passed 78.38s`, exit 0 |
+| `python -m yate --help` | exit 0 |
+| combined residual grep (dotted + slashed forms) | 0 hits, exit 1 (expected green) |
+
+### 9.5 Final commits (9 implementation/review commits + 1 backfill, no `git push`)
+
+`efd4551` issue notes -> `6539b90` reference inventory -> `e7c2d67` plan +
+sub-plans -> `3e615a9` wave-1 -> `55aee7e` wave-2 -> `f3299a1` wave-3 ->
+`506b38c` review archive -> `adca72b` review fixes plan + rule clarifications ->
+`c9f5589` smoke flake fix. This backfill is the closing docs commit.
+
+### 9.6 Deferred / out-of-scope registrations
+
+- m1: three commit bodies are empty; wave-1's docstring rewrite is documented
+  here instead of rewriting history. Future same-kind commits should add a body
+  line.
+- Review observations: R11 docstring/guard enumerations vs `UI_FROZEN_FILES`
+  10-key drift (pre-existing); `key_codec.py` first line still contains the word
+  "legacy" (semantically correct per §一 P0-1); full `--follow` archaeology of
+  the 2026-11-02 package-level rename not performed.
+- P2-4 (editor_sprites characters/chars) and P2-5 (palette tri-homonym) remain
+  separate review topics per the issue.
+

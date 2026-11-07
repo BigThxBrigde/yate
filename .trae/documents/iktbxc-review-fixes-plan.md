@@ -100,6 +100,26 @@ git grep -n -E "keyproto\.legacy|editor_components\.editor|flows\.cmdline_comple
 
 回滚：迭代波提交各自 `git revert`；三笔实现提交不受影响。
 
-## 七、迭代结论（收尾回填）
+## 七、迭代结论（2026-11-07，已闭环）
 
-待主代理亲跑门禁后填写真实数字、退出码、评审 major 归零结论与最终提交列表。
+**major 归零**：M1 的 7 个一次性脚本已按 §三清单删除，`Get-ChildItem -Filter
+".iktbxc_*"` 无输出，`git status --short` 为空；删除前本计划已落盘、收尾汇报显式
+列出。m2（R4 名单分歧说明）、m3（§三.6 去掉重复层级前缀）已修；m1 按 §二登记
+待办、不重写历史提交。评审记录与索引 #59 已归档。
+
+**迭代波局部验收**：pyright `0 errors, 0 warnings`；架构 37 dots exit 0；
+`--scenario stress_rapid_toggles --repeat 5 --jobs 4` 五次全 12/12 exit 0；
+全量冒烟 `121/121 · 1463/1463` exit 0；三连残留 grep 0 命中（exit 1）。
+
+**主代理收尾门禁（全 exit 0）**：pyright 0 诊断；`pytest -q -n auto` 0；
+架构 37；覆盖率 `TOTAL 19392/1100/6190/573 = 93%`、`Total coverage: 92.84%`、
+`3395 passed, 10 skipped`（`--cov-fail-under=75` 通过）；冒烟
+`1463/1463 checks`、`121/121 scenarios`；`python -m yate --help` 0。
+
+**提交序列**：`506b38c`（评审归档 + 索引 #59）、`adca72b`（本计划 + 规则 m2/m3）、
+`c9f5589`（flake 收敛断言）、收尾回填一笔；三笔实现提交 `3e615a9` / `55aee7e` /
+`f3299a1` 未被改动。全部 10 笔提交均未推送。
+
+**遗留**：评审 §八三条观测项（R11 枚举与 `UI_FROZEN_FILES` 既有漂移、
+`key_codec.py` 首行 "legacy" 字样、包级 rename 全历史考古）与 P2-4 / P2-5
+另案，登记不修；详见主计划 §9.6。
