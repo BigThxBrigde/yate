@@ -1,6 +1,6 @@
-# 2026-11-06 IKSFS7 review round 2 (post-iteration)
+# 2026-11-06 unnamed-buffer LSP attach review round 2 (post-iteration)
 
-- Branch: `fix/iksfs7` · primary range `383affe..HEAD` (3 plan/review commits + wave-3 code `28a5fdf`), plus full-range recheck `8e60598..HEAD`.
+- Branch: `fix/enew-args-lsp-attach` · primary range `383affe..HEAD` (3 plan/review commits + wave-3 code `28a5fdf`), plus full-range recheck `8e60598..HEAD`.
 - Reviewer: `code-review-expert` (`.trae/agents/code-review-expert.md`), `python-code-review` skill from `.trae/skills/`, forced self-critique applied.
 - Verdict: **LOOKS GOOD — 0 blocker / 0 major / 2 minor**. Round-1's 2 majors are closed; all 4 round-1 minors are disposed of. Can enter step 7.
 - This is a read-only fact document; remediation is recorded in the plan, not scheduled here.
@@ -18,7 +18,7 @@
 
 ### [minor] 1 — plan-e §6 execution record still placeholders
 
-`.trae/documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md:187-200` had all 8 rows `pending`, although plan-e §4.1/§5 require recording the negative drills and measured results. Rule: `plan-before-execute.md` (verifiable acceptance records). **Resolution**: resolved at step 7 — the main agent backfilled plan-e §6 (and every other sub-plan's execution record) with measured commands, exit codes and deviations; see [`../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md`](../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md) §6.
+`.trae/documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md:187-200` had all 8 rows `pending`, although plan-e §4.1/§5 require recording the negative drills and measured results. Rule: `plan-before-execute.md` (verifiable acceptance records). **Resolution**: resolved at step 7 — the main agent backfilled plan-e §6 (and every other sub-plan's execution record) with measured commands, exit codes and deviations; see [`../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md`](../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md) §6.
 
 ### [minor] 2 — same-URI retarget of a never-shown document does not attach
 

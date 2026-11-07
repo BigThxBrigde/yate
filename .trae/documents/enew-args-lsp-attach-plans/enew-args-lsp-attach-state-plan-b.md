@@ -1,11 +1,11 @@
-# IKSFS7 plan-b — L0 manager: path gate, URI retarget, single didOpen (wave-1)
+# Unnamed-buffer LSP attach plan-b — L0 manager: path gate, URI retarget, single didOpen (wave-1)
 
-Main plan: [`../iksfs7-plan.md`](../iksfs7-plan.md) · wave table:
-[`overview.md`](overview.md). Run from the `../yate-iksfs7` worktree root.
+Main plan: [`../enew-args-lsp-attach-plan.md`](../enew-args-lsp-attach-plan.md) · wave table:
+[`overview.md`](overview.md). Run from the `../yate-enew-args-lsp-attach` worktree root.
 
 ## 1. Input
 
-- Issue notes [`../iksfs7-issue-notes.md`](../iksfs7-issue-notes.md) §1 problems 2/3, §5 LSP locations, §6 directions 2/3.
+- Issue notes [`../enew-args-lsp-attach-issue-notes.md`](../enew-args-lsp-attach-issue-notes.md) §1 problems 2/3, §5 LSP locations, §6 directions 2/3.
 - Main plan §2 facts F4-F11, F18, §3 decisions B/C, §4 sequence diagram.
 - Rules: `.trae/rules/architecture-boundaries.md` (R4: `editor_lsp` is a UI-free
   L0 leaf; R2/R6/§三.3), `.trae/rules/python-coding-style.md` (full annotations,
@@ -249,7 +249,7 @@ architecture suite 37 passed; `manager.py` stays below 800 lines.
 
 Deviations: none at wave-1. Step-5 review round 1 later found two major design
 gaps in §3.5's `Path`-based comparison; they were redesigned in
-[`iksfs7-review-fixes-plan-e.md`](iksfs7-review-fixes-plan-e.md) and fixed in
+[`enew-args-lsp-attach-review-plan-e.md`](enew-args-lsp-attach-review-plan-e.md) and fixed in
 wave-3, with 4/4 negative drills failing on the old implementation. The
 current code follows plan-e, not the original §3.5 snippet above.
 

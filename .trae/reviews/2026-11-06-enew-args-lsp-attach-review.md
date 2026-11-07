@@ -1,9 +1,9 @@
-# 2026-11-06 IKSFS7 review round 1
+# 2026-11-06 unnamed-buffer LSP attach review round 1
 
-- Branch: `fix/iksfs7` · range `8e60598..383affe` (6 commits, issue notes + plan + wave-1/2 products).
+- Branch: `fix/enew-args-lsp-attach` · range `8e60598..383affe` (6 commits, issue notes + plan + wave-1/2 products).
 - Reviewer: `code-review-expert` (`.trae/agents/code-review-expert.md`), `python-code-review` skill from `.trae/skills/`, forced self-critique applied.
 - Scope: `yate/commands.py`, `yate/editor_lsp/manager.py`, `yate/flows/document_flows.py`, `tests/test_cmd_enew.py`, `tests/test_lsp.py`, `tests/test_document_flows_saveas.py`, four bilingual manual files, smoke scenario and one baseline.
-- Specification sources: [`../documents/iksfs7-issue-notes.md`](../documents/iksfs7-issue-notes.md), [`../documents/iksfs7-plan.md`](../documents/iksfs7-plan.md), [`../documents/iksfs7-plans/overview.md`](../documents/iksfs7-plans/overview.md) and sub-plans a-d.
+- Specification sources: [`../documents/enew-args-lsp-attach-issue-notes.md`](../documents/enew-args-lsp-attach-issue-notes.md), [`../documents/enew-args-lsp-attach-plan.md`](../documents/enew-args-lsp-attach-plan.md), [`../documents/enew-args-lsp-attach-plans/overview.md`](../documents/enew-args-lsp-attach-plans/overview.md) and sub-plans a-d.
 - Verdict: **NEEDS WORK — 0 blocker / 2 major / 4 minor**. This is a read-only fact document; remediation is recorded in the plan, not scheduled here.
 
 ## 1. Gate commands actually executed (reviewer, exit codes)
@@ -109,4 +109,4 @@ by pyright strict; the plan-d full `run --jobs 4` deferral was executed by
 this review (121/121). All six commits use the `type(scope): subject` format.
 The two majors are **plan design gaps** (URI identity / URI ownership were
 undefined), not implementation deviations; they were fed back into step 2 as
-[`../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md`](../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md).
+[`../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md`](../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md).

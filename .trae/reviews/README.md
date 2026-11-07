@@ -75,15 +75,15 @@ terminal 静默吞异常为 major），全部当轮修复闭环；收尾复核�
 基线 0 BLOCKER / 1 MAJOR（本地 pyright 命令漏 `pack/`，与规则 §二.7 及 pyproject
 `include` 不一致）/ 12 MINOR；MAJOR 按四路径补跑闭环、MINOR 9 修 3 登记，修复后
 APPROVE，六道门禁全 exit 0（覆盖率 92.82% / 3395 passed·10 skipped）。
-**2026-11-06 IKSFS7 增量**：新增 #59（`fix/iksfs7` 分支首轮评审，范围
+**2026-11-06 enew-args-lsp-attach 增量**：新增 #59（`fix/enew-args-lsp-attach` 分支首轮评审，范围
 `8e60598..383affe`：`:enew` 参数守卫 + 无路径 buffer 的 LSP 口径统一 +
 `:saveas` 首路径 didOpen + 双语手册/冒烟）。0 blocker / 2 major（save-as 重绑到
 已被另一 tab 占用的 URI、路径拼写不同但 URI 相同触发多余 didClose）/ 4 minor；
 五道门禁全绿（pyright 0 / 3413 passed·10 skipped / 架构 37 / 覆盖率 92.86% /
 冒烟 121/121·1464 checks，`-n 1` 复核一致）。两 major 经主代理裁定为方案设计
 缺口而非实现偏离，已回到步骤 2 补设计并记录于
-[iksfs7-review-fixes-plan-e.md](../documents/iksfs7-plans/iksfs7-review-fixes-plan-e.md)。
-**2026-11-06 IKSFS7 第 2 轮增量**：新增 #60（`fix/iksfs7` 迭代后复审，
+[enew-args-lsp-attach-review-plan-e.md](../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md)。
+**2026-11-06 enew-args-lsp-attach 第 2 轮增量**：新增 #60（`fix/enew-args-lsp-attach` 迭代后复审，
 范围 `383affe..HEAD` + 全量 `8e60598..HEAD`复核）。LOOKS GOOD：
 0 blocker / 0 major / 2 minor；首轮 2 major 全部闭环（URI 归属重绑 + URI 级
 路径等价，4/4 负向演练在旧实现全红）、4 minor 全部处置。

@@ -1,7 +1,7 @@
-# IKSFS7 plan-e — review round-1 major/minor fixes (wave-3, serial)
+# Unnamed-buffer LSP attach plan-e — review round-1 major/minor fixes (wave-3, serial)
 
-Main plan: [`../iksfs7-plan.md`](../iksfs7-plan.md) · wave table:
-[`overview.md`](overview.md). Run from the `../yate-iksfs7` worktree root.
+Main plan: [`../enew-args-lsp-attach-plan.md`](../enew-args-lsp-attach-plan.md) · wave table:
+[`overview.md`](overview.md). Run from the `../yate-enew-args-lsp-attach` worktree root.
 Triggered by step 5 review round 1: **0 blocker / 2 major / 4 minor**, so step 6
 returns to step 2 for this design before any further code change.
 
@@ -14,7 +14,7 @@ returns to step 2 for this design before any further code change.
 - Main plan §3 decision C (especially rejected alternative C4: "an unchanged
   path keeps didSave, restarting the server-side document on an identical
   path discards diagnostics for no reason") and §6 risk table.
-- [`iksfs7-lsp-state-plan-b.md`](iksfs7-lsp-state-plan-b.md) §3.4/§3.5 for the
+- [`enew-args-lsp-attach-state-plan-b.md`](enew-args-lsp-attach-state-plan-b.md) §3.4/§3.5 for the
   current `on_document_shown` / `_close_uri` / `on_document_retargeted` shape.
 - Rules: `.trae/rules/architecture-boundaries.md` §三.7 (>800 lines needs
   exemption or split), R4/R2/R6, `.trae/rules/python-coding-style.md`,
@@ -215,7 +215,7 @@ by pyright 0 / 72 passed / review round 2 (0 blocker / 0 major).
   owner's `OpenDocState`. This is inherent to two tabs bound to one path (a
   pre-existing `EditorSession` model limitation, reachable through `:saveas`);
   the LSP wire protocol has one document per URI. It is registered as a
-  follow-up backlog item, not fixed here (out of IKSFS7 scope).
+  follow-up backlog item, not fixed here (out of this fix's scope).
 - Risk: `_opening` membership checks make a legitimate open abort if some
   unrelated code discards the URI. Only `_close_uri` discards (plus the
   opener's own `finally`), so this is intentional: close wins.

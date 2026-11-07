@@ -1,11 +1,11 @@
-# IKSFS7 plan-a — `:enew` must reject arguments (wave-1)
+# Unnamed-buffer LSP attach plan-a — `:enew` must reject arguments (wave-1)
 
-Main plan: [`../iksfs7-plan.md`](../iksfs7-plan.md) · wave table:
-[`overview.md`](overview.md). Run from the `../yate-iksfs7` worktree root.
+Main plan: [`../enew-args-lsp-attach-plan.md`](../enew-args-lsp-attach-plan.md) · wave table:
+[`overview.md`](overview.md). Run from the `../yate-enew-args-lsp-attach` worktree root.
 
 ## 1. Input
 
-- Issue notes [`../iksfs7-issue-notes.md`](../iksfs7-issue-notes.md) §1 problem 1, §3 expected behavior.
+- Issue notes [`../enew-args-lsp-attach-issue-notes.md`](../enew-args-lsp-attach-issue-notes.md) §1 problem 1, §3 expected behavior.
 - Main plan §2 facts F1/F2/F3/F17, §3 decision A, §6 risk table.
 - Rules: `.trae/rules/python-coding-style.md`, `.trae/rules/architecture-boundaries.md`
   §五 checklist (R5/R7: `commands.py` is the L3 built-in table),

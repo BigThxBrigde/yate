@@ -1,6 +1,6 @@
 """``:saveas`` flow tests: LSP retarget spawn, failure safety, prompt path.
 
-Covers plan-c of the IKSFS7 fix: a successful ``:saveas`` asks the LSP
+Covers plan-c of the unnamed-buffer LSP attach fix: a successful ``:saveas`` asks the LSP
 manager to rebind the document (``on_document_retargeted`` with the
 pre-save path), a failed write schedules nothing, and a plain ``:w``
 still uses the ``notify_saved`` path.

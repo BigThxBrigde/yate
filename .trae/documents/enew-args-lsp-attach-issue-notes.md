@@ -1,9 +1,9 @@
-# IKSFS7 issue source notes
+# Issue source notes — `:enew` arguments and unnamed-buffer LSP attach
 
 Source: <https://gitee.com/jermaine/yate/issues/IKSFS7> (read 2026-11-06).
 Title: `fix: :enew 参数被静默忽略 + 无路径 buffer 永不启动 LSP（状态栏却显示已检测到 SERVER）`
 Status: 待办的 / label: bug / milestone: AI在哪里Vol.2 / 0 comments / created 2026-11-02 23:02.
-Branch for this task: `fix/iksfs7`, worktree: `../yate-iksfs7` (relative to the main repo).
+Branch for this task: `fix/enew-args-lsp-attach`, worktree: `../yate-enew-args-lsp-attach` (relative to the main repo).
 
 This file is the step-1 "issue text reading and organization" artifact of
 `task-orchestration.md` section 2.1: it only collects the source text, the

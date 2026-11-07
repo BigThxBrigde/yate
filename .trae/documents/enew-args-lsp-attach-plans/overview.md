@@ -1,8 +1,8 @@
-# IKSFS7 sub-plan overview — `:enew` args / unnamed-buffer LSP attach
+# Unnamed-buffer LSP attach sub-plan overview — `:enew` args / unnamed-buffer LSP attach
 
-Main plan: [`../iksfs7-plan.md`](../iksfs7-plan.md) · issue notes:
-[`../iksfs7-issue-notes.md`](../iksfs7-issue-notes.md).
-Worktree root: `../yate-iksfs7` (relative to the main repo); every command in
+Main plan: [`../enew-args-lsp-attach-plan.md`](../enew-args-lsp-attach-plan.md) · issue notes:
+[`../enew-args-lsp-attach-issue-notes.md`](../enew-args-lsp-attach-issue-notes.md).
+Worktree root: `../yate-enew-args-lsp-attach` (relative to the main repo); every command in
 the sub-plans runs from that root with `.venv\Scripts\python.exe`.
 
 ## 1. Goals / non-goals
@@ -18,11 +18,11 @@ or stale `didOpen` state. No new LSP server for pathless buffers, no
 
 | Plan | Wave | Title | Exclusive files |
 |---|---|---|---|
-| a | wave-1 | `:enew` argument guard | [`iksfs7-enew-args-plan-a.md`](iksfs7-enew-args-plan-a.md) |
-| b | wave-1 | L0 manager: path gate, URI retarget, single didOpen | [`iksfs7-lsp-state-plan-b.md`](iksfs7-lsp-state-plan-b.md) |
-| c | wave-2 | `:saveas` wiring in `DocumentFlows` | [`iksfs7-saveas-attach-plan-c.md`](iksfs7-saveas-attach-plan-c.md) |
-| d | wave-2 | bilingual manuals + smoke check/baseline | [`iksfs7-docs-smoke-plan-d.md`](iksfs7-docs-smoke-plan-d.md) |
-| e | wave-3 (serial) | review round-1 major/minor fixes | [`iksfs7-review-fixes-plan-e.md`](iksfs7-review-fixes-plan-e.md) |
+| a | wave-1 | `:enew` argument guard | [`enew-args-lsp-attach-guard-plan-a.md`](enew-args-lsp-attach-guard-plan-a.md) |
+| b | wave-1 | L0 manager: path gate, URI retarget, single didOpen | [`enew-args-lsp-attach-state-plan-b.md`](enew-args-lsp-attach-state-plan-b.md) |
+| c | wave-2 | `:saveas` wiring in `DocumentFlows` | [`enew-args-lsp-attach-saveas-plan-c.md`](enew-args-lsp-attach-saveas-plan-c.md) |
+| d | wave-2 | bilingual manuals + smoke check/baseline | [`enew-args-lsp-attach-docs-plan-d.md`](enew-args-lsp-attach-docs-plan-d.md) |
+| e | wave-3 (serial) | review round-1 major/minor fixes | [`enew-args-lsp-attach-review-plan-e.md`](enew-args-lsp-attach-review-plan-e.md) |
 
 ## 3. Execution waves (strictly customized; no re-ordering at runtime)
 

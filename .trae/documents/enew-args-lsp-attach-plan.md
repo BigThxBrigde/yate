@@ -1,19 +1,19 @@
-# IKSFS7 fix plan — `:enew` argument handling and unnamed-buffer LSP attach
+# Unnamed-buffer LSP attach fix plan — `:enew` argument handling and unnamed-buffer LSP attach
 
 Issue: <https://gitee.com/jermaine/yate/issues/IKSFS7> (source notes:
-[`iksfs7-issue-notes.md`](iksfs7-issue-notes.md)).
-Branch: `fix/iksfs7` · worktree: `../yate-iksfs7` (relative to the main repo).
+[`enew-args-lsp-attach-issue-notes.md`](enew-args-lsp-attach-issue-notes.md)).
+Branch: `fix/enew-args-lsp-attach` · worktree: `../yate-enew-args-lsp-attach` (relative to the main repo).
 
 ## 0. Process state (closed loop, `task-orchestration.md` §二)
 
 | Step | State | Evidence |
 |---|---|---|
-| 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (`D:\Programming\yate-iksfs7\yate\__init__.py`); issue notes committed `7011ff2` |
-| 2 方案 | done (this document + `iksfs7-plans/`) | plan-architect-designer spawn failed twice with `Model "qwen-3.7-plus" not found` (retry per §一.3.5 exhausted); **main agent executed the role script directly — 子代理零产出**, recorded per §三 |
+| 1 领会 | done | worktree + branch created from `master` `8e60598`; `.venv` rebuilt in the worktree and self-proved (`../../yate/__init__.py`); issue notes committed `7011ff2` |
+| 2 方案 | done (this document + `enew-args-lsp-attach-plans/`) | plan-architect-designer spawn failed twice with `Model "qwen-3.7-plus" not found` (retry per §一.3.5 exhausted); **main agent executed the role script directly — 子代理零产出**, recorded per §三 |
 | 3 批准 | waived | user explicitly requested unattended mode ("进入无人值守模式，所有问题无须过问") on 2026-11-06; per workspace rule §二.5 no approval/question is raised; the plan is treated as approved |
-| 4 执行 | done | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; wave-3: `28a5fdf`; main agent independently re-ran every wave's tests/pyright/architecture (all exit 0); see [`iksfs7-plans/overview.md`](iksfs7-plans/overview.md) |
-| 5 审核 | done (2 rounds) | round 1: **0 blocker / 2 major / 4 minor** ([record](../reviews/2026-11-06-iksfs7-review-round1.md)); round 2 after iteration: **0 blocker / 0 major / 2 minor** ([record](../reviews/2026-11-06-iksfs7-review-round2.md)); both rounds ran all five gate commands, all exit 0 |
-| 6 迭代 | done | 2 majors → step-2 redesign in §3 C' + [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md) (wave-3, 4/4 negative drills failing on the old code); minors #3/#4/#6 folded into that wave, #5 by the `< 800` line assertion; round-2 minor#1 resolved by step-7 backfill, minor#2 registered as backlog (§6) |
+| 4 执行 | done | wave-1: `df91f5c` + `429ff18`; wave-2: `c7fb803` + `383affe`; wave-3: `28a5fdf`; main agent independently re-ran every wave's tests/pyright/architecture (all exit 0); see [`enew-args-lsp-attach-plans/overview.md`](enew-args-lsp-attach-plans/overview.md) |
+| 5 审核 | done (2 rounds) | round 1: **0 blocker / 2 major / 4 minor** ([record](../reviews/2026-11-06-enew-args-lsp-attach-review.md)); round 2 after iteration: **0 blocker / 0 major / 2 minor** ([record](../reviews/2026-11-06-enew-args-lsp-attach-iteration-review.md)); both rounds ran all five gate commands, all exit 0 |
+| 6 迭代 | done | 2 majors → step-2 redesign in §3 C' + [`enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md) (wave-3, 4/4 negative drills failing on the old code); minors #3/#4/#6 folded into that wave, #5 by the `< 800` line assertion; round-2 minor#1 resolved by step-7 backfill, minor#2 registered as backlog (§6) |
 | 7 收尾 | done | main agent ran the full gate (§7), backfilled every sub-plan's execution record, archived both review records, committed per step, no push |
 
 ## 1. Goals / non-goals
@@ -179,7 +179,7 @@ Rejected alternatives:
 
 Step-5 review round 1 found two majors in the chosen C design, both caused by
 treating `Path` equality as document identity. The design is amended (full
-detail in [`iksfs7-plans/iksfs7-review-fixes-plan-e.md`](iksfs7-plans/iksfs7-review-fixes-plan-e.md)):
+detail in [`enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md)):
 
 1. **URI identity**: `previous_path` and `doc.path` are compared by
    `protocol.path_to_uri(...)`, which resolves the path (F10). `sub/../a.py`
@@ -267,14 +267,14 @@ flowchart TD
 ## 5. Sub-plan index and waves
 
 Full wave table, exclusive-file matrix and per-wave acceptance commands live in
-[`iksfs7-plans/overview.md`](iksfs7-plans/overview.md). Summary:
+[`enew-args-lsp-attach-plans/overview.md`](enew-args-lsp-attach-plans/overview.md). Summary:
 
 | Wave | Sub-plan | Scope |
 |---|---|---|
-| wave-1 (∥) | [`iksfs7-enew-args-plan-a.md`](iksfs7-plans/iksfs7-enew-args-plan-a.md) | `:enew` argument guard + headless command tests |
-| wave-1 (∥) | [`iksfs7-lsp-state-plan-b.md`](iksfs7-plans/iksfs7-lsp-state-plan-b.md) | `state_for_doc` gate, `_close_uri` extraction, `on_document_retargeted`, single-`didOpen` guard + LSP tests |
-| wave-2 (∥) | [`iksfs7-saveas-attach-plan-c.md`](iksfs7-plans/iksfs7-saveas-attach-plan-c.md) | `:saveas`/`Save as:` wiring + DocumentFlows tests |
-| wave-2 (∥) | [`iksfs7-docs-smoke-plan-d.md`](iksfs7-plans/iksfs7-docs-smoke-plan-d.md) | bilingual manuals + smoke check/baseline |
+| wave-1 (∥) | [`enew-args-lsp-attach-guard-plan-a.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-guard-plan-a.md) | `:enew` argument guard + headless command tests |
+| wave-1 (∥) | [`enew-args-lsp-attach-state-plan-b.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-state-plan-b.md) | `state_for_doc` gate, `_close_uri` extraction, `on_document_retargeted`, single-`didOpen` guard + LSP tests |
+| wave-2 (∥) | [`enew-args-lsp-attach-saveas-plan-c.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-saveas-plan-c.md) | `:saveas`/`Save as:` wiring + DocumentFlows tests |
+| wave-2 (∥) | [`enew-args-lsp-attach-docs-plan-d.md`](enew-args-lsp-attach-plans/enew-args-lsp-attach-docs-plan-d.md) | bilingual manuals + smoke check/baseline |
 
 Wave-2 starts only after **both** wave-1 plans pass their acceptance commands.
 
