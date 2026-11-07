@@ -123,3 +123,11 @@ git grep -n -E "keyproto\.legacy|editor_components\.editor|flows\.cmdline_comple
 **遗留**：评审 §八三条观测项（R11 枚举与 `UI_FROZEN_FILES` 既有漂移、
 `key_codec.py` 首行 "legacy" 字样、包级 rename 全历史考古）与 P2-4 / P2-5
 另案，登记不修；详见主计划 §9.6。
+
+## 八、索引编号后续重排（2026-11-07 pr-review 补记）
+
+上文 §五第 1 步与 §七两处「索引 #59」是当时的事实，保留原文不改。合并前
+pr-review 发现 master 同期另登记 #59 / #60 / #61（enew-args-lsp-attach
+三轮评审），本分支条目已重排为 **#62**，合并前 pr-review 登记为 **#63**；
+编号分歧登记见 [README.md](../reviews/README.md)，处置方案见
+[naming-hygiene-pr-review-plan.md](naming-hygiene-pr-review-plan.md)。

@@ -5,7 +5,7 @@
 > 其余未解决项保持原样登记，修复处置见 [iktbxc-review-fixes-plan.md](../documents/iktbxc-review-fixes-plan.md)。
 
 - Worktree：`yate-naming-hygiene`，分支 `ref/naming-hygiene`，基线 `3e92532`（评审后按语义化命名要求重命名，仅同步元信息，评审结论与实测数字不变）
-- 评审范围：`3e615a9`（wave-1 key_codec 更名）、`55aee7e`（wave-2 view 更名）、`f3299a1`（wave-3 cmdline_completions 归位），`3e92532..HEAD` 共 44 文件 / +1139 / −65
+- 评审范围：`3e615a9`（wave-1 key_codec 更名）、`55aee7e`（wave-2 view 更名）、`f3299a1`（wave-3 cmdline_completions 归位），`3e92532..f3299a1`（评审当时 HEAD）共 44 文件 / +1139 / −65；记录归档后 PR 又增加迭代波与命名同步提交，至 `38a918b` 为 48 文件 / +1641 / −65（订正见 §十一）
 - 上下文：`.trae/documents/iktbxc-issue-notes.md`、`iktbxc-reference-inventory.md`、`iktbxc-plan.md`、`iktbxc-plans/*.md`
 - 结论：**0 个 blocker，1 个 major，3 个 minor**
 
@@ -119,7 +119,7 @@ git grep -n -E "keyproto[.]legacy|editor_components[.]editor|flows[.]cmdline_com
 
 ## 六、实测命令与退出码（本次评审真实执行）
 
-环境：`d:/Programming/yate-naming-hygiene`，解释器 `.venv/Scripts/python.exe`（Python 3.13.2 / Textual 8.2.8 / rich 15.0.0 / Windows；评审阶段为重命名前的 worktree，重命名后于新 worktree 复跑门禁，见主计划 §9.7）。
+环境：worktree `yate-naming-hygiene`，解释器 `.venv/Scripts/python.exe`（Python 3.13.2 / Textual 8.2.8 / rich 15.0.0 / Windows；评审阶段为重命名前的 worktree，重命名后于新 worktree 复跑门禁，见主计划 §9.7）。
 
 | 命令 | 结果 | 退出码 |
 |---|---|---|
@@ -210,3 +210,29 @@ git grep -n -E "keyproto[.]legacy|editor_components[.]editor|flows[.]cmdline_com
 | 12 | 残余 `git grep`（含 `.trae/documents` / `.trae/reviews`） | **0**（命中全部落在豁免面） |
 
 **最终评级：通过（条件式）——0 个 blocker、1 个 major（M1 临时脚本）、3 个 minor。** M1 属交付卫生，不影响运行时正确性；三个核心验收面（pyright 零诊断、pytest 全绿、覆盖率 ≥75、冒烟 121/121）均已实测通过，残余 grep 在源码/规则/wiki/README 面零命中。
+
+---
+
+## 十一、合并前 pr-review 的事实订正（2026-11-07）
+
+本节登记后续机械复核得出的**事实订正**，不改动上文首轮评审的发现与结论。
+
+1. 范围口径：元信息原写 `3e92532..HEAD` / 44 文件 / +1139 / −65。实测
+   `git diff --stat 3e92532..f3299a1` 恰为 44 / +1139 / −65，故数字正确、
+   `HEAD` 这一标签失真；已改为钉住的提交号。当前 PR HEAD `38a918b` 为
+   48 / +1641 / −65。
+2. §三「import 排序 4 处改动全部合规」一行**已被推翻**：合并前 pr-review 逐行
+   核对 `from yate.` 行位置，发现 5 处改名后的字母序回归
+   （`yate/editor.py`、`yate/editor_dispatch.py`、
+   `yate/flows/completion_flows.py`、`tests/test_app_mouse.py`、
+   `tests/test_panes.py`）——`view` 被留在了旧 `editor` 的位置。其中
+   `editor_dispatch.py` 一行以「`v` > `t` 的字母序判定成立」为据，与
+   `terminal` 排在 `view` 之后的事实相反。5 处已在 pr-review 迭代波修复，
+   依据见 [naming-hygiene-pr-review-plan.md](../documents/naming-hygiene-pr-review-plan.md)。
+3. 索引编号：首轮评审原登记为 #59；master 同期另登记 #59 / #60 / #61
+   （enew-args-lsp-attach 三轮评审），本分支条目重排为 #62，合并前 pr-review
+   登记为 #63，详见 [README.md](README.md) 的编号分歧登记。
+4. 环境行原含本机盘符路径，已按 `doc-conventions.md` §五改为可移植写法。
+
+合并前预评审报告见
+[2026-11-07-pr-review-naming-hygiene.md](2026-11-07-pr-review-naming-hygiene.md)。

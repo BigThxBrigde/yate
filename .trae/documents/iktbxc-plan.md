@@ -4,9 +4,9 @@ Status: **approved** -- unattended session (user instruction 2026-11-07: no
 questions, no approvals). Per workspace rule §二.5, approvals are treated as
 granted while rule loading and the closing gate remain mandatory.
 Base: `master@3e92532`; worktree `yate-naming-hygiene`; branch
-`ref/naming-hygiene`; independent `.venv` verified at
-`D:\Programming\yate-naming-hygiene\yate\__init__.py` (renamed on 2026-11-07;
-see §9.7).
+`ref/naming-hygiene`; independent `.venv` verified by
+`.venv/Scripts/python.exe -c "import yate; print(yate.__file__)"` resolving
+inside this worktree (renamed on 2026-11-07; see §9.7).
 
 ## 1. Inputs (single source of truth)
 
@@ -211,7 +211,8 @@ Two execution anomalies, both recorded:
 **0 blocker / 1 major / 3 minor** at
 [2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md)
 (reviewer had no write tool; the main agent persisted the record verbatim and
-registered index #59). M1 (7 one-shot scripts) removed, m2/m3 rule text
+registered index #59, renumbered to #62 by the 2026-11-07 pr-review). M1
+(7 one-shot scripts) removed, m2/m3 rule text
 clarified, m1 registered as deferred; the smoke timing flake was fixed per
 `task-orchestration.md` §二.7. Iteration re-verification: pyright 0, arch 37,
 `--repeat 5 --jobs 4` stress 12/12, full smoke 121/121 · 1463/1463.
@@ -271,8 +272,7 @@ sub-plans -> `3e615a9` wave-1 -> `55aee7e` wave-2 -> `f3299a1` wave-3 ->
 
 User correction: an issue id must not be used as a branch name; the branch needs
 a meaningful name. The original issue-id branch was renamed via `git branch -m`
-to `ref/naming-hygiene`, and the worktree to
-`D:/Programming/yate-naming-hygiene`.
+to `ref/naming-hygiene`, and the worktree directory to `yate-naming-hygiene`.
 
 `git worktree move` failed twice on Windows with `Permission denied` (the old
 directory was held by another process; the orphan pytest worker PID 14680 was
@@ -297,4 +297,3 @@ coverage `TOTAL 19392/1101/6190/574 = 93%`, `Total coverage: 92.83%`,
 0; `python -m yate --help` 0; source-face residual grep 0 hits (exit 1);
 old-name grep 0 hits (exit 1); `git status --short` empty. The branch now has
 12 commits (10 original + `f0f0997` name sync + this backfill). No push.
-
