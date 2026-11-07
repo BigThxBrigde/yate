@@ -144,3 +144,21 @@ Textual 8.2.8 的 1 行盒无法在 CSS 层做垂直居中，本波如实接受�
 实测（100×30 全屏 pilot）：head `region.y=0, height=1`、status `region.y=29, height=1`；
 三栏头文字 `y=20` 紧接 body 上横线 `y=44`，状态文字 `y=727` 紧接下横线 `y=703`，
 无填充空白行。截图基线首行 `y=20` 为三栏头、`y=44` 为上横线、末行 `y=727` 为状态栏。
+
+## 第四次视觉修订（2026-11-07 用户反馈第四波，覆盖上两节）
+
+用户确认「一行即可」= 只留页脚一行：页眉整行删除，页脚恢复原先布局。W1 栏头、
+W2 栏头高度与第三波的 3 行 / 1 行条带实验就此收束：
+
+- `compose()` 去掉 `#file-manager-head` 与三个 `*-head` `Static`，回到
+  「三栏 + Input + Status」；`_refresh_headers()` 及 `_apply_theme` 的 headers
+  说明一并删除。
+- `file-manager-screen.tcss` 去掉 5 条页眉规则（含 3 个栏头的 `border-right`）；
+  三栏竖向分隔由 `#file-manager-parent` / `#file-manager-list` 自持，不受影响。
+- 页脚 `#file-manager-status` 与 `master` 逐字相同（`height: 1; padding: 0 1;
+  background: $surface`），本波不动；三段式主题文本与 body 上下横线保留。
+- R9 冻结 id 组移除页眉，`architecture-boundaries.md` 行数豁免 1041 → 1018。
+
+验收：用例更名并改为「无页眉 + 页脚单行」契约；截图基线重生成，首行变 body
+上横线、末行仍是状态栏文字；`screenshots/README.md` 双语说明同步。详见本目录
+`overview.md` §八 偏离 13。

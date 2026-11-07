@@ -247,3 +247,40 @@ flowchart TD
 | 截图 | `--only file-manager`：generated 1/1、failed 0、exit 0；SVG diff 17/17 行，`screenshots/README.md` 零差异 |
 | 清理与核查 | 一次性取证脚本 `probe_band.py` 已删除（未入库）；`git diff --check` exit 0 |
 | 【收尾】提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |
+
+13. **2026-11-07 用户反馈第四波（覆盖偏离 11 / 12 的页眉条款）**：用户指出上一波
+    「一行即可」的本意是**只留页脚一行**——页眉整行仍未被删除，页脚要「恢复成和
+    原先一样的布局」。取证 `master`：`compose()` 只有三栏 + `Input` + `Status`；
+    `#file-manager-status` 的 `height: 1; padding: 0 1; background: $surface` 与
+    当前**逐字相同**。裁定：删除页眉整行（`compose` 的 `#file-manager-head` 与三个
+    `*-head` `Static`、TCSS 5 条规则、`_refresh_headers()` 及其调用、`_apply_theme`
+    docstring），页脚样式与内容一字不改；R9 冻结 id 组同步移除页眉，行数豁免
+    1041 → 1018。否决「回退状态栏三段式 / 删除内容区上下横线」：用户本轮只点名
+    页眉与「页脚布局」，页脚样式已在原始版本中核实，推翻首轮需求属超范围。
+    - **实测**：截图基线重生成 1/1，首行 `y=20` 已由三栏头变为 body 上横线，
+      内容首行 `y=44`，末行 `y=727` 仍为状态栏文字；`screenshots/README.md`
+      双语描述去掉「栏头 / column headers」。
+    - **验收改写**：`test_file_manager_headers_and_theme_driven_borders` →
+      `test_file_manager_theme_driven_borders_without_header`（断言无
+      `#file-manager-head` / `#file-manager-list-head`）；
+      `test_file_manager_header_and_footer_are_single_row_bands` →
+      `test_file_manager_footer_is_the_only_single_row_band`（断言页脚 1 行 +
+      状态栏文字仍绘制）；自定义主题用例去掉栏头色 / 背景断言，保留选中行、
+      容器、状态栏、图标色与状态栏 spans 的主题断言。
+
+### 第四波迭代回填（2026-11-07，真实数字）
+
+| 项 | 结果 |
+| --- | --- |
+| 【方案】 | 本轮方案登记在 §八 偏离 13；issue 追加 §七；chrome 子计划追加「第四次视觉修订」；R9 冻结 id 组与行数豁免同步 |
+| 【执行】提交 | `ab64565`（删页眉 + 用例改写 + 截图基线 / 双语说明） |
+| 【审核】 | 同前三波：既有闭环迭代波，主代理按 `code-review-expert` 剧本自审 diff 并亲跑全量门禁，未单独派发评审子代理；首轮评审记录为基线 |
+| pyright | `yate/ tests/ tools/ pack/`：0 errors / 0 warnings / 0 informations，exit 0 |
+| pytest | `tests/ -q -n auto` exit 0；3407 passed / 10 skipped |
+| 架构 | `tests/test_architecture.py` 37 passed，exit 0（R9 / 行数豁免同步后） |
+| 覆盖率 | `--cov=yate --cov-branch -n auto --cov-fail-under=75`：TOTAL 92.93%，`Required test coverage of 75% reached`，exit 0 |
+| 冒烟 | `run --jobs 4`：121/121 scenarios、1463/1463 checks (100%)，exit 0 |
+| 场景对比 | `compare --scenario file_manager_startup_navigation`：MATCH、17/17 checks，exit 0 |
+| 截图 | `--only file-manager`：generated 1/1、failed 0、exit 0；SVG 75 行变化（首行由栏头变 body 上横线），`screenshots/README.md` 双语说明 2 行变化 |
+| 清理与核查 | 本轮未新建探针；`git diff --check` exit 0 |
+| 【收尾】提交 | 即含本表的本笔提交（哈希自指不填，以 `git log -1` 为准） |

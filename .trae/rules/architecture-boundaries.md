@@ -167,9 +167,9 @@ flowchart TD
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
   `load_tcss()` 供 L2 组件同源装载自有 tcss，如 `screensaver.tcss`；文件头注释即声明
   "selector ids are frozen by R9"）：改 id 必须同步改该 `.tcss` 文件。
-  `FileManagerScreen` 的 `#file-manager*` 组 id（含 2026-11-06 新增的
-  `#file-manager-head` 与三个 `*-head` 栏头）由组件自持、清单见
-  `yate/resources/file-manager-screen.tcss` 头注释，不被外壳 CSS 引用，
+  `FileManagerScreen` 的 `#file-manager*` 组 id（2026-11-07 起不再包含
+  `#file-manager-head` 与三个 `*-head` 栏头：按用户反馈整行删除）由组件自持、
+  清单见 `yate/resources/file-manager-screen.tcss` 头注释，不被外壳 CSS 引用，
   属于上述组件自持先例；新增或改名同样须同步该 `.tcss`。
 - **R10 — 一次按键只派发一次**：`EditorView.on_key` 处理后 `event.stop()` / `prevent_default()`，
   未被消费的键不得冒泡到外壳二次派发。
@@ -326,7 +326,8 @@ flowchart TD
      docstring 增补后复测 963 行；2026-11-06 filemgr-theme-beautify 波
      （栏头 / 边框 / 整行高亮 / 主题图标调色板 / 三段状态栏接线）
      复测 1044 行；同日用户视觉修订波（去外框 / 去路径标题 / 页头页脚
-     背景改 $surface）复测 1041 行，维持豁免）、
+     背景改 $surface）复测 1041 行；2026-11-07 用户反馈第四波（删除页眉整行
+     与 `_refresh_headers`）复测 1018 行，维持豁免）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
