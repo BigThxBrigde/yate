@@ -15,31 +15,6 @@ FileManagerScreen.fullscreen #file-manager {
     width: 100%;
     height: 100%;
 }
-/* One-row bands: a one-row box has no vertical excess space, so Textual's
-   middle alignment cannot shift the glyphs.  Keep the chrome compact instead
-   of spending two extra rows per band on blank padding; the body's top and
-   bottom rules provide the visual separation. */
-FileManagerScreen #file-manager-head {
-    height: 1;
-    background: $surface;
-}
-FileManagerScreen #file-manager-head > Static {
-    height: 1;
-    color: $primary;
-    text-style: bold;
-    padding: 0 1;
-}
-FileManagerScreen #file-manager-parent-head {
-    width: 1fr;
-    border-right: solid $foreground 12%;
-}
-FileManagerScreen #file-manager-list-head {
-    width: 2fr;
-    border-right: solid $foreground 12%;
-}
-FileManagerScreen #file-manager-preview-head {
-    width: 2fr;
-}
 FileManagerScreen #file-manager-body {
     height: 1fr;
     border-top: solid $foreground 12%;

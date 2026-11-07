@@ -222,12 +222,8 @@ class FileManagerScreen(ModalScreen[None]):
 
     @override
     def compose(self) -> ComposeResult:
-        """Compose the header row, three panes, input and status bar."""
+        """Compose the three panes, the bottom input and the status bar."""
         with Vertical(id="file-manager"):
-            with Horizontal(id="file-manager-head"):
-                yield Static("PARENT", id="file-manager-parent-head")
-                yield Static("CURRENT", id="file-manager-list-head")
-                yield Static("PREVIEW", id="file-manager-preview-head")
             with Horizontal(id="file-manager-body"):
                 parent = ListView(id="file-manager-parent")
                 parent.can_focus = False
@@ -274,7 +270,7 @@ class FileManagerScreen(ModalScreen[None]):
         theme.detach(self)
 
     def _apply_theme(self) -> None:
-        """Repaint scrollbars, rows, headers and status from the theme (R13)."""
+        """Repaint scrollbars, rows and status from the theme (R13)."""
         apply_scrollbar_theme(self.query_one("#file-manager-parent", ListView))
         apply_scrollbar_theme(self.query_one("#file-manager-list", _FileListView))
         apply_scrollbar_theme(self.query_one("#file-manager-preview", PreviewLog))
@@ -600,26 +596,7 @@ class FileManagerScreen(ModalScreen[None]):
                 width=max(0, status_bar.size.width - 2),
             )
         )
-        self._refresh_headers()
 
-    def _refresh_headers(self) -> None:
-        """Refresh the three column titles and the frame path.
-
-        The titles are plain strings: TCSS design tokens own their colors, so
-        a theme switch repaints them without any inline styling (R13).
-        """
-        cwd = self._cwd
-        parent = cwd.parent if cwd is not None else None
-        entry = self._cursor_entry()
-        self.query_one("#file-manager-parent-head", Static).update(
-            (parent.name or str(parent)) if parent is not None else "PARENT"
-        )
-        self.query_one("#file-manager-list-head", Static).update(
-            (cwd.name or str(cwd)) if cwd is not None else "DRIVES"
-        )
-        self.query_one("#file-manager-preview-head", Static).update(
-            entry.name if entry is not None else "PREVIEW"
-        )
     def _refresh_highlight_rows(self, new_index: int | None) -> None:
         """Repaint the old and new cursor rows so span colors follow the highlight.
 

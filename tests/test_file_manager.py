@@ -1289,8 +1289,8 @@ def test_file_manager_nav_remapped_keys_drive_screen_actions(tmp_path: Path) -> 
     asyncio.run(scenario())
 
 
-def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
-    """Column headers, path-titled frame and borders all come from tokens."""
+def test_file_manager_theme_driven_borders_without_header(tmp_path: Path) -> None:
+    """Borders and the highlight row come from tokens; no header band exists."""
     _make_tree(tmp_path)
     css = load_tcss("file-manager-screen.tcss")
     assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
@@ -1306,12 +1306,9 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
             frame = screen.query_one("#file-manager", Vertical)
             assert not frame.border_title
             assert frame.styles.border.top[0] != "tall"
-            for key in ("parent", "list", "preview"):
-                head = screen.query_one(f"#file-manager-{key}-head", Static)
-                assert str(head.content)
-            head_row = screen.query_one("#file-manager-head")
+            assert len(screen.query("#file-manager-head")) == 0
+            assert len(screen.query("#file-manager-list-head")) == 0
             status_bar = screen.query_one("#file-manager-status", Static)
-            assert head_row.styles.background == frame.styles.background
             assert status_bar.styles.background == frame.styles.background
             parent = screen.query_one("#file-manager-parent")
             listing = screen.query_one("#file-manager-list")
@@ -1321,23 +1318,17 @@ def test_file_manager_headers_and_theme_driven_borders(tmp_path: Path) -> None:
             assert body.styles.border_top[0] == "solid"
             assert body.styles.border_bottom[0] == "solid"
             rows = extract_svg_rows(app.export_screenshot())
-            title = str(screen.query_one("#file-manager-list-head", Static).content)
-            assert any(title in row for row in rows.values())
             assert not any("▔" in row or "▁" in row for row in rows.values())
             item = _list(screen).children[_list(screen).index or 0]
             assert isinstance(item, ListItem)
             assert item.has_class("-highlight")
-            head = screen.query_one("#file-manager-parent-head", Static)
-            assert head.styles.color == item.styles.background
             screen._refresh_highlight_rows(999)
 
     asyncio.run(scenario())
 
 
-def test_file_manager_header_and_footer_are_single_row_bands(
-    tmp_path: Path,
-) -> None:
-    """Bands stay one row high: a one-row box cannot centre glyphs anyway."""
+def test_file_manager_footer_is_the_only_single_row_band(tmp_path: Path) -> None:
+    """The header band is gone; the footer keeps its original one-row layout."""
     _make_tree(tmp_path)
 
     async def scenario() -> None:
@@ -1347,18 +1338,18 @@ def test_file_manager_header_and_footer_are_single_row_bands(
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
             assert await wait_until(pilot, lambda: bool(screen._rows))
-            head = screen.query_one("#file-manager-head")
+            assert len(screen.query("#file-manager-head")) == 0
             status = screen.query_one("#file-manager-status", Static)
-            for widget in (head, *list(head.query(Static)), status):
-                assert widget.styles.height is not None
-                assert widget.styles.height.value == 1
-            assert head.region.height == 1
+            assert status.styles.height is not None
+            assert status.styles.height.value == 1
             assert status.region.height == 1
             # W2 regression: a one-row box with its own border loses the
-            # only content row, so verify the column title is still painted.
+            # only content row, so verify the status text is still painted.
             rows = extract_svg_rows(app.export_screenshot())
-            title = str(screen.query_one("#file-manager-list-head", Static).content)
-            assert any(title in text for text in rows.values())
+            content = status.content
+            assert isinstance(content, Text)
+            first_token = content.plain.split()[0]
+            assert any(first_token in text for text in rows.values())
 
     asyncio.run(scenario())
 
@@ -1486,15 +1477,11 @@ def test_file_manager_custom_theme_repaints_chrome(tmp_path: Path) -> None:
             screen = app.screen
             assert isinstance(screen, FileManagerScreen)
             assert await wait_until(pilot, lambda: bool(screen._rows))
-            head = screen.query_one("#file-manager-parent-head", Static)
             frame = screen.query_one("#file-manager", Vertical)
+            assert len(screen.query("#file-manager-head")) == 0
             item = _list(screen).children[_list(screen).index or 0]
-            assert head.styles.color == Color.parse(custom.accent2)
             assert item.styles.background == Color.parse(custom.accent2)
             assert frame.styles.background == Color.parse(custom.surface)
-            assert screen.query_one("#file-manager-head").styles.background == (
-                Color.parse(custom.surface)
-            )
             assert screen.query_one("#file-manager-status", Static).styles.background == (
                 Color.parse(custom.surface)
             )
