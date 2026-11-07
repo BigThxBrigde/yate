@@ -75,6 +75,11 @@ terminal 静默吞异常为 major），全部当轮修复闭环；收尾复核�
 基线 0 BLOCKER / 1 MAJOR（本地 pyright 命令漏 `pack/`，与规则 §二.7 及 pyproject
 `include` 不一致）/ 12 MINOR；MAJOR 按四路径补跑闭环、MINOR 9 修 3 登记，修复后
 APPROVE，六道门禁全 exit 0（覆盖率 92.82% / 3395 passed·10 skipped）。
+**2026-11-07 IKTBXC 增量**：新增 #59（命名自查修复分支 `ref/iktbxc`，3 笔独立提交：
+`keyproto/key_codec.py` / `editor_components/view.py` / 根级 L1 `cmdline_completions.py`；
+code-review-expert 0 BLOCKER / 1 MAJOR（7 个一次性临时脚本未清理）/ 3 MINOR；
+MAJOR 与 3 MINOR 当轮迭代闭环，评审阶段 smoke 时序 flake 按 §二.7 串行复核并修用例；
+收尾六道门禁实测见记录）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -141,6 +146,8 @@ APPROVE，六道门禁全 exit 0（覆盖率 92.82% / 3395 passed·10 skipped）
 | 56 | 2026-11-03 | `feat/readme-screenshots` 合并前 pr-review（17 提交 / 41 文件 +7230−2，含用户反馈修复轮：XML 转义 / WOFF2 图标字体嵌入 / pytest 报告帧移除；两次 master 合并适配 `editor_components` 与 `file_manager_dir` 重命名）：0 blocker / 0 major / 3 minor（panes `-n auto` 负载 flake 属上游 `dbe28c7` 存量，`-n 1` 26/26 + 全量复跑双证；which-key 控制字符渲染为已登记另案；SVG 产物 2037 KB 为画廊刚需体量基线） | ✅ **APPROVE**（3 MINOR 同轮全闭环：键名 C0 泄漏根因修复 / panes 等待加固 / 体量基线维持；修复后门禁五项全绿：pyright 0 + 全量 exit 0 + 架构 37 + 覆盖率 92.82% + 冒烟 121/121·1463 checks，全 exit 0） | [2026-11-03-pr-review-feat-readme-screenshots.md](2026-11-03-pr-review-feat-readme-screenshots.md) |
 | 57 | 2026-11-05 | **全仓库多维度评审第二轮**（multi-dim-review 13 维度；master `75bccfa`，距上轮基线 174 提交 / 366 文件 +32492−4469；5 只读审查员两波 fan-out + 主代理机械取证与逐条回读复核 + 主代理亲跑六道硬门禁）：0 BLOCKER / **2 MAJOR**（`Workspace.is_text_file` 把非法 UTF-8 但无 NUL 的二进制判为文本，PNG 等文件可被当文本打开；`terminal.shutdown` 静默吞 `wait_closed` 异常）/ 13 MINOR（5 处 noqa 形式缺失、pty 六处内层静默 pass、3 处跨层失败无 tracing、5 处有标准低复杂度替代的朴素算法、缓存共享列表、新建文档本机路径、规则文本行数/目录登记漂移）；D3/D5/D8/D9/D11/D13 判 clean，Suspects 与既往登记项复核清单见记录 | ✅ 已修（F1–F10 全部闭环，2 MAJOR 归零；收尾复核 4 MINOR 亦全闭环；修复方案与记录互链；六道门禁 pyright 0 / 全量 pytest 0 / 架构 37 / 覆盖率 >75 阈值 / 冒烟 121/121·1463 / changelog 0，全 exit 0；覆盖率门禁首次触发本机 safe-delete 钩子，分轮次复跑后归零） | [2026-11-05-multi-dim-review-r2.md](2026-11-05-multi-dim-review-r2.md) |
 | 58 | 2026-11-06 | **`enh/multi-dim-review-r2` 合并前 pr-review**（master `75bccfa` → `b80505a`，6 提交 / 20 文件 +735−56，无分叉无冲突面；3 只读审查员并行覆盖六维度 + 主代理逐条回读复核 + 六道硬门禁亲跑）：0 BLOCKER / **1 MAJOR**（本地 pyright 命令 `-m pyright yate/ tests/ tools/` 漏 `pack/`，与 `task-orchestration.md` §二.7 及 `pyproject.toml` `include` 不一致；CI bare pyright 受 include 管辖未漏扫，按四路径补跑 `0 errors`）/ 12 MINOR（尾随空格、loader docstring 失真、方案双写描述不实、`is_text_file` 短文件 `final=False` 放行截断尾、bisect 用例「覆盖空集」措辞不实、teardown 日志无堆栈、report 4 层嵌套、纯文档提交豁免未标注、提交顺序偏离与中间态互链断链、豁免账本计数 3→5、覆盖率阈值口径误引、`.trae/...` 行内路径） | ✅ **APPROVE**（MAJOR 按 §二.7 四路径补跑 + 主计划/上一轮记录口径订正；9 MINOR 当轮销账、3 条按理由登记 Deferred；修复后门禁 pyright 4 路径 0 / 全量 pytest 0 / 架构 37 / 覆盖率 92.82%（3395 passed·10 skipped）/ 冒烟 121/121·1463 / changelog 0，全 exit 0） | [2026-11-06-pr-review-enh-multi-dim-review-r2.md](2026-11-06-pr-review-enh-multi-dim-review-r2.md) |
+
+| 59 | 2026-11-07 | IKTBXC 命名自查修复分支 `ref/iktbxc` 评审（3 笔独立提交 / 44 文件）：0 BLOCKER / 1 MAJOR（7 个一次性临时脚本未清理）/ 3 MINOR（提交 body 空、R4 名单分歧未说明、§三.6 措辞不齐）；评审阶段 smoke `stress_rapid_toggles` 时序 flake 按 §二.7 串行复核并修用例 | ✅ 已修（MAJOR 删脚本 + 3 MINOR 当轮处置 + flake 收敛断言；收尾六道门禁全绿，见 [iktbxc-review-fixes-plan.md](../documents/iktbxc-review-fixes-plan.md)） | [2026-11-07-iktbxc-naming-refactor.md](2026-11-07-iktbxc-naming-refactor.md) |
 
 ---
 
