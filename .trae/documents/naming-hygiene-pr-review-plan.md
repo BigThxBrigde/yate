@@ -99,7 +99,25 @@ guards; no new smoke `Check` (the frozen `1463/1463` baseline stays intact).
 Rollback: each iteration commit can be `git revert`-ed individually; the three
 implementation commits and the first review record remain untouched.
 
-## 7. Backfill (filled at closing)
+## 7. Backfill (2026-11-07, closed)
 
-Pending: real gate numbers, commit list, final `merge-tree` result, final
-`git status`, and the APPROVE verdict with residual deferred items.
+**Final verdict: APPROVE.** F1-F3 (3 MAJOR) zeroed; F4-F7 (6 MINOR) fixed;
+F5's discarded return value, F8 and F9 registered deferred (§5). A broken
+relative link in `iktbxc-plans/overview.md` was found by a mechanical link
+check over PR-changed Markdown and fixed.
+
+Main-agent gates (all exit 0): pyright `0 errors, 0 warnings`;
+`pytest tests/ -q -n auto` 0; architecture `37 dots` 0; coverage
+`TOTAL 19392/1092/6190/579 = 93%`, `Total coverage: 92.88%`,
+`3395 passed, 10 skipped` 0; smoke `1463/1463 checks`, `121/121 scenarios`,
+95.16s 0; `python -m tools.changelog check` 0. Supplementary:
+`python -m yate --help` 0; `git diff --check` 0; three old-path grep 0 hits
+(exit 1); drive-letter scan 0 hits; old branch/worktree name grep 0 hits
+(exit 1); `git merge-tree 3e92532 master HEAD` 0 conflict markers;
+`git status --short` empty; PR-changed Markdown link check 0 broken.
+
+Iteration commits: `c0f3672` (this plan), `12e2570` (index/scope/path fixes),
+`b2ab44d` (import order), `81f8486` (stress predicate), `f783bb0` (pr-review
+record + index #63), plus the closing backfill commit. Gate-time PR scope at
+`81f8486` was 49 files / +1784 / -66; the record and backfill commits add
+review/plan text on top. No push.

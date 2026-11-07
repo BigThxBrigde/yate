@@ -297,3 +297,27 @@ coverage `TOTAL 19392/1101/6190/574 = 93%`, `Total coverage: 92.83%`,
 0; `python -m yate --help` 0; source-face residual grep 0 hits (exit 1);
 old-name grep 0 hits (exit 1); `git status --short` empty. The branch now has
 12 commits (10 original + `f0f0997` name sync + this backfill). No push.
+
+### 9.8 Merge-ready PR review (2026-11-07, closed)
+
+`pr-review` skill, `review` mode: 3 read-only reviewers (A functionality /
+architecture, B documentation / merge surface, C security / performance / gate
+scope) plus main-agent adjudication and personally-run gates. Baseline verdicts
+A `APPROVE` / B `BLOCKED` / C `REQUEST_CHANGES`; adjudicated
+**0 BLOCKER / 3 MAJOR / 9 MINOR**: index #59 colliding with master #59-#61
+plus a real 3-way merge conflict, three drive-letter paths in new documents,
+and a distorted first-review scope / conclusion. All 3 MAJOR closed; 6 MINOR
+fixed, 3 deferred (branch-naming drift, `iktbxc-*` document stem, discarded
+`wait_until` return). Final verdict **APPROVE**. Report:
+[2026-11-07-pr-review-naming-hygiene.md](../reviews/2026-11-07-pr-review-naming-hygiene.md);
+iteration plan: [naming-hygiene-pr-review-plan.md](naming-hygiene-pr-review-plan.md).
+
+Main-agent gates after fixes (all exit 0): pyright `0 errors, 0 warnings`;
+`pytest tests/ -q -n auto` 0; architecture `37 dots` 0; coverage `92.88%`
+(`3395 passed, 10 skipped`, `--cov-fail-under=75` reached); smoke
+`121/121 scenarios · 1463/1463 checks` (95.16s) 0; changelog check 0;
+`python -m yate --help` 0; `git diff --check` 0; source-face residual grep
+0 hits (exit 1); drive-letter scan 0 hits; old branch/worktree name grep
+0 hits (exit 1); `git merge-tree 3e92532 master HEAD` 0 conflict markers;
+`git status --short` empty. Review index: first review #62, pr-review #63.
+No push.

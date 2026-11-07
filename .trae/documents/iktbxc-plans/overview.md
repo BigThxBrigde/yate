@@ -126,7 +126,7 @@ Wave table (all exit code 0; grep no-match exit 1 = 0 hits):
 | 3 | 0 | 37 | 0 | 121/121 · 1463/1463 | rank RED 1 (2 upward edges) / GREEN 0 | `f3299a1` |
 
 Review: `code-review-expert` 0 blocker / 1 major / 3 minor; record at
-[../reviews/2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md),
+[../../reviews/2026-11-07-iktbxc-naming-refactor.md](../../reviews/2026-11-07-iktbxc-naming-refactor.md),
 fix plan at [../iktbxc-review-fixes-plan.md](../iktbxc-review-fixes-plan.md).
 M1 (7 one-shot scripts) deleted, m2/m3 rule text fixed, m1 deferred; the
 `stress_rapid_toggles` timing flake was fixed per §二.7 in `c9f5589`.
@@ -141,3 +141,11 @@ Final commits (9, no push): `efd4551` / `6539b90` / `e7c2d67` / `3e615a9` /
 `55aee7e` / `f3299a1` / `506b38c` / `adca72b` / `c9f5589`, plus this backfill
 commit. Deviations, anomalies and deferred items: main plan §9.3 / §9.6.
 `git status --short` empty at close.
+
+Merge-ready PR review (2026-11-07, closed): 3 read-only reviewers plus
+main-agent adjudication (0 BLOCKER / 3 MAJOR / 9 MINOR) -> APPROVE after fixes.
+Report: [../../reviews/2026-11-07-pr-review-naming-hygiene.md](../../reviews/2026-11-07-pr-review-naming-hygiene.md);
+iteration plan: [../naming-hygiene-pr-review-plan.md](../naming-hygiene-pr-review-plan.md).
+Main-agent gates all exit 0 (pyright 0 / pytest 0 / arch 37 / coverage 92.88% /
+smoke 121/121 · 1463/1463 / changelog 0); `git merge-tree` 0 conflict markers;
+broken relative link to the first review record fixed. No push.
