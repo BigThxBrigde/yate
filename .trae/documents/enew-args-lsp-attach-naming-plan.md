@@ -19,9 +19,9 @@ naming, relative-path, commit-format and honest-reporting requirements.
 | 2 方案 | done: this document |
 | 3 批准 | waived: the user's standing unattended instruction ("进入无人值守模式，所有问题无须过问") plus this message's "取个有意义的名字" delegate the naming decision; no question/approval is raised (workspace rule §二.5) |
 | 4 执行 | done: §3 (commits `9c90c8d`, `06e6743`; 10 renames detected at 86-96% similarity) |
-| 5 审核 | round 1 done: **0 blocker / 4 major / 2 minor** (read-only consistency review, `misc-rules.md` §三 exemption); round 2 pending |
-| 6 迭代 | in progress: 4 majors → back to §2, iteration design in §6 |
-| 7 收尾 | pending: backfill §4 with round-2 conclusion, per-step commits, no push |
+| 5 审核 | round 1: **0 blocker / 4 major / 2 minor**; round 2: **0 blocker / 1 major / 0 minor** (dangling deviation #7); round 3 pending — all read-only consistency reviews under the `misc-rules.md` §三 pure-document exemption |
+| 6 迭代 | done: §6 iteration design (`4ea44fc`), M1/M2/M3 fixes (`1123856`), and the §4 deviation #7/#8 backfill in this commit |
+| 7 收尾 | in progress: §4 measured results backfilled; final round-3 verdict, per-step commits, `git status --short` empty, no push |
 
 Sub-agents: not dispatched for the mechanical rename because the files are
 **not independently verifiable** — every document's links depend on the other
@@ -174,13 +174,15 @@ empty, no push.
 
 | Command | Result | Exit code |
 |---|---|---|
-| `git worktree move` | pending | — |
-| `git branch -m` | pending | — |
-| `pip install -e . --no-deps` + sandbox self-proof | pending | — |
-| lowercase `iksfs7` token count after replacement | pending | — |
-| relative-link check | pending | — |
-| `git diff --check` | pending | — |
-| `git status --short` at close | pending | — |
+| `git worktree move` | `fatal: failed to move ...: Permission denied` (Windows); superseded by `Move-Item` + `repair`, see deviation #1/#3 | 1 (failed by design) |
+| `git branch -m` | `git branch --show-current` = `fix/enew-args-lsp-attach`; `git worktree list` shows the new path on that branch; no upstream configured | 0 |
+| `pip install -e . --no-deps` + sandbox self-proof | `.pth` = `D:\Programming\yate-enew-args-lsp-attach`; `sys.prefix` = that `.venv`; `import yate` = `...\yate-enew-args-lsp-attach\yate\__init__.py`; `pip show yate` editable location matches | 0 |
+| lowercase `iksfs7` token count after replacement | **0** in `.trae` + `tests` excluding this plan's rename map (`Get-ChildItem ... -CaseSensitive`); `git grep -n 'iksfs7'` excluding this plan = no match; uppercase `IKSFS7` = exactly 2 Gitee URLs | 0 (grep: 1 = no match) |
+| relative-link check | **0 `MISSING`** with the scoped §3 step 3 command (141 links in that口径); round-1's 11-document口径 also 0/40 | 0 |
+| `git diff --check` | empty (no whitespace errors / conflict markers) | 0 |
+| `git status --short` at close | empty after every per-step commit; re-run in the step-7 final gate | 0 |
+| `git diff 0619086..HEAD -M --summary` | **10 renames** at 86%-96% similarity + 1 `create mode` (this plan); code diff = 1 line docstring in `tests/test_document_flows_saveas.py` | 0 |
+| worktree metadata / venv probes | `.git` `gitdir:` + admin key both use the new name; `git worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` = 0 with no stale or `locked` entry; `.venv` recursive scan of 8244 text files = **0** `yate-iksfs7`; `activate.bat` `VIRTUAL_ENV` path exists | 0 |
 
 Deviations (recorded per §5; all with measured evidence):
 
@@ -216,10 +218,33 @@ Deviations (recorded per §5; all with measured evidence):
    §3 step 3 produce false positives (this plan's rename map; historical
    `file:///` and `#Lxx` links). The scoped, measured commands now written in
    §3 step 3 were used instead (see §4 table and review round 1 item 11).
+7. **Iteration wave was environment-only and initially unrecorded**: M1
+   renamed the main repo's git admin key `.git/worktrees/yate-iksfs7` to
+   `yate-enew-args-lsp-attach` (bracketed by `git worktree lock` / `unlock`),
+   and M2 rewrote four venv text files (`activate`, `activate.bat`,
+   `activate.fish`, `pyvenv.cfg`; `Activate.ps1` had no hit) in place. Neither
+   produces a tracked diff or a commit — `.venv` is gitignored and `.git`
+   metadata is machine-local — so `git status --short` stayed empty.
+   `git worktree repair` **first returned exit 1** with `error: unable to
+   locate repository; .git file does not reference a repository` while still
+   rewriting the worktree `.git` pointer; a second `repair` returned exit 0.
+   Verified: `.git` = `gitdir: .../worktrees/yate-enew-args-lsp-attach`, old
+   admin key absent, `git status` / `worktree list` / `rev-parse --git-dir` /
+   `prune --dry-run -v` all exit 0 with no stale or `locked` residue, `.venv`
+   recursive residual 0, sandbox self-proof still resolves the worktree.
+   Round 2 flagged the missing #7 as its single major; this entry closes it.
+8. **Self-proof measurement scope**: running `.venv\Scripts\python.exe -c
+   "import yate; ..."` from the main repo cwd prints the main repo's
+   `yate\__init__.py` because `sys.path[0]` shadows the editable install;
+   from the worktree root it prints the worktree package. This is a
+   measurement-scope issue, not a sandbox defect, so the §3 step 3 self-proof
+   command must be run from the worktree root.
 
-Review round 1 additionally found two environment/metadata residuals (git
-worktree registration key and venv activation scripts) and one wording
-deviation; all are handled by the §6 iteration design.
+Review round 1 (0 blocker / 4 major / 2 minor) found two environment/metadata
+residuals and one wording deviation; all were fixed in the §6 iteration wave
+and recorded in #5, #7 and #8. Review round 2 (0 blocker / 1 major / 0 minor)
+found the dangling "deviation #7" promise; this backfill adds #7/#8. The
+round-3 verdict is recorded in the §0 state table when the loop closes.
 
 ## 5. Risks and rollback
 
@@ -250,7 +275,7 @@ no push are involved.
 | M1 | git admin key `.git/worktrees/yate-iksfs7` and the worktree `.git` `gitdir:` value still carry the old name | native `git worktree move` failed on Windows; `Move-Item` + `git worktree repair` fixed the `gitdir` *contents* but not the registration key name | from the main repo: `git worktree lock`, rename the admin directory to `yate-enew-args-lsp-attach`, `git worktree repair <worktree>`, `git worktree unlock`; rewrite the worktree `.git` pointer only if `repair` does not | no `iksfs7` in `Get-ChildItem .git/worktrees` or in the worktree `.git` file; `git status --short`, `git worktree list`, `git rev-parse --git-dir`, `git worktree prune --dry-run -v` all exit 0 with no stale entry |
 | M2 | `.venv/Scripts/activate*`, `.venv/pyvenv.cfg` still contain `yate-iksfs7` | step-2 design only refreshed the editable `.pth` (`pip install -e . --no-deps`) | in-place text replacement `yate-iksfs7` → `yate-enew-args-lsp-attach` in the activation scripts that hit plus `pyvenv.cfg`; no reinstall, no dependency download, no commit (gitignored machine-local data) | recursive `.venv` residual scan = 0; the `VIRTUAL_ENV` path in `activate.bat` exists; sandbox self-proof still resolves the new worktree |
 | M3 | `.trae/documents/enew-args-lsp-attach-plan.md:11` self-proof says `../../yate/__init__.py` | first pass substituted a relative path instead of the portable wording promised in §2 | use the §2 wording verbatim: "the worktree-local `yate` package" | `git grep -n '../../yate/__init__.py'` returns no match; the line no longer assumes a sibling-directory layout |
-| M4 | §4 `Deviations: none recorded yet.` contradicted known deviations | step-7 backfill had not started when round 1 ran | already rewritten in §4 as a 6-item, evidence-backed deviation list; the §4 result table is filled with measured values at step 7 | at close, no `pending` row and no "none recorded" assertion remain |
+| M4 | §4 `Deviations: none recorded yet.` contradicted known deviations | step-7 backfill had not started when round 1 ran | rewritten in §4 as an 8-item, evidence-backed deviation list (#7/#8 added after round 2); the §4 result table is filled with measured values at step 7 | at close, no `pending` row and no "none recorded" assertion remain |
 | m5 | §3 step 3 token/link commands were not executable as written | full-sweep口径 produces false positives (this plan's own rename map, historical `file:///` / `#Lxx` links) | §3 step 3 now has a case-sensitive lowercase scan excluding this plan and a scoped link check; §4 records the measured commands | both commands exit 0 with 0 hits / 0 `MISSING:` |
 | m6 | review-index heading ruling boundary was implicit | §2 rejected alternative C covered URL/prose only | §2 C now states review-index paragraph headings are names/titles and the issue id survives only in the two Gitee URLs | round-2 review confirms no repository file uses the issue number as a name/title |
 
@@ -291,7 +316,7 @@ foreach ($f in $files) {
 ### Decisions and scope
 
 - M1/M2 are **environment-only** fixes. They produce no tracked diff and no
-  commit; they are logged as deviation #7 in §4 with the measured evidence.
+  commit; they are logged as deviations #7/#8 in §4 with the measured evidence.
   The `git` metadata write is the exact operation round 1 asked for; the
   standing unattended instruction supplies the approval that round 1 wanted
   to request.
