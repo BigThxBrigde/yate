@@ -102,6 +102,9 @@ pr-review 的事实订正」逐条登记 4 项订正，不改写首轮发现本�
 - **F6** 删除 6 个 `base_*.txt` 探针文件（删除清单先落盘于迭代方案 §1）。
 - **F7** 删除 `iktbxc-plan.md` EOF 空行，`git diff --check` 归 0；顺带修掉
   README 表格中间的两处空行（原会截断 Markdown 表格）。
+- **链接断链** 机械扫描 PR 变更 Markdown 的相对链接，发现
+  `.trae/documents/iktbxc-plans/overview.md` 指向首轮评审记录少了一级
+  `../`；改为 `../../reviews/...`，复核 `broken_links 0`。
 
 ### [MINOR]（登记不修，理由见 §二）
 
