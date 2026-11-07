@@ -138,8 +138,12 @@ smoke 注意：修复使 `tools/release/`、`yate/extensions/lib/` 等被跟踪
 
 - master 既有 smoke 基线漂移（见上表）：需单独核查基线与场景定义的版本
   错位，建议另立任务重注册。
-- worktree 运行 pyright 需先 `New-Item -ItemType Junction -Path .venv
-  -Target <主仓库>/.venv`（pyproject `venvPath="."` 相对 worktree 解析）。
+- worktree 运行 pyright 须在该 worktree 内重建隔离 venv：`python -m venv .venv`
+  后 `pip install -e ".[dev]"`（pyproject `venvPath="."` 相对 worktree 解析）；
+  禁止以 junction/symlink/hardlink 链接主仓库或其它 worktree 的 `.venv`。
+  （2026-11-07 修订：上文原 junction 指令系执行违规——「worktree venv 一律
+  隔离新建、禁止链接」的用户纪律先于本任务存在，当时错误沿用并写入本文，
+  残留 junction 已清除。）
 
 ### 评审修复轮（2026-11-05，第二轮）
 

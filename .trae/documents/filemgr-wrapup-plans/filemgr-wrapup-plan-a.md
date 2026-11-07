@@ -66,4 +66,4 @@ python -m pytest tests/test_architecture.py -q
 - `yate/docs/file-manager.{en,zh}.md` 经 grep 核实无模块路径表述，未改动。
 - 残留 grep：`editor_view.filemgr import`（不带 .screen/.model/.keys）与 `editor_view.filemgr_model` / `editor_view.filemgr_keys` 在 `yate/ tests/ tools/` 均 0 命中；`yate/resources/changelog.{en,zh}.md` 中的 `filemgr_model` 为历史 commit 注记（描述过去提交，不属活跃导入路径）。
 - 验收：pyright 0 诊断 / pytest 全量绿 / 架构 37 passed。
-- 环境注记：worktree 无自带 `.venv`，pyright 经 `--pythonpath` 指主仓 venv 解释器（后续 plan-b 波已建 `.venv` junction，git-ignored）。
+- 环境注记：worktree 无自带 `.venv`，pyright 经 `--pythonpath` 指主仓 venv 解释器——该做法与后续 plan-b 波建 `.venv` junction 同为执行违规（「worktree venv 一律隔离新建、禁止链接或共用主仓解释器」的用户纪律先于本任务存在，当时错误沿用并写入本文；2026-11-07 修订，残留 junction 已清除）。
