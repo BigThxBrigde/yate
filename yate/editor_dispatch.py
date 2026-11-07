@@ -16,8 +16,8 @@ from __future__ import annotations
 
 from textual.events import Key, MouseEvent
 
-from yate.editor_components.view import EditorView
 from yate.editor_components.terminal import TOGGLE_KEYS
+from yate.editor_components.view import EditorView
 from yate.editor_core import BufferReadOnlyError
 from yate.keymaps.base import ActionContext
 from yate.keyproto.key_codec import event_to_raw
