@@ -27,7 +27,7 @@ from yate.keyproto.frames import (
     frame_to_char,
     frame_to_key_name,
 )
-from yate.keyproto.legacy import textual_key_to_raw
+from yate.keyproto.key_codec import textual_key_to_raw
 from yate.keyproto.textual_internals import XTermParser
 
 

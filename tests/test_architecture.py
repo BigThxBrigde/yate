@@ -22,8 +22,8 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``flows/completion_flows.py`` / ``flows/cmdline_completions.py`` /
-  ``flows/lsp_sync.py`` / ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
+  (``flows/completion_flows.py`` / ``flows/lsp_sync.py`` /
+  ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
   / ``flows/prompt_flows.py``) keep that coupling frozen and never look
   upward.
 * **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
@@ -127,7 +127,7 @@ UPWARD_MODULES: tuple[str, ...] = ("yate.editor", "yate.app")
 #: the ``_Ts*`` structural types are leaf-package types that predate this
 #: refactoring.  Any other ``Protocol`` class fails the build.
 ALLOWED_PROTOCOLS: dict[str, set[str]] = {
-    "editor_components/editor.py": {"PaneRegistry"},
+    "editor_components/view.py": {"PaneRegistry"},
     "editor_syntax/engine.py": {"SyntaxBackend"},
     "editor_syntax/ts_backend/backend.py": {"_TsPoint", "_TsNode"},
 }
@@ -153,6 +153,9 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("editor_components/", 2),
     ("session.py", 1),
     ("registries.py", 1),
+    # Pure prompt-completion computation consumes both L1 models above and
+    # the L0 workspace service; rank 1 keeps those edges same-layer/downward.
+    ("cmdline_completions.py", 1),
     ("keymaps/keys.py", 0),
     ("keymaps/", 1),
 )
@@ -210,7 +213,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.theme",
         "yate.editor_components.commandline",
         "yate.editor_components.completion",
-        "yate.editor_components.editor",
+        "yate.editor_components.view",
         "yate.editor_components.panes",
     },
     "flows/lsp_sync.py": {
@@ -222,7 +225,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     },
     "flows/mouse_flows.py": {
         "yate.editor_components",
-        "yate.editor_components.editor",
+        "yate.editor_components.view",
     },
     "flows/shell_flows.py": {
         "yate.editor_components",
@@ -326,7 +329,7 @@ MAX_SOURCE_LINES: int = 800
 #: (dispatch methods moved to ``editor_dispatch.py``).
 #: Waves b-f are done: ``editor_components/diffview.py`` was split into
 #: ``diff_pane.py`` (2026-11-03 further subpackaged as ``diff/``:
-#: ``screen.py`` + ``pane.py``), ``editor_components/editor.py`` into ``highlighting.py`` +
+#: ``screen.py`` + ``pane.py``), ``editor_components/view.py`` into ``highlighting.py`` +
 #: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
 #: + ``theme_files.py`` (2026-11-03 further subpackaged as ``theme/``:
 #: ``__init__.py`` + ``themes.py`` + ``files.py``), ``editor_term/emulator.py`` into ``palette.py`` +

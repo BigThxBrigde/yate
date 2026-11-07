@@ -21,8 +21,8 @@ from yate.editor_lsp.client import Completion
 from yate.editor_components import theme
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup, buffer_completions
-from yate.editor_components.editor import EditorView
 from yate.editor_components.panes import PaneManager
+from yate.editor_components.view import EditorView
 from yate.flows import SpawnFn, StateQuery
 from yate.keymaps.registry import KeymapSet
 from yate.keymaps.vim import VimKeymap, VimMode

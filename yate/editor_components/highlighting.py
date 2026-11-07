@@ -1,6 +1,6 @@
 """Syntax-highlight cache and background tokenize passes for the editor view.
 
-Extracted from :mod:`yate.editor_components.editor` (big-module-split wave c): the
+Extracted from :mod:`yate.editor_components.view` (big-module-split wave c): the
 mixin owns the ``_hl_*`` token cache, the trailing debounce window, the
 background tokenize worker and the synchronous edited-row resync.  It is
 combined into :class:`EditorView` (``EditorView(ScrollView, HighlightMixin)``),

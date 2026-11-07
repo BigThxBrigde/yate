@@ -58,11 +58,11 @@ from yate.editor_components.canvas_screen import CanvasScreen
 from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup
-from yate.editor_components.editor import EditorView
 from yate.editor_components.explorer import ExplorerTree
 from yate.editor_components.panes import PaneHost, PaneManager
 from yate.editor_components.statusbar import StatusBar, mode_chip
 from yate.editor_components.terminal import TerminalPanel
+from yate.editor_components.view import EditorView
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows

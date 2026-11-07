@@ -16,11 +16,11 @@ from __future__ import annotations
 
 from textual.events import Key, MouseEvent
 
-from yate.editor_components.editor import EditorView
 from yate.editor_components.terminal import TOGGLE_KEYS
+from yate.editor_components.view import EditorView
 from yate.editor_core import BufferReadOnlyError
 from yate.keymaps.base import ActionContext
-from yate.keyproto.legacy import event_to_raw
+from yate.keyproto.key_codec import event_to_raw
 from yate.logs import tracing
 
 #: Trace logger ("yate.editor_dispatch"); silent unless yate_trace is on.
@@ -120,7 +120,7 @@ def _handle_key(ed: yate.editor.Editor, event: Key) -> bool:
         # enter->submit binding can fire
         return False
     # alt+shift+s toggles the screensaver: alt+shift combos have no raw
-    # byte form (keyproto.legacy maps only single-modifier alt chords),
+    # byte form (keyproto.key_codec maps only single-modifier alt chords),
     # so like alt+shift+p this must be intercepted by key name.  Kept
     # below the prompt check: typing a :command must never toggle it.
     if event.key == "alt+shift+s":

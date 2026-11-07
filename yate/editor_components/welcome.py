@@ -1,6 +1,6 @@
 """Welcome-page rows for the editor view: figlet banner, hints and footer.
 
-Extracted from :mod:`yate.editor_components.editor` (big-module-split wave c) as
+Extracted from :mod:`yate.editor_components.view` (big-module-split wave c) as
 pure functions: the row builder caches its result in a caller-owned dict
 keyed by (theme name, vim_keys), so the host widget keeps the cache on the
 instance and the rows embed no widget state.

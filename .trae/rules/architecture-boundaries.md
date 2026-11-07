@@ -22,7 +22,7 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / cmdline_completions.py / mouse_flows.py / chunked_flows.py /
+         lsp_sync.py / mouse_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
@@ -31,6 +31,9 @@ L2 组件：editor_components/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
          actions/commands/editor 之下）/
+         cmdline_completions.py（IKTBXC：自 flows/ 归位的根级 L1 纯函数，
+         直接消费 L1 registries/session 与 L0 services/workspace；层秩登记见
+         tests/test_architecture.py 的 _LAYER_RANKS）/
          keymaps/（2026-10-17 层秩切分：`keys.py` 属 **L0**（键位记法，零上层依赖）；
          `base.py` / `vim.py` / `vsc.py` / `registry.py` / `__init__.py` 属 **L1** ——
          `base.py` 持有 `ActionContext`（内含 `EditorSession`）与 `ActionFunc`，
@@ -44,7 +47,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
         `yate.logs` 为 R12 统一 tracing 的豁免依赖；
         2026-10-17 层秩切分（S-1）：键位记法下沉为 L0 单文件 `keymaps/keys.py`，
-        `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/legacy.py`
+        `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/key_codec.py`
         作为 L0 消费者改从 `keymaps/keys.py` 取记法），故本行不再登记 L0 例外；
         补入 `dist_meta.py`（stdlib-only：运行期供 `diagnostics.py`、构建期供 `pack/_common.py`）；
         补入 `yaterc.py` / `yaterc_options.py`（同经 R4 的 `UI_FREE_FILES` 单文件守卫面
@@ -110,7 +113,7 @@ flowchart TD
 
 - **R1 — `YateApp` 是顶层，不被下层引用**：`yate/` 内只有 `cli.py` 允许 `import yate.app`。
 - **R2 — 禁止"全应用协议"**：不得新增 `Protocol`。例外（**存量冻结白名单，共 4 个类**）：
-  `editor_components/editor.py::PaneRegistry`（本轮唯一新增：打断 `PaneHost ↔ EditorView` 的构造环，见 Plan B）、
+  `editor_components/view.py::PaneRegistry`（本轮唯一新增：打断 `PaneHost ↔ EditorView` 的构造环，见 Plan B）、
   `editor_syntax/engine.py::SyntaxBackend`、`editor_syntax/ts_backend/backend.py::_TsPoint` / `_TsNode`
   （后三者先于本轮重构存在，属叶包内部；后两个是可选依赖 py-tree-sitter 的私有结构化类型）。
   需要共享状态时传**具体对象**。
@@ -120,6 +123,10 @@ flowchart TD
 - **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`editor_core/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py`、`dist_meta.py` 不得 import `editor_components`**。
   （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
   `tests/test_architecture.py` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
+  （IKTBXC 登记：根级 `cmdline_completions.py` 虽无 Textual 依赖，但按 §一归 L1
+  会话/模型侧纯函数、不属于上述 L0 叶包与 `UI_FREE_FILES` 名单；其依赖方向由
+  `tests/test_architecture.py` 的 `_LAYER_RANKS` 与 `test_no_unregistered_upward_imports`
+  覆盖，此处名单分歧为有意，不是漏登。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
   `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。
   `yaterc.py` 于 2026-10-07 加入：自 `config.py` 拆出的加载器，同为 L0 单文件守卫面
@@ -130,16 +137,15 @@ flowchart TD
 - **R6 — 禁止 `TYPE_CHECKING`**：全仓库 **0 处**（已达成，架构测试拦截回归）。
 - **R11 — 冻结 UI 耦合**：L3 流程模块（`flows/` 子包：`completion_flows.py` / `prompt_flows.py` /
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
-  `overlay_flows.py` / `lsp_sync.py` / `cmdline_completions.py` / `mouse_flows.py` /
+  `overlay_flows.py` / `lsp_sync.py` / `mouse_flows.py` /
   `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
   命名统一波以新名首次补登，修复漏登漂移）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
-  其中 `cmdline_completions.py` 自 2026-10-30 起不再 import `editor_components`
-  （arg-completion 波 a 退役集中式参数 if/else 后改读注册元数据，路径匹配改依赖
-  L0 `services/workspace.path_matches`），`UI_FROZEN_FILES` 白名单条目同步移除，
-  其在 flows 枚举清单中的地位不变）；
+  IKTBXC 已将 `cmdline_completions.py` 迁出 flows/、归位为根级 L1 纯函数模块
+  （直接消费 L1 `registries` / `session` 与 L0 `services/workspace.path_matches`），
+  故不再列入 flows 枚举，`UI_FROZEN_FILES` 白名单一贯无此键）；
   禁止向上 import `yate.editor` / `yate.app`，且**新增** `editor_components` 导入必须先在
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 白名单中登记（键为 `yate/` 下
   相对路径，flows/ 迁移后带 `flows/` 前缀；
@@ -269,7 +275,7 @@ flowchart TD
 |---|---|---|
 | `YateApp`（L4） | Textual 生命周期、`CSS`（装载 `yate/resources/app.tcss`）、主题桥（`get_theme_variable_defaults` / `theme.*` 注册）、驱动选择（`get_driver_class`）、事件转发与空闲探测（`on_event`）、装载内置表 | 不持有业务状态、不实现业务操作（屏保只由外壳"轮询 + 触发 action"，画面与精灵渲染分别归 `editor_components/screensaver.py` 与 `editor_sprites/*`） |
 | `Editor`（L3） | 组合模型/服务/组件，实现横跨多个协作者的"操作" | 不做渲染、不做文本算法、不直接持有 widget 内部状态 |
-| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、`flows/cmdline_completions.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
+| 表与流程模块（L3） | 把内置能力登记进注册表（`populate` / `register_commands`）；把单一流程独立成模块（`flows/completion_flows.py`、根级 L1 `cmdline_completions.py`、`diagnostics.py`） | 不被 `editor.py` 反向导入 |
 | `editor_components/*`（L2） | 自己的渲染、行为与主题着色（自持，R13），自持滚动条主题（R15），构造注入具体协作者或回调 | 不 import `yate.editor` / `yate.app`；不直连 LSP 状态 |
 | `EditorSession` / `KeymapSet` / 注册表（L1） | 文档、标签、搜索、键映射集合（`keymaps/` 除 L0 记法 `keys.py` 外整体在本层）、动作与命令容器、**窗格状态模型**（`Leaf` / `Split` / `ViewState` + 树纯操作，无 UI） | 不 import `editor_components`、不碰 Textual |
 | 叶子（L0） | 纯逻辑（编辑器内核、LSP 客户端、语法、终端模拟、键弦模型与 Windows 驱动 `keyproto/*`、屏保精灵数据与纯渲染 `editor_sprites/*`、配置、日志、路径、shell、workspace、字体、空闲跟踪 `services/idle_tracker.py`、dist 元数据 `dist_meta.py`、键位记法 `keymaps/keys.py`） | 不 import 上层（2026-10-17 切分后：零例外） |
@@ -352,7 +358,7 @@ flowchart TD
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；
      `editor_components/diffview.py` + `diff_pane.py`（2026-10-08 big-module-split b 波
      拆分；2026-11-03 进一步子包化为 `diff/screen.py` + `diff/pane.py`，两文件均低于阈值）；
-     `editor_components/editor.py`（2026-10-08 big-module-split c 波：高亮与
+     `editor_components/view.py`（2026-10-08 big-module-split c 波：高亮与
      欢迎页迁入 `highlighting.py` / `welcome.py`，拆分后三文件均低于阈值）；
      `editor_components/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
      Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件
@@ -462,7 +468,7 @@ flowchart TD
 - **窗格模型归 L1**（`test_pane_model_lives_in_l1_session`）：`Leaf` / `Split` / `ViewState` 与
   `find_leaf` 等树操作由 `session.py` 拥有；`editor_components/` 只 import、不再重导出
   （`editor_components/pane_types.py` 已删除，`panes.py` 无 backward-compatibility 重导出段）；
-- **R11** `flows/completion_flows.py` / `flows/cmdline_completions.py` / `flows/mouse_flows.py` /
+- **R11** `flows/completion_flows.py` / `flows/mouse_flows.py` /
   `flows/chunked_flows.py` / `flows/file_manager_flows.py`
   不向上依赖，`editor_components` 导入必须落在冻结集合内；
 - **support_mouse 闸门**（issue IKJRFK，2026-10-08 新增）：

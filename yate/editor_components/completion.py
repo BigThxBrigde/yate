@@ -1,7 +1,7 @@
 """The LSP completion popup: a small non-focusable floating widget.
 
 The popup never takes focus -- the editor keeps receiving keys while it is
-open and :class:`~yate.editor_components.editor.EditorView` interprets
+open and :class:`~yate.editor_components.view.EditorView` interprets
 Tab/Enter/Up/Down/Esc against it.  Rendering is hand-drawn (Rich segments and
 a manual box) so the size/position stay under exact control; positioning is
 computed by the application and pushed in via :meth:`CompletionPopup.show`.
