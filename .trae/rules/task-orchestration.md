@@ -80,9 +80,25 @@ scene: task_orchestration
 
 ## 二、闭环流程（逐步登记，文档是唯一事实来源）
 
+> **分支模型（git flow）——本节是分支基线的唯一规范来源**：
+>
+> - `develop`：开发 / 集成分支，**等价于旧模型中的 `master`**——全部新分支的
+>   唯一 parent，也是全部工作分支的合并 / PR 目标；
+> - `master`：稳定分支，**只接收来自 `develop` 的合并**（promote），不接受工作
+>   分支直合，不在其上直接开发或提交；
+> - **所有新分支一律以 `develop` 为 parent**（含 worktree 分支），合并 / PR 目标
+>   同为 `develop`；不得从 `master` 分出分支，也不得以 `master` 为 diff 基线；
+> - `develop` → `master` 的 promote 由用户显式发起，闭环流程内不自动执行——
+>   `master` 只承接经 `develop` 集成验证后的变更，因而保持相对稳定；
+> - 其它规则 / skill / agent 剧本涉及默认 base ref 或合并目标时，一律以本节为准：
+>   评审 / 审计未显式给 base ref 时按 `develop` 取 merge-base，`main` / `master`
+>   作为默认基线不适用于本仓库。
+
 1. 【领会】只负责动手前的**环境与情报准备**，不做任务分析（任务分析属规划，见步骤 2）：
-   - **新任务**先建独立 worktree 与分支
-     （`git worktree add ../yate-<task> -b feature/<fix|feat|enh|ref>-<task>`）, 符合git flow 规范；
+   - **新任务**先建独立 worktree 与分支，**一律以 `develop` 为 parent**
+     （`git worktree add ../yate-<task> -b feature/<fix|feat|enh|ref>-<task> develop`，
+     起点须为已与 `origin/develop` 同步的本地 `develop`），符合 git flow 规范；
+     **禁止以 `master` 为起点**；
    - **worktree 不与主仓共享虚拟环境**——新建 worktree 后必须在其目录内重建沙箱，
      否则后续 pyright / pytest / 冒烟全部指向主仓 `.venv`，污染主环境：
      ```powershell
@@ -123,7 +139,9 @@ scene: task_orchestration
 > **提交纪律**：以上每一步完成后，须按 `git-commit-message.md` 将本步骤产物
 > **单独提交一次**（scope 取该步对象，如 `docs(rules): ...`），不得把多步改动
 > 攒成一笔提交；**只提交、不推送** —— 闭环流程内禁止执行 `git push`，
-> 推送必须由用户显式要求后才进行。
+> 推送必须由用户显式要求后才进行。工作分支只合入 `develop`；
+> `develop` → `master` 的合并（promote）同样只在用户显式要求时执行，
+> 闭环流程内不自动合流。
 
 ## 三、调度方式
 
