@@ -22,8 +22,8 @@ These tests enforce the boundaries documented in
 * **R6** no ``TYPE_CHECKING`` blocks; concrete objects replace type-only
   imports.
 * **R11** the L3 collaborator modules that drive widgets
-  (``flows/completion_flows.py`` / ``flows/cmdline_completions.py`` /
-  ``flows/lsp_sync.py`` / ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
+  (``flows/completion_flows.py`` / ``flows/lsp_sync.py`` /
+  ``flows/shell_flows.py`` / ``flows/overlay_flows.py``
   / ``flows/prompt_flows.py``) keep that coupling frozen and never look
   upward.
 * **Naming** (unnumbered guard, rules section 6): no ``*Feature`` / ``*Host``
@@ -153,6 +153,9 @@ _LAYER_RANKS: tuple[tuple[str, int], ...] = (
     ("editor_components/", 2),
     ("session.py", 1),
     ("registries.py", 1),
+    # Pure prompt-completion computation consumes both L1 models above and
+    # the L0 workspace service; rank 1 keeps those edges same-layer/downward.
+    ("cmdline_completions.py", 1),
     ("keymaps/keys.py", 0),
     ("keymaps/", 1),
 )

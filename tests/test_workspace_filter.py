@@ -884,7 +884,7 @@ def test_visible_tree_does_not_expand_a_symlink_loop(ws: Workspace) -> None:
     assert max(depth for depth, _ in rows) == 1
 
 
-# --- path_matches (migrated from flows/cmdline_completions, 2026-10-30) -------
+# --- path_matches (migrated from cmdline_completions, 2026-10-30) -------
 
 
 def test_path_prefix_with_trailing_separator_lists_the_directory(

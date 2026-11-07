@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 from textual.pilot import Pilot
 from yate.app import YateApp
-from yate.flows.cmdline_completions import cmdline_completions
+from yate.cmdline_completions import cmdline_completions
 from yate.keymaps.vim import VimKeymap
 from conftest import message_text, wait_until
 from manual_doc_fixture import MANUAL_DOC_FIXTURE
