@@ -287,7 +287,14 @@ contains 0 old-path strings, `yate.__file__` resolves inside the new worktree,
 
 All 9 in-repo references to the old names were synced in this commit (issue
 notes, main plan, reference inventory, review record metadata, review index);
-review conclusions and measured numbers are unchanged. The closing gate is
-re-run in the new worktree by the main agent; results are recorded in the
-following backfill commit.
+review conclusions and measured numbers are unchanged. A whole-repo grep for
+the old names (including `.trae/documents` and `.trae/reviews`) now has 0 hits.
+
+Closing gate re-run by the main agent in the new worktree (all exit 0):
+pyright `0 errors, 0 warnings`; `pytest -q -n auto` 0; architecture 37 dots 0;
+coverage `TOTAL 19392/1101/6190/574 = 93%`, `Total coverage: 92.83%`,
+`3395 passed, 10 skipped`, 0; smoke `1463/1463 checks`, `121/121 scenarios`,
+0; `python -m yate --help` 0; source-face residual grep 0 hits (exit 1);
+old-name grep 0 hits (exit 1); `git status --short` empty. The branch now has
+12 commits (10 original + `f0f0997` name sync + this backfill). No push.
 
