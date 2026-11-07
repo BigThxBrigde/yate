@@ -82,7 +82,7 @@ scene: task_orchestration
 
 1. 【领会】只负责动手前的**环境与情报准备**，不做任务分析（任务分析属规划，见步骤 2）：
    - **新任务**先建独立 worktree 与分支
-     （`git worktree add ../yate-<task> -b <fix|feat|enh|ref>/<task>`）；
+     （`git worktree add ../yate-<task> -b feature/<fix|feat|enh|ref>-<task>`）, 符合git flow 规范；
    - **worktree 不与主仓共享虚拟环境**——新建 worktree 后必须在其目录内重建沙箱，
      否则后续 pyright / pytest / 冒烟全部指向主仓 `.venv`，污染主环境：
      ```powershell
