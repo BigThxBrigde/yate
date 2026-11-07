@@ -21,7 +21,7 @@ deliberately cheap and disposable -- every durable state lives in the model.
 The pure data model (:class:`Leaf`, :class:`Split`, :class:`Node`,
 :class:`ViewState`, and the tree utility functions) lives in
 :mod:`yate.session` (L1) -- it is UI-free state, so both this module and
-:mod:`yate.editor_components.editor` import it directly and no intermediate
+:mod:`yate.editor_components.view` import it directly and no intermediate
 type-only module is needed.
 """
 
@@ -37,7 +37,7 @@ from textual.events import MouseDown, MouseMove, MouseUp
 from textual.widget import Widget
 
 from yate.editor_core.document import Document
-from yate.editor_components.editor import LEFT_BUTTON, EditorView
+from yate.editor_components.view import LEFT_BUTTON, EditorView
 from yate.logs import tracing
 from yate.paths import load_tcss
 from yate.session import (

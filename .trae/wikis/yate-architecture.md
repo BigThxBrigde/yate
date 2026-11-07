@@ -164,7 +164,7 @@ flowchart TB
 
 | 文件 | 职责 |
 | --- | --- |
-| `editor.py::EditorView` | 主编辑面：Rich 渲染、语法高亮、选择/搜索叠层（高亮与欢迎页拆至 `highlighting.py` / `welcome.py`） |
+| `view.py::EditorView` | 主编辑面：Rich 渲染、语法高亮、选择/搜索叠层（高亮与欢迎页拆至 `highlighting.py` / `welcome.py`） |
 | `panes.py::PaneManager/PaneHost` | 编辑区窗格管理 |
 | `chrome.py` | TabBar / Breadcrumbs |
 | `statusbar.py::StatusBar` | 状态栏（含扩展状态段拉取渲染，见 §6） |

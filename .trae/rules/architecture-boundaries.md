@@ -110,7 +110,7 @@ flowchart TD
 
 - **R1 — `YateApp` 是顶层，不被下层引用**：`yate/` 内只有 `cli.py` 允许 `import yate.app`。
 - **R2 — 禁止"全应用协议"**：不得新增 `Protocol`。例外（**存量冻结白名单，共 4 个类**）：
-  `editor_components/editor.py::PaneRegistry`（本轮唯一新增：打断 `PaneHost ↔ EditorView` 的构造环，见 Plan B）、
+  `editor_components/view.py::PaneRegistry`（本轮唯一新增：打断 `PaneHost ↔ EditorView` 的构造环，见 Plan B）、
   `editor_syntax/engine.py::SyntaxBackend`、`editor_syntax/ts_backend/backend.py::_TsPoint` / `_TsNode`
   （后三者先于本轮重构存在，属叶包内部；后两个是可选依赖 py-tree-sitter 的私有结构化类型）。
   需要共享状态时传**具体对象**。
@@ -344,7 +344,7 @@ flowchart TD
      `langdefs.py`，见 §六 #28；拆分后两文件均低于阈值）；
      `editor_components/diffview.py` + `diff_pane.py`（2026-10-08 big-module-split b 波
      拆分；2026-11-03 进一步子包化为 `diff/screen.py` + `diff/pane.py`，两文件均低于阈值）；
-     `editor_components/editor.py`（2026-10-08 big-module-split c 波：高亮与
+     `editor_components/view.py`（2026-10-08 big-module-split c 波：高亮与
      欢迎页迁入 `highlighting.py` / `welcome.py`，拆分后三文件均低于阈值）；
      `editor_components/theme.py`（2026-10-08 big-module-split d 波：主题数据/校验/
      Textual 桥迁入 `themes.py`、字符几何迁入 `cells.py`、自定义主题文件

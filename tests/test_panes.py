@@ -23,7 +23,7 @@ from yate.app import YateApp
 from yate.config import YateConfig
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
-from yate.editor_components.editor import EditorView
+from yate.editor_components.view import EditorView
 from yate.editor_components.panes import PaneManager
 from yate.session import (
     MIN_FRACTION,

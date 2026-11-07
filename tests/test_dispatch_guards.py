@@ -16,7 +16,7 @@ import asyncio
 from pathlib import Path
 
 from yate.app import YateApp
-from yate.editor_components.editor import EditorView
+from yate.editor_components.view import EditorView
 
 
 def test_global_chords_reach_their_dispatch_branches(tmp_path: Path) -> None:
