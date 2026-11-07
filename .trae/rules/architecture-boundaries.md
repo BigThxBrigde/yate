@@ -123,6 +123,10 @@ flowchart TD
 - **R4 — `keymaps/*`、`services/*`、`keyproto/*`、`editor_sprites/*`、`editor_core/*`、`session.py`、`registries.py`、`config.py`、`yaterc.py`、`yaterc_options.py`、`dist_meta.py` 不得 import `editor_components`**。
   （2026-09-28 核对补入 `keyproto/*`、`editor_sprites/*`：二者已是
   `tests/test_architecture.py` `UI_FREE_PACKAGES` 的守卫面，规则文本此前漏列。）
+  （IKTBXC 登记：根级 `cmdline_completions.py` 虽无 Textual 依赖，但按 §一归 L1
+  会话/模型侧纯函数、不属于上述 L0 叶包与 `UI_FREE_FILES` 名单；其依赖方向由
+  `tests/test_architecture.py` 的 `_LAYER_RANKS` 与 `test_no_unregistered_upward_imports`
+  覆盖，此处名单分歧为有意，不是漏登。）
   （`config.py` 于 N30 加入：yaterc 主题能力由 L4 `cli.py` 以回调注入
   `load_config(register_theme=..., load_theme_paths=...)`，L0 不再反向拉起 L2 组件包。
   `yaterc.py` 于 2026-10-07 加入：自 `config.py` 拆出的加载器，同为 L0 单文件守卫面
@@ -296,7 +300,7 @@ flowchart TD
    `test_editor_lsp_package_root_is_light`）。`keymaps` 自 2026-10-17 起整体属 **L1**
    （`keys.py` 除外），其包根 re-export 仍按本款登记并受同一守卫检查。
 6. **能用函数实现的就不造类**：内置表（`populate` / `register_commands` / `load_startup_extensions`）、
-   纯计算（根级 L1 `cmdline_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
+   纯计算（`cmdline_completions` / `format_report` / `mode_chip` / `fuzzy_match`）、数据操作
    （`session.py` 的 `find_leaf` / `replace_node` …）一律用函数。
 7. **文件体量阈值处置（2026-10-07，评审 A11）**：单文件超过 **800 行**触发处置评审。
    守卫面自 2026-10-09 起覆盖 `yate/` 与 `tools/`（`tests/` 不设限）。
