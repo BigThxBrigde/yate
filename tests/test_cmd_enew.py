@@ -35,7 +35,7 @@ class _RecordingFlows:
         self.new_buffer_calls.append(1)
 
 
-class _EnrewEditor:
+class _EnewEditor:
     """Editor stand-in exposing the flows and the message line."""
 
     def __init__(self, flows: _RecordingFlows) -> None:
@@ -47,12 +47,12 @@ class _EnrewEditor:
         self.notes.append((text, kind))
 
 
-class _EnrewFixture:
+class _EnewFixture:
     """Bundle of the registry entry plus every recorder a test inspects."""
 
     def __init__(self) -> None:
         self.flows = _RecordingFlows()
-        self.editor = _EnrewEditor(self.flows)
+        self.editor = _EnewEditor(self.flows)
         registry = CommandRegistry()
         register_commands(registry, cast(Any, self.editor))
         entry = registry.get("enew")
@@ -62,7 +62,7 @@ class _EnrewFixture:
 
 def test_enew_without_arguments_creates_one_unnamed_buffer() -> None:
     """Bare ``:enew`` creates exactly one unnamed buffer and stays silent."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     fx.entry.func("")
 
@@ -72,7 +72,7 @@ def test_enew_without_arguments_creates_one_unnamed_buffer() -> None:
 
 def test_enew_with_whitespace_only_arguments_creates_one_unnamed_buffer() -> None:
     """Whitespace-only arguments count as no arguments: one buffer, silent."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     fx.entry.func("   \t ")
 
@@ -82,7 +82,7 @@ def test_enew_with_whitespace_only_arguments_creates_one_unnamed_buffer() -> Non
 
 def test_enew_with_filename_warns_and_creates_no_buffer() -> None:
     """A filename argument warns with the exact usage message, no buffer."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     fx.entry.func("test.py")
 
@@ -92,7 +92,7 @@ def test_enew_with_filename_warns_and_creates_no_buffer() -> None:
 
 def test_enew_with_quoted_filename_warns_and_creates_no_buffer() -> None:
     """A quoted filename is still an argument: warns, no buffer, no strip."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     fx.entry.func('"test.py"')
 
@@ -102,7 +102,7 @@ def test_enew_with_quoted_filename_warns_and_creates_no_buffer() -> None:
 
 def test_enew_with_multiple_arguments_warns_and_creates_no_buffer() -> None:
     """Multiple arguments still count as arguments: warns, no buffer."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     fx.entry.func("a.py b.py")
 
@@ -112,7 +112,7 @@ def test_enew_with_multiple_arguments_warns_and_creates_no_buffer() -> None:
 
 def test_enew_registration_description_states_no_arguments() -> None:
     """The registration description pins the no-arguments contract."""
-    fx = _EnrewFixture()
+    fx = _EnewFixture()
 
     description = fx.entry.description
 

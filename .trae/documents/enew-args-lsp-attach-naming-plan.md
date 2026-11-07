@@ -17,7 +17,7 @@ naming, relative-path, commit-format and honest-reporting requirements.
 |---|---|
 | 1 领会 | done: 8 rules reloaded, `git worktree list` / branch / status probed, all `iksfs7` tokens collected |
 | 2 方案 | done: this document |
-| 3 批准 | waived: the user's standing unattended instruction ("进入无人值守模式，所有问题无须过问") plus this message's "取个有意义的名字" delegate the naming decision; no question/approval is raised (workspace rule §二.5) |
+| 3 批准 | waived: the user's standing unattended instruction ("进入无人值守模式，所有问题无须过问") plus this message's "取个有意义的名字" delegate the naming decision; no question/approval is raised (always-applied workspace loader §二.5, unattended bypass — not a `.trae/rules/` clause) |
 | 4 执行 | done: §3 (commits `9c90c8d`, `06e6743`; 10 renames detected at 86-96% similarity) |
 | 5 审核 | done: round 1 **0 blocker / 4 major / 2 minor** → round 2 **0 blocker / 1 major / 0 minor** (dangling deviation #7) → round 3 **0 blocker / 0 major / 2 minor** (both non-blocking wording/count notes); all three read-only consistency reviews under the `misc-rules.md` §三 pure-document exemption |
 | 6 迭代 | done: §6 iteration design (`4ea44fc`), M1/M2/M3 fixes (`1123856`), §4 deviation #7/#8 backfill (`9d3721b`) |
@@ -47,8 +47,13 @@ Non-goals:
 
 - No product code, test, manual, baseline or rule change other than the single
   docstring token in `tests/test_document_flows_saveas.py`.
-- No commit-message rewrite (the 12 existing subjects are already descriptive
-  and contain no issue-number name).
+- No commit-message rewrite. The 12 existing subjects are descriptive and all
+  follow `type(scope): subject`, but **6 of them still cite the issue id in the
+  subject line** (`7011ff2`, `68a1ada`, `2c6989b`, `20e6b9c`, `6ec91ec`,
+  `0619086`). This is a known, accepted deviation (see #9 in §4): subjects are
+  immutable here (no amend / rebase), so the issue id survives in history while
+  every file name, document title, branch and worktree name uses the
+  descriptive stem.
 - No `git push`, no merge.
 - No removal of the Gitee issue URL or the `IKSFS7` issue number where it is
   used **as a source citation** inside prose (see §2 rejected alternative C).
@@ -98,8 +103,13 @@ updated (machine-local data, not a repository commit).
 
 One environment leak is removed while the line is touched: the sandbox
 self-proof in the main plan currently embeds `D:\Programming\yate-iksfs7\...`;
-`doc-conventions.md` §五 requires portable wording, so it becomes
-"the worktree-local `yate` package".
+`doc-conventions.md` §五 requires portable wording, so that **single evidence
+line** becomes "the worktree-local `yate` package". The promise is deliberately
+scoped to that line: this plan must still name the old/new worktree directories
+(rename map, measured output evidence and the executable §6 commands), which
+are the migration's own target artifacts rather than references to repository
+files. See [the pr-review iteration design](enew-args-lsp-attach-pr-review-plan.md)
+for the standing ruling on that distinction.
 
 ## 3. Implementation steps
 
@@ -240,6 +250,15 @@ Deviations (recorded per §5; all with measured evidence):
    from the worktree root it prints the worktree package. This is a
    measurement-scope issue, not a sandbox defect, so the §3 step 3 self-proof
    command must be run from the worktree root.
+9. **Issue id remains in 6 commit subjects**: the naming migration renamed the
+   branch, worktree, 10 documents, review-index headings and one test docstring,
+   but did not rewrite history. `git log --format=%s 8e60598..9c90c8d` shows 6 of
+   12 subjects still cite `IKSFS7` (`7011ff2`, `68a1ada`, `2c6989b`, `20e6b9c`,
+   `6ec91ec`, `0619086`). §1 originally asserted the opposite ("contain no
+   issue-number name"); the 2026-11-07 pre-merge PR review confirmed the mismatch
+   and §1 is now corrected with the measured hashes. Rationale: subjects are
+   immutable under the no-history-rewrite constraint, so the issue id survives
+   only in commit history while every name/title/file uses the descriptive stem.
 
 Review round 1 (0 blocker / 4 major / 2 minor) found two environment/metadata
 residuals and one wording deviation; all were fixed in the §6 iteration wave
@@ -250,6 +269,9 @@ were wording/count clarifications and are folded into the closing commit (#7
 now states "4 of 5 candidates", and the `.venv` scan count carries a
 measurement-time qualifier). Pyright / pytest / architecture / coverage /
 smoke were not run at any round (`misc-rules.md` §三 pure-document exemption).
+The later [pre-merge PR review](../reviews/2026-11-07-pr-review-fix-enew-args-lsp-attach.md)
+of the combined branch (which includes product code) lifted that exemption and
+ran the full six gates.
 
 ## 5. Risks and rollback
 
@@ -271,9 +293,10 @@ Trigger: the step-5 read-only consistency review returned
 **0 blocker / 4 major / 2 minor** (M1-M4, m5-m6). Per
 `task-orchestration.md` §二.6 the loop goes back to step 2; this section is
 that step-2 redesign. Approval is covered by the standing unattended
-instruction, so no question or authorization request is raised (workspace
-rule §二.5). No new worktree/branch, no product code, no history rewrite and
-no push are involved.
+instruction, so no question or authorization request is raised (always-applied
+workspace loader §二.5, unattended bypass — not a `.trae/rules/` clause). No
+new worktree/branch, no product code, no history rewrite and no push are
+involved.
 
 | ID | Finding | Root cause | Fix design | Acceptance |
 |---|---|---|---|---|
