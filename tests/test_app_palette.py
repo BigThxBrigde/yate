@@ -55,8 +55,15 @@ def test_file_palette_filters_and_opens(tmp_path: Path) -> None:
             assert screen.filtered_count == 1
             await pilot.press("enter")
             await pilot.pause()
-            assert len(app.screen_stack) == 1
-            assert app.editor.session.doc.name == "notes.txt"
+            # Opening the document is deferred to a refresh/worker; one pause
+            # is not enough under xdist load (parallel timing flake).
+            assert await wait_until(
+                pilot,
+                lambda: (
+                    len(app.screen_stack) == 1
+                    and app.editor.session.doc.name == "notes.txt"
+                ),
+            )
 
     asyncio.run(scenario())
 
