@@ -27,7 +27,7 @@ from yate.editor import Editor
 from yate.editor_sprites.characters import character_names
 from yate.editor_components import theme
 from yate.editor_components.screensaver import ScreensaverScreen
-from yate.keyproto.legacy import textual_key_to_raw
+from yate.keyproto.key_codec import textual_key_to_raw
 from yate.logs import LOGGER_NAME, create_devtools_bridge, tracing
 from yate.paths import load_tcss
 from yate.services.idle_tracker import IdleTracker

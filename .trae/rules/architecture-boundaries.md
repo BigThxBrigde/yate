@@ -44,7 +44,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
         `keyproto/textual_internals.py` 收口 Textual 私有 API（升级 Textual 先查该文件）；
         `yate.logs` 为 R12 统一 tracing 的豁免依赖；
         2026-10-17 层秩切分（S-1）：键位记法下沉为 L0 单文件 `keymaps/keys.py`，
-        `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/legacy.py`
+        `keymaps/` 其余收敛为 L1 —— 切分后 **L0 无任何向上连线**（`keyproto/key_codec.py`
         作为 L0 消费者改从 `keymaps/keys.py` 取记法），故本行不再登记 L0 例外；
         补入 `dist_meta.py`（stdlib-only：运行期供 `diagnostics.py`、构建期供 `pack/_common.py`）；
         补入 `yaterc.py` / `yaterc_options.py`（同经 R4 的 `UI_FREE_FILES` 单文件守卫面
