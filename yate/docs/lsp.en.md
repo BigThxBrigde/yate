@@ -27,6 +27,12 @@ Documents synchronize whole-text: on open, on save, and after an idle debounce
 opens, one process per (server × project root). The status bar shows server
 state: the server name when ready, `LSP…` while starting, `LSP ✖` on failure.
 
+A buffer without a path has no document URI: no server starts for it and the
+status bar shows no LSP state, even when `:set filetype=` selects a configured
+language. Saving it with `:saveas FILE` (or the unnamed-buffer `Save as: `
+prompt) counts as the first open and sends `didOpen`; saving an already-named
+buffer to a different path closes the old URI and opens the new one.
+
 This file is a configuration cookbook for mainstream language servers;
 section 16 of the manual is a short introduction.
 
@@ -92,7 +98,8 @@ language_servers = [
   extension registrations -- including the built-in Python server (use
   `"name": "python"` to customize its command).
 - Configuration alone spawns nothing: unnamed buffers and non-matching files
-  are completely unaffected; a later yaterc replaces the whole list.
+  are completely unaffected (see the synchronization section above for how
+  `:saveas` attaches one to a server); a later yaterc replaces the whole list.
 
 Each `api.lsp.register_server(...)` call in the language recipes below can be
 rewritten equivalently as such a dictionary.

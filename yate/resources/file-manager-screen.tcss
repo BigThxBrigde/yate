@@ -1,34 +1,47 @@
 /* FileManagerScreen stylesheet (class-scoped DEFAULT_CSS) --
    loaded by editor_components/file_manager/screen.py via yate.paths.load_tcss.
-   Selector ids are owned by this component (no shell CSS references). */
+   Selector ids are owned by this component (no shell CSS references).
+   Every color is a Textual theme token bridged from yate.Theme; there are
+   deliberately no literal hex values in this file. */
 FileManagerScreen {
     align: center middle;
 }
 FileManagerScreen #file-manager {
     width: 90%;
     height: 80%;
-    border: tall $panel;
     background: $surface;
 }
 FileManagerScreen.fullscreen #file-manager {
     width: 100%;
     height: 100%;
-    border: none;
 }
 FileManagerScreen #file-manager-body {
     height: 1fr;
+    border-top: solid $foreground 12%;
+    border-bottom: solid $foreground 12%;
 }
 FileManagerScreen #file-manager-parent {
     width: 1fr;
     padding: 0 1;
+    border-right: solid $foreground 12%;
 }
 FileManagerScreen #file-manager-list {
     width: 2fr;
     padding: 0 1;
+    border-right: solid $foreground 12%;
+}
+FileManagerScreen #file-manager-list > ListItem.-highlight {
+    background: $primary;
+    color: $block-cursor-foreground;
+    text-style: bold;
+}
+FileManagerScreen #file-manager-list:focus > ListItem.-highlight {
+    background: $primary;
+    color: $block-cursor-foreground;
+    text-style: bold;
 }
 FileManagerScreen #file-manager-preview {
     width: 2fr;
-    border-left: tall $panel;
     padding: 0 1;
 }
 FileManagerScreen #file-manager-input {
@@ -40,6 +53,8 @@ FileManagerScreen #file-manager-input {
 }
 FileManagerScreen #file-manager-input.active {
     display: block;
+    height: 2;
+    border-top: solid $foreground 12%;
 }
 FileManagerScreen #file-manager-status {
     height: 1;

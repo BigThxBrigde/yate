@@ -75,6 +75,38 @@ terminal 静默吞异常为 major），全部当轮修复闭环；收尾复核�
 基线 0 BLOCKER / 1 MAJOR（本地 pyright 命令漏 `pack/`，与规则 §二.7 及 pyproject
 `include` 不一致）/ 12 MINOR；MAJOR 按四路径补跑闭环、MINOR 9 修 3 登记，修复后
 APPROVE，六道门禁全 exit 0（覆盖率 92.82% / 3395 passed·10 skipped）。
+**2026-11-06 enew-args-lsp-attach 增量**：新增 #59（`fix/enew-args-lsp-attach` 分支首轮评审，范围
+`8e60598..383affe`：`:enew` 参数守卫 + 无路径 buffer 的 LSP 口径统一 +
+`:saveas` 首路径 didOpen + 双语手册/冒烟）。0 blocker / 2 major（save-as 重绑到
+已被另一 tab 占用的 URI、路径拼写不同但 URI 相同触发多余 didClose）/ 4 minor；
+五道门禁全绿（pyright 0 / 3413 passed·10 skipped / 架构 37 / 覆盖率 92.86% /
+冒烟 121/121·1464 checks，`-n 1` 复核一致）。两 major 经主代理裁定为方案设计
+缺口而非实现偏离，已回到步骤 2 补设计并记录于
+[enew-args-lsp-attach-review-plan-e.md](../documents/enew-args-lsp-attach-plans/enew-args-lsp-attach-review-plan-e.md)。
+**2026-11-06 enew-args-lsp-attach 第 2 轮增量**：新增 #60（`fix/enew-args-lsp-attach` 迭代后复审，
+范围 `383affe..HEAD` + 全量 `8e60598..HEAD`复核）。LOOKS GOOD：
+0 blocker / 0 major / 2 minor；首轮 2 major 全部闭环（URI 归属重绑 + URI 级
+路径等价，4/4 负向演练在旧实现全红）、4 minor 全部处置。
+五道门禁全绿（pyright 0 / 3422 passed·10 skipped / 架构 37 / 覆盖率 92.97% /
+冒烟 121/121·1464 checks，`-n 1` 一致；`manager.py` 797 行）。
+minor#1（plan-e §6 回填义务）已由主代理在步骤 7 回填全部子计划执行记录解决；
+minor#2（同 URI 且从未 shown 时静默不 attach，常规 UI 由 `_refresh_ui` 兜底）
+按规则 §二.6 登记为主计划 §6 residual backlog，不在本 issue 修。
+主代理步骤 7 亲自复跑五道门禁全 exit 0（覆盖率 92.86%，与评审 92.97% 的
+差异为并行覆盖率正常波动，均 ≥75%）。
+**2026-11-07 enew-args-lsp-attach 合并前 pr-review 增量**：新增 #61
+（`fix/enew-args-lsp-attach` 合并前 PR 级预评审，范围 `8e60598...HEAD`，
+主体 17 提交 / 24 文件 +3111−44；3 只读审查员并行 + 主代理逐条回读复核 +
+六道硬门禁亲跑；P2 首轮零产出、按 §五.4 变更粒度重试一次后交付）。
+基线 REQUEST_CHANGES：0 BLOCKER / 1 MAJOR（命名迁移方案 §1 断言与 6 条含
+`IKSFS7` 的 commit subject 相悖）/ 4 MINOR；1 MAJOR（不实陈述）与 2 MINOR
+（测试替身拼写、`§二.5` 引用来源）已修，另 1 MAJOR（盘符路径）沿用命名迁移
+round-1/2/3 三轮在案裁决降级，2 MINOR 与 4 条审查员 MINOR 按理由登记，
+P1 两条 MINOR 由代码 / 测试反证删除。修复后 APPROVE，六道门禁全 exit 0
+（pyright 0 / 3422 passed·10 skipped / 架构 37 / 覆盖率 92.90% /
+冒烟 121/121·1464 checks / changelog 0 / diffcheck 0）。评审记录见
+[2026-11-07-pr-review-fix-enew-args-lsp-attach.md](2026-11-07-pr-review-fix-enew-args-lsp-attach.md)，
+迭代设计见 [enew-args-lsp-attach-pr-review-plan.md](../documents/enew-args-lsp-attach-pr-review-plan.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。

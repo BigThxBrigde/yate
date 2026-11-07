@@ -342,6 +342,13 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.document_flows.open_directory(Path(args))
 
     def _enew(args: str) -> None:
+        if args.strip():
+            editor.message(
+                "usage: :enew takes no arguments; use :e FILE to open/create a "
+                "named buffer or :saveas FILE to name this buffer",
+                kind="warn",
+            )
+            return
         editor.document_flows.new_buffer()
 
     def _welcome(args: str) -> None:
@@ -380,7 +387,7 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         arg_completer=_make_path_completer(editor))
     reg("cd", _cd, "change the workspace root directory (:cd [dir]; bare :cd shows it)",
         arg_completer=_make_cd_completer(editor))
-    reg("enew", _enew, "open a new empty buffer")
+    reg("enew", _enew, "open a new empty buffer (no arguments)")
     reg("welcome", _welcome,
         "show the welcome page again (on an empty unnamed buffer)")
     reg("bn", _bn, "next buffer/tab")

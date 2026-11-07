@@ -2,10 +2,10 @@
 
 Every function is a plain function over
 :class:`~yate.services.workspace.Entry` / :class:`~yate.services.workspace.EntryStat`
-values; theme colors are passed in as strings (the ``accent`` parameter)
-so the Screen consumes these helpers without dragging UI state in here.
-Row coloring is emitted as :class:`rich.text.Text` spans, ready for
-direct ListView use.
+values; theme colors are passed in as strings (the ``accent`` parameter and
+the optional :data:`IconPalette`) so the Screen consumes these helpers
+without dragging UI state in here.  Row coloring is emitted as
+:class:`rich.text.Text` spans, ready for direct ListView use.
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ from typing import Literal
 
 from rich.text import Text
 
-from yate.editor_components.icons import icon_color, icon_for_path
+from yate.editor_components.icons import IconPalette, icon_color, icon_for_path
+from yate.editor_components.theme.themes import Theme
 from yate.services.workspace import Entry, EntryStat, Workspace, human_size
 
 #: Sort keys cycled by the file manager's ``s`` key.
@@ -38,6 +39,31 @@ _MTIME_FORMAT: str = "%a %b %d %H:%M:%S %Y"
 #: Status-bar segment separator (lf-style middle dot, escaped to keep the
 #: source ASCII).
 _SEP: str = " \u00b7 "
+
+#: Separator between the three status-bar columns (escaped to keep the
+#: source ASCII).  Its color is a theme field supplied by the caller.
+_STATUS_COLUMN_SEP: str = " \u2502 "
+
+
+def themed_icon_palette(t: Theme) -> IconPalette:
+    """Map the Seti icon keys onto *t*'s chrome accents.
+
+    The file manager passes this palette into :func:`build_row_text` so its
+    icons follow the active theme.  Callers of
+    :func:`~yate.editor_components.icons.icon_color` that omit a palette keep
+    the original fixed Seti colors, which is how the explorer tree stays
+    unchanged.
+    """
+    return {
+        "blue": t.accent,
+        "yellow": t.yellow,
+        "green": t.green,
+        "orange": t.orange,
+        "purple": t.accent2,
+        "red": t.red,
+        "pink": t.accent2,
+        "grey": t.fg_dim,
+    }
 
 
 def next_sort(current: SortKey) -> SortKey:
@@ -156,16 +182,18 @@ def build_row_text(
     *,
     dir_child_count: int | None,
     sort_key: SortKey,
+    icon_palette: IconPalette | None = None,
 ) -> Text:
     """Render one list row as a span-colored rich text.
 
     Layout: ``[* ]icon name[ (N)][ size]``.  The icon glyph comes from
     :func:`~yate.editor_components.icons.icon_for_path`, colored via
     :func:`~yate.editor_components.icons.icon_color` (directories take the
-    *accent* theme color, files use the fixed Seti palette); directory
-    names are accent-colored, file names keep the widget's default
-    foreground.  Marked rows carry a ``* `` prefix.  Directories show a
-    ``(N)`` child badge (``999+`` once capped; omitted when
+    *accent* theme color, files use the fixed Seti palette unless
+    *icon_palette* is supplied, in which case every icon follows the active
+    theme); directory names are accent-colored, file names keep the widget's
+    default foreground.  Marked rows carry a ``* `` prefix.  Directories show
+    a ``(N)`` child badge (``999+`` once capped; omitted when
     *dir_child_count* is ``None`` or negative, which is how a failed
     :func:`count_children` reports); files show :func:`human_size`
     right-aligned in a 6-character column (nothing for directories or a
@@ -176,7 +204,7 @@ def build_row_text(
     if marked:
         text.append("* ")
     icon = icon_for_path(entry.name, entry.is_dir)
-    text.append(icon + " ", style=icon_color(entry.name, entry.is_dir, accent))
+    text.append(icon + " ", style=icon_color(entry.name, entry.is_dir, accent, icon_palette))
     name = entry.name or str(entry.path)
     if entry.is_dir:
         text.append(name, style=accent)
@@ -202,7 +230,7 @@ def _status_size(size: int) -> str:
     return text + "B" if text.isdigit() else text
 
 
-def format_status(
+def _status_parts(
     stat: EntryStat | None,
     index: int,
     total: int,
@@ -210,18 +238,13 @@ def format_status(
     descending: bool,
     filter_active: str | None,
     marked_count: int,
-) -> str:
-    """Format the status bar line (lf-style layout).
+) -> list[str]:
+    """Build the lf-style status segments shared by both renderers.
 
-    ``<mode> <nlink> <owner> <group> <size> <mtime> <mid-dot> n/total
-    <mid-dot> <sort hint>``.  *index* is 0-based and rendered 1-based
-    (lf convention).  Owner / group fall back to ``-`` when unknown
-    (Windows); a ``None`` *stat* degrades to the all-zero shape.  The
-    filter segment (``filter: <query>``) appears only while a filter is
-    active, and the marker segment (``marked: N``) only when
-    *marked_count* is positive.  Plain byte counts carry a ``B`` suffix
-    (lf style: ``72B`` but ``15K``); truncation to the terminal width is
-    the display layer's job.
+    The first three entries are always the entry metadata, the 1-based
+    cursor position and the sort hint; optional filter / marker segments
+    follow.  Keeping this in one place guarantees :func:`format_status`
+    and :func:`format_status_text` never disagree about the data.
     """
     if stat is None:
         mode_text = filemode(0)
@@ -246,7 +269,103 @@ def format_status(
         parts.append(f"filter: {filter_active}")
     if marked_count > 0:
         parts.append(f"marked: {marked_count}")
-    return _SEP.join(parts)
+    return parts
+
+
+def format_status(
+    stat: EntryStat | None,
+    index: int,
+    total: int,
+    sort_key: SortKey,
+    descending: bool,
+    filter_active: str | None,
+    marked_count: int,
+) -> str:
+    """Format the status bar line (lf-style layout).
+
+    ``<mode> <nlink> <owner> <group> <size> <mtime> <mid-dot> n/total
+    <mid-dot> <sort hint>``.  *index* is 0-based and rendered 1-based
+    (lf convention).  Owner / group fall back to ``-`` when unknown
+    (Windows); a ``None`` *stat* degrades to the all-zero shape.  The
+    filter segment (``filter: <query>``) appears only while a filter is
+    active, and the marker segment (``marked: N``) only when
+    *marked_count* is positive.  Plain byte counts carry a ``B`` suffix
+    (lf style: ``72B`` but ``15K``); truncation to the terminal width is
+    the display layer's job.
+    """
+    return _SEP.join(
+        _status_parts(
+            stat, index, total, sort_key, descending, filter_active, marked_count
+        )
+    )
+
+
+def _clip_column(value: str, budget: int) -> str:
+    """Clip *value* to *budget* cells, marking the cut with an ellipsis."""
+    if budget <= 0:
+        return ""
+    if len(value) <= budget:
+        return value
+    if budget == 1:
+        return value[:1]
+    return value[: budget - 1] + "\u2026"
+
+
+def format_status_text(
+    stat: EntryStat | None,
+    index: int,
+    total: int,
+    sort_key: SortKey,
+    descending: bool,
+    filter_active: str | None,
+    marked_count: int,
+    *,
+    fg: str,
+    fg_dim: str,
+    width: int,
+) -> Text:
+    """Render the three status-bar columns with theme-colored rules.
+
+    The left column keeps the lf entry metadata, the middle one the 1-based
+    cursor and sort hint, and the right one the filter / marker segments or
+    an ``N entries`` count.  *fg* / *fg_dim* are theme fields supplied by
+    the caller; *width* pads the middle column so the right one lands at the
+    right edge, and a non-positive width simply drops the padding.
+
+    When the columns do not fit, the right column is preserved first (it
+    carries the state that changes without a cursor move), then the middle
+    one, and the long metadata column shrinks last.  The returned text never
+    exceeds *width* cells, which is the truncation that
+    :func:`format_status` delegates to the display layer.  That plain-string
+    contract itself stays unchanged.
+    """
+    parts = _status_parts(
+        stat, index, total, sort_key, descending, filter_active, marked_count
+    )
+    left = parts[0]
+    center = _SEP.join(parts[1:3])
+    right = _SEP.join(parts[3:]) if len(parts) > 3 else f"{total} entries"
+    sep_len = 2 * len(_STATUS_COLUMN_SEP)
+    used = len(left) + len(center) + len(right) + sep_len
+    if width > 0 and used > width:
+        right = _clip_column(right, max(0, width - sep_len))
+        center = _clip_column(center, max(0, width - sep_len - len(right)))
+        left = _clip_column(
+            left, max(0, width - sep_len - len(right) - len(center))
+        )
+        used = len(left) + len(center) + len(right) + sep_len
+    pad = max(0, width - used)
+    text = Text()
+    text.append(left, style=fg)
+    text.append(_STATUS_COLUMN_SEP, style=fg_dim)
+    text.append(center, style=fg)
+    if pad:
+        text.append(" " * pad)
+    text.append(_STATUS_COLUMN_SEP, style=fg_dim)
+    text.append(right, style=fg)
+    if width > 0 and len(text.plain) > width:
+        text.truncate(width, overflow="ellipsis")
+    return text
 
 
 def parent_and_siblings(

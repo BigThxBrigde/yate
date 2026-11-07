@@ -7,6 +7,8 @@ hooks four document lifecycle moments into it:
 * :meth:`notify_edit`        -- buffer text may have changed (debounced didChange)
 * :meth:`notify_saved`       -- the buffer was written (didSave)
 * :meth:`on_document_closed` -- a tab is closed (didClose)
+* :meth:`on_document_retargeted` -- a save-as gave the document a new URI
+  (didClose of the old URI, didOpen of the new one)
 
 and calls :meth:`request_completion` for the popup.  Incoming
 ``publishDiagnostics`` notifications are stored per URI; the optional
@@ -111,6 +113,10 @@ class LspManager:
         #: Cache of ``path_to_uri`` results (a real filesystem call on
         #: Windows); invalidated when a document leaves the session.
         self._uri_cache: dict[Path, str] = {}
+        #: URIs with an in-flight ``on_document_shown`` handshake.  The check in
+        #: ``is_open`` happens before ``await ensure_client``, so without this set two
+        #: overlapping refresh workers could both send didOpen for the same uri.
+        self._opening: set[str] = set()
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._shutting_down = False
         self._workspace_root = workspace_root
@@ -233,7 +239,15 @@ class LspManager:
         return result
 
     def state_for_doc(self, doc: Document) -> ServerState | None:
-        """Aggregated server state relevant to *doc*, for the status bar."""
+        """Aggregated server state relevant to *doc*, for the status bar.
+
+        An unnamed document has no URI, so no server can ever serve it: return
+        ``None`` instead of advertising a configured/ready server.  This mirrors
+        the ``path is not None`` gate in :meth:`supports` and
+        :meth:`ensure_client`.
+        """
+        if doc.path is None:
+            return None
         cfg = self.config_for(doc.filetype)
         return self.states().get(cfg.name) if cfg is not None else None
 
@@ -346,48 +360,59 @@ class LspManager:
 
     async def on_document_shown(self, doc: Document) -> None:
         """Open *doc* on its server when it becomes the active document."""
-        if doc.path is None or self._uri(doc) in self._open:
+        if doc.path is None:
+            return
+        uri = self._uri(doc)
+        if uri in self._open or uri in self._opening:
             return
         config = self.config_for(doc.filetype)
         if config is None:
             return
-        client = await self.ensure_client(doc)
-        if client is None:
-            return
-        root = self.root_for(config, doc)
-        uri = self._uri(doc)
-        text = doc.buffer.get_text()
+        self._opening.add(uri)
         try:
-            await client.notify("textDocument/didOpen", {
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": config.language_id(doc.filetype),
-                    "version": 1,
-                    "text": text,
-                },
-            })
-        except (LspError, OSError):
-            return
-        self._open[uri] = OpenDocState(
-            uri=uri,
-            config_name=config.name,
-            client_key=(config.name, str(root)),
-            language_id=config.language_id(doc.filetype),
-            version=1,
-            last_synced_lines=tuple(doc.buffer.lines),
-            last_synced_version=doc.buffer.content_version,
-            doc=doc,
-        )
-        # Pending diagnostics may already be stale relative to buffer content;
-        # the server republishes after didOpen.
-        self._forget_diagnostics(uri)
+            client = await self.ensure_client(doc)
+            # _close_uri drops the uri from _opening, so a close during the
+            # handshake aborts this open instead of writing a ghost entry
+            # back into _open.
+            if client is None or uri not in self._opening:
+                return
+            root = self.root_for(config, doc)
+            text = doc.buffer.get_text()
+            try:
+                await client.notify("textDocument/didOpen", {
+                    "textDocument": {
+                        "uri": uri,
+                        "languageId": config.language_id(doc.filetype),
+                        "version": 1,
+                        "text": text,
+                    },
+                })
+            except (LspError, OSError):
+                return
+            if uri not in self._opening:
+                return
+            self._open[uri] = OpenDocState(
+                uri=uri,
+                config_name=config.name,
+                client_key=(config.name, str(root)),
+                language_id=config.language_id(doc.filetype),
+                version=1,
+                last_synced_lines=tuple(doc.buffer.lines),
+                last_synced_version=doc.buffer.content_version,
+                doc=doc,
+            )
+            # Pending diagnostics may already be stale relative to buffer content;
+            # the server republishes after didOpen.
+            self._forget_diagnostics(uri)
+        finally:
+            self._opening.discard(uri)
 
-    async def on_document_closed(self, doc: Document) -> None:
-        """Forget *doc*'s didOpen state and notify didClose (best effort)."""
-        if doc.path is None:
-            return
-        uri = self._uri(doc)
+    async def _close_uri(self, uri: str) -> None:
+        """Forget one open URI and best-effort notify its server with didClose."""
         state = self._open.pop(uri, None)
+        # A close during an in-flight didOpen wins: the opener checks this set
+        # after each await and must not resurrect the URI.
+        self._opening.discard(uri)
         self._change_timers.pop(uri, None)
         # Queued senders for this uri hold their own lock reference and
         # bail out on the pre-notify state check; dropping the entry here
@@ -406,6 +431,38 @@ class LspManager:
                 # only leaves the server's view stale -- logged (never
                 # raised) to keep the close path total and traceable.
                 log.debug("didClose failed for %s: %s", uri, exc)
+
+    async def on_document_closed(self, doc: Document) -> None:
+        """Forget *doc*'s didOpen state and notify didClose (best effort)."""
+        if doc.path is None:
+            return
+        await self._close_uri(self._uri(doc))
+
+    async def on_document_retargeted(
+        self, doc: Document, previous_path: Path | None
+    ) -> None:
+        """Rebind a saved-as document on its server.
+
+        *previous_path* is the path before the successful write (``None`` for a
+        buffer that was unnamed).  Paths are compared by URI, not spelling: an
+        unchanged URI keeps didSave, a changed one closes the old URI before
+        didOpen.  A first path is treated as a document-shown event.  When another
+        tab owns the target URI, its entry is closed so this document can own it.
+        """
+        if doc.path is None:
+            return
+        new_uri = self._uri(doc)
+        if previous_path is not None:
+            previous_uri = protocol.path_to_uri(previous_path)
+            if previous_uri == new_uri:
+                self._uri_cache.pop(previous_path, None)
+                await self.notify_saved(doc)
+                return
+            await self._close_uri(previous_uri)
+        owner = self._open.get(new_uri)
+        if owner is not None and owner.doc is not doc:
+            await self._close_uri(new_uri)
+        await self.on_document_shown(doc)
 
     def notify_edit(self, doc: Document) -> None:
         """Schedule a debounced full-text didChange (no-op when unchanged)."""

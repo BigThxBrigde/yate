@@ -58,13 +58,16 @@ async def _action_alias_roundup(tmp: Path) -> ScenarioResult:
 
 
 async def _command_alias_roundup(tmp: Path) -> ScenarioResult:
-    """:enew / :bd / :files / :palette / :e / :colorscheme / :cl / :welcome."""
+    """:enew / :enew with an argument (rejected with a usage warning) /
+    :bd / :files / :palette / :e / :colorscheme / :cl / :welcome."""
     app = new_app(target=tmp / "a.txt")
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         await run_command(pilot, "enew")
         checks.append(Check("enew", 2, len(app.editor.session.docs)))
+        await run_command(pilot, "enew test.py")
+        checks.append(Check("enew_rejects_args", 2, len(app.editor.session.docs)))
         await run_command(pilot, "bd")
         checks.append(Check("bd", 1, len(app.editor.session.docs)))
         await run_command(pilot, "files")

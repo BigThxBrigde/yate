@@ -168,9 +168,9 @@ Default startup with the bundled extensions loaded; the status bar lists the ext
 
 <img src="./file-manager.svg" width="720">
 
-``filemanager_dir=`` startup form: the fullscreen manager with the listing and the preview pane populated.
+``filemanager_dir=`` startup form: the fullscreen manager with theme-aligned borders, a full-row highlighted cursor and a populated listing / preview.
 
-``filemanager_dir=`` 启动形态：全屏文件管理器，列表与预览均已填充。
+``filemanager_dir=`` 启动形态：全屏文件管理器，边框配色随主题、光标行整行高亮，列表与预览均已填充。
 
 ### hex-view
 
