@@ -1,7 +1,7 @@
 # IKTF4Y 扩展执行边界与信任模型加固 — 主计划
 
 > 状态：【方案】已落盘，无人值守批准视为通过（用户 2026-11-07 指令「所有问题无须过问」）。
-> 任务分支 `enh/extension-trust-hardening`，parent `develop` @ `af81d11`
+> 任务分支 `feature/enh-extension-trust-hardening`，parent `develop` @ `af81d11`
 > （`git rev-list --left-right --count develop...origin/develop` = `0 0`）。
 > worktree 为同级目录 `yate-extension-trust-hardening`，独立 `.venv` 已自证
 > `import yate` 指向该 worktree。素材见
@@ -134,7 +134,7 @@ sequenceDiagram
 
 **回滚**：每子计划独占文件，单波失败即 `git checkout -- <该子计划独占文件>`；
 波次间串行，前一波验收命令退出码全 0 才进入下一波；整任务回滚为删除
-`enh/extension-trust-hardening` 分支与 worktree（提交均在分支上，develop 不动）。
+`feature/enh-extension-trust-hardening` 分支与 worktree（提交均在分支上，develop 不动）。
 
 ## 六、执行记录回填（占位，步骤 4-7 填写）
 

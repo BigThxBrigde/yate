@@ -7,7 +7,7 @@
 ## 一、环境基线（本任务）
 
 - worktree：`yate-extension-trust-hardening`（相对主工作区同级目录）
-- 分支：`enh/extension-trust-hardening`，parent = `develop` @ `af81d11`
+- 分支：`feature/enh-extension-trust-hardening`，parent = `develop` @ `af81d11`
   （已与 `origin/develop` 同步，`rev-list --left-right --count` = `0 0`）
 - 审计日期：2026-11-06；审计方式：源码静态审计，未执行代码 / 未跑门禁 / 未做 SCA
 - 定级前提：yate 为本地 TUI 编辑器，「用户主动安装 / 配置的代码即受信任代码」是现行设计；

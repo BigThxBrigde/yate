@@ -1,6 +1,6 @@
 ﻿# 2026-11-08 IKTF4Y extension trust hardening - code review r2 (Lua argv boundary only)
 
-- Branch: `enh/extension-trust-hardening`, range `aa72147..HEAD`; the commit under review is `24f3ba4` (fix(security): normalise Lua argv tables at the extension boundary), 2 files / +65 -5.
+- Branch: `feature/enh-extension-trust-hardening`, range `aa72147..HEAD`; the commit under review is `24f3ba4` (fix(security): normalise Lua argv tables at the extension boundary), 2 files / +65 -5.
 - Reviewer: `code-review-expert` (`.trae/agents/code-review-expert.md`). The `Skill` tool returned `python-code-review not found`, so the agent file fallback frame was applied by hand (6 dimensions / 3 severities / finding format; `blocker` / `major` / `minor` labels). Forced self-critique executed before output.
 - Narrowed scope by instruction: **only** the Lua argv boundary fix. `trust.py` / `bridges.py` / docs / plan records / `README.md` index are out of scope and not reviewed here.
 - In-scope files: `yate/services/extensions/api.py` (`:14`, `:88-107`, `:646-663`), `tests/test_lua_extensions.py` (`:14`, `:34`, `:118`, `:121`, `:333-363`).
