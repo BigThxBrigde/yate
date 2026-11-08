@@ -359,7 +359,7 @@ def test_shell_argv_rejects_non_string_table_entries(
     bundle.workspace.root = tmp_path
     runtime = create_runtime(bundle.api, lua_api_library_source())
 
-    with pytest.raises(Exception, match="shell_argv entries must be strings"):
+    with pytest.raises(TypeError, match="shell_argv entries must be strings"):
         runtime.execute("return yate.shell_argv({1, 2})")
 
 
