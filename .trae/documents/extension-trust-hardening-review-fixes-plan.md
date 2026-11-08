@@ -207,5 +207,34 @@ mdlint 仍会返回 1（存量基线），按主计划 wave-3 的口径比较父
 |---|---|---|---|
 | F1 | `plan-executor` 回报完整；主代理复核 pyright 0 / 合并回归 297 passed·1 skipped | `24f3ba4` | lupa 真往返返回真实 `ShellResult`，`{1,2}` 触发清晰 `TypeError`；无偏离 |
 | F2 | `plan-executor` 回报完整；主代理复核 pyright 0 / 合并回归同上 / 4 文档 mdlint 基线 146、当前 146、归一化差异 0 | `f526733` | 主代理补回 `bridges.py` 被误删的原子写说明，并整理 `extensions.zh.md` 断行 |
-| F3 记录 / 门禁 | 评审记录 §6 勘误 + 索引 #64 已落盘；六道全量门禁待跑 | 待填 | #5 登记另案，#6 订正为实测 6 笔 |
-| 复审 | 待填 | 待填 | 范围 `aa72147..HEAD`，0 blocker / 0 major 方可收尾 |
+| F3 记录 / 门禁 | 评审记录 §6 勘误 + 索引 #64 已落盘；六道全量门禁首轮全绿 | `323d3b6` | pyright 0 / 3468 passed·10 skipped / 架构 37 / 覆盖率 92.94% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0 |
+| 复审 | 首轮 spawn 零产出 → 拆两路重试均交付 APPROVE；0 blocker / 0 major，首轮 blocker/major 归零 | 见 §九 | 新增 5 minor：当轮修 3、登记 2；修复后重跑六道门禁 |
+
+## 九、第二波复审（#65）与 minor 处置（步骤 5 回填）
+
+- 首轮复审 spawn 返回 `-` 且无落盘记录；按 `subagent-workflow.md` §五.4
+  变更配置重试一次（批大小 1→2、任务粒度拆 F1/F2），两路
+  `code-review-expert` 均交付：
+  `.trae/reviews/2026-11-08-extension-trust-hardening-r2-lua.md`（APPROVE，
+  0 blocker / 0 major / 3 minor）与
+  `.trae/reviews/2026-11-08-extension-trust-hardening-r2-trust.md`
+  （APPROVE，0 blocker / 0 major / 2 minor）。首轮 blocker #1 与 major #2
+  均判定归零；两路均确认 `shell.py` 未被 F1 改动、`bridges.py` 只有 docstring
+  变动、Lua 真往返用例非 skip 且非空转。
+- 六道全量门禁（主代理亲跑，修复 minor 前）：pyright 0 / 全量
+  3468 passed·10 skipped / 架构 37 / 覆盖率 92.94% /
+  冒烟 121/121·1464 checks / changelog 0 / diffcheck 0。
+- 新 minor 裁决：
+
+  | # | 来源 | 裁决 |
+  |---|---|---|
+  | 1 | `_argv_values` 会把普通 `dict` 按 `values()` 读取 | **登记另案**：调用方契约是 `Sequence[str]`，pyright strict 已拒绝 dict；逐项 `str` 校验兜底，无合法调用方路径 |
+  | 2 | 负向用例只锁 `Exception` 不锁异常类 | **当轮修**：实测 lupa 边界异常仍为 `TypeError`（`EXC_TYPE TypeError`），收紧为 `pytest.raises(TypeError, ...)` |
+  | 3 | 同模块存在两种 Lua 表读取惯例 | **登记另案**：可维护性项，归并需重审全模块，收益低于回归风险 |
+  | 4 | `:trust` 失败提示固定归因「cwd 含符号链接」，符号链接 store 场景失真 | **当轮修**：提示改为「workspace or trust store contains a symlink component」并补 `test_trust_cwd_reports_symlinked_store_refusal` |
+  | 5 | `extensions.zh.md` 把「同一信任级别」断行 | **当轮修**：整句重排 |
+
+- 上述 3 处当轮修复涉及 `yate/flows/extension_flows.py`、
+  `tests/test_extension_flows.py`、`tests/test_lua_extensions.py`、
+  `yate/docs/extensions.zh.md`；按规则修复后须**重跑六道全量门禁**，
+  并在主计划 / overview / 索引回填最终结果。
