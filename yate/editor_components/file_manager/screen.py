@@ -425,7 +425,6 @@ class FileManagerScreen(ModalScreen[None]):
                 accent,
                 entry.path in self._marked,
                 dir_child_count=self._child_counts.get(entry.path),
-                sort_key=self._sort,
                 icon_palette=self._icon_palette,
             )
             for entry in self._entries

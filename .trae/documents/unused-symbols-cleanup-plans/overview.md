@@ -1,6 +1,6 @@
 # IKTR5Q 无用变量与函数形参清理 — 方案总纲
 
-> 闭环流程步骤 2【方案】产物。输入素材见
+> 闭环流程步骤 2【方案】产物（含 wave-1 / wave-2 实测回填）。输入素材见
 > [`../unused-symbols-cleanup-issue-brief.md`](../unused-symbols-cleanup-issue-brief.md)；
 > 交付清单见 [`../unused-symbols-cleanup-keep-register.md`](../unused-symbols-cleanup-keep-register.md)
 > 与 [`../unused-symbols-cleanup-delete-list.md`](../unused-symbols-cleanup-delete-list.md)。
@@ -55,8 +55,8 @@ pytest fixture 重构、引入 linter（ruff / ARG\*）、改 `pyproject.toml` �
 赋值也纳入 `Store`，逐条复核后确认其为误报并登记保留）。**本轮以自身复扫的
 1255 行为唯一判定基准**，issue 的 587 / 653 仅作规模估计，不作删除清单。
 
-**最终判定对账**：`1255 = 14 删除 + 1241 保留`。删除项全部为 `yate/` 产品代码的
-未使用形参；`local` 664 条经逐条复核**全部保留**（见 §四）。
+**最终判定对账（wave-2 改判后）**：`1255 = 12 删除 + 1243 保留`。删除项全部为
+`yate/` 产品代码的未使用形参；`local` 664 条经逐条复核**全部保留**（见 §四）。
 
 ## 四、判定口径与六类登记
 
@@ -69,7 +69,7 @@ pytest fixture 重构、引入 linter（ruff / ARG\*）、改 `pyproject.toml` �
 | `@override` 覆写 | 3 | `yate/editor_components/manual.py:265 get_content_height`；pyright `reportImplicitOverride` 要求签名一致 |
 | 开放 API | 1 | `tools/pack/wiki/run.py:198 force`，CLI 门面且有 3 处 `force=` 关键字传参 |
 | `_` 解包占位 | 215 | `_, x = ...` / `for _ in ...`，删除会改变解包结构 |
-| 框架固定签名 | 37 | 命令注册表回调 27 条、keymap 回调、`@on(...)`/ctypes/CONPTY、进度适配器、场景 driver、monkeypatch 桩 |
+| 框架固定签名 | 39 | 命令注册表回调 27 条、keymap 回调、`@on(...)`/ctypes/CONPTY、平台占位构造契约 2 条、进度适配器、场景 driver、monkeypatch 桩 |
 | 其它语义占位 / AST 误报 | 851 | 349 解包、90 循环目标、5 `nonlocal`、1 `global`、4 嵌套类属性误报、399 测试桩签名、1 `_*` 有意忽略 |
 
 登记表逐条格式 `文件:行号 → 类别 → 保留理由`，另有对账总表与分类小计。
@@ -86,16 +86,16 @@ pytest fixture 重构、引入 linter（ruff / ARG\*）、改 `pyproject.toml` �
 | wave-1 | [plan-c](unused-symbols-cleanup-textual-views-plan-c.md) | 探针实测、删除清单 #5-9 | `yate/editor_components/view.py`、`terminal.py`、`manual.py`、`find_replace.py` | 5 处 0 参数 `on_*` | 局部 pytest + pyright |
 | wave-2 | [plan-d](unused-symbols-cleanup-cmdline-completions-plan-d.md) | 删除清单 #10、6 处调用点 | `yate/cmdline_completions.py`、`yate/editor_compose.py`、`tests/test_app_find.py`、`tests/test_cmdline_completions.py` | 删 `session` 形参 + 同步 6 处 | 局部 pytest + pyright |
 | wave-2 | [plan-e](unused-symbols-cleanup-file-manager-model-plan-e.md) | 删除清单 #11、8 处调用点 | `yate/editor_components/file_manager/model.py`、`screen.py`、`tests/test_file_manager_model.py` | 删 `sort_key` 形参 + 同步 8 处 | 局部 pytest + pyright |
-| wave-2 | [plan-f](unused-symbols-cleanup-buffer-pty-plan-f.md) | 删除清单 #12-14、4 处调用点 | `yate/editor_core/buffer.py`、`yate/keymaps/base.py`、`yate/keymaps/vim.py`、`tests/test_input_assist.py`、`yate/editor_term/pty_proc.py` | 删 `language` / 2 处 `owner` + 同步 4 处 | 局部 pytest + pyright |
+| wave-2 | [plan-f](unused-symbols-cleanup-buffer-pty-plan-f.md) | 删除清单 #12、3 处调用点 | `yate/editor_core/buffer.py`、`yate/keymaps/base.py`、`yate/keymaps/vim.py`、`tests/test_input_assist.py` | 删 `language` 形参 + 同步 3 处（PTY 改判后不碰 `pty_proc.py`） | 局部 pytest + pyright |
 | wave-3 | 主代理收尾 | 前两波全部产物 | 临时探针删除、文档回填、评审记录 | 全量门禁 + 提交 | §六 全量门禁 |
 
 ```mermaid
 flowchart TD
     S["AST 复扫 402 文件<br/>1255 候选 / 40133 调用点"] --> R{"逐条源码回读复核"}
-    R -->|"14 条可安全删除"| D["最终删除清单"]
-    R -->|"1241 条契约/占位/误报"| K["不可删登记表"]
+    R -->|"12 条可安全删除"| D["最终删除清单"]
+    R -->|"1243 条契约/占位/误报"| K["不可删登记表"]
     D --> W1["wave-1: 9 条 Textual 0 参数回调<br/>plan-a ∥ plan-b ∥ plan-c"]
-    D --> W2["wave-2: 5 条纯内部签名<br/>plan-d ∥ plan-e ∥ plan-f"]
+    D --> W2["wave-2: 3 条纯内部签名<br/>plan-d ∥ plan-e ∥ plan-f"]
     W1 --> G["每波 pyright + 局部 pytest<br/>退出码 0"]
     W2 --> G
     K --> W3["wave-3: 登记表/清单对账回填"]
@@ -125,6 +125,7 @@ git diff --check
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 .venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch -n auto
 .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
+.venv\Scripts\python.exe -m tools.changelog check
 ```
 
 附加：覆盖率 ≥ 75%、架构测试 37 passed、冒烟全通过、changelog check 通过。
@@ -141,18 +142,21 @@ git diff --check
 | D4 | 删除形参时连带删未使用类型导入与同步 docstring | pyright strict `reportUnusedImport` 是硬门槛；docstring 描述已删除形参会形成文档缺陷。属签名删除的一致性维护，非 issue §六 的「未使用导入专项清理」，不改动任何可执行逻辑 |
 | D5 | 本轮复扫 591 / 664 与 issue 粗扫 587 / 653 有 +4 / +11 差额 | `yate/`、`tools/` 逐域精确吻合；差额集中在 `tests/` 的嵌套类作用域保守口径。以本轮 1255 行为唯一判定基准，issue 数字仅作规模估计（§三） |
 | D6 | `local` 候选 664 条零删除 | 逐条源码回读确认全部为解包/循环语义占位、副作用写入或嵌套类属性 AST 误报；按 issue §三「确认无用后再删」判定保留，不按粗扫数字强删 |
-| D7 | wave-1 遗漏一处直接调用点 | AST 调用点清单里的 `tests/test_terminal.py:552 view.on_resize(Resize(Size(80,24), Size(80,24)))` 被初判误读为「另一对象的方法调用」，方案 §2.1 写成「仓内 0 处直接调用」。三个 `plan-executor` 的 pyright / pytest 实测报 `reportCallIssue` 与 `TypeError` 后确认是真实调用点；主代理按 §三 兜底同步为 `view.on_resize()` 并删该用例两行未使用导入。已回填 delete-list 与 plan-b / plan-c 的调用点表述 |
-| D8 | 修复既有用例的随机时序 flake | `tests/test_app_textual.py::test_syntax_highlight_and_theme_switch` 在 wave-1 状态重复 4 次出现 1 次失败（`#cba6f7 not in {'#89b4fa','#cdd6f4'}`）；用 `git stash` 还原 wave-1 产品改动做基线，确认同类随机性存在，且 Textual `App` 自身用私有 `_watch_theme`，`YateApp.watch_theme` 非覆写，0 参数化无契约冲突。按 `task-orchestration.md` §二.7 与 `python-coding-style.md` §4.7，把首次渲染的即时断言改为 `wait_until` 轮询谓词，重复 6 次全过、pyright 零诊断；不记为「偶发」 |
-| D9 | 【执行】wave-1 子代理实况 | 三个 `plan-executor` 以 `bypassPermissions` 并行派发，**全部成功交付**（非「子代理零产出」）；主代理按 `subagent-workflow.md` §三.2 / §五.6 独立复核 diff、重跑 pyright 与相关 pytest，并兜底修复 D7 调用点。子代理报告的 `--cov-fail-under=0` 参数错误系其 cmd shell 的 `;` 吞并所致，主代理 PowerShell 下原样命令可用 |
+| D7 | wave-1 遗漏一处直接调用点 | AST 调用点清单里的 `tests/test_terminal.py:552 view.on_resize(Resize(Size(80,24), Size(80,24)))` 被初判误读为「另一对象的方法调用」，方案写成「仓内 0 处直接调用」。三个 `plan-executor` 的 pyright / pytest 实测报 `reportCallIssue` 与 `TypeError` 后确认是真实调用点；主代理按 §三 兜底同步为 `view.on_resize()` 并删该用例两行未使用导入。已回填 delete-list 与 plan-b / plan-c |
+| D8 | 修复既有用例的随机时序 flake | `tests/test_app_textual.py::test_syntax_highlight_and_theme_switch` 在 wave-1 状态重复 4 次出现 1 次失败；用 `git stash` 还原 wave-1 产品改动做基线，确认同类随机性存在，且 Textual `App` 自身用私有 `_watch_theme`，`YateApp.watch_theme` 非覆写，0 参数化无契约冲突。按 §二.7 / §4.7，把首次渲染即时断言改为 `wait_until` 轮询谓词，重复 6 次全过、pyright 零诊断；不记为「偶发」 |
+| D9 | 【执行】wave-1 子代理实况 | 三个 `plan-executor` 以 `bypassPermissions` 并行派发，**全部成功交付**（非「子代理零产出」）；主代理按 `subagent-workflow.md` §三.2 / §五.6 独立复核 diff、重跑 pyright 与相关 pytest，并兜底修复 D7 调用点 |
+| D10 | wave-2 两条删除项改判保留，对账由 14 / 1241 校正为 12 / 1243 | `yate/editor_term/pty_proc.py:754` / `:759` 两个平台占位类的 `owner` 形参原判可删。plan-f 执行实测发现同文件第 248 / 419 行另有 POSIX / NT **真实实现类**，其 `__init__(self, owner)` 消费 `owner`；`pty_proc.py:71` 的 `_UnixPty(self)` / `_ConPty(self)` 解析到真实类，删占位类形参与调用点实参会报 pyright `reportCallIssue`。按 issue §三「框架固定签名不可删」保守口径整体回退 PTY 改动，两行登记为 `framework-fixed-signature:platform-placeholder`。回退后 pyright 零诊断、`350 passed / 1 skipped` |
+| D11 | plan-d 连带删除测试文件两行导入 | 删除 `session=EditorSession(YateConfig())` 实参后，`tests/test_cmdline_completions.py` 的 `YateConfig` / `EditorSession` 导入变为未使用，pyright strict 硬门槛要求一并删除；属 D4 同类连带，非独立专项清理 |
 
 ## 八、风险清单与回滚路径
 
-| 风险 | 触发信号 |  mitigation | 回滚 |
+| 风险 | 触发信号 | mitigation | 回滚 |
 | --- | --- | --- | --- |
 | 关键字实参漏改 → `TypeError` | 局部 pytest / 全量门禁红 | 每处删除前按调用点清单逐处核对；`git diff` 只含签名与实参删除 | `git revert` 该波单独提交 |
-| Textual 0 参数分派形态变化 | pilot / 冒烟红 | 先跑 `_callback_probe.py` 式运行时探针（已实测：watcher 2 次、`resize_terminal` 后 0 参数 `on_resize` 被调用），再落地；新增 3 个证据用例 | `git revert` wave-1 三笔提交 |
+| Textual 0 参数分派形态变化 | pilot / 冒烟红 | 先跑运行时探针（已实测：watcher 2 次、`resize_terminal` 后 0 参数 `on_resize` 被调用），再落地；新增 3 个证据用例 | `git revert` wave-1 三笔提交 |
 | 未使用类型导入残留 → pyright 红 | pyright 诊断 | 逐文件复核 `Resize` / `Focus` / `EditorSession` / `SortKey` 引用 | 补删导入或整体 revert |
 | fixture 形参误删 → 测试隔离静默失效 | 用例仍绿但环境已变 | 本轮 `tests/` 形参零删除，风险归零 | — |
+| 平台占位类签名契约不一致 | pyright `reportCallIssue` | D10 已整体回退，占位类与真实类签名一致 | — |
 | 覆盖率下降 / 架构守卫回归 | 覆盖率 < 75 或架构测试非 37 | 全量门禁统一复核 | 按评审结论迭代 |
 | 行为语义被夹带改动 | `git diff` 出现函数体变更 | 每波提交前 `git diff --check` + 人工 diff 自查 | 该波 revert 重做 |
 

@@ -11,8 +11,8 @@
 | 项 | 数量 |
 | --- | --- |
 | 本轮复扫候选总数 | 1255 |
-| 判定删除 | 14 |
-| 判定保留 | 1241 |
+| 判定删除 | 12 |
+| 判定保留 | 1243 |
 | 保留 + 删除 | 1255 |
 
 按类别小计：
@@ -32,6 +32,7 @@
 | framework-fixed-signature:scenario-driver | 4 |
 | override | 3 |
 | framework-fixed-signature | 2 |
+| framework-fixed-signature:platform-placeholder | 2 |
 | internal-callback-fixed-signature | 2 |
 | test-stub-signature:monkeypatch | 2 |
 | framework-fixed-signature:keymap-callback | 1 |
@@ -95,6 +96,13 @@
 | 文件:行号 | 名称 | 种类 | 保留理由 |
 | --- | --- | --- | --- |
 | `yate/editor_components/diff/pane.py:106` | `pane` | param | keymap table calls each binding with the pane as a fixed argument |
+
+### framework-fixed-signature:platform-placeholder（2 条）
+
+| 文件:行号 | 名称 | 种类 | 保留理由 |
+| --- | --- | --- | --- |
+| `yate/editor_term/pty_proc.py:754` | `owner` | param | placeholder __init__ mirrors the real POSIX/NT implementation, which consumes owner; PtyProcess.__init__ calls _UnixPty(self) / _ConPty(self) |
+| `yate/editor_term/pty_proc.py:759` | `owner` | param | placeholder __init__ mirrors the real POSIX/NT implementation, which consumes owner; PtyProcess.__init__ calls _UnixPty(self) / _ConPty(self) |
 
 ### framework-fixed-signature:progress-adapter（1 条）
 

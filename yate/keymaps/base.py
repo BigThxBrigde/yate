@@ -220,7 +220,7 @@ class Keymap:
             ctx.buffer.insert_at_points(key)
             return True
         if len(key) == 1 and key.isprintable():
-            ctx.buffer.type_char(key, language=ctx.doc.filetype)
+            ctx.buffer.type_char(key)
             return True
         return False
 

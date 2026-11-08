@@ -1,8 +1,8 @@
 """Tab-completion candidates for the bottom prompt line (pure functions).
 
 The prompt bar asks for candidates with ``(text, mode)``; everything the
-completion needs -- the command registry, the document session and the
-workspace -- is passed in, so this module owns no state and imports no UI.
+completion needs -- the command registry and the workspace -- is passed
+in, so this module owns no state and imports no UI.
 Command argument candidates come from each command's registered
 ``arg_completer`` metadata; this module owns no per-command knowledge.
 """
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace, path_matches
-from yate.session import EditorSession
 
 
 def cmdline_completions(
@@ -19,7 +18,6 @@ def cmdline_completions(
     mode: str,
     *,
     commands: CommandRegistry,
-    session: EditorSession,
     workspace: Workspace,
 ) -> list[str]:
     """Candidates extending *text* for the active prompt *mode*.

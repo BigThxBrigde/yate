@@ -1,7 +1,7 @@
 # IKTR5Q 最终删除清单
 
 > 与 [`unused-symbols-cleanup-keep-register.md`](unused-symbols-cleanup-keep-register.md)
-> 同时交付，数量可对账：**1255 = 14 删除 + 1241 保留**。
+> 同时交付，数量可对账：**1255 = 12 删除 + 1243 保留**。
 > 逐条判定的机器可读事实见方案总纲
 > [`unused-symbols-cleanup-plans/overview.md`](unused-symbols-cleanup-plans/overview.md)。
 
@@ -9,24 +9,24 @@
 
 | 域 | 复扫形参 | 复扫局部名 | 判定删除 | 判定保留 |
 | --- | --- | --- | --- | --- |
-| `yate/` | 70 | 81 | 14 | 137 |
+| `yate/` | 70 | 81 | 12 | 139 |
 | `tools/` | 10 | 20 | 0 | 30 |
 | `tests/` | 511 | 563 | 0 | 1074 |
 | `pack/` | 0 | 0 | 0 | 0 |
-| 合计 | 591 | 664 | **14** | **1241** |
+| 合计 | 591 | 664 | **12** | **1243** |
 
 删除项全部落在 `yate/` 产品代码的**未使用形参**；`local` 候选 664 条经逐条复核
 **全部登记保留**（215 条 `_` 解包占位、349 条解包/循环语义占位、90 条循环目标、
 5 条 `nonlocal`、1 条 `global`、4 条嵌套类属性 AST 误报——后者见 §三）。
 
-## 二、14 条删除项（`文件:行号 → 名称 → 类别 → 调用点清单 → 行为一致证据`）
+## 二、12 条删除项（`文件:行号 → 名称 → 类别 → 调用点清单 → 行为一致证据`）
 
 ### 2.1 Textual 0 参数回调组（9 条，wave-1）
 
 | # | 文件:行号 | 名称 | 原签名 → 新签名 | 调用点清单 | 行为一致证据 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `yate/app.py:186` | `_theme` | `watch_theme(self, _theme: str)` → `watch_theme(self)` | 仓内 0 处直接调用；由 `textual/reactive.py:106-116` `invoke_watcher` 按形参数分派 | 运行时探针：0 参数 watcher 在构造与赋值时各触发 1 次（共 2 次），主题变更重绘断言见 wave-1 plan-a |
-| 2 | `yate/editor_components/chrome.py:163` | `_event` | `TabBar.on_resize(self, _event: Resize)` → `on_resize(self)` | 仓内 0 处直接调用；Textual `invoke` 分派 | `textual/_callback.py:45-56` 按 `count_parameters` 裁剪实参；探针 `invoke(w.on_resize, object())` 成功、`resize_terminal` 真实分派 |
+| 2 | `yate/editor_components/chrome.py:163` | `_event` | `TabBar.on_resize(self, _event: Resize)` → `on_resize(self)` | 见下方「调用点事实校正」 | `textual/_callback.py:45-56` 按 `count_parameters` 裁剪实参；探针 `invoke(w.on_resize, object())` 成功、`resize_terminal` 真实分派 |
 | 3 | `yate/editor_components/chrome.py:313` | `_event` | `Breadcrumbs.on_resize(self, _event: Resize)` → `on_resize(self)` | 同上 | 同上 |
 | 4 | `yate/editor_components/diff/pane.py:282` | `_event` | `DiffPane.on_resize(self, _event: Resize)` → `on_resize(self)` | 同上 | 同上 |
 | 5 | `yate/editor_components/find_replace.py:197` | `event` | `FindReplaceScreen.on_resize(self, event: Resize)` → `on_resize(self)` | 同上 | 同上 |
@@ -51,29 +51,43 @@ Size(80, 24)))` 直接调用（AST 调用点清单已记录，初判误读为其
 按形参数分派，0 参数形态不消费事件对象；全量门禁 + 新增
 `tests/test_zero_arg_callbacks.py` 运行时/pilot 用例（详见 wave-1 plan-a）。
 
-### 2.2 纯内部签名组（5 条，wave-2）
+### 2.2 纯内部签名组（3 条，wave-2）
 
 | # | 文件:行号 | 名称 | 原签名 → 新签名 | 调用点清单（全部同步删除对应实参） | 行为一致证据 |
 | --- | --- | --- | --- | --- | --- |
 | 10 | `yate/cmdline_completions.py:17` | `session` | 删 `session: EditorSession` 关键字形参 | `yate/editor_compose.py:128-133`（`functools.partial` 绑定 `session=ed.session`）、`tests/test_app_find.py:337`、`:475`、`tests/test_cmdline_completions.py:72`、`:142`、`:153`（共 6 处，均为 `session=` 关键字实参） | 函数体只有 `mode` / `commands` / `workspace` 三条路径，`session` 无任何 `Load`；`PromptCompleter = Callable[[str, str], list[str]]` 约束的是 partial 之后的 `(text, mode)`，删 `session` 不改变该契约 |
 | 11 | `yate/editor_components/file_manager/model.py:177` | `sort_key` | 删 `sort_key: SortKey` 关键字形参 | `yate/editor_components/file_manager/screen.py:422`、`tests/test_file_manager_model.py:115`、`:123`、`:131`、`:140`、`:178`、`:190`、`:196`（共 8 处，均为 `sort_key=` 关键字实参） | docstring 自述该参数「reserved for a later sort-column indicator and does not affect the rendering」；函数体无 `Load`，8 处调用点全部同步 |
 | 12 | `yate/editor_core/buffer.py:856` | `language` | 删 `language: str = "plaintext"` 关键字形参 | `yate/keymaps/base.py:223`、`yate/keymaps/vim.py:498`、`tests/test_input_assist.py:981`（共 3 处 `language=` 关键字实参）；另有 7 处仅位置参数调用，不受影响 | docstring 自述「V1 reads it not at all」；函数体无 `Load`，返回值与文本算法零改动 |
-| 13 | `yate/editor_term/pty_proc.py:754` | `owner` | `_UnixPty.__init__(self, owner: PtyProcess)` → `(self)` | `yate/editor_term/pty_proc.py:71` `_UnixPty(self)` → `_UnixPty()` | 私有平台占位类，函数体只 `raise PtyProcessError`；调用点与两个占位类签名同步 |
-| 14 | `yate/editor_term/pty_proc.py:759` | `owner` | `_ConPty.__init__(self, owner: PtyProcess)` → `(self)` | `yate/editor_term/pty_proc.py:71` `_ConPty(self)` → `_ConPty()` | 同上 |
 
 **连带动作（属于签名删除的必然连带，非逻辑改动）**：
 
 - `cmdline_completions.py`：删 `from yate.session import EditorSession`；模块 docstring
   删除「the document session」措辞。
-- `file_manager/model.py`：复核 `SortKey` 导入是否还被其它函数使用，未使用则删；
-  docstring 删除 `*sort_key* is reserved...` 句。
-- `buffer.py`：docstring 删除 `*language* is the seam...` 整段（描述已不存在的形参）。
-- 以上 docstring 同步是签名删除的必要一致性维护，不改变任何可执行逻辑。
+- `tests/test_cmdline_completions.py`：删 `session=EditorSession(YateConfig())` 实参后
+  `YateConfig` / `EditorSession` 两行导入变为未使用，按 pyright strict 硬门槛一并删除。
+- `file_manager/model.py`：`SortKey` 同文件仍有 12 处引用（`SORT_CYCLE` / `next_sort` /
+  `sort_entries` 等），**保留导入**；docstring 删除 `*sort_key* is reserved...` 句。
+- `buffer.py`：docstring 删除 `*language* is the seam...` 整段。
+- 以上 docstring 与导入同步是签名删除的必要一致性维护，不改变任何可执行逻辑。
 
 **改动前后行为一致证据**：每个形参在函数体内均无 `Load` 引用；位置与关键字两种
-传参方式都已逐处列出并同步；既有测试（补全、文件管理器模型、输入辅助、keymaps、
-PTY）在 wave-2 局部验收与最终全量门禁中全绿；`git diff` 只含签名、实参与 docstring
-删除。
+传参方式都已逐处列出并同步；既有测试（补全、文件管理器模型、输入辅助、keymaps）
+在 wave-2 局部验收（350 passed / 1 skip）与最终全量门禁中全绿；`git diff` 只含
+签名、实参与 docstring 删除。
+
+### 2.3 wave-2 实测改判（2 条由「删除」改判「保留」）
+
+原删除清单 #13 / #14 为 `yate/editor_term/pty_proc.py:754` 与 `:759` 两个平台占位类
+的 `owner` 形参。plan-f 执行时实测发现该文件另有两个**真实平台实现类**
+（`_UnixPty` 第 248 行 / `_ConPty` 第 419 行），`__init__(self, owner: PtyProcess)`
+真实消费 `owner`（`self._owner.env` / `.argv`）；`pty_proc.py:71` 的
+`_UnixPty(self) if os.name == "posix" else _ConPty(self)` 解析到的是真实类，
+删占位类形参与调用点实参会触发 pyright `reportCallIssue`。
+
+按 issue §三「框架固定签名 / 跨仓可调用签名不可删」与「不改变函数语义」的保守口径，
+**改判 keep**：占位类签名恢复为 `(self, owner: PtyProcess)`，调用点保持传 `self`，
+两行登记进「不可删登记表」的 `framework-fixed-signature:platform-placeholder` 类。
+对账相应由 `14 / 1241` 校正为 **`12 / 1243`**。详见总纲 §七 D10。
 
 ## 三、明确不删的典型项（详见登记表）
 
