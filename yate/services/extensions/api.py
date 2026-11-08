@@ -11,7 +11,7 @@ semantics.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -83,6 +83,28 @@ def _no_ui_canvas(
     """
     _ = cols, rows, on_key, on_tick, on_close
     raise RuntimeError("no UI host")
+
+
+def _argv_values(argv: Sequence[str]) -> list[str]:
+    """Return a string vector from a Python sequence or a 1-based Lua table.
+
+    lupa exposes Lua tables as mapping-like objects whose iteration yields
+    integer keys; ``values()`` is the only reliable way to read the argv
+    entries.  Entries are validated here so a wrong type raises a clear
+    ``TypeError`` instead of failing later inside ``" ".join``.
+    """
+    values = getattr(argv, "values", None)
+    if callable(values):
+        reader = cast(Callable[[], Iterable[object]], values)
+        items = list(reader())
+    else:
+        items = list(argv)
+    vector: list[str] = []
+    for item in items:
+        if not isinstance(item, str):
+            raise TypeError("shell_argv entries must be strings")
+        vector.append(item)
+    return vector
 
 
 def _coerce_completer_result(raw: object) -> list[str]:
@@ -621,12 +643,14 @@ class ExtensionAPI:
         """Run *command* synchronously without showing its output."""
         return self._ctx.run_shell(command, False)
 
-    def shell_argv(self, argv: Sequence[str]) -> ShellResult | None:
+    def shell_argv(self, argv: Sequence[str]) -> ShellResult:
         """Run *argv* without a shell; no metacharacter interpretation.
 
         Like :meth:`shell`, this is a synchronous, silent, full-permission
         interface -- the only difference is that the program vector never
-        goes through the system shell.  A missing executable comes back as
+        goes through the system shell.  The Lua side passes a 1-based
+        table; the boundary adapter reads its values, so the return value
+        is never ``None``.  A missing executable comes back as
         a :class:`ShellResult` with a non-zero return code; an empty vector
         raises :class:`ValueError`.  The process still runs with the full
         permissions of the current user: this is not a sandbox.
@@ -636,7 +660,7 @@ class ExtensionAPI:
             self._ctx.workspace.root,
             doc.path.parent if doc.path is not None else None,
         )
-        return run_argv(argv, cwd=cwd)
+        return run_argv(_argv_values(argv), cwd=cwd)
 
     def open_path(self, path: str | Path) -> None:
         """Open *path* (file or folder) in the editor."""
