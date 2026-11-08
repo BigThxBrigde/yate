@@ -107,6 +107,16 @@ P1 两条 MINOR 由代码 / 测试反证删除。修复后 APPROVE，六道门�
 冒烟 121/121·1464 checks / changelog 0 / diffcheck 0）。评审记录见
 [2026-11-07-pr-review-fix-enew-args-lsp-attach.md](2026-11-07-pr-review-fix-enew-args-lsp-attach.md)，
 迭代设计见 [enew-args-lsp-attach-pr-review-plan.md](../documents/enew-args-lsp-attach-pr-review-plan.md)。
+**2026-11-08 IKTF4Y 增量**：新增 #64（`enh/extension-trust-hardening` 分支首轮
+评审，范围 `af81d11..HEAD` / 6 提交；8 项发现 wave-1..3 已闭环；
+`code-review-expert` 1 名 + 主代理机械取证与逐条回读复核）：BLOCKED
+1 BLOCKER / 1 MAJOR / 4 MINOR。BLOCKER = Lua `yate.shell_argv({...})` 首调
+`TypeError`（`list(_LuaTable)` 取到 `[1,2]` 键、6 处文档宣称 Lua 可调却无
+运行时用例）；MAJOR = 符号链接 trust store 读写不对称（`:trust` 谎报成功、
+后续启动静默拒绝）。两波并行修复 `24f3ba4` / `f526733` 后 BLOCKER/MAJOR 归零，
+4 MINOR 修 2（docstring 漂移 / 返回类型过宽）、订正 1（提交数）、登记 1
+（`ShellResult.command` 标签歧义）。迭代设计见
+[extension-trust-hardening-review-fixes-plan.md](../documents/extension-trust-hardening-review-fixes-plan.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -180,6 +190,7 @@ P1 两条 MINOR 由代码 / 测试反证删除。修复后 APPROVE，六道门�
 | 58 | 2026-11-06 | **`enh/multi-dim-review-r2` 合并前 pr-review**（master `75bccfa` → `b80505a`，6 提交 / 20 文件 +735−56，无分叉无冲突面；3 只读审查员并行覆盖六维度 + 主代理逐条回读复核 + 六道硬门禁亲跑）：0 BLOCKER / **1 MAJOR**（本地 pyright 命令 `-m pyright yate/ tests/ tools/` 漏 `pack/`，与 `task-orchestration.md` §二.7 及 `pyproject.toml` `include` 不一致；CI bare pyright 受 include 管辖未漏扫，按四路径补跑 `0 errors`）/ 12 MINOR（尾随空格、loader docstring 失真、方案双写描述不实、`is_text_file` 短文件 `final=False` 放行截断尾、bisect 用例「覆盖空集」措辞不实、teardown 日志无堆栈、report 4 层嵌套、纯文档提交豁免未标注、提交顺序偏离与中间态互链断链、豁免账本计数 3→5、覆盖率阈值口径误引、`.trae/...` 行内路径） | ✅ **APPROVE**（MAJOR 按 §二.7 四路径补跑 + 主计划/上一轮记录口径订正；9 MINOR 当轮销账、3 条按理由登记 Deferred；修复后门禁 pyright 4 路径 0 / 全量 pytest 0 / 架构 37 / 覆盖率 92.82%（3395 passed·10 skipped）/ 冒烟 121/121·1463 / changelog 0，全 exit 0） | [2026-11-06-pr-review-enh-multi-dim-review-r2.md](2026-11-06-pr-review-enh-multi-dim-review-r2.md) |
 | 62 | 2026-11-07 | IKTBXC 命名自查修复分支 `ref/naming-hygiene` 首轮评审（范围 `3e92532..f3299a1` / 3 笔独立实现提交 / 44 文件 +1139−65）：0 BLOCKER / 1 MAJOR（7 个一次性临时脚本未清理）/ 3 MINOR（提交 body 空、R4 名单分歧未说明、§三.6 措辞不齐）；评审阶段 smoke `stress_rapid_toggles` 时序 flake 按 §二.7 串行复核并修用例 | ✅ 已修（MAJOR 删脚本 + 3 MINOR 当轮处置 + flake 收敛断言；收尾六道门禁全绿，见 [iktbxc-review-fixes-plan.md](../documents/iktbxc-review-fixes-plan.md)） | [2026-11-07-iktbxc-naming-refactor.md](2026-11-07-iktbxc-naming-refactor.md) |
 | 63 | 2026-11-07 | `ref/naming-hygiene` 合并前 PR 级预评审（master `d53d238` 领先 47 提交；起始范围 `3e92532..38a918b` / 48 文件 +1641−65；3 只读审查员并行 + 主代理逐条回读复核 + 六道硬门禁亲跑）：基线 A APPROVE / B BLOCKED / C REQUEST_CHANGES，主代理裁定 **0 BLOCKER / 3 MAJOR**（评审索引 #59 与 master #59–#61 撞号且真冲突、新增文档 3 处盘符路径、首轮评审记录范围/结论失真）/ 9 MINOR（改名后 import 字母序回归 5 处、stress 收敛谓词 3 项、探针残留、EOF 空行、子计划断链、分支规范与文档词根漂移） | ✅ **APPROVE**（3 MAJOR 全闭环：索引重排 #62/#63 + `git merge-tree` 冲突标记归零、路径脱敏、记录事实订正；MINOR 修 6 登记 3；六道门禁全 exit 0：pyright 0 / 全量 pytest 0 / 架构 37 / 覆盖率 92.88%（3395 passed·10 skipped）/ 冒烟 121/121·1463 checks / changelog 0） | [2026-11-07-pr-review-naming-hygiene.md](2026-11-07-pr-review-naming-hygiene.md) |
+| 64 | 2026-11-08 | **IKTF4Y 扩展执行边界与信任模型加固分支首轮评审**（`enh/extension-trust-hardening`，范围 `af81d11..HEAD` / 6 提交 / 8 项发现 S-01..S-08，wave-1..3 已闭环；`code-review-expert` 1 名 + 主代理机械取证与逐条回读复核）：**1 BLOCKER** = Lua `yate.shell_argv({...})` 首调 `TypeError`（`list(_LuaTable)` 取到整数键 `[1,2]` 而非字符串值，6 处文档宣称 Lua 可调却只有文本比对守卫）；**1 MAJOR** = 符号链接 trust store 读侧拒绝而写侧仍追加并返回 `True`（`:trust` 谎报成功、后续启动静默拒绝）；4 MINOR = `DataExtensionBridge` docstring 漂移 / `ShellResult \| None` 返回类型过宽 / `ShellResult.command` 标签对含空格参数有歧义 / 提交数记载不实 | ✅ 已修（BLOCKER `24f3ba4` 在 L3 边界新增 `_argv_values` 读 `values()` + 收紧返回类型 + lupa 真往返用例；MAJOR `f526733` 写侧对称拒绝并补零副作用用例、同步 docstring 与 4 份双语文档；MINOR 修 2 / 勘误 1 / 按理由登记 1；主代理复跑 pyright 0 / 合并回归 297 passed·1 skipped / mdlint 归一化差异 0；六道全量门禁与复审结论待 F3 回填） | [2026-11-08-extension-trust-hardening.md](2026-11-08-extension-trust-hardening.md) |
 ---
 
 ### 2026-10-09 closure-sweep 批注（维持登记项）
