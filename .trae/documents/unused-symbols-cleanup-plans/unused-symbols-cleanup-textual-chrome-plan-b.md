@@ -32,7 +32,10 @@ keymap 表固定签名回调，已在登记表登记保留。
   `from textual.events import Resize` 或 `from textual import events` 写法），
   若该文件已无其它 `Resize` 引用则删除该导入——pyright strict
   `reportUnusedImport` 是硬门槛。若同文件其它方法仍使用 `Resize`，保留导入。
-- 调用点：全部由 Textual 事件分派，仓内无直接调用；无关键字实参需同步。
+- 调用点：主要由 Textual 事件分派；**wave-1 实测校正**：`tests/test_terminal.py:552`
+  有一处 `view.on_resize(Resize(...))` 直接调用（属 `TerminalView`，由 plan-c 与
+  主代理同步为 `view.on_resize()`），本子计划的两个 `chrome.py` / `diff/pane.py`
+  方法无直接调用；无关键字实参需同步。
 
 ## 测试用例与验证方案
 

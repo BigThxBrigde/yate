@@ -183,7 +183,7 @@ class YateApp(App[None]):
         """Compose the shell's widget tree (delegates to the editor)."""
         yield from self.editor.compose()
 
-    def watch_theme(self, _theme: str) -> None:
+    def watch_theme(self) -> None:
         """Repaint the base screen background with the active yate palette.
 
         The screen is the one surface the shell owns; every other widget

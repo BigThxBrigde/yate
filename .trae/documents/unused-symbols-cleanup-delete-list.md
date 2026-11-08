@@ -39,6 +39,13 @@
 `Focus` / `events` 类型导入，若该文件中已无其它引用则删除该导入——pyright strict
 的 `reportUnusedImport` 是硬门槛，留着会判红。既有函数体一行不改。
 
+**调用点事实校正（wave-1 实测后回填）**：本组并非「仓内 0 处直接调用」——
+`tests/test_terminal.py:552` 有唯一一处 `view.on_resize(Resize(Size(80, 24),
+Size(80, 24)))` 直接调用（AST 调用点清单已记录，初判误读为其它对象的方法调用）。
+改签名后主代理同步为 `view.on_resize()`，并删除该用例内 `Resize` / `Size` 两行
+局部导入；行为一致（方法体用 `_grid_size()` 取 80x24 fallback，不读事件对象），
+该用例与 `tests/test_terminal.py` 全量回归通过。详见总纲 §七 D7。
+
 **改动前后行为一致证据**：9 个形参在函数体内均无 `Load` 引用（AST 逐条事实）；
 函数体、返回值、装饰器、类基类、方法名全部不变；`invoke` / `invoke_watcher`
 按形参数分派，0 参数形态不消费事件对象；全量门禁 + 新增

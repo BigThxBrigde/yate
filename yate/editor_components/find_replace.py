@@ -24,7 +24,7 @@ from typing import override
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.events import Key, Resize
+from textual.events import Key
 from textual.screen import ModalScreen
 from textual.widgets import Input, Static
 
@@ -194,7 +194,7 @@ class FindReplaceScreen(ModalScreen[None]):
         self._sync_footer()
         self.query_one("#fr-find", Input).focus()
 
-    def on_resize(self, event: Resize) -> None:
+    def on_resize(self) -> None:
         """Re-evaluate the footer hint when the viewport changes shape."""
         self._sync_footer()
 

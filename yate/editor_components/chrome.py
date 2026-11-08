@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from rich.text import Text
-from textual.events import MouseDown, Resize
+from textual.events import MouseDown
 from textual.widgets import Static
 
 from yate.editor_core import Document
@@ -160,7 +160,7 @@ class TabBar(Static):
 
     # ------------------------------------------------------------- events
 
-    def on_resize(self, _event: Resize) -> None:
+    def on_resize(self) -> None:
         """Re-render the tab line at the new width."""
         self.refresh_tabs()
 
@@ -310,7 +310,7 @@ class Breadcrumbs(Static):
         """Detach from the theme broadcast."""
         theme.detach(self)
 
-    def on_resize(self, _event: Resize) -> None:
+    def on_resize(self) -> None:
         """Re-render the crumb line at the new width."""
         self.refresh_crumbs()
 

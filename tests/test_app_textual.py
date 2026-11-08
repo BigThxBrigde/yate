@@ -515,6 +515,13 @@ def test_syntax_highlight_and_theme_switch(tmp_path: Path) -> None:
                     if seg.style is not None and seg.style.color is not None
                 }
 
+            # Tokens land on the view's first repaint; under a loaded event
+            # loop the initial frame can still carry the default palette, so
+            # poll for the keyword color instead of asserting on one frame.
+            assert await wait_until(
+                pilot,
+                lambda: mocha.syn_keyword.lower() in seg_colors(editor.render_line(0)),
+            )
             colors = seg_colors(editor.render_line(0))
             # "def" -> keyword color, "foo" -> function color must appear
             assert mocha.syn_keyword.lower() in colors

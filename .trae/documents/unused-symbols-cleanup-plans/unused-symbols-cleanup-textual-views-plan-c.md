@@ -37,7 +37,10 @@
 - **连带复核**：逐文件检查 `Resize` / `Focus` / `events` 导入是否还有其它引用，
   无引用则删除（pyright strict `reportUnusedImport` 硬门槛）；`manual.py` 若仍用
   `events.Resize` 于别处则保留 `from textual import events`。
-- 调用点：全部由 Textual 事件分派，仓内无直接调用；无关键字实参需同步。
+- 调用点：主要由 Textual 事件分派；**wave-1 实测校正**：`tests/test_terminal.py:552`
+  直接调用 `TerminalView.on_resize(Resize(Size(80, 24), Size(80, 24)))`，改签名后
+  由主代理同步为 `view.on_resize()` 并删该用例两行未使用局部导入（见总纲 §七 D7）。
+  其余四个方法无直接调用；无关键字实参需同步。
 
 ## 测试用例与验证方案
 

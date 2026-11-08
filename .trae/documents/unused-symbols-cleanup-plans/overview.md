@@ -141,6 +141,9 @@ git diff --check
 | D4 | 删除形参时连带删未使用类型导入与同步 docstring | pyright strict `reportUnusedImport` 是硬门槛；docstring 描述已删除形参会形成文档缺陷。属签名删除的一致性维护，非 issue §六 的「未使用导入专项清理」，不改动任何可执行逻辑 |
 | D5 | 本轮复扫 591 / 664 与 issue 粗扫 587 / 653 有 +4 / +11 差额 | `yate/`、`tools/` 逐域精确吻合；差额集中在 `tests/` 的嵌套类作用域保守口径。以本轮 1255 行为唯一判定基准，issue 数字仅作规模估计（§三） |
 | D6 | `local` 候选 664 条零删除 | 逐条源码回读确认全部为解包/循环语义占位、副作用写入或嵌套类属性 AST 误报；按 issue §三「确认无用后再删」判定保留，不按粗扫数字强删 |
+| D7 | wave-1 遗漏一处直接调用点 | AST 调用点清单里的 `tests/test_terminal.py:552 view.on_resize(Resize(Size(80,24), Size(80,24)))` 被初判误读为「另一对象的方法调用」，方案 §2.1 写成「仓内 0 处直接调用」。三个 `plan-executor` 的 pyright / pytest 实测报 `reportCallIssue` 与 `TypeError` 后确认是真实调用点；主代理按 §三 兜底同步为 `view.on_resize()` 并删该用例两行未使用导入。已回填 delete-list 与 plan-b / plan-c 的调用点表述 |
+| D8 | 修复既有用例的随机时序 flake | `tests/test_app_textual.py::test_syntax_highlight_and_theme_switch` 在 wave-1 状态重复 4 次出现 1 次失败（`#cba6f7 not in {'#89b4fa','#cdd6f4'}`）；用 `git stash` 还原 wave-1 产品改动做基线，确认同类随机性存在，且 Textual `App` 自身用私有 `_watch_theme`，`YateApp.watch_theme` 非覆写，0 参数化无契约冲突。按 `task-orchestration.md` §二.7 与 `python-coding-style.md` §4.7，把首次渲染的即时断言改为 `wait_until` 轮询谓词，重复 6 次全过、pyright 零诊断；不记为「偶发」 |
+| D9 | 【执行】wave-1 子代理实况 | 三个 `plan-executor` 以 `bypassPermissions` 并行派发，**全部成功交付**（非「子代理零产出」）；主代理按 `subagent-workflow.md` §三.2 / §五.6 独立复核 diff、重跑 pyright 与相关 pytest，并兜底修复 D7 调用点。子代理报告的 `--cov-fail-under=0` 参数错误系其 cmd shell 的 `;` 吞并所致，主代理 PowerShell 下原样命令可用 |
 
 ## 八、风险清单与回滚路径
 
