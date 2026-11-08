@@ -12,6 +12,7 @@ every test.
 from __future__ import annotations
 
 import importlib.util
+import logging
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from yate.keymaps.base import Keymap
 from yate.keymaps.registry import KeymapSet
 from yate.registries import ActionRegistry, CommandRegistry
 from yate.session import EditorSession
-from yate.services import clipboard
+from yate.services import clipboard, data_store
 from yate.services.extensions.bridges import (
     CanvasControls,
     DataExtensionBridge,
@@ -564,6 +565,39 @@ def test_data_bridge_roundtrip_under_the_isolated_home(api: ExtensionAPI) -> Non
     assert api.data.list("games") == ["snake.json"]
     assert api.data.remove("games/snake.json") is True
     assert api.data.read("games/snake.json") is None
+
+
+def test_data_bridge_rejects_symlink_escape(
+    api: ExtensionAPI,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A symlinked directory cannot smuggle data operations out of the root.
+
+    The bridge keeps its ``False`` / ``None`` / ``[]`` failure contract, logs
+    a warning for the write, and nothing is created or deleted outside the
+    data root.
+    """
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True)
+    root = data_store.data_root()
+    root.mkdir(parents=True, exist_ok=True)
+    try:
+        (root / "link").symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+    (outside / "x.json").write_text("keep", encoding="utf-8")
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert api.data.write("link/x.json", "{}") is False
+        assert api.data.remove("link/x.json") is False
+        assert api.data.read("link/x.json") is None
+        assert api.data.list("link") == []
+
+    assert (outside / "x.json").read_text(encoding="utf-8") == "keep"
+    assert any("link/x.json" in record.message for record in caplog.records)
 
 
 def test_data_bridge_reports_invalid_names_as_false(api: ExtensionAPI) -> None:

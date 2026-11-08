@@ -159,6 +159,32 @@ def test_extension_package_flags_parse() -> None:
     assert args.uninstall_extensions == ["x"]
     args = build_parser().parse_args(["--list-extensions"])
     assert args.list_extensions is True
+    assert build_parser().parse_args([]).allow_unverified is False
+    args = build_parser().parse_args(
+        ["--install-extension", "a.yxp", "--allow-unverified"]
+    )
+    assert args.allow_unverified is True
+
+
+def test_main_rejects_unverified_package_by_default(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    with patch("yate.logs.crash.install"):
+        assert main(["--install-extension", str(pkg)]) == 1
+    assert "missing" in capsys.readouterr().err
+    # The isolated-home fixture points ~/.yate at a temp dir.
+    assert not (Path.home() / ".yate" / "extensions" / "hello.py").exists()
+
+
+def test_main_allows_unverified_package_with_flag(
+    capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    with patch("yate.logs.crash.install"):
+        assert main(["--install-extension", str(pkg), "--allow-unverified"]) == 0
+    assert "installed hello 1.0.0" in capsys.readouterr().out
+    assert (Path.home() / ".yate" / "extensions" / "hello.py").exists()
 
 
 def test_extension_package_flags_are_mutually_exclusive() -> None:

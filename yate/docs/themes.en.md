@@ -315,6 +315,10 @@ untrusted workspace it skips the directory and reports
 `yaterc: themes: skipped untrusted <path> (trust it and restart yate to
 load them)` on the message bar. Theme directories are resolved once at
 startup, so after trusting the workspace, restart yate to load its themes.
+Theme trust shares the same permanent path-based grant as extension trust:
+the grant binds to the resolved directory path, not its contents, so
+replacing the trusted workspace's themes does not revoke trust. See the
+Trust model section of the extensions guide for details.
 
 User-level `~/.yate/themes/` and explicit declarations -- `theme_dirs` in
 yaterc and `--theme-dir` on the command line -- are deliberate user actions

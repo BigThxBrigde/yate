@@ -108,6 +108,11 @@ yate --setup-defaults       # 创建 ~/.yate（默认 yaterc + 随包模板）�
 yate --cleanup-defaults     # 删除上述配置后退出（data/ 默认保留）
 ```
 
+`--diag` 报告是为**本机诊断**设计的：包含绝对路径、`sys.executable` /
+`sys.prefix` 与终端环境变量，字段值不做脱敏。贴到 issue 前请先复核。
+报告抬头本身附有 privacy note；开启 tracing 时，本地 trace 文件还会额外
+记录完整的 `sys.argv` 与工作目录。
+
 ## 3. 界面导览
 
 yate 的布局模仿 VS Code，自上而下分为几个区域：
@@ -899,8 +904,11 @@ register_theme(replace(
 
 不做任何配置也有默认扫描位置：工作目录下的 `./themes`（**仅受信任**的工作区
 加载——`:trust` 后重启；见主题指南第 7 节）和 `~/.yate/themes`；临时目录可用
-命令行 `--theme-dir DIR`（可重复）指定。同名主题被多次注册时，后加载者覆盖
-先加载者，优先级从低到高为：
+命令行 `--theme-dir DIR`（可重复）指定。`:trust` 授予的是针对**解析后的
+工作区路径**的永久授权——不做内容指纹，也不会自动过期；授权记录在
+`~/.yate/trusted_workspaces`，删除对应行即撤销信任。信任库文件本身为符号
+链接时，读写两侧均拒绝。同名主题被多次注册时，
+后加载者覆盖先加载者，优先级从低到高为：
 
 1. 内置主题（最低）
 2. `./themes`（仅受信任工作区）、`~/.yate/themes`
@@ -1123,7 +1131,10 @@ shell = "pwsh -NoLogo"
   （0 显示绿色对勾，非零显示红色叉）；stdout 与 stderr 一并显示。
   超时 60 秒，返回码 124。
 - `Esc` / `q` / `Ctrl+C` 关闭输出浮层。
-- 扩展可通过 `api.shell(命令)` 静默执行命令（不弹输出浮层）。
+- 扩展可通过 `api.shell(命令)` 静默执行命令（不弹输出浮层）。`:!` 与
+  `api.shell(cmd)` 是完全权限接口：字符串直接交给系统 shell。
+  `api.shell_argv(argv)` 与 Lua 的 `yate.shell_argv(argv)` 改传 argv 向量、
+  不解释 shell 元字符——但仍以当前用户的完全权限运行程序。
 
 ## 15. Python 扩展
 
@@ -1174,7 +1185,15 @@ Lua 同样受支持：安装可选桥接包（`pip install yate[lua]`）后，`.
 走同一条加载管线——chunk 顶层代码就是 setup，可选的全局 `teardown(api)`
 对应 Python 钩子，`require("yate")` 暴露内置 API 库
 （`yate/extensions/_yate.lua`）。`yate --setup-defaults` 会把带完整注释的
-`lua.example` 模板放入 `~/.yate/extensions/`。
+`lua.example` 模板放入 `~/.yate/extensions/`。Lua 扩展与 Python 扩展的
+信任级别相同：未裁剪的 Lua 5.4 运行时，标准库 `io`、`os`、`package`、
+`debug` 与 Python 桥接全部可用——没有沙箱，也没有 API 白名单。
+
+多个文件也可打包成 `.yxp` 扩展包，用 `yate --install-extension FILE.yxp`
+安装。缺 `checksum` 成员的包**默认被拒绝**；如果包是你自己构建并检查过的，
+可用 `yate --install-extension FILE.yxp --allow-unverified` 显式放宽。
+编辑器内的 `:install-extension` 命令不提供放宽开关——请用 CLI。详见
+扩展指南的扩展包章节。
 
 > 扩展 API 完整参考（命令、动作、按键绑定、buffer/doc/workspace 访问、
 > LSP 注册、自定义语法高亮与 `LangSpec` 字段）见

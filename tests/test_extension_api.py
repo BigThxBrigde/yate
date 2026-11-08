@@ -10,8 +10,11 @@ descriptions, the narrow accessors, and the A13 rollback-scope edge cases
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import Callable
 from typing import override
+
+import pytest
 
 from conftest import make_action_context
 
@@ -569,3 +572,39 @@ def test_actions_run_reports_known_and_unknown() -> None:
     assert api.actions.run("probe_act") is True
     assert api.actions.run("ghost") is False
     assert seen == [("probe_act", True), ("ghost", False)]
+
+
+# --- shell_argv ---------------------------------------------------------------
+
+
+def test_shell_argv_runs_without_shell_metacharacter_interpretation() -> None:
+    """The argv vector reaches the program verbatim, bypassing the shell."""
+    api, _actions, _commands, _keymaps = _extension_api()
+
+    payload = "a & echo INJECTED"
+    result = api.shell_argv(
+        [sys.executable, "-c", "import sys; print(sys.argv[1])", payload]
+    )
+
+    assert result is not None
+    assert result.ok is True
+    assert result.returncode == 0
+    assert payload in result.output.splitlines()
+    assert "is not recognized" not in result.output
+
+
+def test_shell_argv_rejects_empty_vector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty vector raises ValueError before any process is spawned."""
+    api, _actions, _commands, _keymaps = _extension_api()
+    calls: list[object] = []
+
+    def spy_popen(*args: object, **kwargs: object) -> object:
+        calls.append((args, kwargs))
+        raise AssertionError("Popen must not run for an empty vector")
+
+    monkeypatch.setattr("yate.services.shell._popen", spy_popen)
+
+    with pytest.raises(ValueError):
+        api.shell_argv([])
+
+    assert calls == []

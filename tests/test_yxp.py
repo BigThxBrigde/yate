@@ -251,7 +251,27 @@ def test_install_creates_nested_dirs(tmp_path: Path) -> None:
 def test_install_without_checksum_installs_unverified(tmp_path: Path) -> None:
     base = tmp_path / "base"
     pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
-    assert yxp.install_package(pkg, base).files == ("hello.py",)
+    assert yxp.install_package(pkg, base, allow_unverified=True).files == (
+        "hello.py",
+    )
+
+
+def test_install_without_checksum_is_rejected_by_default(tmp_path: Path) -> None:
+    base = tmp_path / "ext"
+    pkg = make_yxp(tmp_path / "bare.yxp", {"hello.py": b"x"}, checksum=None)
+    with pytest.raises(yxp.YxpError, match="missing 'checksum'"):
+        yxp.install_package(pkg, base)
+    assert not base.exists()
+    assert not _record_path(base, "hello").exists()
+
+
+def test_install_without_checksum_opt_in_installs(tmp_path: Path) -> None:
+    base = tmp_path / "base"
+    pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
+    report = yxp.install_package(pkg, base, allow_unverified=True)
+    assert isinstance(report, yxp.InstallReport)
+    assert (base / "hello.py").read_bytes() == b"x"
+    assert _record_path(base, "hello").exists()
 
 
 def test_install_refuses_unowned_collision(tmp_path: Path) -> None:
@@ -588,7 +608,7 @@ def test_install_without_checksum_logs_warning(
     base = tmp_path / "base"
     pkg = make_yxp(tmp_path / "hello.yxp", {"hello.py": b"x"}, checksum=None)
     with caplog.at_level(logging.WARNING, logger="yate.services.yxp"):
-        yxp.install_package(pkg, base)
+        yxp.install_package(pkg, base, allow_unverified=True)
     assert (base / "hello.py").read_bytes() == b"x"
     assert any(
         record.name == "yate.services.yxp"
@@ -918,6 +938,24 @@ def test_install_extension_command_reports_errors(
     assert editor.messages[-1][1] == "warn"
     entry.func("")
     assert "usage:" in editor.messages[-1][0]
+
+
+def test_install_extension_command_rejects_unverified_package(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The :install-extension command defaults to refusing checksum-less."""
+    base = tmp_path / "exts"
+    monkeypatch.setattr(yxp, "default_extensions_dir", lambda: base)
+    registry, editor = _editor_with_commands()
+    pkg = make_yxp(tmp_path / "bare.yxp", {"hello.py": b"x"}, checksum=None)
+    entry = registry.get("install-extension")
+    assert entry is not None
+    entry.func(str(pkg))
+    assert any(
+        kind == "warn" and ("missing" in text or "checksum" in text)
+        for text, kind in editor.messages
+    )
+    assert not (base / "hello.py").exists()
 
 
 def test_uninstall_extension_command_removes_and_reports(

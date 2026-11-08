@@ -24,7 +24,14 @@ from typing import Any, cast
 import pytest
 
 from yate.editor_term.shells import resolve_shell, shell_label
-from yate.services.shell import ShellResult, _kill_tree, run_shell, shell_name
+from yate.services.shell import (
+    ShellResult,
+    _kill_tree,
+    run_argv,
+    run_shell,
+    shell_cwd,
+    shell_name,
+)
 
 _WINDOWS: bool = sys.platform.startswith("win")
 
@@ -204,6 +211,60 @@ def test_shell_result_ok_tracks_the_return_code() -> None:
 def test_shell_name_matches_the_platform() -> None:
     """The reported shell name is the one run_shell actually uses."""
     assert shell_name() == ("cmd.exe" if _WINDOWS else "/bin/sh")
+
+
+# --- run_argv / shell_cwd ----------------------------------------------------
+
+
+def test_run_argv_captures_stdout_and_success(tmp_path: Path) -> None:
+    """A successful vector reports its output, cwd, ok flag and joined label."""
+    argv = [sys.executable, "-c", "print('argv-ok')"]
+    result = run_argv(argv, cwd=tmp_path)
+    assert result.ok is True
+    assert "argv-ok" in result.output
+    assert result.cwd == tmp_path
+    assert result.command == " ".join(argv)
+
+
+def test_run_argv_does_not_interpret_shell_metacharacters(tmp_path: Path) -> None:
+    """Metacharacters reach the program verbatim instead of the shell."""
+    payload = "a & echo INJECTED"
+    result = run_argv(
+        [sys.executable, "-c", "import sys; print(sys.argv[1])", payload],
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0
+    assert payload in result.output.splitlines()
+    assert "is not recognized" not in result.output
+
+
+def test_run_argv_rejects_empty_argv() -> None:
+    """An empty vector is rejected before any process is spawned."""
+    with pytest.raises(ValueError, match="at least one"):
+        run_argv([])
+
+
+def test_run_argv_reports_missing_executable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spawn failure becomes a ShellResult with return code 1."""
+
+    def raise_os(*_args: object, **_kwargs: object) -> subprocess.Popen[str]:
+        raise OSError("nope")
+
+    monkeypatch.setattr("yate.services.shell.subprocess.Popen", raise_os)
+
+    result = run_argv(["definitely-missing-executable-xyz"])
+
+    assert result.returncode == 1
+    assert "failed to run command" in result.output
+
+
+def test_shell_cwd_prefers_workspace_root(tmp_path: Path) -> None:
+    """Workspace root wins, then document dir, then the process cwd."""
+    other = tmp_path / "docdir"
+    other.mkdir()
+    assert shell_cwd(tmp_path, other) == tmp_path
+    assert shell_cwd(None, other) == other
+    assert shell_cwd(None, None) == Path.cwd()
 
 
 # --- resolve_shell ----------------------------------------------------------
