@@ -293,7 +293,9 @@ register_theme(Theme(
 会跳过该目录并在消息栏提示
 `yaterc: themes: skipped untrusted <path> (trust it and restart yate to
 load them)`。主题目录在启动时一次性解析，信任工作区后需重启 yate 才会
-加载其主题。
+加载其主题。主题信任与扩展信任共用同一套针对路径的永久授权：授权绑定
+解析后的目录路径，与目录内容无关，替换受信任工作区的主题不会撤销信任。
+详见扩展指南的信任模型一节。
 
 用户级 `~/.yate/themes/` 与显式声明——yaterc 的 `theme_dirs`、命令行的
 `--theme-dir`——都是刻意的用户动作，不受门控。

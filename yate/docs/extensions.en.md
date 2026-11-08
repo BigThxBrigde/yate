@@ -156,6 +156,15 @@ Gating follows the loading source:
   trust-gated**: the `extensions` option in yaterc, `--ext <file>` /
   `--ext-dir <dir>`, and the user-level `~/.yate/extensions/`.
 
+Trust is a permanent grant for a **resolved directory path**, not for its
+contents. Replacing a trusted workspace (re-clone, shared directory, a new
+`*.py` / `*.lua` file) still auto-loads its code. Remove the matching line
+from `~/.yate/trusted_workspaces` to revoke it. A trust store that is itself
+a symlink is ignored; on POSIX the store permissions are best-effort and a
+chmod failure is logged, while Windows ACL hardening is not applied yet
+(tracked separately). The same trust level applies to Lua extensions -- see
+[Section 6](#6-lua-extensions) below.
+
 ---
 
 ## 3. `setup(api)` and `teardown(api)`
@@ -320,6 +329,11 @@ does not trigger a repaint by itself.
 | `api.shell(command)` | run a shell command silently, returns `ShellResult` (with `output`, `returncode`); no output popup |
 | `api.open_path(path)` | open a file in a new tab |
 | `api.save()` | save the current document |
+
+`:!` and `api.shell(command)` are full-privilege interfaces: the string is
+handed straight to the system shell. `api.shell_argv(argv)` takes an argv
+vector instead and does not interpret shell metacharacters, but it still
+runs programs with your full user privileges.
 
 ### 4.6 Language servers (LSP)
 
@@ -906,7 +920,9 @@ pip install yate[lua]
 
 Without it, loading a `.lua` extension records the actionable error
 `lua extensions require the lupa package; install with: pip install yate[lua]`
-and everything else keeps working.
+and everything else keeps working. Lua extensions are exactly as trusted as
+Python ones -- fully trusted code on an untrimmed runtime, not a sandbox
+(see [Trust model](#trust-model)).
 
 ### Shape of a Lua extension
 
@@ -1020,7 +1036,11 @@ runtime: `require("yate")` and the global `yate` are the same module table
 Every wrapper above mirrors a member of the Python API one-to-one -- same
 names, same semantics, positional arguments (Lua has no keyword arguments)
 with omitted optionals falling back to the Python defaults; sections
-4.10 / 4.11 / 4.12 / 4.13 document the shared behaviour.
+4.10 / 4.11 / 4.12 / 4.13 document the shared behaviour. `:!` /
+`yate.shell(cmd)` hand the string straight to the system shell with full
+privileges; `yate.shell_argv(argv)` uses an argv vector and does not
+interpret shell metacharacters, but still runs programs with your full
+user privileges.
 
 Unlike the Python enum, `yate.events.subscribe` takes the lowercase event
 names shown above; the payload arrives as the same frozen dataclass (read
@@ -1103,8 +1123,9 @@ zip archive holding the payload files plus two reserved members:
   `version` / `description` / `author` (optional), and the `files` list of
   every payload member.
 - `checksum` -- JSON mapping each payload member to its lowercase SHA-256
-  hex digest. Optional by format, but always written by the packager; when
-  present, yate verifies the file list and every digest before extracting.
+  hex digest. Optional by format, but **required by install by default**;
+  the official packager always writes it. When present, yate verifies the
+  file list and every digest before extracting.
 
 ### Installing, uninstalling, listing
 
@@ -1112,6 +1133,14 @@ zip archive holding the payload files plus two reserved members:
 yate --install-extension hello_yxp.yxp          # verify + extract + record
 yate --uninstall-extension hello_yxp            # remove the recorded files
 yate --list-extensions                          # show installed packages
+```
+
+A package missing its `checksum` member is rejected by default. If you
+built the package yourself, reviewed it and it simply has no checksum, you
+can opt out explicitly:
+
+```text
+yate --install-extension hello_yxp.yxp --allow-unverified
 ```
 
 Each flag runs as a side command (prints a report, then exits; repeatable
@@ -1136,6 +1165,9 @@ available inside the editor:
   overwritten and files dropped from the new version are removed.
 - Uninstalling removes exactly the recorded files (missing files are
   tolerated), then the record.
+- A package missing its `checksum` member is rejected with `YxpError`
+  before anything is written to disk; the `:install-extension` command
+  offers no relaxation flag -- use the CLI with `--allow-unverified`.
 
 ### Building packages with `tools/yxp`
 
@@ -1159,11 +1191,14 @@ command -- build it, install it, restart yate and run `:hello-yxp`.
 
 ### Security notes
 
+- Installing a `.yxp` means installing **executable code**: top-level
+  `*.py` / `*.lua` members auto-load on the next start.
 - Verification is integrity-only (SHA-256): it detects corrupted or
   tampered archives but is not a signature -- only install packages you
   trust.
 - Unsafe member names (absolute paths, `..` segments, backslashes, the
   reserved `_manifests/` directory) are rejected before anything is
   written.
-- Packages without a `checksum` member install unverified; check with
+- Packages without a `checksum` member are rejected by default;
+  `--allow-unverified` opts in. Either way, check with
   `python -m tools.yxp --verify FILE.yxp` first.

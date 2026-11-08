@@ -90,6 +90,9 @@
 - 依赖：[textual](https://pypi.org/project/textual/) ≥ 8.0 与
   [pyperclip](https://pypi.org/project/pyperclip/) ≥ 1.8.2（系统剪贴板，
   供 yank / put 使用）
+- 供应链说明（已知限制，另案跟踪）：运行时依赖只声明下界，仓库不提交
+  lockfile，CI 也未接入 `pip-audit` / `osv-scanner`。需要可复现 / 可审计的
+  安装时，请自行生成带哈希的锁文件，并在发布前本地执行 SCA。
 
 ## 安装
 
@@ -498,8 +501,9 @@ cd <checkout>   # 任意检出均可
   --push
 ```
 
-- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文，两者均为 UTF-8
-  （必须来自可信来源）；
+- `--translate-cmd`：shell 命令，stdin 进中文、stdout 出英文，两者均为 UTF-8。
+  **警告**：该命令经系统 shell 执行，等价于任意命令执行——只传自己编写的
+  命令，不要来自下载的配置、脚本或不可信输入；
 - 缺省（增量）：**只翻译 missing（无英文页）与 stale（中文源已变更）** 的条目，
   fresh 页保持不动；
 - `--translate-all`：全量重译——额外把 fresh 页也送翻并覆盖现有英文页（慎用）；
