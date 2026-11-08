@@ -277,7 +277,7 @@ def zh_commit(
     except gitdata.GitError as exc:
         print(f"error: unknown commit {hash_prefix!r} ({exc})")
         return 1
-    short_sha = full_sha[:7]
+    short_sha = full_sha[:gitdata.SHORT_SHA_LENGTH]
     english = gitdata.commit_subject(repo, full_sha)
     try:
         overrides = translations.load_overrides(overrides_path)

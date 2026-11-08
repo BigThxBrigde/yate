@@ -19,9 +19,12 @@ _FIELD_SEP: str = "\x1f"
 #: Record separator between two log records.
 _RECORD_SEP: str = "\x1e"
 
-_LOG_FORMAT: str = (
-    f"%H{_FIELD_SEP}%h{_FIELD_SEP}%ad{_FIELD_SEP}%s{_FIELD_SEP}%b{_RECORD_SEP}"
-)
+#: Width of the displayed short hash.  ``%h`` follows ``core.abbrev`` and
+#: varies between machines (CI runners may use 8+ chars), so the short hash
+#: is cut from ``%H`` instead to keep the changelog gate byte-exact.
+SHORT_SHA_LENGTH: int = 7
+
+_LOG_FORMAT: str = f"%H{_FIELD_SEP}%ad{_FIELD_SEP}%s{_FIELD_SEP}%b{_RECORD_SEP}"
 
 _BUMP_LINE_RE: re.Pattern[str] = re.compile(r'^\+__version__\s*=\s*"([^"]+)"')
 _SHA_LINE_RE: re.Pattern[str] = re.compile(r"^[0-9a-f]{40}$")
@@ -60,6 +63,10 @@ def run_git(args: list[str], *, repo: Path) -> str:
 def parse_log_output(text: str) -> list[RawCommit]:
     """Parse the ``_LOG_FORMAT`` stream into commits (order preserved).
 
+    The short hash is cut from the full sha at :data:`SHORT_SHA_LENGTH`
+    instead of read from git's ``%h``: git derives that abbreviation from
+    ``core.abbrev``, so a runner using 8 characters would render every
+    released changelog section differently and fail the freshness gate.
     The body keeps any stray field separators (``maxsplit``), so only the
     subject itself containing ``\\x1f`` could desynchronise a record.
     """
@@ -68,15 +75,16 @@ def parse_log_output(text: str) -> list[RawCommit]:
         stripped = record.strip("\n")
         if not stripped.strip():
             continue
-        # maxsplit=4: a subject embedding \x1f is truncated into the body (frozen in tests).
-        fields = stripped.split(_FIELD_SEP, 4)
-        if len(fields) < 5:
+        # maxsplit=3: a subject embedding \x1f is truncated into the body (frozen in tests).
+        fields = stripped.split(_FIELD_SEP, 3)
+        if len(fields) < 4:
             raise GitError(f"malformed git log record: {stripped[:80]!r}")
-        sha, short_sha, author_date, subject, body = fields
+        sha, author_date, subject, body = fields
+        full_sha = sha.strip()
         commits.append(
             RawCommit(
-                sha=sha.strip(),
-                short_sha=short_sha.strip(),
+                sha=full_sha,
+                short_sha=full_sha[:SHORT_SHA_LENGTH],
                 author_date=author_date.strip(),
                 subject=subject,
                 body=body.strip(),

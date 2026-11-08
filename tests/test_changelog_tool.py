@@ -462,8 +462,8 @@ def test_load_overrides_reports_unreadable_bytes(tmp_path: Path) -> None:
 
 def test_parse_log_output_with_chinese_and_separators() -> None:
     sha1, sha2 = "a" * 40, "b" * 40
-    record1 = f"{sha1}\x1f{sha1[:7]}\x1f2026-09-13\x1ffeat: 中文支持\x1f正文第一行\x1f嵌入分隔符\x1e"
-    record2 = f"{sha2}\x1f{sha2[:7]}\x1f2026-09-12\x1ffix: something\x1f\x1e"
+    record1 = f"{sha1}\x1f2026-09-13\x1ffeat: 中文支持\x1f正文第一行\x1f嵌入分隔符\x1e"
+    record2 = f"{sha2}\x1f2026-09-12\x1ffix: something\x1f\x1e"
     commits = gitdata.parse_log_output(record1 + record2)
     assert len(commits) == 2
     assert commits[0].subject == "feat: 中文支持"
@@ -478,11 +478,11 @@ def test_parse_log_output_rejects_malformed_record() -> None:
 
 
 def test_parse_log_output_subject_with_stray_separator_truncates_into_body() -> None:
-    # frozen behavior: maxsplit=4 protects the body, so a \x1f inside the
+    # frozen behavior: maxsplit=3 protects the body, so a \x1f inside the
     # subject ends the subject early and everything after it (including the
     # real body) lands in the body field
     sha = "a" * 40
-    record = f"{sha}\x1f{sha[:7]}\x1f2026-09-13\x1ffeat: bad\x1fsep\x1freal body\x1e"
+    record = f"{sha}\x1f2026-09-13\x1ffeat: bad\x1fsep\x1freal body\x1e"
     commits = gitdata.parse_log_output(record)
     assert len(commits) == 1
     assert commits[0].subject == "feat: bad"
@@ -1056,6 +1056,28 @@ def test_generate_limit_zero_and_negative_forwarded_verbatim(
 
 
 # --- real git end-to-end ----------------------------------------------------
+
+
+@pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
+def test_read_commits_short_hash_ignores_core_abbrev(tmp_path: Path) -> None:
+    """A runner widening ``core.abbrev`` must not change rendered changelogs."""
+    def git(*args: str) -> None:
+        subprocess.run(
+            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True
+        )
+
+    git("init")
+    git("config", "user.name", "tester")
+    git("config", "user.email", "tester@example.com")
+    git("config", "core.abbrev", "8")
+    (tmp_path / "a.txt").write_text("a\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-m", "feat: stable short hashes")
+
+    commits = gitdata.read_commits(tmp_path)
+    assert len(commits) == 1
+    assert commits[0].short_sha == commits[0].sha[:7]
+    assert len(commits[0].short_sha) == gitdata.SHORT_SHA_LENGTH
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")
