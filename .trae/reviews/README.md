@@ -132,10 +132,18 @@ store 并补用例、中文指南断行）、按理由登记 2（`dict` 按 valu
 阶段实际以旧斜杠格式 `enh/extension-trust-hardening` 建分支，违反
 `task-orchestration.md` §二.1 的 `feature/<fix|feat|enh|ref>-<task>`；收尾才
 `git branch -m` 为 `feature/enh-extension-trust-hardening`（`e27c007`），且当时
-未按重命名纪律补跑门禁、未登记偏离。根因是 `doc-conventions.md` §七 交叉
-引用仍写旧格式；本轮已对齐该引用、在主计划 §九 与本记录登记，并按重命名
-纪律第三轮补跑六道全量门禁全绿（pyright 0 / 3469 passed·10 skipped / 架构 37 /
-覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0）。
+未按重命名纪律补跑门禁、未登记偏离。`doc-conventions.md` §七 交叉引用
+仍写旧格式只是**诱因**（按 #66 自审 §3.3 订正）；本轮已对齐该引用、在主计划
+§九 与本记录登记，并按重命名纪律第三轮补跑六道全量门禁全绿（pyright 0 /
+3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 /
+changelog 0 / diffcheck 0）。**2026-11-08 #66 纪律自审增量**：用户第二次反馈
+「更新状态，完成自我批判和评审记录」后，新增 #66（主代理自审，非独立评审）：
+**MAJOR（流程 / 纪律类）**，主责在主代理（规则冲突裁决失误 / 起点校验缺失 /
+偏离登记滞后 13 笔提交 / 汇报失真与无人值守下抛问题给用户），核心错误是以
+「最终状态合规」偷换「过程合规」；产品侧 0 blocker / 0 major，#64 / #65
+结论不变。已落盘自审记录 + 独立修复方案、订正主计划 §九 归因与 2 处本机
+绝对路径、同步主计划 / 总纲 / 修复方案 / 记忆状态。纯文档变更按
+`misc-rules.md` §三 豁免测试门禁，第三轮六道门禁结果继续有效。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -211,6 +219,7 @@ store 并补用例、中文指南断行）、按理由登记 2（`dict` 按 valu
 | 63 | 2026-11-07 | `ref/naming-hygiene` 合并前 PR 级预评审（master `d53d238` 领先 47 提交；起始范围 `3e92532..38a918b` / 48 文件 +1641−65；3 只读审查员并行 + 主代理逐条回读复核 + 六道硬门禁亲跑）：基线 A APPROVE / B BLOCKED / C REQUEST_CHANGES，主代理裁定 **0 BLOCKER / 3 MAJOR**（评审索引 #59 与 master #59–#61 撞号且真冲突、新增文档 3 处盘符路径、首轮评审记录范围/结论失真）/ 9 MINOR（改名后 import 字母序回归 5 处、stress 收敛谓词 3 项、探针残留、EOF 空行、子计划断链、分支规范与文档词根漂移） | ✅ **APPROVE**（3 MAJOR 全闭环：索引重排 #62/#63 + `git merge-tree` 冲突标记归零、路径脱敏、记录事实订正；MINOR 修 6 登记 3；六道门禁全 exit 0：pyright 0 / 全量 pytest 0 / 架构 37 / 覆盖率 92.88%（3395 passed·10 skipped）/ 冒烟 121/121·1463 checks / changelog 0） | [2026-11-07-pr-review-naming-hygiene.md](2026-11-07-pr-review-naming-hygiene.md) |
 | 64 | 2026-11-08 | **IKTF4Y 扩展执行边界与信任模型加固分支首轮评审**（`feature/enh-extension-trust-hardening`，范围 `af81d11..HEAD` / 6 提交 / 8 项发现 S-01..S-08，wave-1..3 已闭环；`code-review-expert` 1 名 + 主代理机械取证与逐条回读复核）：**1 BLOCKER** = Lua `yate.shell_argv({...})` 首调 `TypeError`（`list(_LuaTable)` 取到整数键 `[1,2]` 而非字符串值，6 处文档宣称 Lua 可调却只有文本比对守卫）；**1 MAJOR** = 符号链接 trust store 读侧拒绝而写侧仍追加并返回 `True`（`:trust` 谎报成功、后续启动静默拒绝）；4 MINOR = `DataExtensionBridge` docstring 漂移 / `ShellResult \| None` 返回类型过宽 / `ShellResult.command` 标签对含空格参数有歧义 / 提交数记载不实 | ✅ 已修（BLOCKER `24f3ba4` 在 L3 边界新增 `_argv_values` 读 `values()` + 收紧返回类型 + lupa 真往返用例；MAJOR `f526733` 写侧对称拒绝并补零副作用用例、同步 docstring 与 4 份双语文档；MINOR 修 2 / 勘误 1 / 按理由登记 1；主代理复跑 pyright 0 / 合并回归 297 passed·1 skipped / mdlint 归一化差异 0；复审 #65 两路 APPROVE 判定 blocker/major 归零，终轮六道全量门禁全绿：pyright 0 / 3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0） | [2026-11-08-extension-trust-hardening.md](2026-11-08-extension-trust-hardening.md) |
 | 65 | 2026-11-08 | **IKTF4Y 迭代后复审**（`feature/enh-extension-trust-hardening`，范围 `aa72147..HEAD` / 3 提交；首轮复审零产出后按 §五.4 变更配置重试为两路并行 `code-review-expert`，任务粒度拆为 F1 Lua 边界 / F2 trust 对称性）：两路均 **APPROVE：0 BLOCKER / 0 MAJOR**，首轮 blocker #1 与 major #2 判定归零（真实 lupa 往返返回 `ShellResult`、写侧符号链接 store 零副作用且与读侧对称）；共 5 MINOR = `_argv_values` 会把 `dict` 按 values 读取（调用方违约、登记）/ 负向用例只锁 `Exception`（当轮收紧为 `TypeError`）/ 同模块两种 Lua 表读取惯例（可维护性、登记）/ `:trust` 失败提示固定归因 cwd（当轮改为覆盖 trust store 并补用例）/ 中文指南「同一信任级别」断行（当轮重排） | ✅ **APPROVE**（3 MINOR 当轮修复 `aa112a0`、2 MINOR 按理由登记；minor 修复后重跑六道全量门禁全绿：pyright 0 / 3479 collected（3469 passed·10 skipped）/ 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0；工作树干净、未推送） | [2026-11-08-extension-trust-hardening-r2-lua.md](2026-11-08-extension-trust-hardening-r2-lua.md)、[2026-11-08-extension-trust-hardening-r2-trust.md](2026-11-08-extension-trust-hardening-r2-trust.md) |
+| 66 | 2026-11-08 | **IKTF4Y 分支命名纪律偏差 — 主代理自我批判与核对记录**（用户两次反馈触发；非独立评审，自审局限已声明）：**MAJOR（流程 / 纪律类）**。事实链 = 【领会】以旧斜杠格式 `enh/extension-trust-hardening` 建分支（违反 `task-orchestration.md` §二.1 的 `feature/<fix\|feat\|enh\|ref>-<task>`）→ 收尾才 `git branch -m`（`e27c007`）且只跑 diffcheck、未复跑门禁未登记偏离 → 首轮汇报把事后补救写成合规交付项 → 用户第 ① 次反馈后 `2df81aa` 对齐交叉引用但归因失衡、且把纪律项抛回用户确认（违反「所有问题无须过问」）→ 本轮取证发现纠正动作自身在主计划 §九 引入 2 处本机绝对路径（违反 `doc-conventions.md` §五）。**主责在主代理**：D1 规则冲突裁决失误（信息齐备却采信指针而非自称唯一权威的 §二.1 正文）/ D2 起点校验缺失（违规贯穿 13 笔提交）/ D3 偏离登记滞后 / D4 汇报与交互失当；核心错误是以「最终状态合规」偷换「过程合规」，交叉引用过时只是诱因不是免责理由。产品侧 0 blocker / 0 major，#64 / #65 APPROVE 与门禁数值不变 | ✅ 已闭环（自审记录 + 独立修复方案双向互链；主计划 §九 归因订正为「主代理主责」并脱敏 2 处路径；#66 结论回填主计划 §六/§九、总纲 §六、修复方案 §十、本索引与机器记忆；纯文档变更按 `misc-rules.md` §三 豁免测试门禁，第三轮六道门禁结果继续有效；分支/worktree/parent/类型前缀逐条核对合规，未推送未合并） | [2026-11-08-branch-naming-discipline.md](2026-11-08-branch-naming-discipline.md)，方案见 [branch-naming-discipline-review-plan.md](../documents/branch-naming-discipline-review-plan.md) |
 ---
 
 ### 2026-10-09 closure-sweep 批注（维持登记项）

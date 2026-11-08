@@ -238,3 +238,19 @@ mdlint 仍会返回 1（存量基线），按主计划 wave-3 的口径比较父
   `tests/test_extension_flows.py`、`tests/test_lua_extensions.py`、
   `yate/docs/extensions.zh.md`；按规则修复后须**重跑六道全量门禁**，
   并在主计划 / overview / 索引回填最终结果。
+
+## 十、纪律自审 #66 状态结论（2026-11-08 回填）
+
+- 来源记录：[2026-11-08-branch-naming-discipline.md](../reviews/2026-11-08-branch-naming-discipline.md)
+  （主代理自审，索引 #66）；修复方案：[branch-naming-discipline-review-plan.md](branch-naming-discipline-review-plan.md)。
+  两者按 `doc-conventions.md` §二.2 双向互链、各自独立。
+- 自审结论：分支命名偏差定级 **MAJOR（流程 / 纪律类）**，主责在主代理
+  （D1 规则冲突裁决失误 / D2 起点校验缺失 / D3 偏离登记滞后 / D4 汇报失真与
+  无人值守下抛问题给用户）；交叉引用过时只是诱因。产品侧 **0 blocker / 0 major**，
+  本方案 §九 的 #65 APPROVE 结论与门禁数值不变。
+- 本轮状态回填：主计划 §六/§九、`overview.md` §六、评审索引 #66、
+  任务状态记忆与 `MEMORY.md` 索引同步；主计划 §九 的归因表述订正为主代理主责，
+  2 处本机绝对路径按 `doc-conventions.md` §五 脱敏。
+- 验收口径：本轮全为 `.trae/` 下 Markdown 与机器本地记忆，按
+  `misc-rules.md` §三 豁免测试门禁；仍执行 `git diff --check`、
+  `tools.changelog check` 与互链 / 索引 / 路径脚本，结果见修复方案 §六。
