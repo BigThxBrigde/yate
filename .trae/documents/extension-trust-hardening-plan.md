@@ -143,7 +143,7 @@ sequenceDiagram
 | wave-1 | a / b / c | `plan-executor` ×3（回报 `No result found`，落盘完整） | 主代理复核：pyright 0 / 366 passed·1 skipped / 局部覆盖率 0 | `01a80d3` | 三个执行者回报丢失但 10 个独占文件已落盘，按「只认落盘结果」继续；不判死、不重试 |
 | wave-2 | d / e / f | `plan-executor` ×3（回报完整） | 主代理复核：pyright 0 / 241 passed·2 skipped / 架构 37 / 覆盖率 0 | `3a93570` | plan_d 用 `runtime.execute` 取代计划里的 `eval`（lupa `eval` 不接受 `return`，有首轮失败证据）；plan_d 行内 `# pyright: ignore` 违规，主代理改为仓库既有文件级 `reportPrivateUsage=false` |
 | wave-3 | g | `plan-executor` ×1（回报完整） | 主代理复核：mdlint 1（父提交基线同为 1，归一化差异 0）、双语锚点 3/3、55 passed、changelog check 0 | `9112a91` | 计划写的「mdlint 退出码 0」不可达（存量 199 条），已按实测改为基线归一化对比；执行者报告误读退出码，主代理订正；手册无 `:install-extension` 命令表，改在 §15 增补 |
-| wave-4 | 评审迭代 | `code-review-expert` ×1（#64，BLOCKED）+ `plan-executor` ×2（F1/F2） | 主代理复核：pyright 0 / 合并回归 297 passed·1 skipped / 4 文档 mdlint 归一化差异 0；六道全量门禁待步骤 7 | `24f3ba4`、`f526733` | 1 blocker（Lua argv 表取键而非值）+ 1 major（trust 链接 store 读写不对称）+ 4 minor；修 2 / 勘误 1 / 登记 1；两份记录见 `.trae/reviews/2026-11-08-extension-trust-hardening.md` §6 |
+| wave-4 | 评审迭代 | `code-review-expert` ×1（#64，BLOCKED）+ `plan-executor` ×2（F1/F2）+ 复审 #65 两路 APPROVE | 主代理复核：pyright 0 / 合并回归 297 passed·1 skipped / 4 文档 mdlint 归一化差异 0；终轮六道全量门禁全绿（pyright 0 / 3479 collected·3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0） | `24f3ba4`、`f526733`、`323d3b6`、`aa112a0`、`d83a9ce` | 1 blocker（Lua argv 表取键而非值）+ 1 major（trust 链接 store 读写不对称）均归零；首轮 4 minor 修 2 / 勘误 1 / 登记 1，复审 5 minor 修 3 / 登记 2；记录见 `.trae/reviews/2026-11-08-extension-trust-hardening.md` §6 与两份 r2 记录 |
 
 ## 七、收尾门禁（主代理亲自执行）
 

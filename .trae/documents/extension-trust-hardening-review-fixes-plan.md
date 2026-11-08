@@ -207,7 +207,7 @@ mdlint 仍会返回 1（存量基线），按主计划 wave-3 的口径比较父
 |---|---|---|---|
 | F1 | `plan-executor` 回报完整；主代理复核 pyright 0 / 合并回归 297 passed·1 skipped | `24f3ba4` | lupa 真往返返回真实 `ShellResult`，`{1,2}` 触发清晰 `TypeError`；无偏离 |
 | F2 | `plan-executor` 回报完整；主代理复核 pyright 0 / 合并回归同上 / 4 文档 mdlint 基线 146、当前 146、归一化差异 0 | `f526733` | 主代理补回 `bridges.py` 被误删的原子写说明，并整理 `extensions.zh.md` 断行 |
-| F3 记录 / 门禁 | 评审记录 §6 勘误 + 索引 #64 已落盘；六道全量门禁首轮全绿 | `323d3b6` | pyright 0 / 3468 passed·10 skipped / 架构 37 / 覆盖率 92.94% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0 |
+| F3 记录 / 门禁 | 评审记录 §6 勘误 + 索引 #64/#65 已落盘；六道全量门禁首轮与 minor 修复后两轮全绿 | `323d3b6`、`d83a9ce`、`aa112a0` | 首轮 3468 passed·10 skipped / 覆盖率 92.94%；终轮 3479 collected（3469 passed·10 skipped）/ 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0 |
 | 复审 | 首轮 spawn 零产出 → 拆两路重试均交付 APPROVE；0 blocker / 0 major，首轮 blocker/major 归零 | 见 §九 | 新增 5 minor：当轮修 3、登记 2；修复后重跑六道门禁 |
 
 ## 九、第二波复审（#65）与 minor 处置（步骤 5 回填）

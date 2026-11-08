@@ -167,5 +167,19 @@ Reverse sweep for missed dimensions: concurrency (no new shared mutable state; `
   Lua surface and every label assertion, so the churn outweighs the gain.
 - Iteration design and acceptance criteria:
   [extension-trust-hardening-review-fixes-plan.md](../documents/extension-trust-hardening-review-fixes-plan.md).
-- Re-review scope: `aa72147..HEAD`; verdict to be backfilled after the main
-  agent's six gates and the second review pass.
+- Re-review (index #65, scope `aa72147..HEAD`): the first re-review spawn
+  returned nothing and wrote no file; one config-changing retry (batch 1 -> 2,
+  split into F1/F2) delivered two independent `code-review-expert` records
+  (`2026-11-08-extension-trust-hardening-r2-lua.md` and
+  `...-r2-trust.md`). Both APPROVE with **0 blocker / 0 major**; blocker #1
+  and major #2 are confirmed closed. Their 5 new minors were triaged: 3 fixed
+  in `aa112a0` (tightened negative-test exception type, accurate `:trust`
+  refusal message plus regression test, Chinese line reflow) and 2 registered
+  with reasons (dict-as-values is a caller contract violation; two Lua-table
+  reading conventions are a maintainability item).
+- Final six gates, re-run by the main agent after those minor fixes: pyright
+  `yate/ tests/ tools/ pack/` 0; `pytest tests/ -q -n auto` exit 0
+  (3479 collected = 3469 passed / 10 skipped); architecture 37; coverage
+  92.96% (threshold 75); smoke 121/121 scenarios with 1464/1464 checks;
+  `tools.changelog check` 0 and `git diff --check` 0. Working tree clean,
+  no push and no merge into develop.
