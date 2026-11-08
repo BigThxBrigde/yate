@@ -464,10 +464,12 @@ class DataExtensionBridge:
     The only file channel an extension gets.  Names are relative to
     ``~/.yate/data``; absolute paths and ``..`` are rejected by
     :mod:`yate.services.data_store`, and every write is atomic (temporary
-    sibling file, then replace).  Failures are reported as ``None`` /
-    ``False`` / ``[]`` instead of exceptions: a script must never take the
-    editor down over a failed save, and a missing file is the normal
-    "nothing saved yet" case.
+    sibling file, then replace).  Real-path validation lives in the same
+    module too: symlinks (including intermediate directories) that resolve
+    outside the data root are refused.  Failures are reported as
+    ``None`` / ``False`` / ``[]`` instead of exceptions: a script must
+    never take the editor down over a failed save, and a missing file is
+    the normal "nothing saved yet" case.
     """
 
     def read(self, name: str) -> str | None:

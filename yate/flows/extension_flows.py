@@ -77,12 +77,13 @@ class ExtensionFlows:
         """
         cwd = Path.cwd()
         if not trust_workspace(cwd):
-            # S39 minimal hardening: a symlinked cwd is refused by the
-            # store, and pretending otherwise (or still loading its
-            # extensions) would defeat the guard.
+            # Both guards are fail-closed: a symlinked cwd and a symlinked
+            # trust store are refused, and pretending otherwise (or still
+            # loading the extensions) would defeat either guard.
             self._message(
-                f"refused to trust {cwd}: it contains a symlink component; "
-                "trust the resolved directory instead",
+                f"refused to trust {cwd}: the workspace or trust store "
+                "contains a symlink component; trust the resolved directory "
+                "and keep the trust store a regular file",
                 "error",
             )
             return

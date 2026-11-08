@@ -95,6 +95,31 @@ def test_trust_cwd_refuses_symlinked_cwd(
     assert loader.dirs == []
 
 
+def test_trust_cwd_reports_symlinked_store_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A symlinked trust store is refused without blaming a link-free cwd."""
+    monkeypatch.setattr(trust_mod, "_has_symlink_component", _link_free)
+    flows, loader, messages = _make_flows(tmp_path, monkeypatch, [])
+    real = tmp_path / "real_store"
+    real.write_text("", encoding="utf-8")
+    store = tmp_path / "trusted_workspaces"
+    try:
+        store.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+
+    flows.trust_cwd_extensions()
+
+    assert len(messages) == 1
+    text, kind = messages[0]
+    assert f"refused to trust {tmp_path}" in text
+    assert "trust store" in text
+    assert "symlink component" in text
+    assert kind == "error"
+    assert loader.dirs == []
+
+
 def test_trust_cwd_reports_missing_extensions_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

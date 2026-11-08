@@ -11,6 +11,7 @@ run everywhere.
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Any, cast, override
 from unittest.mock import MagicMock
@@ -30,6 +31,7 @@ from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLo
 from yate.services.extensions.api import _coerce_completer_result
 from yate.services.extensions.lua.library import lua_api_library_source
 from yate.services.extensions.lua.runtime import create_runtime
+from yate.services.shell import ShellResult
 
 #: Live-lua marker: skip when the optional lupa package is not installed.
 _lua_missing = importlib.util.find_spec("lupa") is None
@@ -113,9 +115,10 @@ class _ApiBundle:
         self.commands = CommandRegistry()
         # A real hub shared with the API so tests can count listeners.
         self.hub = EventHub()
+        self.workspace = cast(Any, MagicMock())
         ctx = ExtensionContext(
             session=session,
-            workspace=cast(Any, MagicMock()),
+            workspace=self.workspace,
             lsp=cast(Any, MagicMock()),
             keymaps=self.keymaps,
             actions=self.actions,
@@ -325,6 +328,39 @@ def test_bundled_lua_library_compiles_into_runtime(
     assert runtime.eval("type(yate.register_command)") == "function"
     assert runtime.eval("type(yate.bind_key)") == "function"
     assert runtime.eval("yate.api ~= nil")
+
+
+@requires_lupa
+def test_lua_shell_argv_passes_table_values_without_shell(
+    bundle: _ApiBundle, tmp_path: Path
+) -> None:
+    """A real Lua table reaches run_argv as a string vector via shell_argv."""
+    bundle.workspace.root = tmp_path
+    runtime = create_runtime(bundle.api, lua_api_library_source())
+    runtime.globals()["_PY_EXE"] = sys.executable
+    runtime.globals()["_LUA_CODE"] = "print('argv-lua-ok')"
+
+    assert runtime.eval("type(yate.shell_argv)") == "function"
+    result = runtime.execute(
+        "return yate.shell_argv({_PY_EXE, '-c', _LUA_CODE})"
+    )
+
+    assert isinstance(result, ShellResult)
+    assert result.returncode == 0
+    assert "argv-lua-ok" in result.output
+    assert result.cwd == tmp_path
+
+
+@requires_lupa
+def test_shell_argv_rejects_non_string_table_entries(
+    bundle: _ApiBundle, tmp_path: Path
+) -> None:
+    """A Lua table with non-string entries raises a clear TypeError."""
+    bundle.workspace.root = tmp_path
+    runtime = create_runtime(bundle.api, lua_api_library_source())
+
+    with pytest.raises(TypeError, match="shell_argv entries must be strings"):
+        runtime.execute("return yate.shell_argv({1, 2})")
 
 
 # --- setup/teardown mirror hooks (plan-b) -------------------------------------

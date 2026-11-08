@@ -56,6 +56,12 @@ function yate.bind_key(spec, fn, keymap) end
 ---@return any result
 function yate.shell(cmd) end
 
+-- Run a program vector synchronously (shell=False, no metacharacter
+-- interpretation). Still runs with the full permissions of the host.
+---@param argv string[]
+---@return any result
+function yate.shell_argv(argv) end
+
 -- Open a file or directory in the editor (new tab).
 ---@param path string
 ---@return nil

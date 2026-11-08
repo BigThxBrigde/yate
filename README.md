@@ -62,6 +62,11 @@ Inspired by Joel Yliluoma's ["that_editor"](https://github.com/bisqwit/that_edit
 - Dependencies: [textual](https://pypi.org/project/textual/) ≥ 8.0 and
   [pyperclip](https://pypi.org/project/pyperclip/) ≥ 1.8.2 (system clipboard for
   yank / put)
+- Supply-chain note (known limitation, tracked separately): runtime
+  dependencies are declared as lower bounds only; the repository does not
+  commit a lockfile, and CI does not run `pip-audit` / `osv-scanner`. When
+  you need a reproducible / auditable install, generate your own
+  hash-pinned lockfile and run SCA locally before releasing.
 
 ## Installation
 
@@ -508,7 +513,10 @@ cd <checkout>   # any checkout works
 ```
 
 - `--translate-cmd`: a shell command, Chinese Markdown on stdin, English on
-  stdout, both UTF-8 (must come from a trusted source);
+  stdout, both UTF-8. **Warning**: this command is executed through the
+  system shell, which is equivalent to arbitrary command execution -- only
+  pass commands you wrote yourself, never from downloaded configs, scripts
+  or untrusted input;
 - default (incremental): **only translate pages that are missing (no English
   page) or stale (Chinese source changed)**; fresh pages are kept as-is;
 - `--translate-all`: full re-translation — fresh pages are also sent through

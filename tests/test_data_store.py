@@ -19,6 +19,16 @@ from yate.services import data_store
 from yate.services.data_store import _has_drive_prefix
 
 
+def _link_to_external(root: Path, outside: Path, name: str = "link") -> None:
+    """Create ``root/name -> outside``; skip when symlinks are unavailable."""
+    root.mkdir(parents=True, exist_ok=True)
+    outside.mkdir(parents=True, exist_ok=True)
+    try:
+        (root / name).symlink_to(outside, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation unavailable")
+
+
 def test_has_drive_prefix_is_platform_independent() -> None:
     """Direct test of the portable drive check, no pathlib involved.
 
@@ -133,3 +143,58 @@ def test_data_root_points_at_the_yate_data_directory() -> None:
     root = data_store.data_root()
 
     assert root == Path.home() / ".yate" / "data"
+
+
+def test_write_rejects_symlinked_parent_outside_data_root(tmp_path: Path) -> None:
+    """A symlinked intermediate directory cannot carry a write outside."""
+    outside = tmp_path / "outside"
+    _link_to_external(data_store.data_root(), outside)
+
+    with pytest.raises(ValueError, match="resolves outside"):
+        data_store.write_text("link/escape.json", "x")
+
+    assert not (outside / "escape.json").exists()
+    assert [entry.name for entry in data_store.data_root().iterdir()] == ["link"]
+
+
+def test_remove_rejects_symlinked_parent_outside_data_root(tmp_path: Path) -> None:
+    """A symlinked parent cannot have its file deleted through the store."""
+    outside = tmp_path / "outside"
+    _link_to_external(data_store.data_root(), outside)
+    victim = outside / "victim.json"
+    victim.write_text("keep me", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="resolves outside"):
+        data_store.remove("link/victim.json")
+
+    assert victim.read_text(encoding="utf-8") == "keep me"
+
+
+def test_read_rejects_symlinked_parent_outside_data_root(tmp_path: Path) -> None:
+    """Reading through a symlinked directory outside the root is rejected."""
+    outside = tmp_path / "outside"
+    _link_to_external(data_store.data_root(), outside)
+    (outside / "victim.json").write_text("secret", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        data_store.read_text("link/victim.json")
+
+
+def test_names_rejects_symlinked_directory_outside_data_root(tmp_path: Path) -> None:
+    """Listing a symlinked directory outside the root is rejected."""
+    outside = tmp_path / "outside"
+    _link_to_external(data_store.data_root(), outside)
+    (outside / "secret.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        data_store.names("link")
+
+
+def test_nested_relative_name_still_writes_under_root() -> None:
+    """A symlink-free nested name writes, reads back and stays inside."""
+    data_store.write_text("games/deep/save.json", "payload")
+
+    assert data_store.read_text("games/deep/save.json") == "payload"
+    assert data_store.resolve("games/deep/save.json").is_relative_to(
+        data_store.data_root()
+    )

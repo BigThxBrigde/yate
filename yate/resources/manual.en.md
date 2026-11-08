@@ -110,6 +110,13 @@ yate --setup-defaults       # create ~/.yate (default yaterc + templates), then 
 yate --cleanup-defaults     # remove that configuration (data/ kept), then exit
 ```
 
+The `--diag` report is designed for **local diagnostics**: it includes
+absolute paths, `sys.executable` / `sys.prefix` and terminal environment
+variables, and field values are not redacted. Review it before pasting it
+into an issue. The report header itself carries a privacy note; when
+tracing is enabled, local trace files additionally record the full
+`sys.argv` and the working directory.
+
 ## 3. Interface Tour
 
 yate's layout mimics VS Code, top to bottom:
@@ -986,7 +993,12 @@ Themes can also be placed in the default locations without any
 configuration: `./themes` next to the working directory (**trusted**
 workspaces only -- run `:trust` and restart; see section 7 of the themes
 guide) and `~/.yate/themes` are scanned automatically, or pass one-off
-directories on the command line with `--theme-dir DIR` (repeatable). Load
+directories on the command line with `--theme-dir DIR` (repeatable).
+`:trust` grants a **permanent authorization for the resolved workspace
+path** -- it does not fingerprint or expire based on directory contents;
+grants are recorded in `~/.yate/trusted_workspaces`, and removing the
+matching line revokes the trust. A trust store file that is itself a
+symlink is refused on both the read and write sides. Load
 precedence when the same name is registered more than once (later wins):
 
 1. built-in themes (lowest)
@@ -1248,7 +1260,11 @@ The panel height defaults to 12 rows; `terminal_height` accepts `3`–`40`, and
   stderr are both shown. Timeout is 60 seconds, returning code 124.
 - `Esc` / `q` / `Ctrl+C` closes the output overlay.
 - Extensions can run commands silently via `api.shell(cmd)` (no output
-  overlay).
+  overlay). `:!` and `api.shell(cmd)` are full-privilege interfaces: the
+  string goes straight to the system shell. `api.shell_argv(argv)` and the
+  Lua `yate.shell_argv(argv)` pass an argv vector instead and do not
+  interpret shell metacharacters -- but they still run programs with your
+  full user privileges.
 
 ## 15. Python Extensions
 
@@ -1308,7 +1324,18 @@ pipeline — the chunk's top-level code is the setup, an optional global
 `teardown(api)` mirrors the Python hook, and `require("yate")` exposes the
 bundled API library (`yate/extensions/_yate.lua`). `yate --setup-defaults`
 drops the fully commented `lua.example` template into
-`~/.yate/extensions/`.
+`~/.yate/extensions/`. Lua extensions carry the same trust level as Python
+ones: an untrimmed Lua 5.4 runtime where the standard libraries `io`, `os`,
+`package` and `debug` and the Python bridge are all available -- no sandbox
+and no API whitelist.
+
+Multiple files can also be bundled into a `.yxp` extension package and
+installed with `yate --install-extension FILE.yxp`. A package missing its
+`checksum` member is **rejected by default**; if you built and reviewed the
+package yourself, opt in explicitly with
+`yate --install-extension FILE.yxp --allow-unverified`. The in-editor
+`:install-extension` command offers no relaxation flag -- use the CLI. See
+the extension guide's package section for details.
 
 > For the full extension API reference (commands, actions, key bindings,
 > buffer/doc/workspace access, LSP registration, custom syntax highlighting

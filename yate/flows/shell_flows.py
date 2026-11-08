@@ -19,7 +19,7 @@ from yate.editor_components.modals import OutputScreen
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.logs import tracing
 from yate.services import fonts
-from yate.services.shell import ShellResult, run_shell, shell_name
+from yate.services.shell import ShellResult, run_shell, shell_cwd, shell_name
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -109,10 +109,9 @@ class ShellFlows:
     def _cwd(self) -> Path:
         """The working directory for shell commands (workspace / file / cwd)."""
         doc = self.session.doc
-        return (
-            self.workspace.root
-            or (doc.path.parent if doc.path is not None else None)
-            or Path.cwd()
+        return shell_cwd(
+            self.workspace.root,
+            doc.path.parent if doc.path is not None else None,
         )
 
     def _show_result(self, command: str, result: ShellResult, cwd: Path) -> None:

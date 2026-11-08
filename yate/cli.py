@@ -63,6 +63,9 @@ def build_parser() -> argparse.ArgumentParser:
             "  yate --diag               print the environment & config report and exit\n"
             "  yate --install-extension FILE   install a .yxp extension package\n"
             "                            (repeatable), then exit\n"
+            "  yate --install-extension FILE --allow-unverified\n"
+            "                            install a package without a checksum\n"
+            "                            member (unverified), then exit\n"
             "  yate --uninstall-extension N\n"
             "                            remove an installed package (repeatable)\n"
             "  yate --list-extensions    show installed extension packages\n"
@@ -159,6 +162,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--list-extensions",
         action="store_true",
         help="print the installed extension packages and exit",
+    )
+    parser.add_argument(
+        "--allow-unverified",
+        action="store_true",
+        help="install .yxp packages without a checksum member "
+             "(unverified executable code; use only for packages you built "
+             "yourself)",
     )
     setup_group = parser.add_mutually_exclusive_group()
     setup_group.add_argument(
@@ -307,7 +317,13 @@ def _manage_extensions(args: argparse.Namespace) -> int:
     failures = 0
     for package_path in args.install_extensions:
         try:
-            print(yxp.format_install_report(yxp.install_package(Path(package_path))))
+            print(
+                yxp.format_install_report(
+                    yxp.install_package(
+                        Path(package_path), allow_unverified=args.allow_unverified
+                    )
+                )
+            )
         except yxp.YxpError as exc:
             print(f"error: {exc}", file=sys.stderr)
             failures += 1

@@ -27,6 +27,7 @@ from pathlib import Path, PurePosixPath
 
 from yate.logs import tracing
 from yate.services.yxp.manifest import (
+    CHECKSUM_NAME,
     NAME_RE,
     RECORDS_DIRNAME,
     RECORD_SUFFIX,
@@ -51,7 +52,10 @@ log = tracing.get_logger("yate.services.yxp")
 
 
 def install_package(
-    package_path: Path, base_dir: Path | None = None
+    package_path: Path,
+    base_dir: Path | None = None,
+    *,
+    allow_unverified: bool = False,
 ) -> InstallReport:
     """Verify *package_path* and extract its payload into *base_dir*.
 
@@ -66,6 +70,12 @@ def install_package(
     exactly (overwritten files get their old content back, stale-removed
     files reappear, fresh files are dropped) and raises
     :class:`YxpError`.
+
+    *allow_unverified* defaults to ``False``: a package without a
+    ``checksum`` member is rejected with :class:`YxpError` before any
+    directory is created or any file is written.  Only an explicit
+    ``True`` takes the historical unverified-install path (with a
+    warning that the contents cannot be verified).
     """
     # Late-bound through the facade: tests patch ``yxp.read_package``,
     # ``yxp._write_record`` and ``yxp.default_extensions_dir`` on the
@@ -75,6 +85,12 @@ def install_package(
     ext_dir = base_dir if base_dir is not None else _facade.default_extensions_dir()
     package = _facade.read_package(package_path)
     if package.checksums is None:
+        if not allow_unverified:
+            raise YxpError(
+                f"cannot install {package.manifest.name}: missing "
+                f"{CHECKSUM_NAME!r} member; pass --allow-unverified to "
+                "install an unverified package"
+            )
         log.warning(
             "installing extension package %s without a checksum member: "
             "contents cannot be verified",

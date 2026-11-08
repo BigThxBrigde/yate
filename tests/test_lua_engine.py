@@ -8,7 +8,13 @@ layout helpers, the direction mapping, the deterministic RNG and the UTF-8
 glyph helper.
 """
 
+# _compile_chunk is the module's private compilation seam (pinned directly
+# by the chunkname tests below, same precedent as tests/test_data_store.py).
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
+
+from pathlib import Path
 
 from typing import Any, cast
 
@@ -25,7 +31,7 @@ from yate.services.extensions.lua.library import (
     lua_api_library_source,
     lua_module_sources,
 )
-from yate.services.extensions.lua.runtime import create_runtime
+from yate.services.extensions.lua.runtime import _compile_chunk, create_runtime
 
 #: Four registered game actions, so the dispatcher lists a stable catalogue.
 _GAME_NAMES: tuple[str, ...] = ("nethack", "pacman", "snake", "tetris")
@@ -364,11 +370,50 @@ def test_lib_dir_is_not_discovered_as_an_extension() -> None:
 
 @pytest.mark.parametrize("name", ["bad-name", "a.b", "1st"])
 def test_create_runtime_rejects_unsafe_module_names(name: str) -> None:
-    """A module name that cannot appear in a chunkname string is rejected."""
+    """A shared module name must be a legal Lua identifier for ``require``."""
     api = FakeApi()
 
     with pytest.raises(ValueError, match="invalid shared Lua module name"):
         create_runtime(api, lua_api_library_source(), {name: "return {}"})
+
+
+@requires_lupa
+def test_compile_chunk_passes_chunkname_as_a_lua_value(tmp_path: Path) -> None:
+    """A hostile chunkname is passed as a value, not interpolated as text."""
+    side_effect = tmp_path / "pwned.txt"
+    chunkname = '"] .. os.execute("echo pwned > ' + str(side_effect) + '") .. ["'
+    runtime: Any = create_runtime(FakeApi(), lua_api_library_source())
+
+    chunk = _compile_chunk(runtime, "return 7", chunkname)
+    value = chunk()
+
+    assert value == 7
+    assert not side_effect.exists()
+    assert runtime.globals()["_YATE_CHUNK_SOURCE"] is None
+    assert runtime.globals()["_YATE_CHUNK_NAME"] is None
+
+
+@requires_lupa
+def test_lua_runtime_exposes_standard_libraries_as_trusted_code() -> None:
+    """The standard library stays available: no sandbox, by contract."""
+    runtime: Any = create_runtime(FakeApi(), lua_api_library_source())
+
+    probe = runtime.execute(
+        "return type(os.execute) .. ':' .. type(io.open) .. ':' .. type(require)"
+    )
+
+    assert probe == "function:function:function"
+
+
+@requires_lupa
+def test_compile_chunk_names_syntax_errors_by_chunkname() -> None:
+    """A syntax error raises with the chunkname in the message."""
+    runtime: Any = create_runtime(FakeApi(), lua_api_library_source())
+
+    # lupa ships no stubs, so the concrete LuaError type is not importable
+    # statically; matching on the message keeps the assertion stub-free.
+    with pytest.raises(Exception, match="bad-chunk"):
+        _compile_chunk(runtime, "return =", "=bad-chunk")
 
 
 def _lua_quote(text: str) -> str:

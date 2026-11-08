@@ -59,6 +59,21 @@ def test_report_has_header_and_divider() -> None:
 # --- config rendering -------------------------------------------------------
 
 
+def test_report_warns_about_machine_details_before_sections() -> None:
+    """The privacy note leads the report, ahead of the first section."""
+    report = diagnostics.format_report(_build_app().editor)
+    note: str = _private("_PRIVACY_NOTE")
+    assert note in report
+    assert report.index(note) < report.index("[system]")
+    assert "absolute paths" in report
+
+
+def test_privacy_note_is_plain_text_in_colored_report() -> None:
+    """ANSI coloring must not split or restyle the privacy note line."""
+    report = diagnostics.format_report(_build_app().editor, color=True)
+    note: str = _private("_PRIVACY_NOTE")
+    assert note in report
+
 def test_yaterc_option_appears_in_config_section(tmp_path: Path) -> None:
     rc = tmp_path / "yaterc"
     rc.write_text("tab_width = 2\nkeymap = 'vim'\n", encoding="utf-8")

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import stat
 from pathlib import Path
 
 import pytest
 
+from yate.services import trust
 from yate.services.trust import (
     is_trusted,
     load_trusted_workspaces,
@@ -103,3 +105,104 @@ def test_trust_workspace_creates_owner_only_directory(tmp_path: Path) -> None:
     assert store.parent.is_dir()
     assert stat.S_IMODE(store.parent.stat().st_mode) == 0o700
     assert is_trusted(root, store)
+
+
+def test_chmod_failures_are_reported_and_trust_is_still_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A failing chmod logs a visible warning twice (directory + file) and
+    the workspace is still recorded: trust is best-effort hardened, never
+    silently unhardened."""
+
+    def _raise(target: object, mode: int) -> None:
+        raise OSError("denied")
+
+    monkeypatch.setattr(trust, "_POSIX", True)
+    monkeypatch.setattr(trust.os, "chmod", _raise)
+    root = tmp_path / "repo"
+    root.mkdir()
+    store = tmp_path / "nested" / ".yate" / "trusted_workspaces"
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert trust.trust_workspace(root, store) is True
+
+    assert store.read_text(encoding="utf-8").splitlines() == [str(root.resolve())]
+    assert is_trusted(root, store)
+    assert caplog.text.count("could not set owner-only permissions") == 2
+
+
+def test_chmod_succeeds_silently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Successful chmod calls emit no warning."""
+    calls: list[tuple[object, int]] = []
+
+    def _record(target: object, mode: int) -> None:
+        calls.append((target, mode))
+
+    monkeypatch.setattr(trust, "_POSIX", True)
+    monkeypatch.setattr(trust.os, "chmod", _record)
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    root = tmp_path / "repo"
+    root.mkdir()
+    store = tmp_path / "nested" / ".yate" / "trusted_workspaces"
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert trust.trust_workspace(root, store) is True
+
+    assert len(calls) == 2
+    assert caplog.text == ""
+
+
+def test_symlinked_trust_store_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A store that is itself a symlink is refused on the read side: its
+    target could be swapped behind yate's back."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    real = tmp_path / "trusted_workspaces"
+    root = tmp_path / "repo"
+    root.mkdir()
+    real.write_text(f"{root.resolve()}\n", encoding="utf-8")
+    link = tmp_path / "linked_store"
+    try:
+        link.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert trust.load_trusted_workspaces(link) == set()
+        assert is_trusted(root, link) is False
+    assert "refusing to read symlinked trust store" in caplog.text
+
+    # the real store is unaffected and still yields the trusted root
+    assert trust.load_trusted_workspaces(real) == {root.resolve()}
+
+
+def test_trust_workspace_refuses_symlinked_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A store that is itself a symlink is refused on the write side too:
+    ``:trust`` must report failure instead of claiming success, and the
+    store's target must stay untouched (zero write-side side effects)."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    real = tmp_path / "trusted_workspaces"
+    root = tmp_path / "repo"
+    root.mkdir()
+    real.write_text(f"{root.resolve()}\n", encoding="utf-8")
+    link = tmp_path / "linked_store"
+    try:
+        link.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert trust.trust_workspace(root, link) is False
+    assert "refusing to write symlinked trust store" in caplog.text
+
+    # zero write-side side effects: no duplicated line was appended
+    assert real.read_text(encoding="utf-8").splitlines() == [str(root.resolve())]
+    # the read side refuses the same link, so trust is not granted
+    assert trust.is_trusted(root, link) is False

@@ -1,5 +1,22 @@
 """Workspace trust store gating project-level extension auto-loading.
 
+Trust granted via ``:trust`` is a *permanent* authorization of the
+resolved absolute path: it is not bound to the directory's contents, so
+replacing the code inside a trusted directory keeps auto-executing it.
+Revocation is manual -- the entry's line must be removed from the store
+by hand (or the store file deleted).
+
+POSIX permission hardening is best-effort: the store directory and the
+store file are ``chmod``ed owner-only, and a ``chmod`` failure logs a
+warning instead of passing silently.  Windows ACLs are out of scope
+(tracked separately); ``chmod`` is skipped there entirely.
+
+Both sides refuse a trust store that is itself a symbolic link: the
+read side (:func:`load_trusted_workspaces`) returns an empty set and
+the write side (:func:`trust_workspace`) returns ``False``, each after
+logging a warning.  A symlinked *parent* directory is unaffected --
+that is a common home-directory layout.
+
 Opening a repository must never execute the repository's own code: a
 malicious ``extensions/`` directory checked into a project would
 otherwise run arbitrary Python at every yate start inside that
@@ -21,12 +38,15 @@ symbolic link can never extend an existing trust entry to a new target.
 
 from __future__ import annotations
 
-import contextlib
 import os
 from pathlib import Path
 
 from yate.logs import tracing
 from yate.paths import yate_home
+
+#: Whether POSIX permission bits are meaningful here; tests override this
+#: seam so the warning path is exercised on Windows too.
+_POSIX: bool = os.name == "posix"
 
 #: Trace logger ("yate.services.trust"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -34,6 +54,16 @@ log = tracing.get_logger(__name__)
 #: Path of the per-user trust store, next to the yaterc file.  Read at
 #: call time, so tests can point it at a temporary file.
 TRUST_FILE: Path = yate_home() / "trusted_workspaces"
+
+
+def _chmod_quietly(target: Path, mode: int) -> None:
+    """Best-effort owner-only permissions; a failure must be visible."""
+    try:
+        os.chmod(target, mode)
+    except OSError as exc:
+        log.warning(
+            "could not set owner-only permissions on %s: %s", target, exc
+        )
 
 
 def _has_symlink_component(path: Path) -> bool:
@@ -51,6 +81,9 @@ def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
     or ``..`` spellings of the same directory collapse into one root.
     """
     store = TRUST_FILE if path is None else path
+    if store.is_symlink():
+        log.warning("refusing to read symlinked trust store %s", store)
+        return set()
     try:
         # A hand-edited or corrupted store must never break startup: invalid
         # bytes decode to U+FFFD instead of raising UnicodeDecodeError, and
@@ -75,7 +108,8 @@ def trust_workspace(root: Path, path: Path | None = None) -> bool:
 
     Appending keeps the file human-editable; when *root* is already
     listed nothing is written, so repeated ``:trust`` calls never grow
-    the file.
+    the file.  Returning ``False`` also covers a store file that is
+    itself a symbolic link (refused symmetrically with the read side).
 
     A root containing a symlink component is refused (S39): store entries
     are matched by their resolved value, so a persisted link could be
@@ -85,6 +119,9 @@ def trust_workspace(root: Path, path: Path | None = None) -> bool:
     entries that were written by hand.
     """
     store = TRUST_FILE if path is None else path
+    if store.is_symlink():
+        log.warning("refusing to write symlinked trust store %s", store)
+        return False
     if _has_symlink_component(root):
         log.warning(
             "refusing to trust %s: it contains a symlink component; "
@@ -100,16 +137,15 @@ def trust_workspace(root: Path, path: Path | None = None) -> bool:
     # would leave it group/world readable): the store lists the workspaces
     # whose code may run automatically, so nobody else must be able to read or
     # inject entries.  ``os.chmod`` is a no-op on Windows, where the mode bits
-    # carry no such meaning.
+    # carry no such meaning; a chmod failure logs a warning instead of
+    # passing silently.
     store.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
-    if os.name == "posix":
-        with contextlib.suppress(OSError):
-            os.chmod(store.parent, 0o700)
+    if _POSIX:
+        _chmod_quietly(store.parent, 0o700)
     with store.open("a", encoding="utf-8") as fh:
         fh.write(f"{resolved}\n")
-    if os.name == "posix":
-        with contextlib.suppress(OSError):
-            os.chmod(store, 0o600)
+    if _POSIX:
+        _chmod_quietly(store, 0o600)
     return True
 
 

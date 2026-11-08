@@ -136,6 +136,13 @@ extensions = [
 - 其余通道属于**用户主动动作，不受信任门控**：yaterc 的 `extensions`
   选项、`--ext <文件>` / `--ext-dir <目录>`、用户级 `~/.yate/extensions/`。
 
+信任是针对**解析后的目录路径**的永久授权，与目录内容无关。替换受信任的
+工作区（重新 clone、共享目录、新增 `*.py` / `*.lua` 文件）仍会自动加载
+其代码。要撤销授权，删除 `~/.yate/trusted_workspaces` 中对应的行。信任库
+文件本身是符号链接时，读取侧会忽略、写入侧会拒绝（`:trust` 会报告该拒绝）；
+POSIX 上信任库权限为尽力而为，chmod 失败会记录告警；Windows 尚未应用 ACL
+加固（另案跟踪）。Lua 扩展适用同一信任级别——见下文第 6 节「Lua 扩展」。
+
 ---
 
 ## 3. `setup(api)` 与 `teardown(api)`
@@ -292,6 +299,10 @@ def _upper(ctx):
 | `api.shell(command)` | 静默执行 shell 命令，返回 `ShellResult`（含 `output`、`returncode`），不弹输出浮层 |
 | `api.open_path(path)` | 在新标签打开文件 |
 | `api.save()` | 保存当前文档 |
+
+`:!` 与 `api.shell(command)` 是完全权限接口：字符串直接交给系统 shell。
+`api.shell_argv(argv)` 改用 argv 向量、不解释 shell 元字符，但仍以当前
+用户的完全权限运行程序。
 
 ### 4.6 语言服务器（LSP）
 
@@ -829,7 +840,8 @@ pip install yate[lua]
 
 未安装时，加载 `.lua` 扩展只会记录一条可操作的错误提示
 `lua extensions require the lupa package; install with: pip install yate[lua]`，
-其余一切照常工作。
+其余一切照常工作。Lua 扩展与 Python 扩展的信任级别完全相同——同为运行在
+未裁剪运行时上的完全受信任代码，不是沙箱，详见前文信任模型一节。
 
 ### Lua 扩展的形态
 
@@ -935,7 +947,9 @@ end, "both")                   -- 位置参数（Lua 没有 kwargs）
 
 上表每个包装都与 Python API 的成员一一对应——同名、同语义、按位置
 传参（Lua 没有关键字参数），省略的可选参数回落到 Python 默认值；
-共同行为见 4.10 / 4.11 / 4.12 / 4.13 节。
+共同行为见 4.10 / 4.11 / 4.12 / 4.13 节。`:!` 与 `yate.shell(cmd)` 把
+字符串直接交给系统 shell、以完全权限执行；`yate.shell_argv(argv)` 使用
+argv 向量、不解释 shell 元字符，但仍以当前用户的完全权限运行程序。
 
 与 Python 枚举不同，`yate.events.subscribe` 接收上表列出的小写事件名；
 载荷仍是同一个冻结 dataclass（用点号读字段）。超出本表的能力仍可经
@@ -1005,8 +1019,8 @@ return game
   `version` / `description` / `author`（可选），以及列出全部载荷成员的
   `files` 清单。
 - `checksum` —— JSON，把每个载荷成员映射到其小写 SHA-256 十六进制
-  摘要。格式上允许缺省，但官方打包工具总是写入；存在时 yate 会在解压
-  前校验文件清单与每个摘要。
+  摘要。格式上允许缺省，但**安装默认要求**；官方打包工具总是写入。
+  存在时 yate 会在解压前校验文件清单与每个摘要。
 
 ### 安装、卸载、列表
 
@@ -1014,6 +1028,13 @@ return game
 yate --install-extension hello_yxp.yxp          # 校验 + 解压 + 记录
 yate --uninstall-extension hello_yxp            # 移除已记录的文件
 yate --list-extensions                          # 显示已安装的包
+```
+
+缺 `checksum` 成员的包默认被拒绝。如果包是你自己构建、检查确认无误、
+只是没有 checksum，可以显式放宽：
+
+```text
+yate --install-extension hello_yxp.yxp --allow-unverified
 ```
 
 这三个选项都是 side 命令（打印报告后退出；install/uninstall 可重复；
@@ -1036,6 +1057,8 @@ yate --list-extensions                          # 显示已安装的包
 - 同名重装即原位升级：覆盖自家文件，并删除新版本中已不存在的过时
   文件。
 - 卸载严格按记录删文件（缺失容忍并上报），随后删除记录。
+- 缺 `checksum` 成员的包在写盘前即被 `YxpError` 拒绝；`:install-extension`
+  命令不提供放宽开关——请用 CLI 的 `--allow-unverified`。
 
 ### 用 `tools/yxp` 打包
 
@@ -1058,9 +1081,12 @@ python -m tools.yxp --verify hello_yxp.yxp
 
 ### 安全须知
 
+- 安装 `.yxp` 等于安装**可执行代码**：顶层 `*.py` / `*.lua` 成员在下次
+  启动时自动加载。
 - 校验仅保证完整性（SHA-256）：能发现损坏或被篡改的包，但不是签名——
   只安装你信任的包。
 - 不安全的成员名（绝对路径、`..` 段、反斜杠、保留目录 `_manifests/`）
   在写盘前一律拒绝。
-- 没有 `checksum` 成员的包按未校验安装；可先用
+- 缺 `checksum` 成员的包默认被拒绝；`--allow-unverified` 显式放宽。
+  无论哪种方式，都可以先用
   `python -m tools.yxp --verify FILE.yxp` 检查。

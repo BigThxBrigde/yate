@@ -8,9 +8,11 @@ holding the extension's payload files plus two reserved metadata members:
   ``files`` lists every payload member and must match the archive exactly.
 * ``checksum`` -- optional JSON mapping each payload member to its SHA-256
   hex digest.  When the member is present, installing verifies the file
-  list and every digest; without it the payload installs unverified (the
-  format contract: the bundled packager ``python -m tools.yxp`` always
-  writes both members).
+  list and every digest; without it :func:`read_package` still returns
+  ``YxpPackage(checksums=None)`` (the format contract), but
+  :func:`install_package` rejects the package by default -- only an
+  explicit ``allow_unverified=True`` installs it, with a warning (the
+  bundled packager ``python -m tools.yxp`` always writes both members).
 
 Installing extracts the payload flat into the user extensions directory
 (``~/.yate/extensions``, the directory the startup loader already scans)
