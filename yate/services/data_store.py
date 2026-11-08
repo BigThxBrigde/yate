@@ -4,7 +4,10 @@ Extensions persist small UTF-8 documents here through ``api.data`` (see
 :class:`yate.services.extensions.bridges.DataExtensionBridge`): the bundled
 game pack keeps one JSON document per game under ``games/``.  The path rules
 live in this one L0 leaf module, so scripts never concatenate a home directory
-themselves and every write goes through the same checks.
+themselves and every write goes through the same checks.  Real-path checking
+(resolve through symlinks) is part of the same single-source rule: a name
+whose real path escapes :func:`data_root` is rejected even when its lexical
+form looks safe.
 
 :mod:`yate.logs` owns the sibling ``~/.yate/data/logs`` and the crash files;
 those are diagnostics rather than user data and deliberately do not route
@@ -32,6 +35,13 @@ def data_root() -> Path:
     return yate_home() / DATA_DIRNAME
 
 
+def _assert_inside_data_root(target: Path, relative: str) -> None:
+    """Reject *target* when its real path escapes the resolved data root."""
+    real_root = data_root().resolve()
+    if not target.resolve().is_relative_to(real_root):
+        raise ValueError(f"data name resolves outside {real_root}: {relative!r}")
+
+
 def _has_drive_prefix(first: str) -> bool:
     """True when the first path part carries a Windows-style ``X:`` prefix.
 
@@ -54,7 +64,10 @@ def resolve(relative: str) -> Path:
     here as well rather than accepted with a platform-dependent meaning.
     The resolved path is verified to stay inside :func:`data_root` as a
     second line of defence, so a future normalisation change cannot
-    silently widen the writable area.
+    silently widen the writable area.  A real-path check follows the
+    lexical one: a name whose target resolves through a symlink
+    (including an intermediate directory) outside :func:`data_root` is
+    rejected as well.
     """
     if not relative:
         raise ValueError("data name must be a non-empty string")
@@ -70,6 +83,7 @@ def resolve(relative: str) -> Path:
     target = root / candidate
     if not target.is_relative_to(root):
         raise ValueError(f"data name escapes {root}: {relative!r}")
+    _assert_inside_data_root(target, relative)
     return target
 
 
@@ -104,6 +118,8 @@ def write_text(relative: str, text: str) -> None:
     """
     path = resolve(relative)
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Re-check after mkdir: a just-created parent may itself be a symlink.
+    _assert_inside_data_root(path, relative)
     handle_fd, temp_name = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
     )
@@ -123,6 +139,8 @@ def write_text(relative: str, text: str) -> None:
 def remove(relative: str) -> bool:
     """Delete *relative*; ``True`` when a file was actually removed."""
     path = resolve(relative)
+    # Re-check right before unlink to close the resolve()-to-delete window.
+    _assert_inside_data_root(path, relative)
     try:
         path.unlink()
     except FileNotFoundError:
