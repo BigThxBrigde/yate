@@ -333,4 +333,3 @@ pytest test_zero_arg_callbacks + app_textual -n 4 -> exit 0, 49 passed
 0 BLOCKER / 0 MAJOR / 0 MINOR 未闭环；M-1、m-1 与收尾门禁新发现的 flake 均已修复，
 产品代码零改动（迭代只触及 2 个测试文件）。原 `REQUEST_CHANGES` 记录保留，
 待第二轮评审复验后归档。
-

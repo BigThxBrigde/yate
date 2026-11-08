@@ -1390,4 +1390,3 @@
 | `tests/test_workspace_filter.py:182` | `_` | local | `_` consumes a tuple/iterator slot |
 | `tests/test_workspace_filter.py:867` | `_` | local | `_` consumes a tuple/iterator slot |
 | `tests/test_yxp.py:907` | `_` | local | `_` consumes a tuple/iterator slot |
-

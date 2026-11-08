@@ -34,7 +34,7 @@
 
 | 项 | 实测值 | 取证命令 |
 | --- | --- | --- |
-| 工作目录 | `D:/Programming/yate-unused-symbols-cleanup`（续作复用，含 `.venv`） | `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` → 该 worktree 下的 `yate/__init__.py` |
+| 工作目录 | 续作复用既有 worktree（分支目录，含 `.venv`），不另建沙箱 | `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` → 该 worktree 下的 `yate/__init__.py` |
 | 分支 / 基线 | `feature/enh-unused-symbols-cleanup`，`merge-base(master, HEAD) = fb3c398`；`master` 与 `origin/master` 同为 `fb3c398` | `git merge-base master HEAD`、`git log -1 --oneline master`、`git log -1 --oneline origin/master` |
 | 提交链（6 笔） | `1e094db` 领会素材 → `c304147` 方案 → `718ec79` wave-1 → `4b38989` wave-2 → `179fdf6` F1 迭代 → `84074b1` 收尾 | `git log master..HEAD --format="%h %s"` |
 | diff 规模 | 35 文件，`+3009 / -57`；主体是登记表 1393 行与评审记录/计划文档 | `git diff --stat master...HEAD` |
