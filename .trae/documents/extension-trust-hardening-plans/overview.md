@@ -91,7 +91,7 @@ flowchart TD
 
 | 波次 | 回收状态 | 主代理复核结果 | 提交 | 偏离 |
 |---|---|---|---|---|
-| wave-1 | 待填 | 待填 | 待填 | 待填 |
-| wave-2 | 待填 | 待填 | 待填 | 待填 |
-| wave-3 | 待填 | 待填 | 待填 | 待填 |
+| wave-1 | 3 个执行者回报 `No result found`，10 个独占文件全部落盘 | pyright 0 / 366 passed·1 skipped / 覆盖率命令 0 | `01a80d3` | 回报丢失不等于零产出，按落盘结果验收，未重试 |
+| wave-2 | 3 个执行者回报完整，13 个独占文件 | pyright 0 / 241 passed·2 skipped / 架构 37 / 覆盖率 0 | `3a93570` | `runtime.eval`→`execute`；行内 pyright ignore 改文件级配置（主代理修） |
+| wave-3 | 1 个执行者回报完整，8 个文档 | mdlint 1（基线同为 1，归一化差异 0）/ 锚点 3/3 / 55 passed / changelog 0 | `9112a91` | mdlint 验收口径按实测订正；手册锚点缺失的最小化处理 |
 | wave-4 | 待填 | 待填 | 待填 | 待填 |

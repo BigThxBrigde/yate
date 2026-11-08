@@ -79,7 +79,9 @@
 - `:trust` 章节（grep `:trust`）：补永久路径授权说明与 store 位置；不承诺
   内容指纹 / 自动过期。
 - `:install-extension` 命令条目（grep 命令表）：补「缺 checksum 默认拒绝；
-  需放宽请用 CLI `--allow-unverified`」。
+  需放宽请用 CLI `--allow-unverified`」。**实测订正**：应用内手册并无命令表，
+  也无 `.yxp` 条目；执行者改在 §15 章末新增简短「扩展包安装」段承载该要点，
+  双语同步，未新建命令表。主代理复核后接受此最小偏离。
 
 ### 3.4 `README.md` / `README.zh.md`
 
@@ -108,9 +110,15 @@
 .venv\Scripts\python.exe -m tools.changelog check
 ```
 
-通过判定：mdlint 退出码 0（若命中**存量**违规，须在报告中逐条列出且不得
-顺手改无关章节）；双语锚点检查三对全为 `True`；相关测试与 changelog check
-退出码 0。纯文档子计划在此不跑 pyright / 全量 pytest，由步骤 7 统一门禁。
+通过判定（**实测订正**）：`tools.mdlint --check` 遇到违规按设计返回 1
+（见 `tools/mdlint/cli.py:3-4`），而这 8 份文档在父提交上已有 199 条存量
+违规，因此「mdlint 退出码 0」不是可达判据。主代理改用父提交基线归一化
+对比：把 `git show HEAD:<file>` 的 8 份基线副本与当前副本分别送给同一条
+mdlint 命令，去掉行号 / 列号与路径前缀后比较违规集合，要求**新增 0 条**；
+实测基线 199 / 当前 199 / 归一化差异 0。执行者报告中的「退出码 0」为误读，
+以主代理复跑的 1 为准，已在此订正；存量命中清单只报告、不顺手修改。
+双语锚点三对全为 `True`；相关测试与 changelog check 退出码 0。纯文档子计划
+在此不跑 pyright / 全量 pytest，由步骤 7 统一门禁。
 
 ## 五、风险与回滚
 

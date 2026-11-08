@@ -140,9 +140,9 @@ sequenceDiagram
 
 | 波次 | 子计划 | 执行者 | 验收命令退出码 | 提交 | 偏离 |
 |---|---|---|---|---|---|
-| wave-1 | a / b / c | 待填 | 待填 | 待填 | 待填 |
-| wave-2 | d / e / f | 待填 | 待填 | 待填 | 待填 |
-| wave-3 | g | 待填 | 待填 | 待填 | 待填 |
+| wave-1 | a / b / c | `plan-executor` ×3（回报 `No result found`，落盘完整） | 主代理复核：pyright 0 / 366 passed·1 skipped / 局部覆盖率 0 | `01a80d3` | 三个执行者回报丢失但 10 个独占文件已落盘，按「只认落盘结果」继续；不判死、不重试 |
+| wave-2 | d / e / f | `plan-executor` ×3（回报完整） | 主代理复核：pyright 0 / 241 passed·2 skipped / 架构 37 / 覆盖率 0 | `3a93570` | plan_d 用 `runtime.execute` 取代计划里的 `eval`（lupa `eval` 不接受 `return`，有首轮失败证据）；plan_d 行内 `# pyright: ignore` 违规，主代理改为仓库既有文件级 `reportPrivateUsage=false` |
+| wave-3 | g | `plan-executor` ×1（回报完整） | 主代理复核：mdlint 1（父提交基线同为 1，归一化差异 0）、双语锚点 3/3、55 passed、changelog check 0 | `9112a91` | 计划写的「mdlint 退出码 0」不可达（存量 199 条），已按实测改为基线归一化对比；执行者报告误读退出码，主代理订正；手册无 `:install-extension` 命令表，改在 §15 增补 |
 | wave-4 | 评审迭代 | 待填 | 待填 | 待填 | 待填 |
 
 ## 七、收尾门禁（主代理亲自执行）

@@ -111,3 +111,14 @@
 ## 六、报告格式
 
 改动清单、实跑命令与退出码、skip 清单、未解决项与原因。
+
+## 七、执行偏离登记（步骤 4 回填）
+
+1. `test_lua_runtime_exposes_standard_libraries_as_trusted_code` 用
+   `runtime.execute("return ...")` 而非计划里的 `runtime.eval("return ...")`：
+   lupa 的 `eval` 只接受表达式，首轮实跑 `LuaSyntaxError`；本文件既有用例
+   均以 `execute` 执行 `return`，语义一致。主代理接受。
+2. 私有助手 `_compile_chunk` 的导入最初带行内 `# pyright: ignore[reportPrivateUsage]`，
+   违反 `python-coding-style.md` §4.2；主代理改为仓库既有文件级
+   `# pyright: reportPrivateUsage=false`（先例 `tests/test_data_store.py:10`），
+   复跑 pyright 0 诊断、全量相关用例全绿。
