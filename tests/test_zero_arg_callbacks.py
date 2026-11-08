@@ -12,10 +12,14 @@ import asyncio
 from typing import override
 
 from textual.app import App, ComposeResult
+from textual.color import Color
 from textual.reactive import reactive
 from textual.widgets import Static
 
+from conftest import wait_until
+
 from yate.app import YateApp
+from yate.editor_components import theme as yate_theme
 
 
 def test_zero_arg_watcher_fires_on_reactive_change() -> None:
@@ -69,17 +73,17 @@ def test_zero_arg_resize_handler_is_invoked_by_framework() -> None:
             widget = app.query_one(ResizeWidget)
             baseline: int = widget.resize_calls
             await pilot.resize_terminal(120, 40)
-            await pilot.pause()
-        assert widget.resize_calls > baseline
+            # Repaint is asynchronous under a loaded worker pool; poll the
+            # predicate instead of asserting on a single frame.
+            assert await wait_until(
+                pilot, lambda: widget.resize_calls > baseline
+            )
 
     asyncio.run(scenario())
 
 
 def test_yate_app_watch_theme_repaints_on_theme_change() -> None:
     """The trimmed ``YateApp.watch_theme`` still repaints on theme switch."""
-    from textual.color import Color
-
-    from yate.editor_components import theme as yate_theme
 
     async def scenario() -> None:
         app = YateApp()

@@ -540,19 +540,26 @@ def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
 
             # Windows: the replace lands via os.replace and a read racing
             # the rename raises PermissionError -- treat that as "not landed
-            # yet" so the poll retries instead of aborting.
+            # yet" so the poll retries instead of aborting.  The "replaced 3"
+            # report is transient: under a loaded runner the idle message can
+            # overwrite it before the disk writes are visible, so latch the
+            # report while polling instead of asserting on one final frame.
+            seen_report = False
+
             def _landed() -> bool:
+                nonlocal seen_report
+                if "replaced 3" in message_text(app):
+                    seen_report = True
                 try:
                     return (
-                        two.read_text(encoding="utf-8") == "dog two\n"
+                        seen_report
+                        and two.read_text(encoding="utf-8") == "dog two\n"
                         and three.read_text(encoding="utf-8") == "three dog\n"
                     )
                 except OSError:
                     return False
 
             assert await wait_until(pilot, _landed, timeout=15.0)
-            # the replaced total surfaces while the overlay is still open
-            assert "replaced 3" in message_text(app)
             await pilot.press("escape")
             await pilot.pause()
             assert app.screen is not screen
