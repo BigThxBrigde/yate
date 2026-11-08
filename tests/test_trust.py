@@ -177,3 +177,32 @@ def test_symlinked_trust_store_is_refused(
 
     # the real store is unaffected and still yields the trusted root
     assert trust.load_trusted_workspaces(real) == {root.resolve()}
+
+
+def test_trust_workspace_refuses_symlinked_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A store that is itself a symlink is refused on the write side too:
+    ``:trust`` must report failure instead of claiming success, and the
+    store's target must stay untouched (zero write-side side effects)."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    real = tmp_path / "trusted_workspaces"
+    root = tmp_path / "repo"
+    root.mkdir()
+    real.write_text(f"{root.resolve()}\n", encoding="utf-8")
+    link = tmp_path / "linked_store"
+    try:
+        link.symlink_to(real)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not supported on this platform")
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        assert trust.trust_workspace(root, link) is False
+    assert "refusing to write symlinked trust store" in caplog.text
+
+    # zero write-side side effects: no duplicated line was appended
+    assert real.read_text(encoding="utf-8").splitlines() == [str(root.resolve())]
+    # the read side refuses the same link, so trust is not granted
+    assert trust.is_trusted(root, link) is False

@@ -997,7 +997,8 @@ directories on the command line with `--theme-dir DIR` (repeatable).
 `:trust` grants a **permanent authorization for the resolved workspace
 path** -- it does not fingerprint or expire based on directory contents;
 grants are recorded in `~/.yate/trusted_workspaces`, and removing the
-matching line revokes the trust. Load
+matching line revokes the trust. A trust store file that is itself a
+symlink is refused on both the read and write sides. Load
 precedence when the same name is registered more than once (later wins):
 
 1. built-in themes (lowest)

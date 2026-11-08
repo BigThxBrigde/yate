@@ -11,10 +11,11 @@ store file are ``chmod``ed owner-only, and a ``chmod`` failure logs a
 warning instead of passing silently.  Windows ACLs are out of scope
 (tracked separately); ``chmod`` is skipped there entirely.
 
-The read side refuses a trust store that is itself a symbolic link:
-:func:`load_trusted_workspaces` returns an empty set and logs a warning
-in that case.  A symlinked *parent* directory is unaffected -- that is a
-common home-directory layout.
+Both sides refuse a trust store that is itself a symbolic link: the
+read side (:func:`load_trusted_workspaces`) returns an empty set and
+the write side (:func:`trust_workspace`) returns ``False``, each after
+logging a warning.  A symlinked *parent* directory is unaffected --
+that is a common home-directory layout.
 
 Opening a repository must never execute the repository's own code: a
 malicious ``extensions/`` directory checked into a project would
@@ -107,7 +108,8 @@ def trust_workspace(root: Path, path: Path | None = None) -> bool:
 
     Appending keeps the file human-editable; when *root* is already
     listed nothing is written, so repeated ``:trust`` calls never grow
-    the file.
+    the file.  Returning ``False`` also covers a store file that is
+    itself a symbolic link (refused symmetrically with the read side).
 
     A root containing a symlink component is refused (S39): store entries
     are matched by their resolved value, so a persisted link could be
@@ -117,6 +119,9 @@ def trust_workspace(root: Path, path: Path | None = None) -> bool:
     entries that were written by hand.
     """
     store = TRUST_FILE if path is None else path
+    if store.is_symlink():
+        log.warning("refusing to write symlinked trust store %s", store)
+        return False
     if _has_symlink_component(root):
         log.warning(
             "refusing to trust %s: it contains a symlink component; "

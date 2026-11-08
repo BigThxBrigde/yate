@@ -160,7 +160,8 @@ Trust is a permanent grant for a **resolved directory path**, not for its
 contents. Replacing a trusted workspace (re-clone, shared directory, a new
 `*.py` / `*.lua` file) still auto-loads its code. Remove the matching line
 from `~/.yate/trusted_workspaces` to revoke it. A trust store that is itself
-a symlink is ignored; on POSIX the store permissions are best-effort and a
+a symlink is ignored on read and refused on write (`:trust` reports the
+refusal); on POSIX the store permissions are best-effort and a
 chmod failure is logged, while Windows ACL hardening is not applied yet
 (tracked separately). The same trust level applies to Lua extensions -- see
 [Section 6](#6-lua-extensions) below.
