@@ -26,6 +26,12 @@ Shape of the bridge (the library itself lives in
 The ``api`` parameter is typed ``object`` on purpose: this module never
 calls into it (only Lua code consumes it), so ``object`` is the precise
 "opaque handoff" type, not an ``Any`` escape hatch.
+
+Trust model: this is *extension-to-extension isolation*, not a security
+sandbox.  The Lua 5.4 standard libraries (``io`` / ``os`` / ``package`` /
+``debug``) and the Python bridge stay fully available, and ``.lua`` and
+``.py`` extensions are equally fully trusted code (matching the "Trust
+model" section of ``yate/docs/extensions.en.md``).
 """
 
 from __future__ import annotations
@@ -40,21 +46,30 @@ from typing import Any, cast
 _LIBRARY_MODULE: str = "yate"
 
 #: Prefix of the chunkname given to a shared module, e.g. ``=lib.game_engine``.
-#: Chunknames are interpolated into a Lua string literal, so they are built
-#: from names validated by :data:`_MODULE_NAME_RE` (ASCII, quote-free).
+#: The name part is validated by :data:`_MODULE_NAME_RE` so it is a legal Lua
+#: identifier (usable as ``require("<name>")``); chunknames themselves are
+#: never interpolated into Lua string literals -- they are passed as values.
 _MODULE_CHUNK_PREFIX: str = "lib."
 
-#: A shared module name (``lib/*.lua`` file stem) that may safely appear in a
-#: Lua chunkname string literal.
+#: A shared module name (``lib/*.lua`` file stem) that is a legal Lua
+#: identifier, so scripts can load it with ``require("<name>")``.
 _MODULE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 #: Global the chunk source is parked in while Lua-native ``load`` compiles
 #: it (cleared right after, so user chunks never see it).
 _CHUNK_SOURCE_GLOBAL: str = "_YATE_CHUNK_SOURCE"
 
-#: Lua chunknames (the ``=`` prefix marks a custom name shown in traces).
-#: Both must stay quote-free: they are interpolated into Lua string
-#: literals by :func:`_compile_chunk`.
+#: Global the chunkname is parked in alongside the source; both parking
+#: globals are cleared in the ``finally`` of :func:`_compile_chunk`.
+_CHUNK_NAME_GLOBAL: str = "_YATE_CHUNK_NAME"
+
+#: Compile expression used by :func:`_compile_chunk` -- a constant string
+#: with no interpolation; both operands reach ``load`` as Lua values via
+#: the two parking globals above.
+_COMPILE_EXPR: str = "assert(load(_YATE_CHUNK_SOURCE, _YATE_CHUNK_NAME))"
+
+#: Lua chunknames (the ``=`` prefix marks a custom name shown in traces);
+#: passed to ``load`` as plain string values, never as string-literal text.
 _LIBRARY_CHUNK_NAME: str = "=yate.api"
 _EXTENSION_CHUNK_NAME: str = "=extension"
 
@@ -66,17 +81,22 @@ def _compile_chunk(
 ) -> Any:  # noqa: Any - lupa ships no stubs
     """Compile a Lua source string into a callable chunk (Lua-native load).
 
-    The source is parked in a global, compiled with
-    ``assert(load(source, chunkname))`` -- ``load`` fails lazily, so
-    ``assert`` turns a syntax error into a :class:`lupa.LuaError` naming
-    the chunk -- and the parking global is dropped again.
+    The source and the chunkname are both parked in globals and read back
+    by the constant expression ``assert(load(_YATE_CHUNK_SOURCE,
+    _YATE_CHUNK_NAME))`` -- neither is interpolated into Lua text, so any
+    chunkname is safe to pass.  ``load`` fails lazily, so ``assert`` turns
+    a syntax error into a :class:`lupa.LuaError` naming the chunk.  Both
+    parking globals are cleared again in the ``finally`` block, so user
+    chunks never observe them.
     """
     globals_ = runtime.globals()
     globals_[_CHUNK_SOURCE_GLOBAL] = source
+    globals_[_CHUNK_NAME_GLOBAL] = chunkname
     try:
-        return runtime.eval(f'assert(load({_CHUNK_SOURCE_GLOBAL}, "{chunkname}"))')
+        return runtime.eval(_COMPILE_EXPR)
     finally:
         globals_[_CHUNK_SOURCE_GLOBAL] = None  # assigning nil removes it
+        globals_[_CHUNK_NAME_GLOBAL] = None
 
 
 def create_runtime(
@@ -98,9 +118,11 @@ def create_runtime(
     :func:`yate.services.extensions.lua.library.lua_module_sources`).  Each is
     compiled here and published under ``package.preload[<name>]``, so a script
     uses ``require("<name>")`` and receives a copy private to its own runtime
-    -- scripts still cannot observe each other's state.  The preload table is
-    the only channel on purpose: no ``package.path`` entry and no Lua-side file
-    I/O, which keeps module resolution working in frozen builds.
+    -- scripts still cannot observe each other's state.  ``package.preload``
+    is the only module-resolution channel yate provides (no ``package.path``
+    entry, which keeps resolution working in frozen builds); it does *not*
+    disable the standard libraries -- ``io``, ``os`` and friends stay
+    available, and this isolation is not a sandbox.
 
     The runtime is pinned to the Lua 5.4 build: under the Lua 5.5 runtime
     (lupa's default when shipped) the generational GC can collect a Python

@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -59,31 +60,32 @@ def _kill_tree(proc: subprocess.Popen[str]) -> None:
             )
 
 
-def run_shell(
-    command: str, cwd: Path | None = None, timeout: float = 60.0
-) -> ShellResult:
-    """Run *command* through the system shell, capturing output.
+def shell_cwd(workspace_root: Path | None, document_dir: Path | None) -> Path:
+    """Pick the command working directory: workspace / document / process."""
+    return workspace_root or document_dir or Path.cwd()
 
-    The shell is the platform default (``cmd.exe`` on Windows, ``/bin/sh``
-    elsewhere).  On timeout the whole process tree is force-terminated --
-    not just the shell -- so the call returns promptly instead of waiting
-    for an orphaned grandchild to release the output pipes.
-    """
-    workdir = Path(cwd) if cwd is not None else Path.cwd()
-    try:
-        proc = subprocess.Popen(
-            command,
-            shell=True,
-            cwd=str(workdir),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            start_new_session=not sys.platform.startswith("win"),
-        )
-    except OSError as exc:  # pragma: no cover - environment dependent
-        return ShellResult(command, 1, f"[yate] failed to run shell: {exc}", workdir)
+
+def _popen(
+    command: str | list[str], *, shell: bool, workdir: Path
+) -> subprocess.Popen[str]:
+    """Start *command* with the shared Popen configuration of both runners."""
+    return subprocess.Popen(
+        command,
+        shell=shell,
+        cwd=str(workdir),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        start_new_session=not sys.platform.startswith("win"),
+    )
+
+
+def _capture(
+    proc: subprocess.Popen[str], label: str, workdir: Path, timeout: float
+) -> ShellResult:
+    """Communicate with *proc*, enforcing *timeout* with a tree kill."""
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -108,13 +110,58 @@ def run_shell(
                     "could not reap shell pid %d after timeout: %s", proc.pid, exc
                 )
         return ShellResult(
-            command, 124, f"[yate] command timed out after {timeout}s", workdir
+            label, 124, f"[yate] command timed out after {timeout}s", workdir
         )
     output = stdout
     if stderr:
         output += ("\n" if output and not output.endswith("\n") else "") + stderr
     returncode = proc.returncode if proc.returncode is not None else -1
-    return ShellResult(command, returncode, output, workdir)
+    return ShellResult(label, returncode, output, workdir)
+
+
+def run_shell(
+    command: str, cwd: Path | None = None, timeout: float = 60.0
+) -> ShellResult:
+    """Run *command* through the system shell, capturing output.
+
+    The shell is the platform default (``cmd.exe`` on Windows, ``/bin/sh``
+    elsewhere).  On timeout the whole process tree is force-terminated -- not just the
+    shell -- so the call returns promptly instead of waiting for an
+    orphaned grandchild to release the output pipes.
+    """
+    workdir = Path(cwd) if cwd is not None else Path.cwd()
+    try:
+        proc = _popen(command, shell=True, workdir=workdir)
+    except OSError as exc:  # pragma: no cover - environment dependent
+        return ShellResult(command, 1, f"[yate] failed to run shell: {exc}", workdir)
+    return _capture(proc, command, workdir, timeout)
+
+
+def run_argv(
+    argv: Sequence[str], cwd: Path | None = None, timeout: float = 60.0
+) -> ShellResult:
+    """Run *argv* as a program vector (``shell=False``), capturing output.
+
+    This is the variant that avoids shell metacharacter interpretation --
+    it is not a sandbox or privilege reduction: the process still runs
+    with the full permissions of the current user.  On timeout the whole
+    process tree is force-terminated, exactly like :func:`run_shell`.
+    An empty vector raises :class:`ValueError`; a missing executable
+    yields a :class:`ShellResult` with return code 1 instead of raising.
+
+    ``ShellResult.command`` carries the display label
+    ``" ".join(argv)``, not an executable command string.
+    """
+    args = list(argv)
+    if not args:
+        raise ValueError("argv must contain at least one element")
+    workdir = Path(cwd) if cwd is not None else Path.cwd()
+    label = " ".join(args)
+    try:
+        proc = _popen(args, shell=False, workdir=workdir)
+    except OSError as exc:
+        return ShellResult(label, 1, f"[yate] failed to run command: {exc}", workdir)
+    return _capture(proc, label, workdir, timeout)
 
 
 def shell_name() -> str:

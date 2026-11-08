@@ -71,6 +71,7 @@ Exported functions (see each function's comment for details):
   bind_action(spec, action, keymap?)     bind a key to a registered action
   unbind_key(spec, keymap?)              remove a key binding (returns bool)
   shell(cmd)                             run a shell command silently
+  shell_argv(argv)                       run an argv vector without shell interpretation
   open_path(path)                        open a file/folder in the editor
   save()                                 save the active document
   buffer() / doc() / workspace()         active buffer/document/workspace
@@ -149,6 +150,14 @@ end
 ---@return any result
 function yate.shell(cmd)
   return api.shell(cmd)
+end
+
+-- Run a program vector synchronously (shell=False, no metacharacter
+-- interpretation). Still runs with the full permissions of the host.
+---@param argv string[]
+---@return any result
+function yate.shell_argv(argv)
+  return api.shell_argv(argv)
 end
 
 -- Open a file or directory in the editor (new tab).

@@ -63,6 +63,12 @@ _LABEL_LINE_RE: re.Pattern[str] = re.compile(r"^( +)(\S.*):$")
 #: of these extra groups is filtered.
 _SKIPPED_EXTRAS: frozenset[str] = frozenset({"dev", "build"})
 
+#: Shown before any section so users know the report identifies their machine.
+_PRIVACY_NOTE: str = (
+    "note: this report contains absolute paths, interpreter details and "
+    "terminal environment values; review it before sharing."
+)
+
 _SECTION_TITLE_RE: re.Pattern[str] = re.compile(r"^\[[a-z]+\]$")
 
 
@@ -79,6 +85,9 @@ def format_report(editor: Editor, *, color: bool = False) -> str:
     With ``color=True`` the lines carry ANSI styling (section titles, keys,
     errors); callers pass ``sys.stdout.isatty()`` so redirected output
     stays clean plain text.
+
+    The report is designed for pasting into an issue: its header warns the
+    user to review machine-identifying details before sharing.
     """
     sections: list[tuple[str, SectionFn]] = [
         ("system", _section_system),
@@ -98,6 +107,8 @@ def format_report(editor: Editor, *, color: bool = False) -> str:
     lines: list[str] = [
         f"yate {__version__} — diagnostics",
         "=" * 40,
+        "",
+        _PRIVACY_NOTE,
         "",
     ]
     for title, builder in sections:

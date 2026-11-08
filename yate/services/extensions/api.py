@@ -11,7 +11,7 @@ semantics.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -46,7 +46,7 @@ from yate.services.extensions.bridges import (
     UiExtensionBridge,
 )
 from yate.services.events import EventHub
-from yate.services.shell import ShellResult
+from yate.services.shell import ShellResult, run_argv, shell_cwd
 from yate.services.workspace import Workspace
 from yate.session import EditorSession
 
@@ -620,6 +620,23 @@ class ExtensionAPI:
     def shell(self, command: str) -> ShellResult | None:
         """Run *command* synchronously without showing its output."""
         return self._ctx.run_shell(command, False)
+
+    def shell_argv(self, argv: Sequence[str]) -> ShellResult | None:
+        """Run *argv* without a shell; no metacharacter interpretation.
+
+        Like :meth:`shell`, this is a synchronous, silent, full-permission
+        interface -- the only difference is that the program vector never
+        goes through the system shell.  A missing executable comes back as
+        a :class:`ShellResult` with a non-zero return code; an empty vector
+        raises :class:`ValueError`.  The process still runs with the full
+        permissions of the current user: this is not a sandbox.
+        """
+        doc = self._ctx.session.doc
+        cwd = shell_cwd(
+            self._ctx.workspace.root,
+            doc.path.parent if doc.path is not None else None,
+        )
+        return run_argv(argv, cwd=cwd)
 
     def open_path(self, path: str | Path) -> None:
         """Open *path* (file or folder) in the editor."""

@@ -125,6 +125,17 @@ def test_run_gates_output_overlay_on_show_output_and_mounted(
     assert len(overlay.screens) == 1
 
 
+def test_cwd_uses_the_shared_shell_cwd_helper(tmp_path: Path) -> None:
+    """_cwd() resolves through the L0 shell_cwd single source of truth."""
+    flows, _spawn, _prompt, _overlay, _messages, _mounted = _make_flows()
+    flows.workspace.set_root(tmp_path)
+    doc = flows.session.doc
+    doc.path = tmp_path / "notes.txt"
+
+    assert flows._cwd() == tmp_path
+    assert shell_flows.shell_cwd(flows.workspace.root, doc.path.parent) == tmp_path
+
+
 def test_run_later_rejects_empty_command() -> None:
     """run_later of a blank command returns before prompting or spawning."""
     flows, spawn, prompt, _overlay, _messages, _mounted = _make_flows()
