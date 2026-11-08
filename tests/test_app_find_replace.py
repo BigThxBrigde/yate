@@ -508,7 +508,8 @@ async def _press_f4_replace(
 
 def test_project_replace_end_to_end_open_edit_replace(tmp_path: Path) -> None:
     """One ``a`` replaces every hit: closed files on disk, the open file
-    in memory (dirty), with the replaced total on the message line."""
+    in memory (dirty), with the replaced total reported transiently on the
+    message line (the idle message can overwrite it under load)."""
     async def scenario() -> None:
         one = tmp_path / "one.txt"
         two = tmp_path / "two.txt"
