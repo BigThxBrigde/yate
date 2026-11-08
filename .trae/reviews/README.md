@@ -128,7 +128,14 @@ store 并补用例、中文指南断行）、按理由登记 2（`dict` 按 valu
 冒烟 121/121·1464 checks / changelog 0 / diffcheck 0），3 处 minor 修复后
 `aa112a0` 重跑六道全绿：pyright 0 / 3479 collected（3469 passed·10 skipped）/
 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0；
-工作树干净、未推送、未合并 develop。
+工作树干净、未推送、未合并 develop。**2026-11-08 分支命名偏离补登记**：【领会】
+阶段实际以旧斜杠格式 `enh/extension-trust-hardening` 建分支，违反
+`task-orchestration.md` §二.1 的 `feature/<fix|feat|enh|ref>-<task>`；收尾才
+`git branch -m` 为 `feature/enh-extension-trust-hardening`（`e27c007`），且当时
+未按重命名纪律补跑门禁、未登记偏离。根因是 `doc-conventions.md` §七 交叉
+引用仍写旧格式；本轮已对齐该引用、在主计划 §九 与本记录登记，并按重命名
+纪律第三轮补跑六道全量门禁全绿（pyright 0 / 3469 passed·10 skipped / 架构 37 /
+覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0）。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。

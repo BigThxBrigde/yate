@@ -143,7 +143,7 @@ sequenceDiagram
 | wave-1 | a / b / c | `plan-executor` ×3（回报 `No result found`，落盘完整） | 主代理复核：pyright 0 / 366 passed·1 skipped / 局部覆盖率 0 | `01a80d3` | 三个执行者回报丢失但 10 个独占文件已落盘，按「只认落盘结果」继续；不判死、不重试 |
 | wave-2 | d / e / f | `plan-executor` ×3（回报完整） | 主代理复核：pyright 0 / 241 passed·2 skipped / 架构 37 / 覆盖率 0 | `3a93570` | plan_d 用 `runtime.execute` 取代计划里的 `eval`（lupa `eval` 不接受 `return`，有首轮失败证据）；plan_d 行内 `# pyright: ignore` 违规，主代理改为仓库既有文件级 `reportPrivateUsage=false` |
 | wave-3 | g | `plan-executor` ×1（回报完整） | 主代理复核：mdlint 1（父提交基线同为 1，归一化差异 0）、双语锚点 3/3、55 passed、changelog check 0 | `9112a91` | 计划写的「mdlint 退出码 0」不可达（存量 199 条），已按实测改为基线归一化对比；执行者报告误读退出码，主代理订正；手册无 `:install-extension` 命令表，改在 §15 增补 |
-| wave-4 | 评审迭代 | `code-review-expert` ×1（#64，BLOCKED）+ `plan-executor` ×2（F1/F2）+ 复审 #65 两路 APPROVE | 主代理复核：pyright 0 / 合并回归 297 passed·1 skipped / 4 文档 mdlint 归一化差异 0；终轮六道全量门禁全绿（pyright 0 / 3479 collected·3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0） | `24f3ba4`、`f526733`、`323d3b6`、`aa112a0`、`d83a9ce` | 1 blocker（Lua argv 表取键而非值）+ 1 major（trust 链接 store 读写不对称）均归零；首轮 4 minor 修 2 / 勘误 1 / 登记 1，复审 5 minor 修 3 / 登记 2；记录见 `.trae/reviews/2026-11-08-extension-trust-hardening.md` §6 与两份 r2 记录 |
+| wave-4 | 评审迭代 | `code-review-expert` ×1（#64，BLOCKED）+ `plan-executor` ×2（F1/F2）+ 复审 #65 两路 APPROVE | 主代理复核：pyright 0 / 合并回归 297 passed·1 skipped / 4 文档 mdlint 归一化差异 0；终轮六道全量门禁全绿（pyright 0 / 3479 collected·3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0） | `24f3ba4`、`f526733`、`323d3b6`、`aa112a0`、`d83a9ce` | 1 blocker（Lua argv 表取键而非值）+ 1 major（trust 链接 store 读写不对称）均归零；首轮 4 minor 修 2 / 勘误 1 / 登记 1，复审 5 minor 修 3 / 登记 2；记录见 `.trae/reviews/2026-11-08-extension-trust-hardening.md` §6 与两份 r2 记录；命名偏离订正后第三轮复跑六道门禁同数值全绿（见 §九） |
 
 ## 七、收尾门禁（主代理亲自执行）
 
@@ -170,3 +170,39 @@ sequenceDiagram
 [plan-architect-designer](../../.trae/agents/plan-architect-designer.md) 剧本
 完成调研、任务分析与本方案及全部子计划，标注「规划子代理零产出」，不修改
 agent 定义文件。
+
+## 九、分支命名偏离订正（收尾后补登记）
+
+**事实**：步骤 1 【领会】建 worktree 时实际执行的是
+`git worktree add D:/Programming/yate-extension-trust-hardening -b enh/extension-trust-hardening develop`，
+分支名用了 2026-11-07 之前的旧斜杠格式，**违反**
+`task-orchestration.md` §二.1 的 `feature/<fix|feat|enh|ref>-<task>`；
+直到收尾才用 `git branch -m` 改名为 `feature/enh-extension-trust-hardening`
+（`e27c007`），且当时只补了 `git diff --check`，**未按重命名纪律补跑全量
+门禁、未在计划/评审记录登记偏离**。
+
+**根因**：必读规则之一 `doc-conventions.md` §七 的交叉引用仍写
+`<fix|feat|enh|ref>/<task>`（旧格式），与 §二.1 声明「本节是分支基线的唯一
+规范来源」冲突；【领会】阶段误采信了交叉引用。
+
+**本轮纠正**（用户 2026-11-08 指出命名未按纪律后）：
+
+1. 把 `doc-conventions.md` §七 交叉引用对齐为
+   `feature/<fix|feat|enh|ref>-<task>` + `yate-<task>`（parent 一律
+   `develop`），并显式标注斜杠格式属旧模型、不得作为命名依据；
+2. 在本节与评审记录 §6 如实登记该偏离，不再只写进机器本地记忆；
+3. 按 `feedback_branch_naming.md` 的重命名纪律补跑六道全量门禁（第三轮，
+   每道独立工具调用）：pyright 0 诊断 / 全量 3469 passed·10 skipped /
+   架构 37 / 覆盖率 92.96%（阈值 75）/ 冒烟 121/121·1464 checks /
+   changelog 0 + diffcheck 0，全部退出码 0；结果已回填 §六 wave-4 行、
+   评审记录 §6 与评审索引 #64/#65；
+4. 分支 / worktree 现状（`git worktree list` 实测）：
+   `D:/Programming/yate-extension-trust-hardening` +
+   `[feature/enh-extension-trust-hardening]`，两者 `<task>` 同为
+   `extension-trust-hardening`，parent 仍为 `develop` @ `af81d11`；
+   类型取 `enh` 的依据是 issue 标题前缀 `ENH - [安全审计]` 与
+   「类型：安全加固 / 审计汇总，非线上故障报告」。
+
+**待办**：本分支合并进 `develop` 后，主工作区 / `master` 上的
+`doc-conventions.md` 交叉引用会随之更新；在此之前其它会话仍应以
+`task-orchestration.md` §二.1 为准。

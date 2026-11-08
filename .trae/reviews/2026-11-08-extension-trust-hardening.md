@@ -183,3 +183,20 @@ Reverse sweep for missed dimensions: concurrency (no new shared mutable state; `
   92.96% (threshold 75); smoke 121/121 scenarios with 1464/1464 checks;
   `tools.changelog check` 0 and `git diff --check` 0. Working tree clean,
   no push and no merge into develop.
+- Branch-naming deviation (reported by the user on 2026-11-08, after the
+  closing report): the worktree was originally created with the pre-11-07
+  slash form `enh/extension-trust-hardening`, which violates
+  `task-orchestration.md` §二.1 (`feature/<fix|feat|enh|ref>-<task>`). It was
+  renamed to `feature/enh-extension-trust-hardening` in `e27c007`, but that
+  late rename only ran `git diff --check` and was never registered as a
+  deviation in the plan or this review record. Root cause: the stale
+  cross-reference in `doc-conventions.md` §七 still quoted the old slash
+  format. This round aligns that cross-reference, registers the deviation in
+  the main plan §九, and re-runs all six gates per the rename discipline.
+  Current state verified with `git worktree list`: worktree
+  `yate-extension-trust-hardening` + branch
+  `feature/enh-extension-trust-hardening` (type `enh` follows the issue
+  title prefix `ENH - [安全审计]`), parent `develop` @ `af81d11`.
+  Third-round six gates after this correction, all exit 0: pyright 0,
+  pytest 3469 passed / 10 skipped, architecture 37, coverage 92.96%,
+  smoke 121/121 with 1464/1464 checks, changelog 0, diffcheck 0.
