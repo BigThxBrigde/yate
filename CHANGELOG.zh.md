@@ -187,6 +187,7 @@
 
 ### 构建与工程
 
+- fix CI gate failure [缺中文] ([`4dbc4fd`](https://gitee.com/jermaine/yate/commit/4dbc4fd306a8f12d9e713252a8f104ce9543c7f6))
 - run the pytest matrix on Windows py3.13 too [缺中文] ([`66fc2f9`](https://gitee.com/jermaine/yate/commit/66fc2f9cfa174875f01e39b5c3eaa8966a17731b))
 - drop work stealing from the pytest gate [缺中文] ([`91a1190`](https://gitee.com/jermaine/yate/commit/91a11905c30b0fb38c4a7de85a94cd33d0765dd8))
 - update readme.md [缺中文] ([`479a471`](https://gitee.com/jermaine/yate/commit/479a471eb794a51d00afa97bb1af5235ba48c50f))
