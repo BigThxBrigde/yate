@@ -89,6 +89,36 @@ Fix: 该提交已存在于历史且未推送；按 git 安全协议不擅自 `am
 - 既有 findings **未撤销**：EOF 空行与文档路径仍属实且已修复；本轮未重新提出已被
   #68 销账的 M-1/m-1。
 
+### 反馈环补充（2026-11-09 第二问：`:set filetype=language` 是否失效）
+
+用户追问删除 `type_char` 的 `language` 后 `:set filetype=...` 是否还起作用。主代理
+重跑**功能正确性**维度：
+
+- `git --no-pager diff master...HEAD --name-only` 过滤 `commands.py` / `session.py` /
+  `indentation.py` / `editor_syntax` / `editor_lsp` / `options` = **0 命中**，即
+  `:set filetype` 的实现与主要消费者全部零改动。
+- 实现链仍在：`yate/commands.py:49-51` `_apply_filetype` → `editor.set_filetype(...)`；
+  `:set` 键 `yate/commands.py:137` `_FILETYPE_KEYS = {"filetype","ft","language","lang"}`；
+  `:filetype` 命令 `yate/commands.py:454-478`（`:ft` / `:language` 别名与 Tab 补全）；
+  `yate/config.py:322-326` 的 `filetype=` 选项解析。
+- 真正消费 `Document.filetype` 的路径完整保留：`yate/actions.py:40`
+  `ctx.buffer.insert_newline(language=ctx.doc.filetype)`（按语言缩进，走
+  `rules_for(language)` / `opens_block`）；`yate/commands.py:459` 的
+  `language_name(doc.filetype)` 状态栏 / `:filetype` 回显；语法高亮
+  `highlight_probe().filetype`；LSP `language_ids` 映射；插件手册
+  `yate/docs/extensions.*.md` 把 `doc.filetype` 列为扩展开放 API，
+  `:set filetype=<name>` 是扩展语言注册的会话内切换入口。
+- 本分支唯一与 `filetype` 相关的改动，是 `yate/keymaps/base.py:223` 与
+  `yate/keymaps/vim.py:498` 不再把 `ctx.doc.filetype` 传给从不读它的 `type_char`。
+- 实测：`pytest tests/test_app_find.py tests/test_input_assist.py tests/test_app_lsp.py
+  tests/test_app_textual.py -q -k "filetype"` → **6 passed，exit 0**（覆盖
+  `:set filetype=python` → `doc.filetype == "py"`、`:set filetype` 重绑 LSP 服务器、
+  与 `.py` 后缀得到同一缩进规则、语法高亮 probe 跟随切换）。
+
+结论：**`:set filetype=...` 仍完全生效**，删除的只是一条从未被读取的无效传参。
+按 skill §五，本次与「`type_char.language`」属同一议题：**未撤销**任何既有 finding、
+**未新增** BLOCKER / MAJOR / MINOR，裁决维持 `APPROVE`。
+
 ## 五、硬门禁实测表（主代理亲自跑，逐条独立轮次）
 
 | # | 命令 | 退出码 | 实测数字 |
