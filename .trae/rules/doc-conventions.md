@@ -100,8 +100,9 @@ review 语义并入 `task`：
 
 - 计划文档的**内容**格式规范见 `plan-before-execute.md`；
 - 闭环流程中方案落盘路径见 `task-orchestration.md` §二；
-- 分支 / worktree 命名（`feature/<fix|feat|enh|ref>-<task>` 分支 +
-  `yate-<task>` worktree，parent 一律 `develop`）见 `task-orchestration.md` §二.1；
+- 分支 / worktree 命名（`feature/<feat|fix|docs|ref|enh>-<task>` 分支 +
+  `yate-<task>` worktree，parent 一律 `master`）见 `task-orchestration.md` §二.1；
   该节是分支基线的唯一规范来源，斜杠格式 `<fix|feat|enh|ref>/<task>` 属
-  2026-11-07 之前的旧模型，不得再作为命名依据；
+  2026-11-07 之前的旧模型，不得再作为命名依据；`develop` 分支自 2026-11-08
+  起弃用，不得再作为 parent、合并 / PR 目标或 diff 基线；
 - 提交信息规范见 `git-commit-message.md`。
