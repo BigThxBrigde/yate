@@ -174,7 +174,7 @@ flowchart TD
 
 | 步骤 | 实测结果 | 证据 / 命令退出码 | 提交 |
 | --- | --- | --- | --- |
-| 1【领会 + 方案】 | 待回填 | 待回填 | 待回填 |
-| 2【执行 / 审核】 | 待回填 | 待回填 | — |
-| 3【迭代】 | 待回填 | 待回填 | 待回填 |
-| 4【收尾】 | 待回填 | 待回填 | 待回填 |
+| 1【领会 + 方案】 | 取证完成（`merge-base fb3c398`、6 提交 / 35 文件）+ 主计划落盘 | `git diff --check` exit 0；`git diff --stat` 1 文件 180 行 | `737f186` |
+| 2【执行 / 审核】 | 3 名只读审查员并行 spawn 全部 `code=10003 aborted`（零产出）；按 §五.4 不原样重试，主代理按 `pr-review` skill 亲自完成六维度取证与逐条复核 | 累积 `diff --check master...HEAD` 初测 exit 2（2 处 EOF 空行）；`git grep` 8 个调用点文件无残留关键字实参；`yate/docs` 搜索 0 命中；`git show master:...buffer.py` 复核 `type_char` docstring 与 `insert_newline`；新增行禁用模式 / 超长行扫描 0 命中 | — |
+| 3【迭代】 | 修 2 处 EOF 空行 + 主计划盘符路径脱敏（3 文件 / `+1 -3`） | `git diff --check master...HEAD` 复验 exit 0；主工作区 2 个 0 字节误产物已清理、`git status` 干净 | `121e291` |
+| 4【收尾】 | 七道门禁全绿、评审记录落盘、索引 #69 登记、临时日志清理、用户质疑按 skill §五 反馈环复核 | pyright 0 / 全量 pytest 0 / 架构 37 / 覆盖率 93.02%·3473 passed·10 skipped / 冒烟 121/121·1464 checks / changelog 0 / diffcheck 双 0 | 本笔提交 |

@@ -162,6 +162,19 @@ changelog 0 / diffcheck 0）。**2026-11-08 #66 纪律自审增量**：用户第
 diffcheck 0。复验记录
 [2026-11-08-pr-review-iktr5q-unused-symbols-cleanup-r2.md](2026-11-08-pr-review-iktr5q-unused-symbols-cleanup-r2.md)，
 方案总纲 [unused-symbols-cleanup-plans/overview.md](../documents/unused-symbols-cleanup-plans/overview.md)。
+**2026-11-09 IKTR5Q 合并前 pr-review 增量**：新增 #69（`pr-review` skill
+`review` 模式，范围整条分支 `master..HEAD` / 35 文件；**APPROVE**：0 BLOCKER /
+0 MAJOR / 4 MINOR，2 项已修复、2 项登记待办）。已修复：累积
+`git diff --check master...HEAD` 的 2 处 EOF 空行、主计划里的本机盘符路径
+（`doc-conventions.md` §五）。登记待办：`179fdf6` 的 `test` 提交前缀不在
+`git-commit-message.md` §5 允许集（规则层决定，不改历史）；`buffer.py` 的
+`language` 前瞻扩展缝是否恢复（用户质疑，按 skill §五 重跑受影响维度后新增
+1 条 MINOR 观察，不阻塞合并）。七道门禁全绿：pyright 0 / 全量 pytest exit 0 /
+架构 37 / 覆盖率 93.02%·3473 passed·10 skipped / 冒烟 121/121·1464 checks /
+changelog 0 / diffcheck 双 0。3 名只读审查员并行 spawn 零产出（`code=10003`），
+按 `subagent-workflow.md` §五.4 由主代理按 skill 亲自执行并如实登记。评审记录
+[2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md](2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md)，
+主计划 [iktr5q-pr-review-plan.md](../documents/iktr5q-pr-review-plan.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
