@@ -47,10 +47,10 @@ class HoverFlows:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
         self._spawn = spawn
-        self.lsp = lsp
-        self.session = session
-        self.panes = panes
-        self.popup = popup
+        self._lsp = lsp
+        self._session = session
+        self._panes = panes
+        self._popup = popup
         self._has_modal_screen = has_modal_screen
         self._timer: asyncio.TimerHandle | None = None
         # Invalidates every in-flight result issued before it (plan g D6).
@@ -67,7 +67,7 @@ class HoverFlows:
         No debounce: the keystroke that triggers hover is already an
         explicit intent, unlike pointer movement.
         """
-        doc = self.session.doc
+        doc = self._session.doc
         buf = doc.buffer
         self._schedule(doc, (buf.row, buf.col), "key")
 
@@ -83,12 +83,12 @@ class HoverFlows:
         if pos is None:
             self.dismiss()
             return
-        if self._target == pos and self.popup.is_open:
+        if self._target == pos and self._popup.is_open:
             return
-        if self._target != pos and self.popup.is_open:
+        if self._target != pos and self._popup.is_open:
             # No stale card while the new debounce runs; a card that is
             # already closed is left untouched (no spurious close/flash).
-            self.popup.close()
+            self._popup.close()
         timer = self._timer
         if timer is not None:
             timer.cancel()
@@ -109,15 +109,15 @@ class HoverFlows:
             timer.cancel()
             self._timer = None
         self._token += 1
-        if self.popup.is_open:
-            self.popup.close()
+        if self._popup.is_open:
+            self._popup.close()
 
     # ------------------------------------------------------------ scheduling
 
     def _schedule_mouse(self, pos: Pos) -> None:
         """Fire after the debounce delay elapsed on one stable position."""
         self._timer = None
-        self._schedule(self.session.doc, pos, "mouse")
+        self._schedule(self._session.doc, pos, "mouse")
 
     def _schedule(self, doc: Document, pos: Pos, source: str) -> None:
         """Guard, snapshot the staleness state and spawn the worker.
@@ -128,14 +128,15 @@ class HoverFlows:
         """
         if self._has_modal_screen():
             return
-        if not self.lsp.supports(doc):
-            if self.popup.is_open:
-                self.popup.close()
+        if not self._lsp.supports(doc):
+            if self._popup.is_open:
+                self._popup.close()
             return
         timer = self._timer
         if timer is not None:
             timer.cancel()
             self._timer = None
+        # These four fields are the snapshot _stale() compares against.
         self._doc_path = str(doc.path) if doc.path is not None else None
         self._source = source
         self._target = pos
@@ -155,25 +156,24 @@ class HoverFlows:
     ) -> None:
         """Query the LSP and drive the popup from the result."""
         try:
-            text = await self.lsp.request_hover(doc, pos[0], pos[1])
+            text = await self._lsp.request_hover(doc, pos[0], pos[1])
         except Exception:  # noqa: BLE001 - a failed request must be silent
             log.debug("hover request failed for %s", doc.path, exc_info=False)
             text = ""
         if self._stale(doc, pos, token):
             return
         if not text.strip():
-            # Zero UI feedback, including the "card was visible then the
-            # new result is empty" case (AC5).
-            self.popup.close()
+            if self._popup.is_open:
+                self._popup.close()
             return
-        view = self.panes.active_view
+        view = self._panes.active_view
         if view is None:
             return
         buf = doc.buffer
         line = buf.lines[pos[0]] if pos[0] < buf.line_count else ""
         cell = theme.char_to_cell(line, pos[1], buf.tab_width) - view.scroll_col
         rel_row = pos[0] - view.scroll_offset.y
-        self.popup.show(
+        self._popup.show(
             text,
             (cell, rel_row),
             (view.size.width or 80, view.size.height or 20),
@@ -190,13 +190,13 @@ class HoverFlows:
         path_now = str(doc.path) if doc.path is not None else None
         if (
             token != self._token
-            or self.session.doc is not doc
+            or self._session.doc is not doc
             or path_now != self._doc_path
-            or not self.popup.is_mounted
+            or not self._popup.is_mounted
         ):
             return True
         if self._source == "key":
-            buf = self.session.doc.buffer
+            buf = self._session.doc.buffer
             return (buf.row, buf.col) != pos
         if self._source == "mouse":
             return self._target != pos

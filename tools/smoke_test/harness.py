@@ -99,6 +99,7 @@ TAGS: tuple[str, ...] = (
     "panes",
     "explorer",
     "command",
+    "hover",
     "view",
     "integration",
     "regression",

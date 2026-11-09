@@ -197,7 +197,7 @@ def test_request_at_cursor_shows_normalized_docs(
 def test_empty_result_produces_zero_ui_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty hover result closes the card and never shows anything."""
+    """An empty hover result with no card open is fully silent."""
     monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.0)
 
     async def scenario() -> None:
@@ -205,7 +205,8 @@ def test_empty_result_produces_zero_ui_output(
         popup = _FakePopup()
         flows = _make_flows(lsp, _session(), popup)
         flows.request_at_cursor()
-        assert await wait_until(lambda: popup.closes == 1)
+        assert await wait_until(lambda: lsp.calls == 1)
+        assert popup.closes == 0
         assert popup.shows == []
 
     asyncio.run(scenario())
@@ -234,7 +235,7 @@ def test_empty_result_clears_a_previously_visible_card(
 def test_whitespace_only_result_is_silent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A whitespace-only reply counts as empty: one close, no show."""
+    """A whitespace-only reply counts as empty: silent, no close, no show."""
     monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.0)
 
     async def scenario() -> None:
@@ -242,7 +243,8 @@ def test_whitespace_only_result_is_silent(
         popup = _FakePopup()
         flows = _make_flows(lsp, _session(), popup)
         flows.request_at_cursor()
-        assert await wait_until(lambda: popup.closes == 1)
+        assert await wait_until(lambda: lsp.calls == 1)
+        assert popup.closes == 0
         assert popup.shows == []
 
     asyncio.run(scenario())
@@ -251,7 +253,7 @@ def test_whitespace_only_result_is_silent(
 def test_request_failure_is_silent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A raised ``TimeoutError`` degrades to empty: close, never show."""
+    """A raised ``TimeoutError`` degrades to empty: fully silent, no show."""
     monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.0)
 
     async def scenario() -> None:
@@ -259,7 +261,27 @@ def test_request_failure_is_silent(
         popup = _FakePopup()
         flows = _make_flows(lsp, _session(), popup)
         flows.request_at_cursor()
-        assert await wait_until(lambda: popup.closes == 1)
+        assert await wait_until(lambda: lsp.calls == 1)
+        assert popup.closes == 0
+        assert popup.shows == []
+
+    asyncio.run(scenario())
+
+
+def test_empty_result_with_hidden_card_does_not_repaint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An empty reply with a never-shown card triggers no close at all."""
+    monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.0)
+
+    async def scenario() -> None:
+        lsp = _FakeLsp(reply="")
+        popup = _FakePopup()
+        flows = _make_flows(lsp, _session(), popup)
+        flows.request_at_cursor()
+        assert await wait_until(lambda: lsp.calls == 1)
+        await wait_until(lambda: False, timeout=0.05)
+        assert popup.closes == 0
         assert popup.shows == []
 
     asyncio.run(scenario())
