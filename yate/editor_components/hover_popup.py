@@ -118,7 +118,13 @@ class HoverPopup(VerticalScroll):
         self.refresh()
 
     def close(self) -> None:
-        """Hide the card and drop the docs it held."""
+        """Hide the card and drop the docs it held.
+
+        Idempotent: an already-hidden card with no docs skips the repaint
+        entirely (no ``Static.update("")`` and no ``display`` write).
+        """
+        if not self.display and not self._text:
+            return
         self._text = ""
         if self.parent is not None:
             self.query_one("#hover-docs-body", Static).update("")

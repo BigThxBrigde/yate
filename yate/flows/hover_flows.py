@@ -100,14 +100,17 @@ class HoverFlows:
     def dismiss(self) -> None:
         """Cancel the debounce timer, invalidate in-flight results and hide.
 
-        Idempotent; never writes to the message or status bar (AC5).
+        A hidden card needs no repaint, so ``close()`` is only called when
+        the card is actually open.  Idempotent; never writes to the message
+        or status bar (AC5).
         """
         timer = self._timer
         if timer is not None:
             timer.cancel()
             self._timer = None
         self._token += 1
-        self.popup.close()
+        if self.popup.is_open:
+            self.popup.close()
 
     # ------------------------------------------------------------ scheduling
 
