@@ -545,3 +545,44 @@ def test_meta_click_then_type_via_pilot_inserts_at_all_points(
             assert buf.get_text() == "hello world\nsecond line\n"
 
     asyncio.run(scenario())
+
+
+def test_non_drag_mouse_move_keeps_existing_selection_and_cursor_behavior(
+    tmp_path: Path,
+) -> None:
+    """Regression (plan h): the injected on_hover_move callback must not
+    alter the existing mouse contract -- a non-drag MouseMove leaves the
+    cursor, any selection and the drag flag untouched."""
+    async def scenario() -> None:
+        app = _mouse_app(tmp_path)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            # establish a selection by clicking, then select via shift-click
+            await pilot.click(EditorView, offset=(_GUTTER + 2, 0))
+            await pilot.pause()
+            await pilot.click(EditorView, offset=(_GUTTER + 5, 0), shift=True)
+            await pilot.pause()
+            buf = app.editor.session.buffer
+            cursor_before = buf.cursor
+            selection_before = buf.get_text() if buf.has_selection() else None
+
+            # a non-drag MouseMove (button 0) must change nothing
+            view = app.editor.panes.active_view
+            assert view is not None
+            from textual.events import MouseMove
+            event = MouseMove(
+                view, x=_GUTTER + 9, y=0, delta_x=0, delta_y=0,
+                button=0, shift=False, meta=False, ctrl=False,
+            )
+            consumed = app.editor.mouse_flows.handle_view_mouse(view, event)
+            await pilot.pause()
+
+            assert consumed is False
+            assert buf.cursor == cursor_before
+            assert (
+                buf.get_text() if buf.has_selection() else None
+            ) == selection_before
+            assert app.editor.mouse_flows._dragging is False
+            assert app.editor.hover_popup.is_open is False
+
+    asyncio.run(scenario())

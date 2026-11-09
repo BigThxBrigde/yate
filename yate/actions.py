@@ -209,6 +209,8 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     # ---------------------------------------------------------------- view
 
     reg("command_prompt", lambda ctx: editor.command_prompt(), "Ex command prompt")
+    reg("show_hover_docs", lambda ctx: editor.hover.request_at_cursor(),
+        "Show API documentation at cursor")
     reg("goto_prompt", lambda ctx: editor.prompt_flows.goto_prompt(),
         "Go to line (enter a line number)")
     reg("quick_open", lambda ctx: editor.overlays.open_file_palette(),

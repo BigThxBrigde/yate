@@ -25,6 +25,7 @@ from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup
 from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.hover_popup import HoverPopup
 from yate.editor_components.panes import PaneHost, PaneManager
 from yate.editor_components.statusbar import StatusBar
 from yate.editor_components.terminal import TerminalPanel
@@ -35,6 +36,7 @@ from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
+from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
@@ -136,6 +138,7 @@ def _build_widgets(ed: yate.editor.Editor) -> None:
     )
     ed.breadcrumbs = Breadcrumbs(ed.session, ed.workspace, id="breadcrumbs")
     ed.completion_popup = CompletionPopup()
+    ed.hover_popup = HoverPopup(id="hover-docs")
     ed.terminal_panel = TerminalPanel(
         ed.config, ed.workspace, ed.prompt_bar,
         focus_editor=ed.focus_editor, id="terminal-dock",
@@ -214,7 +217,8 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
     """Build the pane tree, its host widget and the flow controllers.
 
     The controllers (:class:`LspSync` / :class:`OverlayFlows` /
-    :class:`ShellFlows` / :class:`CompletionFlows` / :class:`MouseFlows`)
+    :class:`ShellFlows` / :class:`CompletionFlows` / :class:`HoverFlows` /
+    :class:`MouseFlows`)
     own the multi-step flows; callers invoke them directly.  DocumentFlows
     (built earlier, without the pane stack) receives its pane-stack
     collaborators here, and WindowFlows is constructed once the stack
@@ -230,6 +234,14 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         focus_explorer=ed.focus_explorer,
     )
     ed.pane_host = PaneHost(ed.panes, ed.make_view)
+    ed.hover = HoverFlows(
+        spawn=ed.app.run_worker,
+        lsp=ed.lsp,
+        session=ed.session,
+        panes=ed.panes,
+        popup=ed.hover_popup,
+        has_modal_screen=ed.has_modal_screen,
+    )
     ed.mouse_flows = MouseFlows(
         keymaps=ed.keymaps,
         config=ed.config,
@@ -237,6 +249,7 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         # Drag moves coalesce through the deferred variant (plan P4); the
         # down/up/click interaction endpoints keep the synchronous repaint.
         refresh_soon=ed.refresh_ui_soon,
+        on_hover_move=ed.hover.on_mouse_move,
     )
     ed.prompt_flows = PromptFlows(
         ed.session,
