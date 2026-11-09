@@ -193,6 +193,19 @@ pyright 0 / 全量 pytest exit 0 / 架构 38 / 覆盖率 93.03% / 冒烟 123/123
 与一项存量并行时序风险（`vim_advanced.py` 的 `escape` 后单次 `pause`，
 `--jobs 1` 复核通过、与本分支无因果，另案登记）。复审记录
 [2026-11-09-lsp-hover-docs-iteration-verification.md](2026-11-09-lsp-hover-docs-iteration-verification.md)。
+**2026-11-10 IKTPC2 合并前 pr-review 增量**：新增 #72（`pr-review` skill
+`review` 模式，范围 `master...HEAD` / 51 文件 +5053−20；3 名只读分域审查员
+并行 + 主代理逐条回读复核 + 全部门禁亲跑）。**REQUEST_CHANGES**：1 BLOCKER
+为分支级 `tools.changelog check` 红（master 同命令 exit 0、PR diff 不含
+CHANGELOG，定性为 v0.2.18 发布后分支重算 released segment 的发布流程交互，
+需人工在合并时处置，不擅自改 CHANGELOG）；本 PR 引入的 2 MAJOR 当轮修复
+（鼠标换位置未使在途请求过期、空 `MarkedString` 生成空围栏破坏 AC5），
+8 MINOR 当轮修复（守卫推进 token、language 围栏白名单、y clamp、client_key
+校验、规则三处清单、10 份新建计划文档盘符路径脱敏、FEATURES 38 计数、
+overview 清单），其余 MINOR 登记待办。门禁：pyright 0 / 全量 pytest exit 0 /
+架构 38 / 覆盖率 93.05% / 冒烟 123/123·1493 / diffcheck 双 0 /
+changelog 分支 1·master 0。评审记录
+[2026-11-10-pr-review-feature-feat-lsp-hover-docs.md](2026-11-10-pr-review-feature-feat-lsp-hover-docs.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
