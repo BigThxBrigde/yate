@@ -3,7 +3,7 @@
 > 本文件由 `python -m tools.changelog` 自动生成 —— 请勿手工编辑。
 > 英文版：[CHANGELOG.md](CHANGELOG.md)
 
-## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.17...HEAD)
+## [0.2.18] - 2026-11-09 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.17...v0.2.18)
 
 ### 新功能
 
@@ -18,6 +18,7 @@
 
 ### 问题修复
 
+- derive short hashes from full sha [缺中文] ([`fb3c398`](https://gitee.com/jermaine/yate/commit/fb3c39813333beefabfb9f1ac560a080197af1fc))
 - address three re-review minor findings [缺中文] ([`aa112a0`](https://gitee.com/jermaine/yate/commit/aa112a0e2a7d8f3bcad5ec126fc664a651003522))
 - refuse symlinked trust stores on the write side [缺中文] ([`f526733`](https://gitee.com/jermaine/yate/commit/f5267333f5e5cf50d26c389ce7451f3cb721ee54))
 - normalise Lua argv tables at the extension boundary [缺中文] ([`24f3ba4`](https://gitee.com/jermaine/yate/commit/24f3ba419e22591e79b9e7624daaf8381d7ed894))
@@ -58,6 +59,8 @@
 
 ### 重构
 
+- drop unused internal parameters (wave-2) [缺中文] ([`4b38989`](https://gitee.com/jermaine/yate/commit/4b38989456c1dcba036f18784a56f0a8ccd1a57e))
+- drop unused Textual callback parameters (wave-1) [缺中文] ([`718ec79`](https://gitee.com/jermaine/yate/commit/718ec792cd44aef8773452ed7b2b26669618433e))
 - use named settling constant and nonlocal streak [缺中文] ([`81f8486`](https://gitee.com/jermaine/yate/commit/81f848686abf7b6e2d7158cc989bd2e871b3dcc5))
 - restore alphabetical import order after module renames [缺中文] ([`b2ab44d`](https://gitee.com/jermaine/yate/commit/b2ab44deca212357d4bea57d0e448c260885b974))
 - relocate cmdline_completions out of flows [缺中文] ([`f3299a1`](https://gitee.com/jermaine/yate/commit/f3299a13d196de4b723acd1a2aef825106c78d66))
@@ -81,6 +84,13 @@
 
 ### 文档
 
+- record set-filetype feedback loop verification [缺中文] ([`0daa5a5`](https://gitee.com/jermaine/yate/commit/0daa5a546d794b0d235220ecf294986ec045b6e1))
+- record IKTR5Q merge pr-review verdict and feedback loop [缺中文] ([`9dfd25f`](https://gitee.com/jermaine/yate/commit/9dfd25fb3ba5a1f522221ea72d3af106f581b814))
+- fix EOF blank lines and strip worktree absolute path [缺中文] ([`121e291`](https://gitee.com/jermaine/yate/commit/121e2918088a6706c90bba33dbd21d2d8d4f40be))
+- add IKTR5Q merge pr-review plan [缺中文] ([`737f186`](https://gitee.com/jermaine/yate/commit/737f18606b58ae5be88b226e50644fde02bd532a))
+- close IKTR5Q second-round review and archive findings [缺中文] ([`84074b1`](https://gitee.com/jermaine/yate/commit/84074b1f9a5bc0f6a59535bb34425a9e7c339aea))
+- add IKTR5Q cleanup plan with keep register and delete list [缺中文] ([`c304147`](https://gitee.com/jermaine/yate/commit/c304147ec1411f9a27909d723a83912b4580ac34))
+- record IKTR5Q issue brief for unused-symbol cleanup [缺中文] ([`1e094db`](https://gitee.com/jermaine/yate/commit/1e094db227285ec9e1c228df6f8a93754e9b13f7))
 - restore master as the sole branch base [缺中文] ([`dd5321e`](https://gitee.com/jermaine/yate/commit/dd5321eea136b527da214218329a19cc111a23b1))
 - record branch naming discipline self-audit (#66) [缺中文] ([`9d52b41`](https://gitee.com/jermaine/yate/commit/9d52b41568e257c5dd3b03e585e29335d10a6b9b))
 - align the branch naming cross-reference with task orchestration [缺中文] ([`2df81aa`](https://gitee.com/jermaine/yate/commit/2df81aa40f896198142f7ca6394204659ced1b8d))
@@ -173,6 +183,7 @@
 
 ### 测试
 
+- poll for async dispatch in review iteration F1 [缺中文] ([`179fdf6`](https://gitee.com/jermaine/yate/commit/179fdf6f443f409d780d4d4e0e974f56b925522a))
 - await deferred document open in pilot case [缺中文] ([`aa75782`](https://gitee.com/jermaine/yate/commit/aa75782e5bde16e29035dbadd561be6a90d94d31))
 - add theme chrome cases and refresh SVG baseline [缺中文] ([`81c1eed`](https://gitee.com/jermaine/yate/commit/81c1eed49dad8d09735c197853d9acb7e7b83dba))
 - drive the highlight render path in the filetype override case [缺中文] ([`a4ced50`](https://gitee.com/jermaine/yate/commit/a4ced50eff12d03c7f42b47fd59c85fefbb7a4a2))
@@ -187,6 +198,7 @@
 
 ### 构建与工程
 
+- refresh generated changelogs after CI gate fix [缺中文] ([`185276c`](https://gitee.com/jermaine/yate/commit/185276c47b0d62a300cbb7ebdae37910ac8f8abd))
 - fix CI gate failure [缺中文] ([`4dbc4fd`](https://gitee.com/jermaine/yate/commit/4dbc4fd306a8f12d9e713252a8f104ce9543c7f6))
 - run the pytest matrix on Windows py3.13 too [缺中文] ([`66fc2f9`](https://gitee.com/jermaine/yate/commit/66fc2f9cfa174875f01e39b5c3eaa8966a17731b))
 - drop work stealing from the pytest gate [缺中文] ([`91a1190`](https://gitee.com/jermaine/yate/commit/91a11905c30b0fb38c4a7de85a94cd33d0765dd8))
