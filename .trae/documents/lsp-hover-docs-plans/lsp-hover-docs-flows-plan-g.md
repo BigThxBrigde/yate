@@ -20,6 +20,12 @@ plan a (normalization).
 
 - `yate/flows/hover_flows.py` (new)
 - `tests/test_hover_flows.py` (new)
+- `tests/test_architecture.py` — **only** one addition to `UI_FROZEN_FILES`
+  (`:198`) registering the exact L2 modules imported by `hover_flows.py`
+  (R11). Registered deviation from the original wave ordering: plan h (wave 4)
+  will add the new drift guard case to this same file, sequentially.
+  **Why:** the R11 guard at `:830` fails as soon as a new L3 flow imports
+  `editor_components`, so the whitelist must land in the same wave as the flow.
 
 ## Concrete changes (`yate/flows/hover_flows.py`)
 

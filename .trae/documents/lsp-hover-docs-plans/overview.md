@@ -24,13 +24,21 @@ no completion-popup changes, no per-keymap key, no placeholders, no new deps.
 | d | [lsp-hover-docs-manager-plan-d.md](lsp-hover-docs-manager-plan-d.md) | 2 | `yate/editor_lsp/manager.py` | `tests/test_lsp_hover.py` |
 | e | [lsp-hover-docs-popup-plan-e.md](lsp-hover-docs-popup-plan-e.md) | 2 | `yate/editor_components/hover_popup.py`, `yate/resources/hover-popup.tcss` | `tests/test_hover_popup.py` |
 | f | [lsp-hover-docs-docs-plan-f.md](lsp-hover-docs-docs-plan-f.md) | 2 | `yate/docs/lsp.en.md`, `yate/docs/lsp.zh.md`, `yate/resources/manual.en.md`, `yate/resources/manual.zh.md`, `FEATURES.md`, `FEATURES.zh.md` | `tests/test_hover_docs.py` |
-| g | [lsp-hover-docs-flows-plan-g.md](lsp-hover-docs-flows-plan-g.md) | 3 | `yate/flows/hover_flows.py` | `tests/test_hover_flows.py` |
-| h | [lsp-hover-docs-integration-plan-h.md](lsp-hover-docs-integration-plan-h.md) | 4 | `yate/editor.py`, `yate/editor_compose.py`, `yate/editor_dispatch.py`, `yate/flows/mouse_flows.py`, `yate/actions.py` | `tests/test_architecture.py`, `tests/test_hover_integration.py`, `tests/test_app_mouse.py`, `tests/test_action_table.py`, `tests/test_editor_dispatch.py`, `tests/test_dispatch_guards.py` |
+| g | [lsp-hover-docs-flows-plan-g.md](lsp-hover-docs-flows-plan-g.md) | 3 | `yate/flows/hover_flows.py` | `tests/test_hover_flows.py`, `tests/test_architecture.py` (R11 whitelist entry only) |
+| h | [lsp-hover-docs-integration-plan-h.md](lsp-hover-docs-integration-plan-h.md) | 4 | `yate/editor.py`, `yate/editor_compose.py`, `yate/editor_dispatch.py`, `yate/flows/mouse_flows.py`, `yate/actions.py` | `tests/test_architecture.py` (new drift guard only), `tests/test_hover_integration.py`, `tests/test_app_mouse.py`, `tests/test_action_table.py`, `tests/test_editor_dispatch.py`, `tests/test_dispatch_guards.py` |
 | i | [lsp-hover-docs-smoke-plan-i.md](lsp-hover-docs-smoke-plan-i.md) | 5 | `tools/smoke_test/scenarios/hover.py`, `tools/smoke_test/scenarios/__init__.py` | — |
 
-Exclusive file lists are disjoint inside each wave. `tests/test_architecture.py`
-is touched **only** by plan h; `tools/smoke_test/scenarios/__init__.py` only by
-plan i. No plan writes `.trae/` documents (the main agent owns them).
+Exclusive file lists are disjoint inside each wave. Registered deviation
+(2026-11-09, before wave 3 started): `tests/test_architecture.py` is touched
+**sequentially** by plan g (wave 3, `UI_FROZEN_FILES` whitelist for the new L3
+flow's L2 imports, R11) and plan h (wave 4, the new key-drift guard case).
+**Why:** a new `flows/hover_flows.py` importing `editor_components` fails
+`test_collaborators_keep_widget_coupling_frozen` immediately, so leaving the
+whitelist to wave 4 would leave the architecture gate red between two waves.
+**Evidence:** baseline `tests/test_architecture.py:198` whitelist plus the R11
+guard at `:830`. The two edits are in different waves, never parallel.
+`tools/smoke_test/scenarios/__init__.py` is only touched by plan i. No plan
+writes `.trae/` documents (the main agent owns them).
 
 ## 3. Wave table (strict; approved, no ad-hoc reordering)
 
@@ -38,7 +46,7 @@ plan i. No plan writes `.trae/` documents (the main agent owns them).
 | --- | --- | --- | --- |
 | 1 | `plan_a ∥ plan_b ∥ plan_c` | none | 3 targeted pytest files; `pyright yate/ tests/ tools/ pack/`; `pytest tests/test_architecture.py -q` |
 | 2 | `plan_d ∥ plan_e ∥ plan_f` | wave 1 (a for parsing, c for key) | 3 targeted pytest files; docs consistency test; full pyright; architecture tests |
-| 3 | `plan_g` | wave 2 (d manager API, e popup API) | `pytest tests/test_hover_flows.py -q`; full pyright |
+| 3 | `plan_g` | wave 2 (d manager API, e popup API) | `pytest tests/test_hover_flows.py tests/test_architecture.py -q`; full pyright |
 | 4 | `plan_h` | wave 3 (g `HoverFlows` signature) | `pytest tests/test_hover_integration.py tests/test_app_mouse.py tests/test_architecture.py -q`; full pyright |
 | 5 | `plan_i` | wave 4 (wiring) | `pytest tests/test_hover_docs.py -q`; `tools.smoke_test run --jobs 4`; full pyright |
 
