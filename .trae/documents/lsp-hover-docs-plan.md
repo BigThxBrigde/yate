@@ -342,6 +342,7 @@ spy in `tools/smoke_test/scenarios/hover.py`; `editor.py` sitting exactly at the
 unrelated to this branch — `--jobs 1` verification passed, recommend a separate
 `wait_until` fix).
 
-Branch `feature/feat-lsp-hover-docs` has 18 commits over `master` (including
-the baseline merge). **Not pushed, not merged into `master`** — the closed loop
-forbids both.
+Branch `feature/feat-lsp-hover-docs` has **21 commits** over `master`: 18
+implementation/review commits (including the `17692a8` baseline merge) plus 3
+final documentation write-back commits. **Not pushed, not merged into
+`master`** — the closed loop forbids both.
