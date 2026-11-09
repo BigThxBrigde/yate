@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.document import Document
 from yate.keymaps.keys import (
+    HOVER_DOC_KEY as HOVER_DOC_KEY,
     KEY_ALIASES as KEY_ALIASES,
     SPECIAL_KEYS as SPECIAL_KEYS,
     key_name,
