@@ -158,7 +158,7 @@
 - wheel 安装 + PyInstaller 独立可执行（Windows `pack.ps1`/`pack.bat`、Linux `pack.sh`，
   单目录/单文件两种形态，内置 tree-sitter 与 Lua 桥）
 - 维护工具链：`tools.smoke_test`（端到端冒烟 + 基线对比）、`tools.changelog`/`tools.release`
-  （自动 changelog 与发布）、`tools.pack wiki`（双语 Wiki 生成）+ 36 条架构守卫测试
+  （自动 changelog 与发布）、`tools.pack wiki`（双语 Wiki 生成）+ 38 条架构守卫测试
 
 ## 附：README 未重点提及的功能
 

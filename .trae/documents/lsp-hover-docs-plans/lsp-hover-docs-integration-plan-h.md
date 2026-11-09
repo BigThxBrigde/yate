@@ -173,7 +173,6 @@ callback injection did not alter the existing mouse contract.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_hover_integration.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_app_mouse.py tests/test_action_table.py tests/test_editor_dispatch.py tests/test_dispatch_guards.py tests/test_architecture.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_hover_integration.py tests/test_architecture.py -q -n auto

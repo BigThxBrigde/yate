@@ -22,7 +22,7 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / mouse_flows.py / chunked_flows.py /
+         lsp_sync.py / mouse_flows.py / hover_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
@@ -139,7 +139,9 @@ flowchart TD
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
   `overlay_flows.py` / `lsp_sync.py` / `mouse_flows.py` /
   `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
-  命名统一波以新名首次补登，修复漏登漂移）；
+  命名统一波以新名首次补登，修复漏登漂移）/
+  `hover_flows.py`（其 `editor_components` 导入已在 `tests/test_architecture.py`
+  的 `UI_FROZEN_FILES` 登记）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
@@ -161,13 +163,15 @@ flowchart TD
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
   `CommandRegistry` 本身，不再为每个消费者定义窄协议。
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
-  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key`），
+  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key` `#hover-docs`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
-  其中 `#statusbar` 与 `#which-key` 只是 widget id，样式由组件自持、
+  其中 `#statusbar`、`#which-key` 与 `#hover-docs` 只是 widget id，样式由组件自持、
   不被外壳 CSS 引用：`#statusbar` 对应 `yate/resources/status-bar.tcss`
   （组件 `DEFAULT_CSS` 均为打包 tcss 资源、经 `yate.paths.load_tcss` 装载，
   issue IKJHPH；类选择器 `StatusBar` 不变），`#which-key` 对应
-  `yate/resources/which-key.tcss`（同 `#statusbar` 先例）；
+  `yate/resources/which-key.tcss`（同 `#statusbar` 先例）；`#hover-docs` 由
+  `yate/editor_compose.py` 传入，对应 `yate/resources/hover-popup.tcss`（同
+  `#which-key` 先例）；
   其余 id 均被外壳 CSS 直接引用——该 CSS
   已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的

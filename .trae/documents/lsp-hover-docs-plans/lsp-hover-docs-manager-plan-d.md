@@ -96,7 +96,6 @@ fixture — follow that file, do not add a new dependency).
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_lsp_hover.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_lsp.py tests/test_lsp_parsing.py tests/test_app_lsp.py -q -n 1
 ```

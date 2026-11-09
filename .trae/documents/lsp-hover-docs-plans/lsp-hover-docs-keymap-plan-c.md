@@ -84,7 +84,6 @@ adds an AST guard in `tests/test_architecture.py`.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_hover_key_binding.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_keymaps_conflicts.py tests/test_key_notation.py tests/test_keyproto.py tests/test_action_table.py tests/test_keymap_set.py -q -n 1
 ```

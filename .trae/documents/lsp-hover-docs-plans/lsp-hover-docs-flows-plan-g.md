@@ -146,7 +146,6 @@ assert on a fixed sleep duration (`python-coding-style.md` §4.7).
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_hover_flows.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_lsp_hover.py tests/test_hover_popup.py -q -n 1
 ```

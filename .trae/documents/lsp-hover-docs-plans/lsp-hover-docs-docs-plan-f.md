@@ -85,7 +85,6 @@ home directory. Read each file as UTF-8 text.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_hover_docs.py -q -n 1
 ```
 

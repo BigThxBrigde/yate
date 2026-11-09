@@ -26,17 +26,20 @@ no completion-popup changes, no per-keymap key, no placeholders, no new deps.
 | f | [lsp-hover-docs-docs-plan-f.md](lsp-hover-docs-docs-plan-f.md) | 2 | `yate/docs/lsp.en.md`, `yate/docs/lsp.zh.md`, `yate/resources/manual.en.md`, `yate/resources/manual.zh.md`, `FEATURES.md`, `FEATURES.zh.md` | `tests/test_hover_docs.py` |
 | g | [lsp-hover-docs-flows-plan-g.md](lsp-hover-docs-flows-plan-g.md) | 3 | `yate/flows/hover_flows.py` | `tests/test_hover_flows.py`, `tests/test_architecture.py` (R11 whitelist entry only) |
 | h | [lsp-hover-docs-integration-plan-h.md](lsp-hover-docs-integration-plan-h.md) | 4 | `yate/editor.py`, `yate/editor_compose.py`, `yate/editor_dispatch.py`, `yate/flows/mouse_flows.py`, `yate/actions.py` | `tests/test_architecture.py` (new drift guard only), `tests/test_hover_integration.py`, `tests/test_app_mouse.py`, `tests/test_action_table.py`, `tests/test_editor_dispatch.py`, `tests/test_dispatch_guards.py` |
-| i | [lsp-hover-docs-smoke-plan-i.md](lsp-hover-docs-smoke-plan-i.md) | 5 | `tools/smoke_test/scenarios/hover.py`, `tools/smoke_test/scenarios/__init__.py` | — |
+| i | [lsp-hover-docs-smoke-plan-i.md](lsp-hover-docs-smoke-plan-i.md) | 5 | `tools/smoke_test/scenarios/hover.py`, `tools/smoke_test/scenarios/__init__.py`, `tools/smoke_test/harness.py` (post-review addition: `TAGS` gained `"hover"`) | — |
 
 Exclusive file lists are disjoint inside each wave. Registered deviation
-(2026-11-09, before wave 3 started): `tests/test_architecture.py` is touched
-**sequentially** by plan g (wave 3, `UI_FROZEN_FILES` whitelist for the new L3
-flow's L2 imports, R11) and plan h (wave 4, the new key-drift guard case).
+(2026-11-09, before wave 3 started): `tests/test_architecture.py` receives
+**three sequential edits** across the run — wave-2 adds
+`yate/editor_lsp/manager.py` to `SIZE_EXEMPT_FILES` (independent commit),
+wave-3 adds the `UI_FROZEN_FILES` whitelist entry for the new L3 flow's L2
+imports (plan g, R11), and wave-4 adds the new key-drift guard case (plan h).
 **Why:** a new `flows/hover_flows.py` importing `editor_components` fails
 `test_collaborators_keep_widget_coupling_frozen` immediately, so leaving the
 whitelist to wave 4 would leave the architecture gate red between two waves.
 **Evidence:** baseline `tests/test_architecture.py:198` whitelist plus the R11
-guard at `:830`. The two edits are in different waves, never parallel.
+guard at `:830`. The three edits are in different waves, strictly serialized,
+never parallel.
 `tools/smoke_test/scenarios/__init__.py` is only touched by plan i. No plan
 writes `.trae/` documents (the main agent owns them).
 
@@ -110,8 +113,8 @@ flowchart TD
 - Test names `test_<behavior>_<condition>_<expected>`; arrange/act/assert;
   no real-sleep assertions — debounce constants are monkeypatched to 0 and
   assertions poll with `wait_until` (`python-coding-style.md` §4.7).
-- Interpreter for every command: `.venv\Scripts\python.exe` inside
-  `D:/Programming/yate-lsp-hover-docs/`. Partial coverage runs add
+- Interpreter for every command: `.venv\Scripts\python.exe` at the worktree
+  root (repository root as the working directory). Partial coverage runs add
   `--cov-fail-under=0`.
 - Empty-result paths must not call `prompt.write`, `ed.message`,
   `status_bar.refresh_status`, `report` or `log.info/warning` for user-facing

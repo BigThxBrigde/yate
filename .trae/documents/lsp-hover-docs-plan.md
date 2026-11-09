@@ -348,3 +348,23 @@ baseline merge). The exact commit count is reported in the final hand-off
 instead of being frozen here: the write-back commit that states a number is
 itself part of that count. **Not pushed, not merged into `master`** — the
 closed loop forbids both.
+
+### Step 7b: merge-time pr-review (2026-11-10)
+
+`pr-review` skill (`review` mode, base `master`) reviewed `master...HEAD`
+(51 files, +5053−20) with three parallel read-only domain reviewers and
+main-agent line-by-line verification. Verdict **REQUEST_CHANGES**: the only
+open blocker is the branch-level `tools.changelog check` red gate (master on
+the same command is green; the PR diff touches no CHANGELOG file; it is a
+v0.2.18 release-generation interaction for the human reviewer to handle at
+merge time). Two PR-introduced MAJOR findings were fixed in the same round:
+mouse position changes now invalidate in-flight hover results immediately
+(`_token` + `_target` before the debounce fires), and an empty `MarkedString`
+value no longer produces an empty code-fence card (AC5). Eight MINOR findings
+were also fixed (guard token invalidation, fenced-language whitelist, negative
+anchor clamp, `client_key` check, `Any` rationale, rule §一/R9/R11 lists,
+machine-local paths in ten new plan documents, FEATURES 38 count, overview
+file lists). Post-fix gates: pyright 0 diagnostics, full pytest exit 0,
+architecture 38 passed, coverage 93.05%, smoke 123/123 (1493/1493 checks),
+`git diff --check` 0 on both worktree and branch; changelog 1 (branch) / 0
+(master). Record: [pr-review](../../reviews/2026-11-10-pr-review-feature-feat-lsp-hover-docs.md).

@@ -72,7 +72,6 @@ Depends on: plan h (the app owns `hover_popup` / `hover` / `MouseFlows` callback
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
 .venv\Scripts\python.exe -m pytest tests/test_hover_docs.py tests/test_hover_integration.py -q -n 1
 ```

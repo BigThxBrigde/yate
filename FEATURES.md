@@ -193,7 +193,7 @@ start see [README.md](README.md), and for the full usage guide see the
   tree-sitter backend and the Lua bridge)
 - Maintenance toolchain: `tools.smoke_test` (end-to-end smoke tests with
   baseline comparison), `tools.changelog`/`tools.release` (automated changelog
-  and releases), `tools.pack wiki` (bilingual wiki generation) + 36
+  and releases), `tools.pack wiki` (bilingual wiki generation) + 38
   architecture-guard tests
 
 ## Appendix: Features Not Highlighted in the README

@@ -62,7 +62,6 @@ annotations in product code.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_lsp_client_capabilities.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_lsp.py tests/test_lsp_real_server.py -q -n 1
 ```

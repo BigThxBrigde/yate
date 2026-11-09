@@ -96,7 +96,6 @@ Use `theme.active()` snapshots; no real sleeps.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_hover_popup.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_completion_popup.py tests/test_architecture.py -q -n 1
 ```

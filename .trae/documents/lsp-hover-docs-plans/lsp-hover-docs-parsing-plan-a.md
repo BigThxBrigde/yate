@@ -77,7 +77,6 @@ any UI code can see it.
 ## Acceptance commands
 
 ```powershell
-cd D:/Programming/yate-lsp-hover-docs
 .venv\Scripts\python.exe -m pytest tests/test_lsp_hover_parsing.py -q -n 1
 .venv\Scripts\python.exe -m pytest tests/test_lsp_parsing.py tests/test_lsp.py -q -n 1
 ```
