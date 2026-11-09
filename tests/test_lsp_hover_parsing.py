@@ -71,6 +71,58 @@ def test_parse_hover_contents_with_marked_string_wraps_language_in_fence() -> No
     assert "def f(x: int) -> str:" in result
 
 
+@pytest.mark.parametrize(
+    ("value", "language"),
+    [
+        ("", "python"),
+        ("   ", "python"),
+        (" \n\t ", "c++"),
+        ("", ""),
+        ("  ", "python"),
+        ("\t", "c++"),
+    ],
+    ids=[
+        "empty-python",
+        "spaces-python",
+        "whitespace-cpp",
+        "empty-no-language",
+        "spaces-python-again",
+        "tab-cpp",
+    ],
+)
+def test_parse_hover_contents_with_empty_value_and_language_returns_empty_string(
+    value: str, language: str
+) -> None:
+    """An empty ``MarkedString`` value never produces a bare code fence."""
+    hover = {"contents": {"language": language, "value": value}}
+    assert parse_hover_contents(hover) == ""
+
+
+@pytest.mark.parametrize(
+    ("language",),
+    [("python",), ("c++",)],
+    ids=["plain", "plus-plus"],
+)
+def test_parse_hover_contents_with_safe_language_wraps_fence(
+    language: str,
+) -> None:
+    """A plain safe language token still produces a tagged code fence."""
+    hover = {"contents": {"language": language, "value": "sig"}}
+    result = parse_hover_contents(hover)
+    assert result.startswith(f"```{language}\n")
+    assert "sig" in result
+
+
+def test_parse_hover_contents_with_hostile_language_does_not_fence() -> None:
+    """A language with newlines or backticks cannot break out of the fence."""
+    hover = {
+        "contents": {"language": "py\n```\nINJECTED", "value": "sig"},
+    }
+    result = parse_hover_contents(hover)
+    assert "```" not in result
+    assert "sig" in result
+
+
 def test_parse_hover_contents_with_string_array_joins_nonempty_parts() -> None:
     """A string array joins its non-empty parts with a blank line."""
     assert parse_hover_contents(["sig", "", "docs"]) == "sig\n\ndocs"

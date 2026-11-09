@@ -17,6 +17,7 @@ re-exports to pyright (wave-a private-registry precedent), not as
 
 from __future__ import annotations
 
+import re
 from typing import Any, cast
 
 from yate.editor_core.document import Document
@@ -28,6 +29,11 @@ from yate.logs import tracing
 #: lastResort when tracing is off, and is level-filtered by the trace file
 #: handler when on.
 log = tracing.get_logger(__name__)
+
+#: Characters a MarkedString fence language tag may contain; a server
+#: controlled tag with newlines or backticks could otherwise break out of
+#: the code fence and inject arbitrary Markdown into the hover card.
+_LANGUAGE_TAG_RE: re.Pattern[str] = re.compile(r"[A-Za-z0-9_+#.-]+")
 
 __all__ = [
     "_from_utf16",
@@ -69,8 +75,9 @@ def _hover_part(value: object) -> str:
     """Normalize a single ``Hover.contents`` element into display text.
 
     Strings pass through unchanged.  Dicts carry either a ``MarkedString``
-    (a non-empty string ``language`` plus a string ``value`` -- the value is
-    wrapped in a fenced code block so signatures render as code) or a
+    (a string ``language`` plus a string ``value`` -- a non-empty value is
+    wrapped in a fenced code block so signatures render as code, and the
+    fence tag is only used when the language is a plain safe token) or a
     ``MarkupContent`` (the string ``value`` is returned as-is).  Lists are
     normalized element-wise and non-empty parts are joined with a blank
     line.  Every other shape -- ``None``, numbers, booleans, unexpected
@@ -89,8 +96,17 @@ def _hover_part(value: object) -> str:
                 cast(dict[str, object], value),
             )
             return ""
+        if not raw_value.strip():
+            # An empty MarkedString must not produce a bare code fence:
+            # that would render as an empty box instead of "no hover".
+            log.debug("discarding hover part with empty value")
+            return ""
         language = payload.get("language")
-        if isinstance(language, str) and language:
+        if (
+            isinstance(language, str)
+            and language
+            and _LANGUAGE_TAG_RE.fullmatch(language)
+        ):
             return f"```{language}\n{raw_value}\n```"
         return raw_value
     if isinstance(value, list):

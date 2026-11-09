@@ -143,6 +143,14 @@ def test_show_clamps_x_when_card_would_overflow_right_edge() -> None:
     assert x >= 0
 
 
+def test_show_clamps_y_with_negative_anchor_row() -> None:
+    """A negative anchor row never pushes the card above the editor top."""
+    popup = _popup()
+    popup.show("alpha docs", (5, -3), (80, 24), 2, origin_y=2)
+    _x, y = _origin(popup)
+    assert y >= 2
+
+
 def test_long_text_caps_card_height() -> None:
     """Many rows never grow the card past MAX_ROWS (+ border rows)."""
     popup = _popup()

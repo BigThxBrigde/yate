@@ -52,6 +52,10 @@ class _FakeLsp:
     def supports(self, doc: Document) -> bool:
         return self._supports
 
+    def set_supports(self, value: bool) -> None:
+        """Toggle the ``supports`` gate from tests (guard scenarios)."""
+        self._supports = value
+
     async def request_hover(self, doc: Document, row: int, col: int) -> str:
         self.calls += 1
         if self.gate is not None:
@@ -492,5 +496,54 @@ def test_card_geometry_falls_back_when_view_size_is_zero(
         flows.request_at_cursor()
         assert await wait_until(lambda: len(popup.shows) == 1)
         assert popup.shows[0][2] == (80, 20)
+
+    asyncio.run(scenario())
+
+
+def test_mouse_move_to_new_position_drops_inflight_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reply settling after the pointer moved never shows.
+
+    The default debounce stays in place (not patched to 0): the first
+    request is in flight inside the debounce window when the pointer
+    moves, so the fix must invalidate it immediately, not only when the
+    debounce timer fires and spawns the next worker.
+    """
+    monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.35)
+
+    async def scenario() -> None:
+        lsp = _FakeLsp(reply=_DOCS)
+        lsp.gate = asyncio.Event()
+        popup = _FakePopup()
+        flows = _make_flows(lsp, _session(), popup)
+        flows.on_mouse_move((0, 2))
+        assert await wait_until(lambda: lsp.calls == 1)
+        flows.on_mouse_move((1, 0))
+        lsp.gate.set()
+        await wait_until(lambda: False, timeout=0.05)
+        assert popup.shows == []
+
+    asyncio.run(scenario())
+
+
+def test_guard_triggered_mid_request_drops_inflight_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A guard firing while a request is in flight invalidates it."""
+    monkeypatch.setattr(hover_flows, "HOVER_DEBOUNCE_S", 0.0)
+
+    async def scenario() -> None:
+        lsp = _FakeLsp(reply=_DOCS)
+        lsp.gate = asyncio.Event()
+        popup = _FakePopup()
+        flows = _make_flows(lsp, _session(), popup)
+        flows.request_at_cursor()
+        assert await wait_until(lambda: lsp.calls == 1)
+        lsp.set_supports(False)
+        flows.request_at_cursor()
+        lsp.gate.set()
+        await wait_until(lambda: False, timeout=0.05)
+        assert popup.shows == []
 
     asyncio.run(scenario())

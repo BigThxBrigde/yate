@@ -75,17 +75,26 @@ class HoverFlows:
         """Debounced hover entry point driven by :class:`MouseFlows`.
 
         ``None`` means the pointer left the text area, the gate turned off
-        or a drag started: dismiss outright.  A new position closes any
-        visible card immediately (a stale card must not sit there while
-        the new debounce runs) and rearms the single debounce timer; the
-        same position while a card is visible is a no-op (no flicker).
+        or a drag started: dismiss outright.  A position change also
+        invalidates in-flight results immediately, not only when the
+        debounce fires (the token moves before the old worker can settle
+        inside the debounce window).  A new position closes any visible
+        card immediately (a stale card must not sit there while the new
+        debounce runs) and rearms the single debounce timer; the same
+        position while a card is visible is a no-op (no flicker).
         """
         if pos is None:
             self.dismiss()
             return
         if self._target == pos and self._popup.is_open:
             return
-        if self._target != pos and self._popup.is_open:
+        if self._target != pos:
+            # Snapshot the new target and bump the token right away: an
+            # in-flight reply for the old position must not pass _stale()
+            # while the debounce timer for the new one is still armed.
+            self._token += 1
+            self._target = pos
+        if self._popup.is_open:
             # No stale card while the new debounce runs; a card that is
             # already closed is left untouched (no spurious close/flash).
             self._popup.close()
@@ -122,15 +131,16 @@ class HoverFlows:
     def _schedule(self, doc: Document, pos: Pos, source: str) -> None:
         """Guard, snapshot the staleness state and spawn the worker.
 
-        Guards return silently (never closing a card without a real
-        result): a modal screen blocks the request outright, and a missing
-        server only closes the card when one is actually visible.
+        Guards dismiss (never leave a stale result able to drive the
+        popup): a modal screen or a missing server both invalidate any
+        in-flight result via :meth:`dismiss` -- idempotent, and it only
+        closes a card that is actually visible, so nothing flashes.
         """
         if self._has_modal_screen():
+            self.dismiss()
             return
         if not self._lsp.supports(doc):
-            if self._popup.is_open:
-                self._popup.close()
+            self.dismiss()
             return
         timer = self._timer
         if timer is not None:

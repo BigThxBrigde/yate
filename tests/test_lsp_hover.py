@@ -207,6 +207,21 @@ def test_request_hover_with_unopened_document_returns_empty(
     asyncio.run(scenario())
 
 
+def test_request_hover_with_mismatched_client_key_returns_empty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An open URI recorded under another client key hovers nobody."""
+    _block_spawns(monkeypatch)
+    h = _Harness(tmp_path)
+    h.mgr._open[h.mgr._uri(h.doc)].client_key = ("other", "elsewhere")
+
+    async def scenario() -> None:
+        assert await h.mgr.request_hover(h.doc, 0, 0) == ""
+        assert h.client.calls == []
+
+    asyncio.run(scenario())
+
+
 def test_request_hover_does_not_flush_didChange(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

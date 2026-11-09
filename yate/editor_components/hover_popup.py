@@ -105,7 +105,7 @@ class HoverPopup(VerticalScroll):
         top_limit = origin_y + inner_size[1]
         below = origin_y + anchor[1] + 1
         if below + box_h <= top_limit:
-            y = below
+            y = max(origin_y, below)  # a negative anchor row stays inside
         else:
             y = max(origin_y, origin_y + anchor[1] - box_h + 1)
 

@@ -262,7 +262,10 @@ class LspManager:
         Read-only counterpart of :meth:`ensure_client`: it looks the client up
         in ``self._clients`` and returns it only when its state is
         :attr:`ServerState.READY` and the document URI already has a live
-        didOpen.  Any other situation yields ``None`` -- the caller degrades
+        didOpen.  The open state must also belong to this very client
+        (its ``client_key`` must match): after a workspace root or config
+        replacement an old URI could otherwise hover against the wrong
+        server.  Any other situation yields ``None`` -- the caller degrades
         to "no hover" instead of spawning a server or opening the document.
         """
         if doc.path is None:
@@ -275,7 +278,8 @@ class LspManager:
         client = self._clients.get(key)
         if client is None or client.state is not ServerState.READY:
             return None
-        if not self.is_open(doc):
+        state = self._open.get(self._uri(doc))
+        if state is None or state.client_key != key:
             return None
         return client
 
@@ -665,7 +669,7 @@ class LspManager:
         cursor_line = (
             doc.buffer.lines[row] if row < doc.buffer.line_count else ""
         )
-        params: dict[str, Any] = {
+        params: dict[str, Any] = {  # noqa: Any - LSP wire payload, untyped server data
             "textDocument": {"uri": uri},
             "position": {"line": row, "character": _to_utf16(cursor_line, col)},
         }
