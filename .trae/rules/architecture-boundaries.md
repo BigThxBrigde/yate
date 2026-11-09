@@ -347,7 +347,14 @@ flowchart TD
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，multi-dim-review 波
      2026-10-31 复测 841 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
+     `editor_lsp/manager.py`（2026-11-09 lsp-hover-docs wave-2 登记 875 行
+     （`splitlines()` 守卫口径；基线 797 行）：server 生命周期 / 文档同步 /
+     补全 / 诊断 / hover 请求编排同属 LSP 请求编排单一职责，plan-d 新增
+     78 行后越线；迁出新模块会破坏 manager 对 `_clients` / `_open` 的封装，
+     故按本节「单一职责长文件可登记豁免」登记，并与
+     `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
+     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -369,7 +376,9 @@ flowchart TD
      `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
      按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
      `editor_lsp/manager.py`（2026-10-08 big-module-split f 波：线格式解析
-     迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值）；
+     迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值；
+     2026-11-09 lsp-hover-docs wave-2 因新增 hover 请求封装复测 875 行，
+     按单一职责重新登记豁免，见上方正式名单）；
      `yaterc.py`（2026-10-08 big-module-split f 波：选项提取/校验迁入
      `yaterc_options.py`，rc 发现与 exec 循环留在原文件，两文件均低于阈值）；
      `services/extensions.py`（2026-10-11 extensions-split：798 行临阈值
