@@ -336,7 +336,7 @@ def test_tab_cycles_multiple_command_matches() -> None:
             assert inp is not None
             matches = cmdline_completions(
                 "w", "command", commands=app.editor.commands,
-                session=app.editor.session, workspace=app.editor.workspace,
+                workspace=app.editor.workspace,
             )
             assert len(matches) > 1
             # first tab: two-phase completion lists the candidates and the
@@ -474,7 +474,6 @@ def test_tab_completions_for_filetype() -> None:
             def completions(text: str, mode: str) -> list[str]:
                 return cmdline_completions(
                     text, mode, commands=app.editor.commands,
-                    session=app.editor.session,
                     workspace=app.editor.workspace,
                 )
 

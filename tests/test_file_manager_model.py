@@ -114,7 +114,7 @@ def test_build_row_text_marks_icon_and_size_columns(tmp_path: Path) -> None:
     f = tmp_path / "a.py"
     dir_row = build_row_text(
         Entry(d, "sub", True), None, accent, False,
-        dir_child_count=None, sort_key="name",
+        dir_child_count=None,
     )
     assert dir_row.plain == f"{icon_for_path('sub', True)} sub"
     assert dir_row.spans[0].style == accent
@@ -122,7 +122,7 @@ def test_build_row_text_marks_icon_and_size_columns(tmp_path: Path) -> None:
 
     file_row = build_row_text(
         Entry(f, "a.py", False), _stat(f, size=4096), accent, False,
-        dir_child_count=None, sort_key="name",
+        dir_child_count=None,
     )
     assert file_row.plain == f"{icon_for_path('a.py', False)} a.py {human_size(4096).rjust(6)}"
     assert file_row.plain[-6:] == human_size(4096).rjust(6)
@@ -130,7 +130,7 @@ def test_build_row_text_marks_icon_and_size_columns(tmp_path: Path) -> None:
 
     marked_row = build_row_text(
         Entry(f, "a.py", False), _stat(f, size=1), accent, True,
-        dir_child_count=None, sort_key="name",
+        dir_child_count=None,
     )
     assert marked_row.plain.startswith("* ")
 
@@ -139,7 +139,7 @@ def test_build_row_text_uses_injected_icon_palette(tmp_path: Path) -> None:
     palette = {**SETI_COLORS, "blue": "#abcdef"}
     row = build_row_text(
         Entry(tmp_path / "a.py", "a.py", False), None, "#ff0000", False,
-        dir_child_count=None, sort_key="name", icon_palette=palette,
+        dir_child_count=None, icon_palette=palette,
     )
     assert row.spans[0].style == "#abcdef"
 
@@ -177,7 +177,7 @@ def test_build_row_text_dir_badge_counts_children(tmp_path: Path) -> None:
         (d / f"f{i}.txt").write_text("", encoding="utf-8")
     row = build_row_text(
         Entry(d, "sub", True), None, accent, False,
-        dir_child_count=count_children(d), sort_key="name",
+        dir_child_count=count_children(d),
     )
     assert "(3)" in row.plain
     assert "(999+" not in row.plain
@@ -189,13 +189,13 @@ def test_build_row_text_dir_badge_counts_children(tmp_path: Path) -> None:
     assert count_children(big) == 1000
     capped_row = build_row_text(
         Entry(big, "big", True), None, accent, False,
-        dir_child_count=count_children(big), sort_key="name",
+        dir_child_count=count_children(big),
     )
     assert "(999+)" in capped_row.plain
 
     omitted = build_row_text(
         Entry(d, "sub", True), None, accent, False,
-        dir_child_count=None, sort_key="name",
+        dir_child_count=None,
     )
     assert "(" not in omitted.plain
 

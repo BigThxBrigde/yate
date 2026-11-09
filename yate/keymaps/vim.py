@@ -495,7 +495,7 @@ class VimKeymap(Keymap):
             return True
         if len(key) == 1 and key.isprintable():
             # same auto-complete / skip / wrap path as the modeless fallback
-            buf.type_char(key, language=ctx.doc.filetype)
+            buf.type_char(key)
             return True
         return True
 

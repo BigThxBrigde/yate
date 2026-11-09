@@ -24,11 +24,9 @@ from yate.commands import (
     _make_theme_completer,
     _manual_completer,
 )
-from yate.config import YateConfig
 from yate.editor_components import theme
 from yate.registries import CommandRegistry
 from yate.services.workspace import Workspace
-from yate.session import EditorSession
 
 
 class _EditorStub:
@@ -73,7 +71,6 @@ def _prompt(text: str, mode: str = "command", root: Path | None = None) -> list[
         text,
         mode,
         commands=_commands(workspace),
-        session=EditorSession(YateConfig()),
         workspace=workspace,
     )
 
@@ -141,7 +138,7 @@ def test_command_completions_uses_registered_arg_completer() -> None:
     workspace = Workspace()
     assert cmdline_completions(
         "demo pre", "command", commands=registry,
-        session=EditorSession(YateConfig()), workspace=workspace,
+        workspace=workspace,
     ) == ["demo prev"]
 
 
@@ -152,7 +149,7 @@ def test_command_completions_returns_empty_when_no_arg_completer() -> None:
     workspace = Workspace()
     assert cmdline_completions(
         "plain foo", "command", commands=registry,
-        session=EditorSession(YateConfig()), workspace=workspace,
+        workspace=workspace,
     ) == []
 
 

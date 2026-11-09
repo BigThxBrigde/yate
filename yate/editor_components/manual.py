@@ -439,7 +439,7 @@ class MarkdownDocScreen(ModalScreen[None]):
         self._pending_query = None
         theme.detach(self)
 
-    def on_resize(self, event: events.Resize) -> None:
+    def on_resize(self) -> None:
         """Re-render when the body width changes (rows are pre-wrapped)."""
         self._schedule_rerender()
 

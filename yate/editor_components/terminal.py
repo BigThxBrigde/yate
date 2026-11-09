@@ -21,7 +21,6 @@ from textual.events import (
     MouseScrollDown,
     MouseScrollUp,
     Paste,
-    Resize,
 )
 from textual.strip import Strip
 from textual.widget import Widget
@@ -263,7 +262,7 @@ class TerminalView(Widget):
         height = int(self.size.height) if self.size.height else 24
         return max(1, width), max(1, height)
 
-    def on_resize(self, _event: Resize) -> None:
+    def on_resize(self) -> None:
         """Resize the emulator and PTY to the new grid size."""
         cols, rows = self._grid_size()
         if (cols, rows) == (self.emulator.cols, self.emulator.rows):

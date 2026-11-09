@@ -181,7 +181,6 @@ def build_row_text(
     marked: bool,
     *,
     dir_child_count: int | None,
-    sort_key: SortKey,
     icon_palette: IconPalette | None = None,
 ) -> Text:
     """Render one list row as a span-colored rich text.
@@ -197,8 +196,7 @@ def build_row_text(
     *dir_child_count* is ``None`` or negative, which is how a failed
     :func:`count_children` reports); files show :func:`human_size`
     right-aligned in a 6-character column (nothing for directories or a
-    missing *stat*).  *sort_key* is reserved for a later sort-column
-    indicator and does not affect the rendering.
+    missing *stat*).
     """
     text = Text()
     if marked:

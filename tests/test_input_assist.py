@@ -978,7 +978,7 @@ def test_typing_stays_within_the_average_keystroke_budget() -> None:
 
     start = time.perf_counter()
     for _ in range(KEYSTROKES):
-        buf.type_char("a", language="py")
+        buf.type_char("a")
     average_ms = (time.perf_counter() - start) * 1000.0 / KEYSTROKES
 
     assert average_ms < AVERAGE_KEYSTROKE_BUDGET_MS, (

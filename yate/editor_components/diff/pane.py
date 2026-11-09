@@ -23,7 +23,7 @@ from typing import Any, override
 from rich.segment import Segment
 from rich.style import Style
 from textual.color import Color
-from textual.events import Key, Resize
+from textual.events import Key
 from textual.geometry import Size
 from textual.message import Message
 from textual.scroll_view import ScrollView
@@ -279,7 +279,7 @@ class DiffPane(ScrollView):
         width = self.size.width or 80
         self.virtual_size = Size(width, max(1, buf.line_count))
 
-    def on_resize(self, _event: Resize) -> None:
+    def on_resize(self) -> None:
         """Recompute the virtual (scrollable) size when the widget resizes."""
         self._update_virtual_size()
 

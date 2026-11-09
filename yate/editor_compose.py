@@ -128,7 +128,6 @@ def _build_widgets(ed: yate.editor.Editor) -> None:
         partial(
             cmdline_completions,
             commands=ed.commands,
-            session=ed.session,
             workspace=ed.workspace,
         ),
         cancel_hook=ed.cancel_prompt,

@@ -538,9 +538,6 @@ def test_grid_snapshot_invalidates_after_resize(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A grid resize drops the cached snapshot (new geometry, new rows)."""
-    from textual.events import Resize
-    from textual.geometry import Size
-
     view, calls, counting = _snapshot_view()
     view.emulator = TerminalEmulator(40, 10)
     view.emulator.feed(b"alpha\r\nbeta")
@@ -549,7 +546,7 @@ def test_grid_snapshot_invalidates_after_resize(
     assert len(calls) == 1
     # Unmounted widget: the 80x24 fallback size applies, differing from
     # the 40x10 emulator, so on_resize actually resizes the grid.
-    view.on_resize(Resize(Size(80, 24), Size(80, 24)))
+    view.on_resize()
     view.render_line(0)
     assert len(calls) == 2
     assert (view.emulator.cols, view.emulator.rows) == (80, 24)

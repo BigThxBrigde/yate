@@ -853,7 +853,7 @@ class TextBuffer:
         self.anchor = None
         self._commit("step")
 
-    def type_char(self, ch: str, *, language: str = "plaintext") -> None:
+    def type_char(self, ch: str) -> None:
         """Insert a typed character, auto-completing and skipping bracket pairs.
 
         This is the single entry point the keymaps use for printable keys, so
@@ -869,12 +869,6 @@ class TextBuffer:
         Both halves of an auto-completed pair land in one undo step
         (``"char"`` kind), so a single Ctrl+Z never leaves an orphan bracket
         behind.
-
-        *language* is the seam that keeps the feature extensible per language:
-        the keymaps pass :attr:`~yate.session.Document.filetype` straight
-        through, and V1 reads it not at all because one pair table serves
-        every language.  Should pairs ever diverge (Python quote handling, say),
-        dispatch on the value right here -- no keymap change needed.
         """
         if self.locked:
             return

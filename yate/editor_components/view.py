@@ -9,13 +9,11 @@ from rich.segment import Segment
 from rich.style import Style
 from textual.events import (
     Click,
-    Focus,
     Key,
     MouseDown,
     MouseMove,
     MouseEvent,
     MouseUp,
-    Resize,
 )
 from textual.geometry import Size
 from textual.scroll_view import ScrollView
@@ -174,7 +172,7 @@ class EditorView(ScrollView, HighlightMixin):
             return None
         return (min(anchor, cursor), max(anchor, cursor))
 
-    def on_focus(self, _event: Focus) -> None:
+    def on_focus(self) -> None:
         """Report pane activation to the pane manager."""
         self.panes.notify_focus(self.leaf_id)
 
@@ -236,7 +234,7 @@ class EditorView(ScrollView, HighlightMixin):
         width = self.scrollable_content_region.width or self.size.width or 80
         self.virtual_size = Size(width, max(1, buf.line_count))
 
-    def on_resize(self, _event: Resize) -> None:
+    def on_resize(self) -> None:
         """Recompute the virtual (scrollable) size when the widget resizes."""
         self._update_virtual_size()
 
