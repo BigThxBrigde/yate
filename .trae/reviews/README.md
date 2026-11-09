@@ -175,6 +175,24 @@ changelog 0 / diffcheck 双 0。3 名只读审查员并行 spawn 零产出（`co
 按 `subagent-workflow.md` §五.4 由主代理按 skill 亲自执行并如实登记。评审记录
 [2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md](2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md)，
 主计划 [iktr5q-pr-review-plan.md](../documents/iktr5q-pr-review-plan.md)。
+**2026-11-09 IKTPC2 首轮增量**：新增 #70（`feature/feat-lsp-hover-docs`
+首轮 `code-review-expert` 评审，范围 `master..HEAD` / 15 提交 / 52 文件；
+**REQUEST_CHANGES**：1 BLOCKER（`hover` 冒烟 tag 未登记 → 全量 pytest exit 1）/
+3 MAJOR（基线过期致 v0.2.18 回退、`HoverFlows` 公共属性、空结果 close 语义不对称）/
+4 MINOR）。AC1-AC8 逐条核对均 PASS（含 `<f7>` 替代 `<ctrl-k>` 的 `\x0b` 同码证据、
+AC5 四项快照零 UI 输出、AC6 `_block_spawns` 硬证不启动 server）。修复轮全部销账：
+TAGS 登记、`git merge master` 同步基线（15 笔提交未改写）、四协作者私有化、
+`_worker` 空结果守卫对称 + 三个 silent 断言收紧为 `closes == 0`。评审记录
+[2026-11-09-lsp-hover-docs-code-review.md](2026-11-09-lsp-hover-docs-code-review.md)，
+主计划 [lsp-hover-docs-plan.md](../documents/lsp-hover-docs-plan.md)。
+**2026-11-09 IKTPC2 复审增量**：新增 #71（迭代后复审，7 项核验全 PASS；
+**APPROVE**：0 BLOCKER / 0 MAJOR / 2 新 MINOR + 3 存量待办）。五道门禁全绿：
+pyright 0 / 全量 pytest exit 0 / 架构 38 / 覆盖率 93.03% / 冒烟 123/123·1493 checks。
+另记录两项真实 flake 的根因修复（每键 `dismiss()` 重绘致 `stress_rapid_toggles`
+收敛超时；嵌套 `subprocess.run(pytest)` 与 pytest-cov/xdist 冲突改进程内 R15 守卫）
+与一项存量并行时序风险（`vim_advanced.py` 的 `escape` 后单次 `pause`，
+`--jobs 1` 复核通过、与本分支无因果，另案登记）。复审记录
+[2026-11-09-lsp-hover-docs-iteration-verification.md](2026-11-09-lsp-hover-docs-iteration-verification.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
