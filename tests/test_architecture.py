@@ -216,6 +216,11 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.view",
         "yate.editor_components.panes",
     },
+    "flows/hover_flows.py": {
+        "yate.editor_components",
+        "yate.editor_components.hover_popup",
+        "yate.editor_components.panes",
+    },
     "flows/lsp_sync.py": {
         "yate.editor_components",
         "yate.editor_components.commandline",
