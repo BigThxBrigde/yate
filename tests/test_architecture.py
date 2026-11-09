@@ -357,11 +357,16 @@ MAX_SOURCE_LINES: int = 800
 #: and dropped from this list.
 #: 2026-11-05 multi-dim-review r2: ``vim.py`` re-measured at 1531 splitlines;
 #: the other three entries are unchanged (963 / 1565 / 841).
+#: 2026-11-09 lsp-hover-docs wave-2: ``editor_lsp/manager.py`` registered at
+#: 875 splitlines; plan-d added hover-request packaging that still belongs to
+#: the LSP request orchestration single duty, and moving it out would break
+#: the manager's encapsulation of ``_clients`` / ``_open``.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
+    "editor_lsp/manager.py",
 })
 
 #: Code points a code comment or docstring must not carry (misc-rules
