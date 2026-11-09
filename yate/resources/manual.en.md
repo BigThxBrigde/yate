@@ -511,6 +511,7 @@ work on all terminals.
 |---|---|
 | `F1` | Key reference (help overlay) |
 | `F8` | Open the user manual (this manual, read-only; `/` or `Ctrl+F` searches inside it) |
+| `F7` | Show API documentation at cursor (LSP hover) |
 
 ### 5.2 vim keymap (modal)
 
@@ -587,6 +588,7 @@ selections and no bracket auto-completion while multi-cursor is active.
 | `n` / `N` | Next / previous match |
 | `Ctrl+H` | Find & replace in project |
 | `:` | ex command line (`:w` `:q` `:e` `:!` …) |
+| `F7` | Show API documentation at cursor (LSP hover) |
 
 **Panes and windows (`Ctrl+W` prefix in NORMAL mode; see 8.1)**
 
@@ -1365,6 +1367,19 @@ stdio, speaks JSON-RPC itself, and provides:
   diagnostic under the cursor is echoed on the message bar, and the status
   bar shows live counts. `:diagnostics` lists every diagnostic of the
   current file in an output screen.
+* **Hover documentation** -- `F7` (the same key under the vsc and vim keymaps,
+  no per-keymap default, no chord) shows the API docs card for the symbol at
+  the cursor. With `support_mouse` enabled, resting the pointer on a symbol
+  shows the same card after a short debounce; moving away, moving the cursor,
+  typing or `Esc` dismisses it. When there is no documentation -- no server
+  started / not ready, no server configured for the language, or a
+  failed/timed-out request -- **absolutely nothing is shown**: no card, no
+  "No documentation" placeholder, no message-bar/status-bar hint, no flash.
+  The card shows the signature and docstring returned by the server; it never
+  changes focus, never swallows other keys, and never starts a server or
+  changes synchronization. Hover is request-only (no `didOpen`/`didChange`);
+  extensions can rebind the key once for both keymaps with
+  `bind_key(..., keymap="both")`.
 
 Documents are synchronized whole-text on open / save / after a short idle
 debounce while typing. Servers start lazily when the first matching file is
@@ -1602,6 +1617,7 @@ vsc keymap (default):
 | `Ctrl+G` | Go to line (or `:42`) | `Ctrl+Home/End` | Document start / end |
 | `Ctrl+Space` | Trigger autocomplete | palette `diagnostics` | List LSP diagnostics |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
+| `F7` | Show API documentation | `F7` | Show API documentation |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·

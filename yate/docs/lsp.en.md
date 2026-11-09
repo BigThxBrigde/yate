@@ -18,6 +18,18 @@ Client capabilities:
   shows `✖`/`▲` and tints line numbers; the diagnostic on the cursor line is
   echoed in the message bar and the status bar shows counts. `:diagnostics`
   lists all diagnostics of the current file.
+- **Hover documentation**: `F7` (the same key under the vsc and vim keymaps,
+  no per-keymap default, no chord) shows the API docs card for the symbol at
+  the cursor. With `support_mouse` enabled, resting the pointer on a symbol
+  shows the same card after a short debounce; moving away, moving the cursor,
+  typing or `Esc` dismisses it. When there is no documentation — no server
+  started / not ready, no server configured for the language, or a
+  failed/timed-out request — **absolutely nothing is shown**: no card, no
+  "No documentation" placeholder, no message-bar/status-bar hint, no flash.
+  The card shows the signature and docstring returned by the server; it never
+  changes focus, never swallows other keys, and never starts a server or
+  changes synchronization. Extensions can rebind it once for both keymaps
+  with `bind_key(..., keymap="both")`.
 - **Buffer completion fallback**: when the current file has no usable language
   server, completion falls back to words collected from all open buffers (and
   completes file paths when the prefix contains `/` or `~`).
@@ -26,6 +38,10 @@ Documents synchronize whole-text: on open, on save, and after an idle debounce
 (0.25s) while typing. A server starts **lazily** when the first matching file
 opens, one process per (server × project root). The status bar shows server
 state: the server name when ready, `LSP…` while starting, `LSP ✖` on failure.
+
+Hover is request-only: pressing `F7` (or a mouse hover) sends a one-off
+`textDocument/hover` request; it never sends `didOpen`/`didChange`, never
+starts a server, and never changes synchronization.
 
 A buffer without a path has no document URI: no server starts for it and the
 status bar shows no LSP state, even when `:set filetype=` selects a configured
