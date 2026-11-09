@@ -23,6 +23,14 @@ Depends on: plan h (the app owns `hover_popup` / `hover` / `MouseFlows` callback
 
 - `tools/smoke_test/scenarios/hover.py` (new)
 - `tools/smoke_test/scenarios/__init__.py`
+- `tools/smoke_test/harness.py` — **post-review addition (registered
+  deviation)**: the first code review found the new `("hover",)` tag was absent
+  from `harness.TAGS`, so the two registry guards in `tests/test_smoke_harness.py`
+  failed the full pytest gate. One `"hover"` entry was added to `TAGS` at `:102`;
+  no other harness code changed. **Why:** every scenario tag must be declared or
+  `--tag` selection cannot reach it. **Evidence:** first-round review
+  `[blocker]`, independently reproduced by the main agent
+  (`pytest tests/ -q -n auto` exit 1, 2 failures, `assert ['hover'] == []`).
 
 ## Concrete changes
 

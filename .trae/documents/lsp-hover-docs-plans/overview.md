@@ -146,6 +146,12 @@ instruction; no execution started before these documents were written.
 
 Step-7 write-back obligation: plan h adds one architecture guard case
 (37 -> 38). The main agent must update the count and case table in
-`.trae/rules/architecture-boundaries.md` §六 with the measured number, and
+`../../rules/architecture-boundaries.md` §六 with the measured number, and
 fill real before/after numbers plus deviations into
 `../lsp-hover-docs-plan.md` §10 before the final commit.
+
+**Completed 2026-11-09:** §六 count/table now says 38 with the new case
+`test_hover_key_is_shared_and_identical`; real gate numbers, the two review
+rounds and all ten registered deviations are in `../lsp-hover-docs-plan.md`
+§10; the two review records are archived in `../../reviews/` and indexed as
+#70 / #71. Final verdict after iteration: **APPROVE** (0 blocker / 0 major).
