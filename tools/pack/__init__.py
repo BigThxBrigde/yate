@@ -2,6 +2,8 @@
 
 Complements the PyInstaller specs in ``pack/``: everything that has to be
 generated *before* a build lives here, so ``pack/`` stays a pure spec folder.
+Post-build helpers (the --dist zip archive) live here too, so both platform
+build scripts call one implementation.
 
 Entry point: ``python -m tools.pack --help``.  ``wiki`` is build-adjacent
 publishing rather than pre-build generation: it regenerates the bilingual
