@@ -9,8 +9,7 @@ theme snapshots -- no real sleeps.
 from __future__ import annotations
 
 import asyncio
-import subprocess
-import sys
+import importlib.util
 from pathlib import Path
 from typing import Callable, cast, override
 
@@ -279,17 +278,22 @@ def test_unmount_detaches_theme_listener(
 
 
 def test_architecture_scrollbar_pair_guard_covers_new_widget() -> None:
-    """The architecture suite's R15 scan passes with the new widget present."""
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "tests/test_architecture.py::test_scrollable_widgets_apply_theme_scrollbar_pair",
-            "-q",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
+    """The architecture suite's R15 scan passes with the new widget present.
+
+    Loads ``tests/test_architecture.py`` in-process and runs its
+    ``test_scrollable_widgets_apply_theme_scrollbar_pair`` guard directly --
+    no nested pytest subprocess (which interferes with pytest-cov + xdist
+    in the outer run).
+    """
+    spec = importlib.util.spec_from_file_location(
+        "test_architecture_guard",
+        REPO_ROOT / "tests" / "test_architecture.py",
     )
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    guard = getattr(
+        module, "test_scrollable_widgets_apply_theme_scrollbar_pair"
+    )
+    cast(Callable[[], None], guard)()
