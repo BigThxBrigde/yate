@@ -454,9 +454,11 @@ flowchart TD
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **37 个用例**（2026-10-24 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `37 passed`，新增 R15 可滚动组件
-滚动条接线守卫一条；2026-10-21 为 36，2026-10-18 为 35：
+`tests/test_architecture.py` 已落地 **38 个用例**（2026-11-09 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `38 passed`；本次 IKTPC2
+新增统一 hover 键位漂移守卫 `test_hover_key_is_shared_and_identical` 一条；
+2026-10-24 为 37（新增 R15 可滚动组件滚动条接线守卫一条）；
+2026-10-21 为 36，2026-10-18 为 35：
 新增非 ASCII 注释 / `print()` 调试 / 本机家目录路径守卫三条，此前 2026-10-17 为 32；
 用例清单见文末对照）：
 
@@ -572,8 +574,8 @@ flowchart TD
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**37 个用例逐条对照**（2026-10-24 实测 `37 passed`；2026-10-21 为 `36 passed`，
-2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
+**38 个用例逐条对照**（2026-11-09 实测 `38 passed`；2026-10-24 为 `37 passed`，
+2026-10-21 为 `36 passed`，2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -614,6 +616,7 @@ flowchart TD
 | 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 | 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_components/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
+| 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
