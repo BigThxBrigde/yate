@@ -196,3 +196,31 @@ sequenceDiagram
 - `plan-architect-designer`：本会话以 `.trae/agents/plan-architect-designer.md` spawn 三次均失败（`Model "qwen-3.7-plus" not found`，含按 `task-orchestration.md` §一.3 表格模型的重试）。按 §三 兜底：**主代理亲自按该角色剧本完成调研与方案**，标注「子代理零产出」，未修改角色定义文件、未造派生副本。
 - `code-explorer`（内置只读探索）：成功，产出 `文件:行号` 级证据（98 次工具调用，报告落盘于工具结果缓存），本文件 §二事实清单已交叉复核。
 - 后续 `plan-executor` / `code-review-expert` 的存活与产出在收尾按 `subagent-workflow.md` §五.6/§五.7 如实登记。
+- 收尾实测登记：`plan-executor` 共 spawn 7 次（wave-1 ×2、wave-2 ×1、wave-3 ×2、迭代 F1/F2 ×2）**全部存活并交付落盘产物**；`code-review-expert` 2 次（首轮 REQUEST_CHANGES / 第二轮 APPROVE）**全部存活并交付**；每份自述结果均由主代理重跑其名下命令独立复核（详见 §十 / §十二）。无半途判死、无成员零产出（除上述规划角色）。内置 `code-explorer` 只读调研成功。
+
+## 十二、最终收尾回填（第二轮评审后）
+
+### 12.1 评审与迭代结论
+
+- 首轮 `REQUEST_CHANGES`：0 BLOCKER / 1 MAJOR（M-1 计划回填缺失）/ 3 MINOR；修复波 F1 + F2 三笔提交闭环（记录见 [2026-11-10-which-key-auto-trigger-code-review.md](../reviews/2026-11-10-which-key-auto-trigger-code-review.md) 与 [which-key-auto-trigger-review-fixes-plan.md](which-key-auto-trigger-review-fixes-plan.md)）。
+- 第二轮 `code-review-expert` 复审 **APPROVE：0 BLOCKER / 0 MAJOR / 2 MINOR**，七项强制核验逐条 PASS（含 m-3 负向演练：误清面板令 3 条用例判红），四行矩阵与 7 条验收标准零回归；记录见 [2026-11-10-which-key-auto-trigger-iteration-verification.md](../reviews/2026-11-10-which-key-auto-trigger-iteration-verification.md)，索引 #74。
+- 2 项新 MINOR 当轮修复：删除双语导语重复段（en `which-key.en.md` 原 `:12-16` / zh 对应段）；`tests/test_whichkey_flows.py` 残留弱断言收紧为 `panel.clears == clears_before + 1`。局部复核 pyright 0 / pytest 0 / 双语关键词 `missing: []` / diffcheck 0。
+
+### 12.2 主代理亲跑全量门禁（修复后，退出码权威）
+
+| 命令 | 实测结果 | 退出码 |
+| --- | --- | --- |
+| `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | 全 `[100%]`，无 F/E | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | `38 passed` | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75 -n auto` | `TOTAL 19838 1103 6326 580 93%`；`Total coverage: 92.96%`；`3610 passed, 10 skipped` | 0 |
+| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | `124/124 scenarios` / `1511/1511 checks (100%)` | 0 |
+| `.venv\Scripts\python.exe -m tools.changelog check` | `released changelog sections are up to date`（`[Unreleased]` 滞后为生成器机制，CI 只校验 released） | 0 |
+| `git diff --check master..HEAD` / `git diff --check` | 无空白问题 | 0 / 0 |
+
+覆盖率三轮时点差异如实登记：首轮 93.03% → 复审 93.07% → 终轮 92.96%（并行覆盖率正常波动 + minor 删行），均 ≥75 门槛；新增代码行零未覆盖。无并行 flake 需 `-n 1` / `--jobs 1` 复核；`-n 1` 局部复核已通过。
+
+### 12.3 提交清单与状态
+
+- 前 10 笔：`525f8bfb` / `93804924` / `11bdd77b` / `6e387a28` / `dde0211b` / `f5321975` / `d52dfd11` / `d5a92536` / `482221e0` / `3050d7f8`；收尾 3 笔按 scope 依次为 `fix(which-key)`（2 项新 MINOR）/ `docs(review)`（第二轮记录 + 索引 #74）/ `docs(plan)`（本节回填，本笔）。
+- 基线 `master` `18e96d2a`（与 `origin/master` 同步），worktree `yate-which-key-auto-trigger` 独立 `.venv` 已自证；**只提交、未推送、未合并**，工作树在收尾提交后干净；后续合并 / 推送由用户显式发起。

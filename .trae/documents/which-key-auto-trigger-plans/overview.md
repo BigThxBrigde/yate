@@ -109,3 +109,7 @@ flowchart LR
 ### 7.5 提交清单（7 笔，旧→新）
 
 `525f8bfb` docs(issue) / `93804924` docs(plan) / `11bdd77b` feat(config) / `6e387a28` docs(which-key) / `dde0211b` feat(whichkey) / `f5321975` test(which-key) / `d52dfd11` test(smoke)。评审记录 + 修复方案 + F1/F2 产物待主代理提交。最终全量门禁由主代理收尾执行。
+
+### 7.6 最终收尾（第二轮评审后）
+
+第二轮 `code-review-expert` 复审 **APPROVE：0 BLOCKER / 0 MAJOR / 2 MINOR**；七项强制核验逐条 PASS，首轮 M-1 与 m-1/m-2/m-3 全部闭环，m-3 负向演练证明断言非恒真。2 项新 MINOR（双语导语重复段 / 残留 `>` 弱断言）当轮修复。主代理亲跑最终七条门禁全 exit 0：pyright 0 / 全量 pytest `-n auto` 0 / 架构 38 / 覆盖率 92.96%（`3610 passed, 10 skipped`，`TOTAL 19838 1103 6326 580 93%`）/ 冒烟 124/124·1511/1511 / changelog 0 / diffcheck 双 0。覆盖率三轮时点差异（93.03% → 93.07% → 92.96%）为并行波动 + minor 删行，均 ≥75。迭代三笔 `d5a92536` / `482221e0` / `3050d7f8`，收尾三笔按 scope 为 `fix(which-key)` / `docs(review)` / `docs(plan)`；只提交、未推送、未合并，工作树收尾后干净。详见主计划 §十二与 [2026-11-10-which-key-auto-trigger-iteration-verification.md](../../reviews/2026-11-10-which-key-auto-trigger-iteration-verification.md)。

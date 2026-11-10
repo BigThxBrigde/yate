@@ -75,6 +75,29 @@ flowchart LR
 | minor 修复引入断言回归 | F2 四条验收命令 + 第二轮复审 | 回退 F2 对应文件 |
 | 第二轮评审零产出 | 按 `task-orchestration.md` §三 主代理兜底并如实标注；判死前给足窗口、查落盘产物 | 主代理按剧本自审并登记 |
 
-## 五、回填区
+## 五、回填区（F3 完成，2026-11-10）
 
-（F3 完成后由主代理填写：第二轮评审结论、六道门禁实测退出码与数字、修复波提交清单、工作树与推送状态。）
+### 5.1 第二轮复审结论
+
+`code-review-expert` 第二轮复审（范围 `master..HEAD` / 10 笔提交）**APPROVE：0 BLOCKER / 0 MAJOR / 2 MINOR**。首轮 M-1 与 m-1/m-2/m-3 全部闭环：主计划 §10 / 总纲 §7 占位符清零、五份子计划均有执行回填、两处偏离与「不重新设计」裁决附依据、README #73 索引完整；m-1 双语五分支、m-2 谓词注释拆分、m-3 两条等值断言，且负向演练（把 master-off 的 `toggle()` 改成错误清面板）令 3 条用例判红，证明断言非恒真。四行矩阵 / 钉住态 / `ctrl+w` / `:set` / 非 bool rc / vsc / 默认值零回归。记录见 [2026-11-10-which-key-auto-trigger-iteration-verification.md](../reviews/2026-11-10-which-key-auto-trigger-iteration-verification.md)（索引 #74）。
+
+2 项新 MINOR（双语导语重复段 N-1、残留 `>` 弱断言 N-2）由主代理**当轮修复**：删除 `which-key.en.md:12-16` / `which-key.zh.md:10-13` 前置重复段，`tests/test_whichkey_flows.py` 的 `panel.clears > clears_before` 收紧为 `== clears_before + 1`；局部复核 pyright 0 / pytest 0 / 双语关键词 `missing: []` / diffcheck 0。
+
+### 5.2 主代理收尾门禁（修复后亲跑，退出码权威）
+
+| 命令 | 实测结果 | 退出码 |
+| --- | --- | --- |
+| `pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations` | 0 |
+| `pytest tests/ -q -n auto` | 全 `[100%]`，无 F/E | 0 |
+| `pytest tests/test_architecture.py -q` | `38 passed` | 0 |
+| `pytest tests/ --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75 -n auto` | `TOTAL 19838 1103 6326 580 93%`；`Total coverage: 92.96%`；`3610 passed, 10 skipped` | 0 |
+| `tools.smoke_test run --jobs 4` | `124/124 scenarios` / `1511/1511 checks (100%)` | 0 |
+| `tools.changelog check` | `released changelog sections are up to date`（`[Unreleased]` 滞后属生成器机制） | 0 |
+| `git diff --check master..HEAD` / `git diff --check` | 均无空白问题 | 0 / 0 |
+
+覆盖率时点差异如实登记：首轮 93.03% → 复审 93.07% → 终轮 92.96%（并行覆盖率正常波动 + 两项 minor 删行），三轮均 ≥ 75 门槛，新增代码行零未覆盖。
+
+### 5.3 提交与状态
+
+- 迭代修复波三笔：`d5a92536` docs(review) / `482221e0` docs(plan) / `3050d7f8` fix(which-key)；收尾三笔按 scope 依次为 `fix(which-key)`（2 项新 MINOR）/ `docs(review)`（第二轮记录 + 索引 #74）/ `docs(plan)`（最终回填，本笔）。
+- 分支 `feature/enh-which-key-auto-trigger` 以同步的 `master` `18e96d2a` 为 parent；只提交、**未推送、未合并**；工作树在收尾提交后干净。
