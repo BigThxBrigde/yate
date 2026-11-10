@@ -15,6 +15,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
+import pytest
+
 from yate.editor_components.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import StateQuery
 from yate.flows.whichkey_flows import WhichKeyFlows, WindowChordHintsFn
@@ -394,3 +396,170 @@ def test_sheet_and_chord_labels_never_leak_control_bytes() -> None:
             assert entry.key.isprintable(), (name, entry.key)
     for label, _desc in WINDOW_CHORD_TABLE:
         assert label.isprintable(), label
+
+
+# --- which_key_auto gate (behavior matrix plan-d) ----------------------------
+
+
+@pytest.mark.parametrize(
+    "master,auto", [(True, True), (True, False), (False, True), (False, False)]
+)
+def test_behavior_matrix_of_master_and_auto_switches(master: bool, auto: bool) -> None:
+    """The four-row issue matrix: master off hides all, auto off hides
+    only the auto branches, toggle works in every master-on row."""
+    vim = VimKeymap()
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_enabled=lambda: master,
+        which_key_auto_enabled=lambda: auto,
+    )
+    flows.refresh()
+    shown_before = list(panel.shown)
+    clears_before = panel.clears
+    flows.toggle()
+    if (master, auto) == (True, True):
+        assert shown_before[-1][0] == "d"
+        assert len(shown_before[-1][1]) > 0
+        assert panel.shown[-1][0] == "vim"
+    elif (master, auto) == (True, False):
+        assert shown_before == []
+        assert clears_before == 1
+        assert panel.shown[-1][0] == "vim"
+        assert len(panel.shown[-1][1]) > 0
+    else:
+        assert shown_before == []
+        assert panel.shown == []
+        assert panel.clears >= clears_before
+
+
+def test_refresh_auto_disabled_hides_pending_candidates() -> None:
+    """With auto off an armed chord still pends but never auto-pops."""
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_auto_enabled=lambda: False,
+    )
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows.refresh()
+    assert vim.pending_prefix() == "d"
+    assert panel.shown == []
+    assert panel.clears == 1
+
+
+def test_refresh_auto_disabled_hides_ctrl_w_chord() -> None:
+    """The ctrl+w chord branch (not via refresh_ui) is gated too."""
+    flows, panel = _make_flows(
+        KeymapSet({"vim": VimKeymap()}, "vim"),
+        window_pending=lambda: True,
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.refresh()
+    assert panel.shown == []
+    assert panel.clears == 1
+
+
+def test_toggle_works_when_auto_disabled() -> None:
+    """The core requirement: the F9 manual toggle stays usable."""
+    flows, panel = _make_flows(
+        KeymapSet({"vim": VimKeymap()}, "vim"),
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.toggle()
+    assert panel.shown[-1][0] == "vim"
+    assert len(panel.shown[-1][1]) > 0
+    flows.toggle()
+    assert panel.last == "clear"
+    shown_count = len(panel.shown)
+    flows.refresh()
+    assert len(panel.shown) == shown_count
+
+
+def test_refresh_auto_disabled_preserves_pinned_sheet() -> None:
+    """While pinned the sheet outranks the auto gate and prefix state."""
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        window_pending=lambda: True,
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.toggle()
+    assert panel.shown[-1][0] == "vim"
+    clears_after_pin = panel.clears
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows.refresh()
+    assert panel.shown[-1][0] == "vim"
+    assert all(header not in ("d", "ctrl+w") for header, _ in panel.shown)
+    assert panel.clears == clears_after_pin
+
+
+def test_auto_reenabled_restores_candidates() -> None:
+    """Flipping the auto switch back on at runtime restores the popups."""
+    auto = [False]
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_auto_enabled=lambda: auto[0],
+    )
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "d") is True
+    flows.refresh()
+    assert panel.shown == []
+    auto[0] = True
+    flows.refresh()
+    assert panel.shown[-1][0] == "d"
+    assert "dd" in {e.key for e in panel.shown[-1][1]}
+
+
+def test_master_switch_off_wins_over_auto_disabled() -> None:
+    """With both switches off the master semantics are unchanged."""
+    flows, panel = _make_flows(
+        KeymapSet({"vim": VimKeymap()}, "vim"),
+        window_pending=lambda: True,
+        which_key_enabled=lambda: False,
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.refresh()
+    flows.toggle()
+    assert panel.shown == []
+    assert panel.clears >= 1
+
+
+def test_vsc_never_auto_pops_with_auto_disabled() -> None:
+    """The modeless vsc keymap is unaffected by the auto gate."""
+    flows, panel = _make_flows(
+        KeymapSet({"vsc": VscKeymap()}, "vsc"),
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.refresh()
+    assert panel.shown == []
+    flows.toggle()
+    assert panel.shown[-1][0] == "vsc"
+    flows.toggle()
+    assert panel.last == "clear"
+
+
+def test_hide_after_manual_unpin_does_not_auto_pop() -> None:
+    """After unpinning, typed prefixes never re-trigger the auto popup."""
+    vim = VimKeymap()
+    flows, panel = _make_flows(
+        KeymapSet({"vim": vim}, "vim"),
+        which_key_auto_enabled=lambda: False,
+    )
+    flows.toggle()
+    flows.toggle()
+    ctx = make_action_context()
+    assert vim.handle_key(ctx, "g") is True
+    # shown is an append-only history in the recorder (clear() never empties
+    # it), so the pinned sheet from the first toggle stays listed; the
+    # contract is "no NEW show and one clear", not an empty history.
+    shown_count = len(panel.shown)
+    clears_before = panel.clears
+    flows.refresh()
+    assert len(panel.shown) == shown_count
+    assert panel.clears > clears_before
+    assert panel.last == "clear"
+    assert vim.pending_prefix() == "g"

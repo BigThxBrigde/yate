@@ -267,6 +267,36 @@ def test_which_key_rejects_non_bool_keeps_default(tmp_path: Path) -> None:
     )
 
 
+# --- which_key_auto option --------------------------------------------------
+
+
+def test_which_key_auto_defaults_true() -> None:
+    """The auto-trigger gate defaults to True (existing behavior)."""
+    assert cfg.YateConfig().which_key_auto is True
+
+
+def test_which_key_auto_rc_value_applied(tmp_path: Path) -> None:
+    """A boolean rc value flips the auto gate without touching the master."""
+    config = _load("which_key_auto = False\n", tmp_path)
+    assert config.which_key_auto is False
+    assert config.errors == []
+    assert config.which_key is True
+
+
+def test_which_key_auto_rejects_non_bool_keeps_default(tmp_path: Path) -> None:
+    """A non-boolean value reports an error and keeps the default."""
+    config = _load('which_key_auto = "yes"\n', tmp_path)
+    assert config.which_key_auto is True
+    assert any(
+        "which_key_auto must be True or False" in e for e in config.errors
+    )
+
+
+def test_known_options_lists_which_key_auto() -> None:
+    """The rc whitelist knows ``which_key_auto`` (loader guard)."""
+    assert "which_key_auto" in cfg.KNOWN_OPTIONS
+
+
 # --- trace options -----------------------------------------------------------
 
 
