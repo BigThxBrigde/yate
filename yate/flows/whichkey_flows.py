@@ -3,12 +3,17 @@
 The editor constructs this module with the active :class:`KeymapSet`, a
 read-only probe of the vim ``ctrl+w`` chord state, a source of canonical
 ``ctrl+w`` chord rows (single-sourced in :mod:`yate.flows.window_flows`),
-the which-key panel, the message line and a master-switch predicate over
-the yaterc ``which_key`` option.  :meth:`WhichKeyFlows.refresh` recomputes
+the which-key panel, the message line and two constructor-injected
+predicates: the ``which_key`` master switch and the ``which_key_auto``
+auto-trigger switch.  :meth:`WhichKeyFlows.refresh` recomputes
 the panel after every dispatch: pinned full sheet, ``ctrl+w`` chord,
-pending-chord candidates, otherwise hidden.  The master-switch predicate is
-read on every entry (so a mid-session ``:set which_key=off`` takes effect on
-the next refresh) and short-circuits all four branches.  No rendering here
+pending-chord candidates, otherwise hidden.  Both predicates are read on
+every entry (so a mid-session ``:set`` takes effect on the next refresh);
+the master switch short-circuits all branches, while the auto gate sits
+after the pinned branch, so pinning is unaffected by the auto switch and
+``toggle()`` is constrained by the master switch alone.  The ``ctrl+w``
+``on_chord_change`` notification and the per-key ``refresh_ui`` path share
+this single decision point.  No rendering here
 (the panel owns that) and no App handle (capability injection, issue
 IKJB0Q).
 """
@@ -27,7 +32,8 @@ from yate.logs import tracing
 log = tracing.get_logger(__name__)
 
 
-#: Predicate over the yaterc ``which_key`` master switch; evaluated on
+#: Predicate over a which-key switch; used for both the ``which_key``
+#: master switch and the ``which_key_auto`` auto-trigger switch, read on
 #: every :meth:`WhichKeyFlows.refresh` / :meth:`WhichKeyFlows.toggle` entry
 #: so a mid-session ``:set which_key=off`` takes effect immediately.
 #: Returning ``False`` hides the panel and turns F9 into a no-op (the
@@ -63,6 +69,7 @@ class WhichKeyFlows:
         panel: WhichKeyPanel,
         message: MessageFn,
         which_key_enabled: EnabledPredicate,
+        which_key_auto_enabled: EnabledPredicate,
     ) -> None:
         self.keymaps = keymaps
         # Read-only probe: the ctrl+w chord state lives in window_flows.
@@ -75,6 +82,10 @@ class WhichKeyFlows:
         self._message = message
         # Master switch predicate (lambda over ``editor.config.which_key``).
         self._enabled = which_key_enabled
+        # Auto-trigger switch predicate (lambda over
+        # ``editor.config.which_key_auto``); required, no default, so a
+        # missing wiring fails loudly at construction time.
+        self._auto_enabled = which_key_auto_enabled
         self._pinned = False
 
     def refresh(self) -> None:
@@ -82,16 +93,22 @@ class WhichKeyFlows:
 
         Master-switch short-circuit: with ``which_key = False`` the panel is
         hidden unconditionally (no-op regardless of pending chord / ctrl+w /
-        pin state).  The four branches are otherwise mutually exclusive,
-        first hit wins: the pinned full sheet, the pending ``ctrl+w`` window
-        chord, the pending-chord candidates; with none of them the panel
-        hides.
+        pin state).  The branches are otherwise mutually exclusive,
+        first hit wins: the pinned full sheet, the auto-trigger gate (with
+        ``which_key_auto = False`` the auto branches -- ``ctrl+w`` chord
+        and pending-chord candidates -- hide while the pinned sheet is
+        untouched, since the gate sits after the pinned branch), the
+        pending ``ctrl+w`` window chord, the pending-chord candidates; with
+        none of them the panel hides.
         """
         if not self._enabled():
             self._panel.clear()
             return
         if self._pinned:
             self._panel.show_entries(self.keymaps.name, self._sheet_entries())
+            return
+        if not self._auto_enabled():
+            self._panel.clear()
             return
         if self._window_pending():
             entries = [ChordEntry(k, d) for k, d in self._window_chord_hints()]
@@ -107,7 +124,8 @@ class WhichKeyFlows:
 
         Master-switch short-circuit: with ``which_key = False`` this is a
         no-op (the pinned state is preserved so re-enabling restores the
-        sheet).
+        sheet).  The auto-trigger switch does not participate in the
+        toggle decision.
         """
         if not self._enabled():
             return

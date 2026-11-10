@@ -55,8 +55,13 @@ def _make_flows(
     window_pending: StateQuery = lambda: False,
     window_chord_hints: WindowChordHintsFn = lambda: WINDOW_CHORD_TABLE,
     which_key_enabled: Callable[[], bool] = lambda: True,
+    which_key_auto_enabled: Callable[[], bool] = lambda: True,
 ) -> tuple[WhichKeyFlows, _PanelRecorder]:
-    """Build the flow over a recording panel (message line kept inert)."""
+    """Build the flow over a recording panel (message line kept inert).
+
+    The auto-trigger switch defaults to ``True``, reproducing the
+    pre-auto-gate behavior for every existing call site.
+    """
     panel = _PanelRecorder()
     flows = WhichKeyFlows(
         keymaps=keymaps,
@@ -65,6 +70,7 @@ def _make_flows(
         panel=cast(WhichKeyPanel, panel),
         message=lambda _text, _kind: None,
         which_key_enabled=which_key_enabled,
+        which_key_auto_enabled=which_key_auto_enabled,
     )
     return flows, panel
 
