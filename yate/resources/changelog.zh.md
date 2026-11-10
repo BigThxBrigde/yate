@@ -1,11 +1,37 @@
 # 变更日志
 
-> 由 git 历史自动生成于 2026-11-09 · yate 0.2.18
+> 由 git 历史自动生成于 2026-11-10 · yate 0.2.18
+
+## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.18...HEAD)
+
+### 问题修复
+
+- close pr-review gaps in hover staleness, empty docs and guards [缺中文] ([`a828414`](https://gitee.com/jermaine/yate/commit/a8284142642a9df477a027d7297de37db0f011ec))
+- run R15 guard in-process to avoid nested pytest under coverage [缺中文] ([`6858ff1`](https://gitee.com/jermaine/yate/commit/6858ff1bf8f89ba520c9df8c35e06587dc11bde3))
+- address review findings on tags, encapsulation and silent close [缺中文] ([`f0f1b85`](https://gitee.com/jermaine/yate/commit/f0f1b851ef8047508c8f648d5ff430e0629a37f3))
+
+### 文档
+
+- archive merge-time pr-review verdict and gate results [缺中文] ([`4262e48`](https://gitee.com/jermaine/yate/commit/4262e4882f5e32d12f42dba57026eb36d78b1666))
+- sync hover rule lists, plan paths and guard counts [缺中文] ([`841479c`](https://gitee.com/jermaine/yate/commit/841479cf7403b2158fcbf85d805baec36838c00d))
+- keep commit-count wording free of self-reference [缺中文] ([`245501b`](https://gitee.com/jermaine/yate/commit/245501bd85de18067b91009ec27091a90831135d))
+- correct final commit count after write-back [缺中文] ([`4124110`](https://gitee.com/jermaine/yate/commit/4124110e3df52289c8f029ca0e5daede3baca593))
+- archive two IKTPC2 review rounds and index 70-71 [缺中文] ([`7906563`](https://gitee.com/jermaine/yate/commit/79065634cb7f242764e70ec468184037da112cad))
+- write back real gate numbers, deviations and review verdict [缺中文] ([`1984294`](https://gitee.com/jermaine/yate/commit/19842949e21a6ecbec4778fd20cf51796e48e604))
+- sync architecture guard count to 38 after hover key guard [缺中文] ([`472cc29`](https://gitee.com/jermaine/yate/commit/472cc2966347777931f6e64d96dc8ace74cad7c6))
 
 ## [0.2.18] - 2026-11-09 · [compare](https://gitee.com/jermaine/yate/compare/v0.2.17...v0.2.18)
 
 ### 新功能
 
+- add hover key and mouse-gate smoke scenarios [缺中文] ([`dbe5f72`](https://gitee.com/jermaine/yate/commit/dbe5f72f9e48217b0cde15547326f4dbcd46757d))
+- wire hover docs action, mouse path and key-drift architecture guard [缺中文] ([`727f7e4`](https://gitee.com/jermaine/yate/commit/727f7e4777f870069ba4f97ae421d9b78ad905a4))
+- add HoverFlows with debounce, staleness tokens and silent empty results [缺中文] ([`0911095`](https://gitee.com/jermaine/yate/commit/09110953e88712d73f15d9022e53d4a2c6dbc255))
+- add self-themed LSP hover card with R15 scrollbars [缺中文] ([`64690ae`](https://gitee.com/jermaine/yate/commit/64690aef5d39ea4e4831ea3146fe045ad3f10e5a))
+- add isolated textDocument/hover request [缺中文] ([`3989748`](https://gitee.com/jermaine/yate/commit/398974869cf8d85cfa973290a9915b8690d357ad))
+- bind one shared F7 hover-docs key in both keymaps [缺中文] ([`bfff1ca`](https://gitee.com/jermaine/yate/commit/bfff1cae6e00d378dfec54cef381ab594cced4b0))
+- declare hover client capabilities and documentation formats [缺中文] ([`9f70094`](https://gitee.com/jermaine/yate/commit/9f700947ee95384d8c4a9a692ac08ed400d28017))
+- normalize Hover.contents into Markdown text [缺中文] ([`c30a3e7`](https://gitee.com/jermaine/yate/commit/c30a3e761dcad32b75ad4190b67cae4c70bc7041))
 - add argv shell variant and document true Lua trust boundary [缺中文] ([`3a93570`](https://gitee.com/jermaine/yate/commit/3a93570b0a0bfeab3b0c9d7ab1796ff596888209))
 - enforce yxp checksum gate and close data/trust symlink gaps [缺中文] ([`01a80d3`](https://gitee.com/jermaine/yate/commit/01a80d3eb4ccfa60030fd3c4a9ab4420672f03fa))
 - theme-aligned borders, headers and full-row highlight [缺中文] ([`6eef8c9`](https://gitee.com/jermaine/yate/commit/6eef8c9022fbcb478d96f285bb5e95b2ed6eba35))
@@ -17,6 +43,7 @@
 
 ### 问题修复
 
+- skip repaint when dismissing a hidden hover card [缺中文] ([`f637be9`](https://gitee.com/jermaine/yate/commit/f637be98a9f3fdcce99d737a7d84293bb5441ebc))
 - derive short hashes from full sha [缺中文] ([`fb3c398`](https://gitee.com/jermaine/yate/commit/fb3c39813333beefabfb9f1ac560a080197af1fc))
 - address three re-review minor findings [缺中文] ([`aa112a0`](https://gitee.com/jermaine/yate/commit/aa112a0e2a7d8f3bcad5ec126fc664a651003522))
 - refuse symlinked trust stores on the write side [缺中文] ([`f526733`](https://gitee.com/jermaine/yate/commit/f5267333f5e5cf50d26c389ce7451f3cb721ee54))
@@ -83,6 +110,11 @@
 
 ### 文档
 
+- register R11 whitelist ordering deviation before wave 3 [缺中文] ([`357869e`](https://gitee.com/jermaine/yate/commit/357869ea2c0fa18ba08f22745a3ff6bfa12c6687))
+- sync manager.py size exemption with architecture guard [缺中文] ([`7fe3be0`](https://gitee.com/jermaine/yate/commit/7fe3be082f9cc3c6c47c3d2e8ee1ac4f35bf1522))
+- document F7 hover, mouse hover and silent empty results [缺中文] ([`d2d4e4a`](https://gitee.com/jermaine/yate/commit/d2d4e4a8a197a5239485bd5abfe89256fef670ca))
+- add LSP hover docs implementation plan with nine sub-plans [缺中文] ([`736f7e5`](https://gitee.com/jermaine/yate/commit/736f7e5a259629fb76e5a6060f438d3d3b81e4a5))
+- record IKTPC2 issue brief for LSP hover docs task [缺中文] ([`240a770`](https://gitee.com/jermaine/yate/commit/240a770e9e0d8d749357da1cd7f0dc7cdeb1ed92))
 - record set-filetype feedback loop verification [缺中文] ([`0daa5a5`](https://gitee.com/jermaine/yate/commit/0daa5a546d794b0d235220ecf294986ec045b6e1))
 - record IKTR5Q merge pr-review verdict and feedback loop [缺中文] ([`9dfd25f`](https://gitee.com/jermaine/yate/commit/9dfd25fb3ba5a1f522221ea72d3af106f581b814))
 - fix EOF blank lines and strip worktree absolute path [缺中文] ([`121e291`](https://gitee.com/jermaine/yate/commit/121e2918088a6706c90bba33dbd21d2d8d4f40be))
@@ -197,6 +229,7 @@
 
 ### 构建与工程
 
+- register manager.py size exemption for hover request [缺中文] ([`995b639`](https://gitee.com/jermaine/yate/commit/995b639580c47c769c68c87ba571ae5a7fc97271))
 - refresh generated changelogs after CI gate fix [缺中文] ([`185276c`](https://gitee.com/jermaine/yate/commit/185276c47b0d62a300cbb7ebdae37910ac8f8abd))
 - fix CI gate failure [缺中文] ([`4dbc4fd`](https://gitee.com/jermaine/yate/commit/4dbc4fd306a8f12d9e713252a8f104ce9543c7f6))
 - run the pytest matrix on Windows py3.13 too [缺中文] ([`66fc2f9`](https://gitee.com/jermaine/yate/commit/66fc2f9cfa174875f01e39b5c3eaa8966a17731b))
