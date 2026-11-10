@@ -1650,7 +1650,9 @@ pip install -e ".[build,ts,lua]"
 **Collect artifacts into a versioned directory**: after a successful build,
 add `--dist <dir>` to copy the artifact into `<dir>/yate-<version>-<os>-<arch>/`
 for direct pick-up or Gitee Release upload. This is a local copy only, no
-network operation is performed:
+network operation is performed. When calling pack.ps1 directly from
+PowerShell, pass `-Dist`; the `--dist` / `--no-zip` spellings are mapped by
+the pack.bat / pack.sh wrapper scripts:
 
 ```powershell
 .\pack\pack.ps1 -OneFile -Dist release

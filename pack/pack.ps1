@@ -23,6 +23,9 @@
     by default after the copy, SHA256SUMS.txt and --version smoke test all
     succeed. Pass -NoZip to skip the archive; the wrapper spelling is --no-zip.
 
+    PowerShell command mode treats --dist as a stop-parsing token; call this
+    script with -Dist (the .bat wrapper and pack.sh accept --dist / --no-zip).
+
 .PARAMETER NoZip
     Skip the zip archive for --dist collections. A zip is produced by default.
     Wrapper spelling: --no-zip (pack.bat); Linux equivalent: pack.sh --no-zip.
@@ -31,8 +34,8 @@
     .\pack\pack.ps1
     .\pack\pack.ps1 -OneFile
     .\pack\pack.ps1 -SkipChangelog
-    .\pack\pack.ps1 --dist release
-    .\pack\pack.ps1 -NoZip --dist release
+    .\pack\pack.ps1 -Dist release
+    .\pack\pack.ps1 -NoZip -Dist release
         # (a zip is produced by default; -NoZip skips it)
     .\pack\pack.ps1 -OneFile -Dist D:\releases\yate
     .\pack\pack.bat --onefile --skip-changelog

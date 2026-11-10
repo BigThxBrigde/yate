@@ -923,10 +923,11 @@ def test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode() -> None:
         "argparse", "hashlib", "os", "stat", "sys", "tempfile", "time",
         "zipfile", "collections", "pathlib", "typing", "__future__",
     })
-    import_roots = set(re.findall(r"^import (\w+)", helper, flags=re.MULTILINE))
-    import_roots |= {
-        match.group(1).split(".")[0]
-        for match in re.finditer(r"^from (\w+)", helper, flags=re.MULTILINE)
-    }
+    import_roots: set[str] = set()
+    for node in ast.walk(ast.parse(helper)):
+        if isinstance(node, ast.Import):
+            import_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            import_roots.add(node.module.split(".")[0])
     offenders = sorted(import_roots - allowed_roots)
     assert offenders == [], f"zip_dist.py gained non-stdlib imports: {offenders}"

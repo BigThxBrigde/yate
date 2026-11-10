@@ -1473,7 +1473,8 @@ pip install -e ".[build,ts,lua]"
 
 **归集产物到版本目录**：构建成功后加 `--dist <目录>`，会把产物按
 `yate-<版本>-<系统>-<架构>/` 归集到指定目录，便于直接取包分发或上传 Gitee
-Release。仅做本地复制，不执行任何网络操作：
+Release。仅做本地复制，不执行任何网络操作。PowerShell 直接调用 pack.ps1 时
+传 `-Dist`；`--dist` / `--no-zip` 写法由 pack.bat / pack.sh 包装脚本映射：
 
 ```powershell
 .\pack\pack.ps1 -OneFile -Dist release

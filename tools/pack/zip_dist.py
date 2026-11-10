@@ -36,6 +36,10 @@ _EXECUTABLE_NAMES: frozenset[str] = frozenset({"yate", "yate.exe"})
 #: Streaming read chunk size for digest computation.
 _CHUNK_SIZE = 1024 * 1024
 
+#: Fixed timestamp for directory entries so repeated builds produce stable
+#: archive metadata (file entries keep their real source mtime).
+_ZIP_EPOCH: tuple[int, int, int, int, int, int] = (1980, 1, 1, 0, 0, 0)
+
 
 class ZipDistError(Exception):
     """Raised when the stage cannot be archived."""
@@ -53,7 +57,8 @@ class ArchiveResult(NamedTuple):
 def _stage_files(stage: Path) -> list[tuple[Path, str]]:
     """Return ``(path, arcname)`` pairs for every archivable file in *stage*.
 
-    Entries are sorted for deterministic output; ``smoke-out.txt`` is skipped.
+    Entries are sorted for deterministic entry order; ``smoke-out.txt`` is
+    skipped.
     """
     entries: list[tuple[Path, str]] = []
     for path in sorted(stage.rglob("*")):
@@ -95,13 +100,13 @@ def _write_archive(target: Path, entries: list[tuple[Path, str]], *, posix: bool
         for i in range(1, len(parts)):
             subdirs.add("/".join(parts[: i + 1]))
     with zipfile.ZipFile(target, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        top = zipfile.ZipInfo(f"{stage_name}/", date_time=time.localtime()[:6])
+        top = zipfile.ZipInfo(f"{stage_name}/", date_time=_ZIP_EPOCH)
         top.create_system = 3
         top.compress_type = zipfile.ZIP_DEFLATED
         top.external_attr = ((0o755 | stat.S_IFDIR) << 16)
         zf.writestr(top, b"")
         for name in sorted(subdirs):
-            info = zipfile.ZipInfo(f"{name}/", date_time=time.localtime()[:6])
+            info = zipfile.ZipInfo(f"{name}/", date_time=_ZIP_EPOCH)
             info.create_system = 3
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = ((0o755 | stat.S_IFDIR) << 16)
@@ -125,22 +130,26 @@ def _digest(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def _checksum_text(sums_path: Path, archive_name: str, digest: str) -> str:
+def _checksum_bytes(sums_path: Path, archive_name: str, digest: str) -> bytes:
     """Return new SHA256SUMS.txt content with *archive_name* upserted.
 
-    Rows whose last column is *archive_name* (a ``*`` binary-mode prefix is
-    tolerated) are removed; every other row is kept verbatim, and the new row
-    is appended at the end.
+    Existing rows are handled as raw bytes so any encoding is preserved
+    verbatim; only the last column (decoded as ASCII with replacement, never
+    written back) decides whether a row is replaced.  Rows whose last column
+    is *archive_name* (a ``*`` binary-mode prefix is tolerated) are removed;
+    every other row is kept as-is, and the new ASCII row is appended at the
+    end.  The result deliberately uses LF line endings for ``sha256sum -c``
+    and ``shasum -c`` compatibility.
     """
-    lines: list[str] = []
+    lines: list[bytes] = []
     if sums_path.exists():
-        for line in sums_path.read_text(encoding="ascii").splitlines():
-            parts = line.split()
+        for line in sums_path.read_bytes().splitlines():
+            parts = line.decode("ascii", errors="replace").split()
             if len(parts) >= 2 and parts[-1].lstrip("*") == archive_name:
                 continue
             lines.append(line)
-    lines.append(f"{digest}  {archive_name}")
-    return "\n".join(lines) + "\n"
+    lines.append(f"{digest}  {archive_name}".encode("ascii"))
+    return b"\n".join(lines) + b"\n"
 
 
 def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) -> ArchiveResult:
@@ -171,11 +180,7 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
         fd2, raw2 = tempfile.mkstemp(prefix=".SHA256SUMS.", suffix=".tmp", dir=dist_root)
         os.close(fd2)
         sums_tmp = Path(raw2)
-        sums_tmp.write_text(
-            _checksum_text(sums_path, archive.name, digest),
-            encoding="ascii",
-            newline="\n",
-        )
+        sums_tmp.write_bytes(_checksum_bytes(sums_path, archive.name, digest))
         os.replace(zip_tmp, archive)
         os.replace(sums_tmp, sums_path)
     finally:

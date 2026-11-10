@@ -58,6 +58,30 @@ def test_archive_stage_when_sums_file_has_other_platform_rows_preserves_them(sta
     assert len(lines) == 3
 
 
+def test_archive_stage_when_checksum_rows_contain_non_ascii_bytes_preserves_them(
+    stage: Path,
+) -> None:
+    dist = stage.parent
+    (dist / "SHA256SUMS.txt").write_bytes(b"caf\xe9  other.zip\nold  yate-0.2.18-windows-x64.zip\n")
+    result = zip_dist.archive_stage(stage, dist)
+    content = (dist / "SHA256SUMS.txt").read_bytes()
+    assert b"caf\xe9  other.zip" in content
+    rows = [line for line in content.splitlines() if b"yate-0.2.18-windows-x64.zip" in line]
+    assert rows == [f"{result.digest}  yate-0.2.18-windows-x64.zip".encode("ascii")]
+    assert len(content.splitlines()) == 2
+
+
+def test_archive_stage_when_directory_entries_are_written_uses_fixed_epoch(stage: Path) -> None:
+    result = zip_dist.archive_stage(stage, stage.parent)
+    with zipfile.ZipFile(result.path) as zf:
+        top = zf.getinfo(f"{stage.name}/")
+        runtime = zf.getinfo(f"{stage.name}/runtime/")
+        file_info = zf.getinfo(f"{stage.name}/yate.exe")
+    assert top.date_time == (1980, 1, 1, 0, 0, 0)
+    assert runtime.date_time == (1980, 1, 1, 0, 0, 0)
+    assert file_info.create_system == 3
+
+
 def test_archive_stage_when_rerun_replaces_zip_and_keeps_single_row(stage: Path) -> None:
     dist = stage.parent
     zip_dist.archive_stage(stage, dist)
