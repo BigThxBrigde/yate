@@ -311,7 +311,19 @@ pack\pack.bat --onefile
 #    Linux (run ON Linux; produces dist/yate/yate or, with --onefile, dist/yate):
 ./pack/pack.sh
 ./pack/pack.sh --onefile
+#    Collect artifacts into a versioned directory (relative to the repo root):
+.\pack\pack.ps1 --dist release                 # collect + write release/<stage>.zip by default
+.\pack\pack.ps1 -NoZip --dist release          # collect without the zip archive
+pack\pack.bat --no-zip --dist release          # same switch through the cmd wrapper
+./pack/pack.sh --dist release                  # Linux: zip by default
+./pack/pack.sh --no-zip --dist release        # Linux: skip the zip
 ```
+
+With `--dist`, a successful collect produces a same-named zip by default (the
+stage directory is kept as the top-level folder inside the archive), and
+`<dist>/SHA256SUMS.txt` gains an entry for that zip's SHA256. The collected
+stage directory is preserved. Pass `--no-zip` to skip the zip step; every
+other step is unchanged.
 
 The build scripts in [pack/](pack/) pick the `.venv` interpreter when present,
 auto-install the `build,ts,lua` extras (PyInstaller, tree-sitter and the 24

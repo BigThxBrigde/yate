@@ -327,7 +327,17 @@ pack\pack.bat --onefile
 #    Linux（必须在 Linux 上运行；产物 dist/yate/yate，加 --onefile 则为 dist/yate）：
 ./pack/pack.sh
 ./pack/pack.sh --onefile
+#    归集产物到版本目录（相对仓库根）：
+.\pack\pack.ps1 --dist release                 # 归集并默认生成 release/<stage>.zip
+.\pack\pack.ps1 -NoZip --dist release          # 只归集，不生成 zip 压缩包
+pack\pack.bat --no-zip --dist release          # 经 cmd 包装脚本传同一开关
+./pack/pack.sh --dist release                  # Linux：默认生成 zip
+./pack/pack.sh --no-zip --dist release        # Linux：跳过 zip
 ```
+
+带 `--dist` 归集成功后默认生成同名 zip（zip 内顶层保留 stage 目录），并在
+`<dist>/SHA256SUMS.txt` 中追加该 zip 的 SHA256 条目；归集出的 stage 目录
+保留。加 `--no-zip` 则跳过压缩这一步，其余步骤不变。
 
 [pack/](pack/) 下的打包脚本会优先使用 `.venv` 中的解释器、缺少 PyInstaller
 时自动安装 `build,ts,lua` 可选依赖（PyInstaller、tree-sitter 与 24 个

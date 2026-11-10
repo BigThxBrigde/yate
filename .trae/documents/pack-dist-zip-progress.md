@@ -93,13 +93,22 @@
   `powershell -File ...` 触发审批超时、`cmd /c "..."` 引号写法报路径错误，
   改用当前会话直接调用脚本 / 正确引号后全部通过，详见「失败与重试记录」。
 
+- wave-3（本笔提交）：两个 `plan-executor` 并行落盘 8 条静态守卫
+  （`tests/test_pack_spec.py` +248 行）与四份双语文档（+65 行）。守卫实现两处
+  与真实脚本形态对齐、未削弱覆盖：用例 5 用锚定整行的 `^\s+\*\)\s*$` 定位
+  catch-all 分支（裸 `index("*)")` 会先命中 `--dist=*)`）；用例 8 把「无第三方
+  依赖」落实为显式 stdlib 根模块白名单断言。主代理复核
+  `pytest tests/test_pack_spec.py tests/test_pack_zip.py -q` = 44 passed、
+  架构 37 passed、全量 pyright 0 errors、`tools.changelog check` exit 0
+  （既有 unreleased lag / missing zh 提示属存量状态，不影响退出码）；
+  四份文档 diff 双语逐项对齐、无本机绝对路径、保留 `build,ts,lua` 字样。
+  负向演练（临时改回 `2,19p` 验证守卫变红）尚未执行，收尾前补做。
+
 ## 下一步动作
 
-1. 【执行】wave-3：两个 `plan-executor` 并行——
-   `pack-dist-zip-guards-plan-b.md`（独占 `tests/test_pack_spec.py`）与
-   `pack-dist-zip-docs-plan-f.md`（独占四份双语文档）；波内文件不重叠。
-2. wave-4：主代理按 `pack-dist-zip-e2e-plan-g.md` 跑 Windows 真实构建矩阵
-   与 zip 校验；失败按 §5 降级并如实登记偏离。
-3. 【审核】spawn `code-review-expert`（失败按 §一.3.5 / §三 兜底），
+1. 【执行】wave-4：主代理按 `pack-dist-zip-e2e-plan-g.md` 跑 Windows 真实
+   构建矩阵（默认 / onefile 覆盖 / `-NoZip` 跳过）与 zip 内容 / hash / 冒烟
+   校验；失败按 §5 降级并如实登记偏离。
+2. 【审核】spawn `code-review-expert`（失败按 §一.3.5 / §三 兜底），
    迭代至无 blocker / major，仅 minor 登记待办。
-4. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。
+3. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。

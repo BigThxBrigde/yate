@@ -1487,10 +1487,26 @@ Release。仅做本地复制，不执行任何网络操作：
 # -> release/yate-0.2.0-linux-x64/SHA256SUMS.txt
 ```
 
+归集步骤默认会把 stage 目录压缩为同名 `<stage>.zip`（zip 内顶层保留 stage
+目录），并把该 zip 的 SHA256 追加进 dist 根的 `SHA256SUMS.txt`；加 `--no-zip`
+则跳过压缩：
+
+```powershell
+.\pack\pack.ps1 -OneFile -Dist release -NoZip
+# -> release\yate-0.2.0-windows-x64\yate.exe  （不生成 zip，stage 原样保留）
+```
+
+```bash
+./pack/pack.sh --onefile --dist release --no-zip
+# -> release/yate-0.2.0-linux-x64/yate  （不生成 zip，stage 原样保留）
+```
+
 归集时会先删除同名版本子目录（其他版本子目录保留）、写入
 `SHA256SUMS.txt`（对 `yate.exe`/`yate`），并执行一次 `--version` 冒烟验证；
-验证失败或复制失败时退出码 1，`dist/` 内的原始产物保留不动。不传
-`--dist` 时行为与之前一致，只构建到 `dist/`。
+验证失败或复制失败时退出码 1，`dist/` 内的原始产物保留不动。注意 dist 根的
+`SHA256SUMS.txt` 是归集产物（及产出的 zip）的清单文件，与各 stage 目录内
+同名文件的语义不同。不传 `--dist` 时行为与之前一致，只构建到 `dist/`——
+无论是否带 `--no-zip`，都不会产出 zip。
 
 ---
 
