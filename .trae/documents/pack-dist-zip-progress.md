@@ -66,17 +66,40 @@
   `Hy4 preview` 并变更配置（`max_turns` 60）重试一次，仍返回同一错误，
   零落盘产物。按 §三 判定子代理零产出，由主代理亲自按剧本调研 + 落盘全部
   方案文档；已在 `pack-dist-zip-plans/overview.md` §六登记偏离。
+- 【执行】wave-2 主代理复核时，一条包含 `where.exe` / `cmd /c` / `& 'D:\Git\bin\bash.exe'` 的
+  长串验收命令整体报「系统找不到指定的路径」(exit 1)，随后同样形态的诊断命令因
+  「Awaiting user approval timed out」被取消。按用户「失败重新更新状态继续执行」
+  要求，本条先落盘，再改用短命令逐条执行（PowerShell 内置 `Get-Command` /
+  `Test-Path` 定位解释器、每条命令单独记录退出码），不重复原失败形态。
+- 复核发现 wave-2 bat 执行者把既有头注释示例 `--onefile --dist release` 改写为
+  `--dist release`（计划外改动，plan-e §3 只要求追加），主代理将恢复原行并保留
+  新增说明，登记为执行偏离。
 - 其它步骤暂无失败。
+
+## 波次执行实测
+
+- wave-1（提交 `78354c9`）：`plan-executor` 落盘共享助手与 12 个单测；主代理
+  独立复核 `pytest tests/test_pack_zip.py -q` = 12 passed、`pyright` = 0、
+  架构 37 passed、`test_pack_spec.py` 24 passed，四条 exit 0。
+- wave-2（本笔提交）：三个 `plan-executor` 并行落盘 ps1 / sh / bat；主代理复核
+  `git diff` 三文件 +21/+16/+5 行，全部只改独占文件；ps1 `-Help` 与
+  `-NoZip -Help` exit 0 且输出含 `-NoZip` / `--no-zip` / `by default`；
+  bat `--help` 与 `--no-zip --help` exit 0；`bash pack/pack.sh -h` exit 0 且
+  含新开关与默认说明；`bash pack/pack.sh --zip` exit 2 且 stderr 含
+  `unknown argument: --zip`；`pytest tests/test_pack_spec.py -q` = 24 passed；
+  全量 `pyright yate/ tests/ tools/ pack/` = 0 errors。
+- 偏离：bat 执行者曾把既有 `--onefile --dist release` 示例改写为
+  `--dist release`（计划外），主代理已恢复原行并保留新增说明；主代理 shell 下
+  `powershell -File ...` 触发审批超时、`cmd /c "..."` 引号写法报路径错误，
+  改用当前会话直接调用脚本 / 正确引号后全部通过，详见「失败与重试记录」。
 
 ## 下一步动作
 
-1. 【批准】登记：无人值守按通过处理，不向用户提问；在本文件写「批准结论」
-   章节并单独提交一笔。
-2. 【执行】wave-1：按 `pack-dist-zip-helper-plan-a.md` 下发 `plan-executor`
-   （独占 `tools/pack/zip_dist.py` / `tools/pack/__init__.py` /
-   `tests/test_pack_zip.py`），验收命令见子计划 §5；失败先更新本文件再续作。
-3. wave-2 三个脚本并行、wave-3 守卫 + 双语文档并行、wave-4 主代理 E2E，
-   波间串行；每波产物单独提交。
-4. 【审核】spawn `code-review-expert`（同样可能需按 §一.3.5 / §三 兜底），
+1. 【执行】wave-3：两个 `plan-executor` 并行——
+   `pack-dist-zip-guards-plan-b.md`（独占 `tests/test_pack_spec.py`）与
+   `pack-dist-zip-docs-plan-f.md`（独占四份双语文档）；波内文件不重叠。
+2. wave-4：主代理按 `pack-dist-zip-e2e-plan-g.md` 跑 Windows 真实构建矩阵
+   与 zip 校验；失败按 §5 降级并如实登记偏离。
+3. 【审核】spawn `code-review-expert`（失败按 §一.3.5 / §三 兜底），
    迭代至无 blocker / major，仅 minor 登记待办。
-5. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。
+4. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。

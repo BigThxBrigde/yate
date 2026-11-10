@@ -9,6 +9,9 @@ rem    pack\pack.bat --skip-changelog
 rem                                skip refreshing the bundled changelogs
 rem    pack\pack.bat --onefile --dist release
 rem                                collect artifact into release\yate-<ver>-windows-<arch>\
+rem                                collect + produce a zip archive by default
+rem    pack\pack.bat --no-zip --dist release
+rem                                collect without producing a zip archive
 rem    pack\pack.bat -?            show PowerShell help
 rem ============================================================
 setlocal
@@ -32,6 +35,7 @@ if /i "%arg%"=="--onefile" set "arg=-OneFile"
 if /i "%arg%"=="--skip-changelog" set "arg=-SkipChangelog"
 if /i "%arg%"=="--dist" set "arg=-Dist"
 if /i "%arg%"=="--help" set "arg=-Help"
+if /i "%arg%"=="--no-zip" set "arg=-NoZip"
 rem A trailing backslash would escape the closing quote below and reach
 rem PowerShell as a literal '"' (classic "...\ " pitfall); double it so the
 rem re-quoted argument round-trips (pack.ps1 also strips stray quotes).

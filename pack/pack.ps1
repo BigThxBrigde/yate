@@ -19,11 +19,21 @@
     PyInstaller cannot cross-compile: run this script on Windows to produce a
     Windows executable (use pack/pack.sh on Linux for a Linux binary).
 
+    When --dist is used, the collected stage is archived into <dist>/<stage>.zip
+    by default after the copy, SHA256SUMS.txt and --version smoke test all
+    succeed. Pass -NoZip to skip the archive; the wrapper spelling is --no-zip.
+
+.PARAMETER NoZip
+    Skip the zip archive for --dist collections. A zip is produced by default.
+    Wrapper spelling: --no-zip (pack.bat); Linux equivalent: pack.sh --no-zip.
+
 .EXAMPLE
     .\pack\pack.ps1
     .\pack\pack.ps1 -OneFile
     .\pack\pack.ps1 -SkipChangelog
     .\pack\pack.ps1 --dist release
+    .\pack\pack.ps1 -NoZip --dist release
+        # (a zip is produced by default; -NoZip skips it)
     .\pack\pack.ps1 -OneFile -Dist D:\releases\yate
     .\pack\pack.bat --onefile --skip-changelog
 #>
@@ -37,6 +47,8 @@ param(
 
     [Alias("d")]
     [string]$Dist = "",
+
+    [switch]$NoZip,
 
     [Alias("h", "?")]
     [switch]$Help
@@ -263,6 +275,15 @@ try {
         Write-Host ""
         Write-Host "Collected -> $stage  (${stageSizeMb} MB)" -ForegroundColor Green
         Write-Host "  SHA256 yate.exe: $hash"
+
+        if ($NoZip) {
+            Write-Host "ZIP skipped (-NoZip)" -ForegroundColor Yellow
+        } else {
+            & $pythonExe -m tools.pack.zip_dist --stage $stage --dist-root $distRoot
+            if ($LASTEXITCODE -ne 0) {
+                Stop-WithMessage "Failed to create zip archive for '$stage'."
+            }
+        }
     }
 }
 finally {
