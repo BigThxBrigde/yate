@@ -184,3 +184,34 @@ flowchart TD
 - 并行下出现时序 flake 用 `-n 1` 复核并修用例，不记成「偶发」；
   局部覆盖率运行加 `--cov-fail-under=0`。
 - 计划文档回填真实前后数字与偏离记录；`pack-dist-zip-progress.md` 同步状态。
+
+## 9. 收尾实测与偏离回填（2026-11-10）
+
+- 闭环结果：两轮 `code-review-expert` 评审。第一轮 blocker 0 / major 3 /
+  minor 7（记录 `../reviews/2026-11-10-pack-dist-zip.md` §一-§六）；按 §二.6
+  回到步骤 2 产出 `pack-dist-zip-review-fixes-plan.md`，修复提交 `4f11dd1d`；
+  第二轮迭代复核（同记录 §七）**blocker 0 / major 0 / minor 5**，达到迭代终点。
+- 三条 major 闭环：M1 / M2 文档与帮助示例统一为可执行 `-Dist` 形态（否决改
+  ps1 参数面；实测 `--dist` 在 PowerShell 命令模式是双连字符终止符形态，属
+  既有行为，bat 显式映射与 `-Dist` 路径已真实构建验证）；M3
+  `_checksum_bytes` 字节级 upsert，非 ASCII 校验行不再硬失败且有回归用例。
+- 主代理收尾全量门禁（并行口径，逐条退出码）：pyright
+  `yate/ tests/ tools/ pack/` = 0（0 errors）；`pytest tests/ -q -n auto` = 0；
+  `pytest tests/test_architecture.py -q` = 0（37 用例）；
+  `pytest tests/ --cov=yate --cov-branch -n auto` = 0（3495 passed /
+  10 skipped，TOTAL 92.96%，阈值 75）；
+  `tools.smoke_test run --jobs 4` = 0（121/121 scenarios、1464/1464 checks）；
+  `tools.changelog check` = 0。`GATE_RCS [0, 0, 0, 0, 0, 0]`。
+- wave-4 三次真实构建产物校验（详见 `pack-dist-zip-progress.md`
+  「波次执行实测」）全部通过；Linux 真实构建不纳入，等价覆盖与偏离理由见
+  §7 与 `pack-dist-zip-plans/overview.md` §六。
+- 遗留 minor（登记待办，不阻塞合入）：m1（bat 启动期失败无可辨识提示）、
+  m7（sh 帮助 `sed` 区间硬编码，守卫已充分）、第二轮 N1（存量
+  `test_app_panes.py::test_close_command_closes_active_pane` 确定性竞态，
+  不在本分支 diff，另案；不记「偶发」）、N2（epoch 用例未断言文件 mtime
+  未被固定）、N3（末列含全角空格的畸形同名行不替换）、N4（偏离表退出码
+  列混填一格）、N5（README 代码块注释列对齐）。
+- 提交纪律：每步单独提交、只提交不推送、不自动合流；分支
+  `feature/feat-pack-dist-zip`（parent `master`），工作树干净。E2E 产物
+  `release/` / `dist/` / `build/` 均为 `.gitignore` 忽略项，按 git 安全协议
+  保留未删，收尾汇报显式列出。
