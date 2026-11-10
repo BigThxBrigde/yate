@@ -432,6 +432,8 @@ def test_behavior_matrix_of_master_and_auto_switches(master: bool, auto: bool) -
         assert shown_before == []
         assert panel.shown == []
         assert panel.clears == clears_before
+        # Master off: toggle is a no-op, so the panel ends cleared, not shown.
+        assert panel.last == "clear"
 
 
 def test_refresh_auto_disabled_hides_pending_candidates() -> None:

@@ -6,8 +6,8 @@ read-only probe of the vim ``ctrl+w`` chord state, a source of canonical
 the which-key panel, the message line and two constructor-injected
 predicates: the ``which_key`` master switch and the ``which_key_auto``
 auto-trigger switch.  :meth:`WhichKeyFlows.refresh` recomputes
-the panel after every dispatch: pinned full sheet, ``ctrl+w`` chord,
-pending-chord candidates, otherwise hidden.  Both predicates are read on
+the panel after every dispatch: pinned full sheet, the auto-trigger gate,
+``ctrl+w`` chord, pending-chord candidates, otherwise hidden.  Both predicates are read on
 every entry (so a mid-session ``:set`` takes effect on the next refresh);
 the master switch short-circuits all branches, while the auto gate sits
 after the pinned branch, so pinning is unaffected by the auto switch and
