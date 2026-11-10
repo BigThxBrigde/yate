@@ -141,9 +141,55 @@ sequenceDiagram
 - 每个闭环步骤产物单独提交（`docs(issue)` / `docs(plan)` / `feat(config)` / `docs(...)` / `feat(whichkey)` / `test(...)` / 评审记录 / 门禁回填），英文 `type(scope): subject`，**只提交不推送**，不自动合入 `master`。
 - 收尾回填：真实前后数字、门禁退出码、偏离记录、评审结论、子代理存活 / 零产出情况写入本文件「十、执行与门禁回填」及各子计划。
 
-## 十、执行与门禁回填
+## 十、执行与门禁回填（F1 回填，2026-11-10）
 
-（收尾时由主代理填写：各波实测命令与退出码、评审轮次与结论、偏离与理由、最终门禁五项 + changelog check 结果、提交清单。）
+### 10.1 各波实测命令与退出码（主代理复核后登记）
+
+| 波次 | 命令 | 结果 / 退出码 |
+| --- | --- | --- |
+| wave-1 plan-a | pyright `yate/config.py yate/yaterc_options.py yate/commands.py` | 3 文件 0 errors，0 |
+| wave-1 plan-a | pytest `tests/test_config.py tests/test_set_options.py -q` | 全绿，0 |
+| wave-1 plan-a | `git diff --check` | 无问题，0 |
+| wave-1 plan-b | 双语关键词成对检查（8 文件） | `missing: []`，0 |
+| wave-1 plan-b | `git diff --check` | 0 |
+| wave-1 plan-b | README 核对 | 无 which-key 开关条目，两份 README 均未改动（issue 措辞为「涉及开关的条目」，不存在即不改） |
+| wave-2 plan-c | pyright `yate/flows/whichkey_flows.py yate/editor_compose.py tests/test_whichkey_flows.py` | 0 |
+| wave-2 plan-c | pytest `tests/test_whichkey_flows.py -q` | 既有 18 条用例全绿，0 |
+| wave-2 plan-c | `git diff --check` | 0 |
+| wave-3 plan-d | pyright 3 个测试文件 | 0 |
+| wave-3 plan-d | pytest 3 文件 `-q` | 0；`-n 1` 复跑同样 0（无并行 flake） |
+| wave-3 plan-d | `git diff --check` | 0 |
+| wave-3 plan-d | 新增用例计数 | 15 条（9 条流程用例含 4 参数化行 + 4 条 config + 2 条 `:set`） |
+| wave-3 plan-e | pyright 冒烟场景文件 | 0 |
+| wave-3 plan-e | 冒烟 3 场景 `--jobs 1` | 40/40 checks 全绿，0 |
+| wave-3 plan-e | `git diff --check` | 0 |
+| wave-3 plan-e | SVG baseline | 未新增 baseline，SVG baseline 零改动 |
+
+### 10.2 首轮评审（code-review-expert，REQUEST_CHANGES：0 BLOCKER / 1 MAJOR / 3 MINOR）
+
+评审者亲跑六道门禁，全部 exit 0：
+
+| 命令 | 实测结果 | 退出码 |
+| --- | --- | --- |
+| pyright `yate/ tests/ tools/ pack/` | 0 errors | 0 |
+| pytest `tests/ -q -n auto` | 全绿 | 0 |
+| 架构 `tests/test_architecture.py -q` | 38 passed | 0 |
+| 覆盖率 `--cov=yate --cov-branch --cov-fail-under=75 -n auto` | `TOTAL 19838 1091 6326 582 93%`（93.03% ≥ 75） | 0 |
+| 冒烟 `--jobs 4` | 124/124 scenarios · 1511/1511 checks | 0 |
+| `tools.changelog check` | released sections up to date；`[Unreleased]` 滞后 8 commits（生成器机制，CI 只校验 released） | 0 |
+| `git diff --check master..HEAD` | 无空白问题 | 0 |
+
+发现：M-1（计划文档回填区为空，本节即其修复落点）+ 3 MINOR（m-1 双语分支计数 / m-2 `EnabledPredicate` 注释语义 / m-3 两条 `>=` 恒真断言），3 MINOR 由修复方案 F2 当轮处置。评审记录：[2026-11-10-which-key-auto-trigger-code-review.md](../reviews/2026-11-10-which-key-auto-trigger-code-review.md)。
+
+### 10.3 偏离记录（显式登记，附实测依据）
+
+1. **plan-d 用例 9 断言形态偏离**：原计划断言 `panel.shown == []`，实测不可达——`_PanelRecorder.shown` 是 append-only 历史，首次 `toggle()` 已留 `vim` 条目。改为 4 项等价强度断言：无新增 show、`clears` 增加、`panel.last == "clear"`、`vim.pending_prefix() == "g"`（契约等价：不重新弹出 + 回到隐藏态）。
+2. **plan-e `snapshot_svg` 位置偏离**：首版在 `async with app.run_test(...)` 块外调用，实测抛真实 `ScreenStackError`；移入块内后通过，与全仓 25 个既有场景惯例一致；`--svg` 单跑新场景 18/18 PASS。
+3. **迭代轮次 1 裁决（不重新设计）**：按 `task-orchestration.md` §二.6「存在 blocker / major → 回到步骤 2 重新设计」，本轮唯一 MAJOR（M-1）经评审记录 §四 实证产品行为与 issue 四行矩阵、7 条验收标准逐条吻合且六道门禁全绿，属流程 / 文档缺口而非设计缺陷；故不重做设计，修复由 F1（回填）/ F2（3 minor）+ 第二轮复审闭环。本裁决为显式登记的流程偏离，依据见评审记录 §一 / §四。
+
+### 10.4 提交清单（截至 F1，共 7 笔，旧→新）
+
+`525f8bfb` docs(issue) → `93804924` docs(plan) → `11bdd77b` feat(config) → `6e387a28` docs(which-key) → `dde0211b` feat(whichkey) → `f5321975` test(which-key) → `d52dfd11` test(smoke)。评审记录、修复方案与 F1/F2 产物待主代理后续提交。只提交不推送。
 
 ## 十一、子代理状态登记（如实）
 

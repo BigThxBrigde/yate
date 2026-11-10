@@ -77,6 +77,35 @@ flowchart LR
 
 见主计划 §八。单波失败不得带病进入下一波：先修复该波独占文件，复跑该波验收命令至退出码 0，并在回填区记录实测结果与偏离。
 
-## 七、回填区
+## 七、回填区（F1 回填，2026-11-10）
 
-（收尾由主代理填写：每波实际命令 + 退出码、子代理存活 / 零产出、评审轮次、偏离与依据、最终门禁数字、提交清单。）
+### 7.1 逐波验收命令与退出码
+
+| 波次 | 验收命令 | 结果 / 退出码 |
+| --- | --- | --- |
+| wave-1 a | pyright 3 源文件 / pytest `tests/test_config.py tests/test_set_options.py -q` / `git diff --check` | 0 errors / 全绿 / 无问题，均 0 |
+| wave-1 b | 双语关键词成对检查 / `git diff --check` | `missing: []` / 0；README 核对结论：无 which-key 开关条目，两份 README 未改动 |
+| wave-2 c | pyright 3 文件 / pytest `tests/test_whichkey_flows.py -q` / `git diff --check` | 0 / 既有 18 条用例全绿 / 0 |
+| wave-3 d | pyright 3 测试文件 / pytest 3 文件 `-q`（`-n 1` 复跑一致）/ `git diff --check` | 全 0；新增 15 条用例（9 流程含 4 参数化行 + 4 config + 2 `:set`） |
+| wave-3 e | pyright 场景文件 / 冒烟 3 场景 `--jobs 1` / `git diff --check` | 0 / 40/40 checks 全绿 / 0；新场景 18 checks，SVG baseline 未动 |
+
+### 7.2 子代理存活 / 零产出
+
+- `plan-architect-designer`：spawn 3 次失败（`Model "qwen-3.7-plus" not found`，含 §1.3 模型重试）＝ **零产出**，主代理亲自按剧本完成规划。
+- `code-explorer`（只读探索）：成功。
+- `plan-executor`：5 次 spawn（wave-1 ×2、wave-2 ×1、wave-3 ×2）全部交付。
+- `code-review-expert`：第 1 轮评审交付（REQUEST_CHANGES：0 BLOCKER / 1 MAJOR / 3 MINOR）。
+
+### 7.3 评审结论与迭代裁决
+
+首轮评审六道门禁全绿（pyright 0 / pytest `-n auto` 全绿 / 架构 38 / 覆盖率 93.03%，`TOTAL 19838 1091 6326 582 93%` / 冒烟 124/124 · 1511/1511 / changelog 0，`[Unreleased]` 滞后 8 commits 属生成器机制）。唯一 MAJOR（M-1）为流程 / 文档缺口：行为与 issue 四行矩阵、7 条验收标准逐条吻合、无设计缺陷，按 `task-orchestration.md` §二.6 裁决**不重新设计**，修复走 F1（回填）/ F2（3 minor）+ 第二轮复审——该裁决作为显式流程偏离登记（依据：评审记录 §一 / §四）。
+
+### 7.4 偏离与依据
+
+1. plan-d 用例 9 断言：`panel.shown == []` 不可达（`_PanelRecorder.shown` append-only，首 toggle 已留 `vim` 条目），改为 4 项等价强度断言（无新增 show / clears 增加 / `last == "clear"` / `pending_prefix() == "g"`）。
+2. plan-e `snapshot_svg`：块外调用实测 `ScreenStackError`，移入 `async with app.run_test(...)` 块内（与全仓 25 场景惯例一致），`--svg` 单跑 18/18 PASS。
+3. 迭代裁决偏离见 §7.3。
+
+### 7.5 提交清单（7 笔，旧→新）
+
+`525f8bfb` docs(issue) / `93804924` docs(plan) / `11bdd77b` feat(config) / `6e387a28` docs(which-key) / `dde0211b` feat(whichkey) / `f5321975` test(which-key) / `d52dfd11` test(smoke)。评审记录 + 修复方案 + F1/F2 产物待主代理提交。最终全量门禁由主代理收尾执行。

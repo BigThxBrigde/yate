@@ -56,3 +56,13 @@ git diff --check
 ## 七、报告格式
 
 改动清单（文件 + 行号）、三条命令实测退出码、既有测试通过情况（以退出码表述）、未解决项。偏离计划（含参数默认值、分支顺序）须显式列出并给依据。
+
+## 八、执行回填（F1，2026-11-10）
+
+实际命令与退出码（主代理复核）：
+
+- `.venv\Scripts\python.exe -m pyright yate/flows/whichkey_flows.py yate/editor_compose.py tests/test_whichkey_flows.py` → 退出码 0
+- `.venv\Scripts\python.exe -m pytest tests/test_whichkey_flows.py -q` → 既有 18 条用例全绿，退出码 0
+- `git diff --check` → 退出码 0
+
+偏离：无。auto 闸门按 §三.4 固定在 pinned 分支之后，`_make_flows` 默认 `True` 保持既有调用点零改动。

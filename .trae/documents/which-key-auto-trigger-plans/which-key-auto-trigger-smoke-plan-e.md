@@ -68,3 +68,15 @@ git diff --check
 ## 七、报告格式
 
 新增场景与 checks 数量、三条命令实测退出码、既有两场景结果、SVG baseline 处理说明、未解决项。偏离须显式列出并给依据。
+
+## 八、执行回填（F1，2026-11-10）
+
+实际命令与退出码（主代理复核）：
+
+- `.venv\Scripts\python.exe -m pyright tools/smoke_test/scenarios/whichkey.py` → 退出码 0
+- 冒烟 3 场景 `--jobs 1`（`which_key_toggle` / `which_key_ctrl_w_chord` / `which_key_auto_off_manual_toggle`）→ 40/40 checks 全绿，退出码 0
+- `git diff --check` → 退出码 0
+
+新场景 18 checks；SVG baseline 未新增、未改动（默认 run 不比对）。首轮全量门禁实测 124/124 scenarios · 1511/1511 checks（`--jobs 4`），无回归。
+
+**偏离（`snapshot_svg` 调用位置，显式登记）**：§三.10 原文将 `rows = snapshot_svg(app, tmp)` 写在 act/assert 序列之后、块外，首版照此实现实测抛真实 `ScreenStackError`（块外无法取快照）；移入 `async with app.run_test(...)` 块内后通过，与全仓 25 个既有场景惯例一致；`--svg` 单跑新场景 18/18 PASS。依据：评审记录 §三 自批判台账 #2 同项复核确认非掩盖问题。

@@ -68,3 +68,13 @@ git diff --check
 ## 七、报告格式
 
 改动清单（文件 + 行数）、实际执行的命令与退出码、未解决项与原因；不得引用他人自述数字。偏离本计划须显式列出并给实测依据。
+
+## 八、执行回填（F1，2026-11-10）
+
+实际命令与退出码（主代理复核）：
+
+- `.venv\Scripts\python.exe -m pyright yate/config.py yate/yaterc_options.py yate/commands.py` → 3 文件 0 errors，退出码 0
+- `.venv\Scripts\python.exe -m pytest tests/test_config.py tests/test_set_options.py -q` → 全绿，退出码 0
+- `git diff --check` → 退出码 0
+
+偏离：无。§三七条修改全部按计划落地，三条表一致性守卫随新选项保持通过。

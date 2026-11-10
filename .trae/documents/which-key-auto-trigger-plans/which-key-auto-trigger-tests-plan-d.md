@@ -81,3 +81,16 @@ git diff --check
 ## 七、报告格式
 
 用例清单与数量、四条命令实测退出码、`--collect-only -q` 计数（若取）、负向演练结果、未解决项。偏离须显式列出并给依据。
+
+## 八、执行回填（F1，2026-11-10）
+
+实际命令与退出码（主代理复核）：
+
+- `.venv\Scripts\python.exe -m pyright tests/test_whichkey_flows.py tests/test_config.py tests/test_set_options.py` → 退出码 0
+- `.venv\Scripts\python.exe -m pytest tests/test_whichkey_flows.py tests/test_config.py tests/test_set_options.py -q` → 全绿，退出码 0
+- 同命令 `-n 1` 复跑 → 退出码 0（无并行 flake）
+- `git diff --check` → 退出码 0
+
+新增用例计数：**15 条**（`test_whichkey_flows.py` 9 条，其中用例 1 为 4 行参数化；`test_config.py` 4 条；`test_set_options.py` 2 条）。
+
+**偏离（用例 9 断言形态，显式登记）**：§三.9 原计划断言 `panel.shown == []`，实测不可达——`_PanelRecorder.shown` 为 append-only 历史，首次 `toggle()` 已写入 `vim` 条目。改为 4 项等价强度断言：无新增 show、`clears` 增加、`panel.last == "clear"`、`vim.pending_prefix() == "g"`。依据：评审记录 §三 自批判台账 #1 同项复核确认偏离合理。
