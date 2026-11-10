@@ -54,6 +54,11 @@ SPECIAL_KEYS: dict[str, str] = {
     "f12": "\x1b[24~",
 }
 
+#: Shared default for the "show API documentation" action. Both built-in
+#: keymaps import this single L0 constant (AC2); <ctrl-k> is NOT usable
+#: because it aliases <ctrl-shift-k> (delete_line) at raw byte \x0b.
+HOVER_DOC_KEY: str = "<f7>"
+
 # Common terminal variants not covered by the canonical names.
 KEY_ALIASES: dict[str, str] = {
     "\x1b[1~": "home",

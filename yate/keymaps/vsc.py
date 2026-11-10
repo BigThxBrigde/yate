@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import override
 
-from yate.keymaps.base import KeyBinding, Keymap, parse_key
+from yate.keymaps.base import (
+    HOVER_DOC_KEY,
+    KeyBinding,
+    Keymap,
+    parse_key,
+)
 
 # help categories (module level: uppercase constants)
 EDIT: str = "Editing"
@@ -119,4 +124,5 @@ class VscKeymap(Keymap):
             _k("<f1>", "help", "Keyboard shortcuts help", HELP),
             _k("<f8>", "manual", "Open user manual (read-only)", HELP),
             _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
+            _k(HOVER_DOC_KEY, "show_hover_docs", "Show API documentation at cursor", VIEW),
         ]

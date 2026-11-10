@@ -49,6 +49,11 @@ from yate.editor_lsp.sync import OpenDocState, dispatch_change
 #: Debounce for didChange (keystrokes coalesce into one notification).
 CHANGE_DEBOUNCE_S: float = 0.25
 
+#: Bounded wait for a textDocument/hover response.  Mandatory because
+#: :meth:`LspClient.start_request` futures have no built-in timeout; a hung
+#: server must degrade to "no hover" instead of stalling the popup.
+HOVER_TIMEOUT_S: float = 2.0
+
 #: Trigger kinds for textDocument/completion.
 TRIGGER_INVOKED: int = 1
 TRIGGER_CHARACTER: int = 2
@@ -250,6 +255,33 @@ class LspManager:
             return None
         cfg = self.config_for(doc.filetype)
         return self.states().get(cfg.name) if cfg is not None else None
+
+    def _ready_client_for(self, doc: Document) -> LspClient | None:
+        """Return an already-READY client with *doc* open; never start one.
+
+        Read-only counterpart of :meth:`ensure_client`: it looks the client up
+        in ``self._clients`` and returns it only when its state is
+        :attr:`ServerState.READY` and the document URI already has a live
+        didOpen.  The open state must also belong to this very client
+        (its ``client_key`` must match): after a workspace root or config
+        replacement an old URI could otherwise hover against the wrong
+        server.  Any other situation yields ``None`` -- the caller degrades
+        to "no hover" instead of spawning a server or opening the document.
+        """
+        if doc.path is None:
+            return None
+        config = self.config_for(doc.filetype)
+        if config is None:
+            return None
+        root = self.root_for(config, doc)
+        key: ClientKey = (config.name, str(root))
+        client = self._clients.get(key)
+        if client is None or client.state is not ServerState.READY:
+            return None
+        state = self._open.get(self._uri(doc))
+        if state is None or state.client_key != key:
+            return None
+        return client
 
     def error_for(self, config_name: str) -> str:
         """The failure message of a FAILED client for *config_name* (else "")."""
@@ -616,6 +648,56 @@ class LspManager:
             log.exception("failed to parse completion response for %s", uri)
             return []
         return completions
+
+    async def request_hover(self, doc: Document, row: int, col: int) -> str:
+        """Fetch normalized hover Markdown; "" when unavailable or empty.
+
+        Unlike :meth:`request_completion` this is a strictly passive lookup:
+        it never starts a server (no ``ensure_client``), never sends didOpen
+        (no ``on_document_shown``) and never flushes a debounced didChange
+        (no ``dispatch_change``).  It only consults clients that are already
+        READY with *doc* open, so it is safe to call from UI paths that must
+        not trigger LSP traffic.  Failures -- no ready server, request error,
+        timeout, malformed payload -- degrade to ``""`` without surfacing to
+        the UI; :class:`asyncio.CancelledError` is re-raised as control flow.
+        """
+        client = self._ready_client_for(doc)
+        if client is None:
+            log.debug("hover skipped: no ready server for %s", doc.path)
+            return ""
+        uri = self._uri(doc)
+        cursor_line = (
+            doc.buffer.lines[row] if row < doc.buffer.line_count else ""
+        )
+        params: dict[str, Any] = {  # noqa: Any - LSP wire payload, untyped server data
+            "textDocument": {"uri": uri},
+            "position": {"line": row, "character": _to_utf16(cursor_line, col)},
+        }
+        try:
+            request_id, future = await client.start_request(
+                "textDocument/hover", params
+            )
+            try:
+                raw = await asyncio.wait_for(future, HOVER_TIMEOUT_S)
+            finally:
+                # Mirror ``request_completion``: drop the pending entry once
+                # the future settles (success, error, timeout or
+                # cancellation) so the payload does not stay referenced.
+                client.settle_request(request_id)
+        except asyncio.CancelledError:
+            # Cancellation is control flow, not "no hover": the awaiting
+            # caller must observe it.
+            raise
+        except (LspError, OSError, TimeoutError):
+            log.debug("hover request failed for %s", uri)
+            return ""
+        # A hostile server payload must not reach the UI worker: degrade to
+        # "no hover" like a failed request does above.
+        try:
+            return parsing.parse_hover_contents(raw)
+        except Exception:  # noqa: BLE001 - rationale in the comment above
+            log.debug("failed to parse hover response for %s", uri)
+            return ""
 
     @staticmethod
     def _unwrap_completion(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:

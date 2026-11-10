@@ -216,6 +216,11 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.view",
         "yate.editor_components.panes",
     },
+    "flows/hover_flows.py": {
+        "yate.editor_components",
+        "yate.editor_components.hover_popup",
+        "yate.editor_components.panes",
+    },
     "flows/lsp_sync.py": {
         "yate.editor_components",
         "yate.editor_components.commandline",
@@ -357,11 +362,16 @@ MAX_SOURCE_LINES: int = 800
 #: and dropped from this list.
 #: 2026-11-05 multi-dim-review r2: ``vim.py`` re-measured at 1531 splitlines;
 #: the other three entries are unchanged (963 / 1565 / 841).
+#: 2026-11-09 lsp-hover-docs wave-2: ``editor_lsp/manager.py`` registered at
+#: 875 splitlines; plan-d added hover-request packaging that still belongs to
+#: the LSP request orchestration single duty, and moving it out would break
+#: the manager's encapsulation of ``_clients`` / ``_open``.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
+    "editor_lsp/manager.py",
 })
 
 #: Code points a code comment or docstring must not carry (misc-rules
@@ -1596,3 +1606,41 @@ def test_scrollable_widgets_apply_theme_scrollbar_pair() -> None:
         "apply_scrollbar_theme in the theme paint path, or register the "
         f"module in SCROLLBAR_EXEMPT: {offenders}"
     )
+
+
+def test_hover_key_is_shared_and_identical() -> None:
+    """The hover key is named once (keymaps/keys.py) in both keymaps (AC2).
+
+    AST part: ``vsc.py`` / ``vim.py`` reference ``HOVER_DOC_KEY`` inside
+    ``build_bindings`` and never spell ``<f7>`` literally, so a one-sided
+    key edit fails here.  Runtime part: both keymaps resolve that key to
+    the ``show_hover_docs`` action.
+    """
+    from yate.keymaps.keys import HOVER_DOC_KEY, parse_key
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    for name in ("vsc.py", "vim.py"):
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        assert "HOVER_DOC_KEY" in source_names, name
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        assert "<f7>" not in literals, name
+
+    vsc_binding = VscKeymap().lookup(parse_key(HOVER_DOC_KEY))
+    assert vsc_binding is not None
+    assert vsc_binding.action == "show_hover_docs"
+    vim_binding = VimKeymap().lookup(parse_key(HOVER_DOC_KEY))
+    assert vim_binding is not None
+    assert vim_binding.action == "show_hover_docs"

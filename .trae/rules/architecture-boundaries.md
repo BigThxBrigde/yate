@@ -22,7 +22,7 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          actions.py / commands.py / flows/ 子包
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
-         lsp_sync.py / mouse_flows.py / chunked_flows.py /
+         lsp_sync.py / mouse_flows.py / hover_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
@@ -139,7 +139,9 @@ flowchart TD
   `document_flows.py` / `window_flows.py` / `extension_flows.py` / `shell_flows.py` /
   `overlay_flows.py` / `lsp_sync.py` / `mouse_flows.py` /
   `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
-  命名统一波以新名首次补登，修复漏登漂移）；
+  命名统一波以新名首次补登，修复漏登漂移）/
+  `hover_flows.py`（其 `editor_components` 导入已在 `tests/test_architecture.py`
+  的 `UI_FROZEN_FILES` 登记）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
@@ -161,13 +163,15 @@ flowchart TD
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
   `CommandRegistry` 本身，不再为每个消费者定义窄协议。
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
-  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key`），
+  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key` `#hover-docs`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
-  其中 `#statusbar` 与 `#which-key` 只是 widget id，样式由组件自持、
+  其中 `#statusbar`、`#which-key` 与 `#hover-docs` 只是 widget id，样式由组件自持、
   不被外壳 CSS 引用：`#statusbar` 对应 `yate/resources/status-bar.tcss`
   （组件 `DEFAULT_CSS` 均为打包 tcss 资源、经 `yate.paths.load_tcss` 装载，
   issue IKJHPH；类选择器 `StatusBar` 不变），`#which-key` 对应
-  `yate/resources/which-key.tcss`（同 `#statusbar` 先例）；
+  `yate/resources/which-key.tcss`（同 `#statusbar` 先例）；`#hover-docs` 由
+  `yate/editor_compose.py` 传入，对应 `yate/resources/hover-popup.tcss`（同
+  `#which-key` 先例）；
   其余 id 均被外壳 CSS 直接引用——该 CSS
   已不再内联于 `app.py`，而是打包资源 `yate/resources/app.tcss`
   （`YateApp.CSS = paths.load_tcss("app.tcss")`；公共加载器 `yate/paths.py` 的
@@ -347,7 +351,14 @@ flowchart TD
      `editor_syntax/langdefs.py`（2026-10-12 登记 813 行，multi-dim-review 波
      2026-10-31 复测 841 行，语言注册表声明式数据
      单一职责；full-review-fixes 新增两个测试缝存取器后越线，拆分会触碰
-     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）。
+     big-module-split plan-a 钉死的原地 patch 语义，零行为收益）、
+     `editor_lsp/manager.py`（2026-11-09 lsp-hover-docs wave-2 登记 875 行
+     （`splitlines()` 守卫口径；基线 797 行）：server 生命周期 / 文档同步 /
+     补全 / 诊断 / hover 请求编排同属 LSP 请求编排单一职责，plan-d 新增
+     78 行后越线；迁出新模块会破坏 manager 对 `_clients` / `_open` 的封装，
+     故按本节「单一职责长文件可登记豁免」登记，并与
+     `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
+     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -369,7 +380,9 @@ flowchart TD
      `editor_term/emulator.py`（2026-10-08 big-module-split e 波：调色板与
      按键映射迁入 `palette.py` / `keys.py`，拆分后三文件均低于阈值）；
      `editor_lsp/manager.py`（2026-10-08 big-module-split f 波：线格式解析
-     迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值）；
+     迁入 `parsing.py`，状态编排留在原文件，两文件均低于阈值；
+     2026-11-09 lsp-hover-docs wave-2 因新增 hover 请求封装复测 875 行，
+     按单一职责重新登记豁免，见上方正式名单）；
      `yaterc.py`（2026-10-08 big-module-split f 波：选项提取/校验迁入
      `yaterc_options.py`，rc 发现与 exec 循环留在原文件，两文件均低于阈值）；
      `services/extensions.py`（2026-10-11 extensions-split：798 行临阈值
@@ -445,9 +458,11 @@ flowchart TD
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **37 个用例**（2026-10-24 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `37 passed`，新增 R15 可滚动组件
-滚动条接线守卫一条；2026-10-21 为 36，2026-10-18 为 35：
+`tests/test_architecture.py` 已落地 **38 个用例**（2026-11-09 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `38 passed`；本次 IKTPC2
+新增统一 hover 键位漂移守卫 `test_hover_key_is_shared_and_identical` 一条；
+2026-10-24 为 37（新增 R15 可滚动组件滚动条接线守卫一条）；
+2026-10-21 为 36，2026-10-18 为 35：
 新增非 ASCII 注释 / `print()` 调试 / 本机家目录路径守卫三条，此前 2026-10-17 为 32；
 用例清单见文末对照）：
 
@@ -563,8 +578,8 @@ flowchart TD
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**37 个用例逐条对照**（2026-10-24 实测 `37 passed`；2026-10-21 为 `36 passed`，
-2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
+**38 个用例逐条对照**（2026-11-09 实测 `38 passed`；2026-10-24 为 `37 passed`，
+2026-10-21 为 `36 passed`，2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -605,6 +620,7 @@ flowchart TD
 | 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 | 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_components/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
+| 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -124,6 +124,11 @@ start see [README.md](README.md), and for the full usage guide see the
 - Diagnostics: underlines / gutter marks ✖▲ / status-bar counts / `:diagnostics`
 - Two registration paths: declarative `language_servers` in yaterc; programmatic
   `api.lsp.register_server` in extensions
+- Hover documentation: `F7` (same key in vsc and vim, no chord) shows the API
+  docs card at the cursor; mouse hover follows `support_mouse` (short debounce,
+  `Esc`/cursor move dismisses); when the server returns nothing, absolutely
+  nothing is shown (no card, no placeholder, no message-bar/status-bar hint,
+  no flash); request-only, never starts a server or changes synchronization
 - The bundled Python LSP extension auto-discovers pyright / python-lsp-server
   (`YATE_PYTHON_LSP` overrides or disables with `off`)
 
@@ -188,7 +193,7 @@ start see [README.md](README.md), and for the full usage guide see the
   tree-sitter backend and the Lua bridge)
 - Maintenance toolchain: `tools.smoke_test` (end-to-end smoke tests with
   baseline comparison), `tools.changelog`/`tools.release` (automated changelog
-  and releases), `tools.pack wiki` (bilingual wiki generation) + 36
+  and releases), `tools.pack wiki` (bilingual wiki generation) + 38
   architecture-guard tests
 
 ## Appendix: Features Not Highlighted in the README

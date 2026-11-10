@@ -101,6 +101,10 @@
 - 自动补全弹窗（触发字符 + `Ctrl+Space`，无服务器时回退 buffer 单词/路径）
 - 诊断：下划线/装订槽 ✖▲/状态栏计数/`:diagnostics`
 - 两种注册：yaterc `language_servers` 声明式；扩展 `api.lsp.register_server`
+- 悬停文档：`F7`（vsc 与 vim 同键、无键弦）显示光标处 API 文档卡片；鼠标悬停
+  受 `support_mouse` 门控（短暂去抖，`Esc`/移动光标关闭）；服务器无文档时
+  绝对零 UI 反馈（不弹卡片/不显示占位/不写消息栏状态栏/不闪烁）；
+  只发一次性请求，不启动服务器、不改变同步
 - 随包 Python LSP 扩展自动发现 pyright / python-lsp-server（`YATE_PYTHON_LSP` 可指定或 `off`）
 
 ## 12. 终端与 Shell
@@ -154,7 +158,7 @@
 - wheel 安装 + PyInstaller 独立可执行（Windows `pack.ps1`/`pack.bat`、Linux `pack.sh`，
   单目录/单文件两种形态，内置 tree-sitter 与 Lua 桥）
 - 维护工具链：`tools.smoke_test`（端到端冒烟 + 基线对比）、`tools.changelog`/`tools.release`
-  （自动 changelog 与发布）、`tools.pack wiki`（双语 Wiki 生成）+ 36 条架构守卫测试
+  （自动 changelog 与发布）、`tools.pack wiki`（双语 Wiki 生成）+ 38 条架构守卫测试
 
 ## 附：README 未重点提及的功能
 

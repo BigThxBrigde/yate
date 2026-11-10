@@ -46,6 +46,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "prompt_flows.replace_prompt",
         "quit",
         "shell.open_prompt",
+        "hover.request_at_cursor",
         "toggle_explorer",
         "toggle_keymap",
         "whichkey.toggle",
@@ -62,6 +63,7 @@ _FLOW_NAMESPACES: frozenset[str] = frozenset(
         "shell",
         "lsp_sync",
         "whichkey",
+        "hover",
     }
 )
 
@@ -368,6 +370,13 @@ def test_toggle_keymap_forwards_to_the_editor() -> None:
     registry, editor = _table()
     assert registry.execute("toggle_keymap", make_action_context()) is True
     assert editor.calls_to("toggle_keymap") == [((), {})]
+
+
+def test_show_hover_docs_action_forwards_to_hover_flows() -> None:
+    """The hover action reaches HoverFlows.request_at_cursor exactly once."""
+    registry, editor = _table()
+    assert registry.execute("show_hover_docs", make_action_context()) is True
+    assert editor.calls_to("hover.request_at_cursor") == [((), {})]
 
 
 def test_page_actions_forward_the_direction_and_the_half_flag() -> None:

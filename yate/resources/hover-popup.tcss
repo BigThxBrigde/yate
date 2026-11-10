@@ -1,0 +1,23 @@
+/* HoverPopup widget stylesheet (class-scoped DEFAULT_CSS) --
+   loaded by editor_components/hover_popup.py via yate.paths.load_tcss.
+
+   Selector id frozen by R9: #hover-docs (owned by the Editor in plan h);
+   component-owned CSS, not referenced by app.tcss.  Only Textual theme
+   tokens are used -- no hard-coded colors, no L3 style writes (R13). */
+HoverPopup {
+    layer: lsp-popup;
+    position: absolute;
+    height: auto;
+    max-height: 14;
+    width: auto;
+    overflow-y: auto;
+    padding: 0 1;
+    background: $panel;
+    color: $foreground;
+    border: round $accent;
+}
+
+#hover-docs-body {
+    height: auto;
+    width: 1fr;
+}

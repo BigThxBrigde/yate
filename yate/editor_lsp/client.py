@@ -43,6 +43,10 @@ type NotificationFn = Callable[[str, dict[str, Any]], None]
 #: LSP error codes we care about.
 ERR_METHOD_NOT_FOUND: int = -32601
 
+#: Markup kinds the client accepts for hover/completion documentation,
+#: in order of preference; shared by both capability declarations.
+DOCUMENTATION_FORMATS: tuple[str, ...] = ("markdown", "plaintext")
+
 #: Sync kind for full-document ``textDocument/didChange`` syncs (LSP TextDocumentSyncKind).
 SYNC_FULL: int = 1
 
@@ -613,10 +617,16 @@ class LspClient:
                         "dynamicRegistration": False,
                         "completionItem": {
                             "snippetSupport": False,
-                            "documentationFormat": [],
+                            "documentationFormat": list(DOCUMENTATION_FORMATS),
                             "resolveSupport": {"properties": []},
                         },
                         "contextSupport": False,
+                    },
+                    # hoverProvider is a server capability; the client
+                    # declares only its hover preferences here.
+                    "hover": {
+                        "dynamicRegistration": False,
+                        "contentFormat": list(DOCUMENTATION_FORMATS),
                     },
                     "publishDiagnostics": {
                         "relatedInformation": False,

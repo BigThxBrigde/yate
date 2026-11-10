@@ -51,6 +51,9 @@ def _handle_key(ed: yate.editor.Editor, event: Key) -> bool:
     """
     if ed.has_modal_screen():
         return False  # a modal screen owns input
+    # Every key press dismisses the hover card but consumes nothing (R10):
+    # dispatch below proceeds exactly as before (plan h, AC6).
+    ed.hover.dismiss()
     # Entry-level evidence: YATE_TRACE turns this into the ground truth of
     # what event.key names a real terminal actually delivers (field reports
     # and pilot synthesis can disagree; the log settles which side erred).

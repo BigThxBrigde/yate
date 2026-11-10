@@ -59,6 +59,7 @@ from yate.editor_components.chrome import Breadcrumbs, SidebarHead, TabBar
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup
 from yate.editor_components.explorer import ExplorerTree
+from yate.editor_components.hover_popup import HoverPopup
 from yate.editor_components.panes import PaneHost, PaneManager
 from yate.editor_components.statusbar import StatusBar, mode_chip
 from yate.editor_components.terminal import TerminalPanel
@@ -69,6 +70,7 @@ from yate.flows.completion_flows import CompletionFlows
 from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
+from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
@@ -115,6 +117,7 @@ class Editor:
     tabbar: TabBar
     breadcrumbs: Breadcrumbs
     completion_popup: CompletionPopup
+    hover_popup: HoverPopup
     terminal_panel: TerminalPanel
     explorer_tree: ExplorerTree
     status_bar: StatusBar
@@ -135,6 +138,7 @@ class Editor:
     file_manager_flows: FileManagerFlows
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
+    hover: HoverFlows
     mouse_flows: MouseFlows
     chunked_flows: ChunkedFlows
 
@@ -168,6 +172,8 @@ class Editor:
         # WhichKeyFlows exists (see _build_pane_stack).  The file manager flows
         # are built with the pane stack (overlays precedent); their fullscreen
         # exit verb is bound by the app shell on mount (bind_file_manager_exit).
+        # Hover flows: built after panes, before mouse_flows (which receives
+        # their on_mouse_move callback, plan h).
         _build_models(self, keymap)
         _build_widgets(self)
         _open_startup_target(self, target)
@@ -270,9 +276,7 @@ class Editor:
         listeners observe a consistent "just left the session" state either
         way, and the LSP call is only deferred to a worker.
         """
-        self.events.emit(
-            EditorEvent.DOCUMENT_CLOSED, DocumentClosed(tuple(docs))
-        )
+        self.events.emit(EditorEvent.DOCUMENT_CLOSED, DocumentClosed(tuple(docs)))
         self.lsp_sync.documents_closed(docs)
 
     def make_view(self, leaf_id: int) -> EditorView:
@@ -334,6 +338,7 @@ class Editor:
         self._ext_messages.extend(self.extension_flows.load_extensions())
         self.extension_flows.register_configured_servers()
         await self.editor_col.mount(self.completion_popup)
+        await self.editor_col.mount(self.hover_popup)
         self.explorer_tree.refresh_tree()
         self.sync_explorer_visibility()
         view = self.panes.active_view
@@ -361,9 +366,7 @@ class Editor:
         # finish its layout pass before the modal push (like the --diff handoff).
         pending_hex = self.document_flows.take_pending_hex()
         if pending_hex is not None:
-            self.app.call_after_refresh(
-                self.overlays.open_hex_view, pending_hex
-            )
+            self.app.call_after_refresh(self.overlays.open_hex_view, pending_hex)
 
     async def on_unmount(self) -> None:
         """Tear the extension hooks, terminal and LSP services down in order."""
@@ -652,10 +655,7 @@ class Editor:
         try:
             selected = theme.set_theme(name)
         except KeyError:
-            self.message(
-                f"unknown theme: {name!r} ({', '.join(theme.available())})",
-                kind="error",
-            )
+            self.message(f"unknown theme: {name!r} ({', '.join(theme.available())})", kind="error")
             return
         reselected = selected.name == previous
         # Lazily ensure the Textual bridge exists (an extension may have

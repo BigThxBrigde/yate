@@ -17,6 +17,7 @@ re-exports to pyright (wave-a private-registry precedent), not as
 
 from __future__ import annotations
 
+import re
 from typing import Any, cast
 
 from yate.editor_core.document import Document
@@ -29,6 +30,11 @@ from yate.logs import tracing
 #: handler when on.
 log = tracing.get_logger(__name__)
 
+#: Characters a MarkedString fence language tag may contain; a server
+#: controlled tag with newlines or backticks could otherwise break out of
+#: the code fence and inject arbitrary Markdown into the hover card.
+_LANGUAGE_TAG_RE: re.Pattern[str] = re.compile(r"[A-Za-z0-9_+#.-]+")
+
 __all__ = [
     "_from_utf16",
     "_parse_completion_item",
@@ -37,6 +43,7 @@ __all__ = [
     "_range_to_buffer_cols",
     "_to_utf16",
     "_unwrap_completion",
+    "parse_hover_contents",
 ]
 
 
@@ -62,6 +69,68 @@ def _from_utf16(line: str, units: int) -> int:
             return i
         seen += 2 if ord(ch) > 0xFFFF else 1
     return len(line)
+
+
+def _hover_part(value: object) -> str:
+    """Normalize a single ``Hover.contents`` element into display text.
+
+    Strings pass through unchanged.  Dicts carry either a ``MarkedString``
+    (a string ``language`` plus a string ``value`` -- a non-empty value is
+    wrapped in a fenced code block so signatures render as code, and the
+    fence tag is only used when the language is a plain safe token) or a
+    ``MarkupContent`` (the string ``value`` is returned as-is).  Lists are
+    normalized element-wise and non-empty parts are joined with a blank
+    line.  Every other shape -- ``None``, numbers, booleans, unexpected
+    objects, dicts without a string ``value`` -- collapses to ``""``.  The
+    function never follows a dict's ``value`` back into nested structures,
+    so recursion is bounded by the nesting depth of plain lists.
+    """
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        payload = cast(dict[str, object], value)
+        raw_value = payload.get("value")
+        if not isinstance(raw_value, str):
+            log.debug(
+                "discarding hover part without string value: %r",
+                cast(dict[str, object], value),
+            )
+            return ""
+        if not raw_value.strip():
+            # An empty MarkedString must not produce a bare code fence:
+            # that would render as an empty box instead of "no hover".
+            log.debug("discarding hover part with empty value")
+            return ""
+        language = payload.get("language")
+        if (
+            isinstance(language, str)
+            and language
+            and _LANGUAGE_TAG_RE.fullmatch(language)
+        ):
+            return f"```{language}\n{raw_value}\n```"
+        return raw_value
+    if isinstance(value, list):
+        parts = [_hover_part(item) for item in cast(list[object], value)]
+        return "\n\n".join(part for part in parts if part)
+    log.debug("discarding malformed hover part: %r", value)
+    return ""
+
+
+def parse_hover_contents(raw: object) -> str:
+    """Normalize an LSP Hover payload into Markdown text ("" when empty).
+
+    *raw* is the untyped wire payload: either a full Hover dict (its
+    ``contents`` field is used), a bare ``contents`` value, or ``None``.
+    The result is a display string with empty and whitespace-only shapes
+    collapsed to ``""``; the function is total and never raises.
+    """
+    contents: object = raw
+    if isinstance(raw, dict):
+        payload = cast(dict[str, object], raw)
+        if "contents" in payload:
+            contents = payload.get("contents")
+    text = _hover_part(contents)
+    return text if text.strip() else ""
 
 
 def _unwrap_completion(  # noqa: Any - LSP wire payload, untyped server data

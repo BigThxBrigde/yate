@@ -32,6 +32,7 @@ from yate.editor_core.textobjects import (
 from yate.editor_core.words import next_word_start
 from yate.keymaps.base import (
     ActionContext,
+    HOVER_DOC_KEY,
     KeyBinding,
     KeyUi,
     Keymap,
@@ -230,6 +231,8 @@ class VimKeymap(Keymap):
             KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
             KeyBinding(parse_key("<f9>"), "toggle_whichkey",
                        "Toggle the which-key panel", HLP),
+            KeyBinding(parse_key(HOVER_DOC_KEY), "show_hover_docs",
+                       "Show API documentation at cursor", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch

@@ -15,6 +15,7 @@ from collections.abc import Callable
 from textual.events import Click, MouseDown, MouseMove, MouseUp, MouseEvent
 
 from yate.config import YateConfig
+from yate.editor_core.buffer import Pos
 from yate.editor_core.words import word_span
 from yate.editor_components.view import LEFT_BUTTON, EditorView
 from yate.keymaps.registry import KeymapSet
@@ -31,6 +32,7 @@ class MouseFlows:
         config: YateConfig,
         refresh: Callable[[], None],
         refresh_soon: Callable[[], None],
+        on_hover_move: Callable[[Pos | None], None] | None = None,
     ) -> None:
         self.keymaps = keymaps
         self.config = config
@@ -38,7 +40,15 @@ class MouseFlows:
         # Coalesced variant for the high-frequency drag moves (plan P4):
         # the injected pair keeps the flow module free of any App handle.
         self._refresh_soon = refresh_soon
+        # Hover feedback callback (plan h): driven with the buffer position
+        # under a non-drag pointer move, ``None`` on any other interaction.
+        self._on_hover_move = on_hover_move
         self._dragging: bool = False
+
+    def _notify_hover(self, pos: Pos | None) -> None:
+        """Forward the pointer position to the hover flows when injected."""
+        if self._on_hover_move is not None:
+            self._on_hover_move(pos)
 
     def handle_view_mouse(self, view: EditorView, event: MouseEvent) -> bool:
         """Dispatch one mouse event over *view*; ``True`` when consumed."""
@@ -46,6 +56,9 @@ class MouseFlows:
             # A mid-drag ``:set support_mouse off`` must not leave the drag
             # flag stuck: with the gate closed no MouseUp path can clear it.
             self._dragging = False
+            # A re-dispatched MouseMove may still arrive while the gate is
+            # off: the visible hover card must go with it (plan h).
+            self._notify_hover(None)
             return False
         if isinstance(event, MouseDown):
             return self._on_down(view, event)
@@ -64,9 +77,12 @@ class MouseFlows:
         later re-enable would resume the stale drag on the next left-button
         MouseMove.  The selection itself is left untouched.
         """
+        self._notify_hover(None)
         self._dragging = False
 
     def _on_down(self, view: EditorView, event: MouseDown) -> bool:
+        # Any pointer press is an editing interaction: drop the hover card.
+        self._notify_hover(None)
         if event.button != LEFT_BUTTON:
             return False
         pos = view.buffer_pos_from_mouse(event)
@@ -95,7 +111,12 @@ class MouseFlows:
 
     def _on_move(self, view: EditorView, event: MouseMove) -> bool:
         if not self._dragging or event.button != LEFT_BUTTON:
+            # Non-drag move: report the position for the debounced hover,
+            # and stay unconsumed (plan h, AC3).
+            pos = view.buffer_pos_from_mouse(event)
+            self._notify_hover(pos)
             return False
+        self._notify_hover(None)
         pos = view.buffer_pos_from_mouse(event)
         if pos is not None:  # outside the text area: keep the drag alive
             view.buffer.set_cursor(pos, select=True)
@@ -109,6 +130,7 @@ class MouseFlows:
         # Same button gate as _on_move / PaneHost.on_mouse_up: releasing a
         # different button (chording) must not terminate an in-flight
         # left-button drag selection.
+        self._notify_hover(None)
         if not self._dragging or event.button != LEFT_BUTTON:
             return False
         self._dragging = False
@@ -116,6 +138,8 @@ class MouseFlows:
         return True
 
     def _on_click(self, view: EditorView, event: Click) -> bool:
+        # A click-chain is an editing interaction: drop the hover card.
+        self._notify_hover(None)
         if event.chain < 2:
             return False  # single click handled at mouse-down
         pos = view.buffer_pos_from_mouse(event)
