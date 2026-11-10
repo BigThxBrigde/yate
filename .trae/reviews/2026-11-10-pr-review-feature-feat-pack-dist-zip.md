@@ -168,3 +168,49 @@ m1 / m7 继续有效，本记录不重复计条。
   按 skill 六维度兜底并逐条回读复核。
 - 新增代码 pyright strict 0 诊断、行宽 100 全合规、覆盖率 92.95%，
   修复波新增 3 个针对性回归用例（`.` / `..` / 顶层前缀）。
+
+## 九、续作会话独立复核补记（2026-11-10，主代理亲跑）
+
+本节记录另一无人值守会话在闭环后的独立复核；不改动 §七 的 APPROVE 结论，
+只补登记新证据与两条 minor，供合并者查阅。
+
+- 范围与基线不变：`master...HEAD`，merge-base `b982c06`；复核时 HEAD 为
+  `91c493fa`（在 §七 结论之上另有 2 笔文档回填提交，未改产品代码）。
+- 分域审查重新下发 2 名只读 `code-explorer`（功能/安全、架构/文档/合并准备），
+  两名均交付完整报告——与 §二 记载的「分域 B/C 零产出」不是同一批次，
+  如实并列登记，不覆盖前次事实。主代理对每条发现逐条回读代码定级：
+  - 两条最重发现（`--stage` 畸形名造成 zip slip / 越界 rglob、symlink 跟随
+    把 stage 外内容打进包）经独立探针复验**已被 `6f842d34` 收口**：
+    `Path(".")` / `Path("..")` / `<stage>/..` 三种输入均抛
+    `ZipDistError("invalid stage directory name")` 且不产生任何 zip / tmp；
+    真实 symlink 指向 stage 外文件时归档 `namelist()` 仅含正常条目，不含
+    链接目标；正常归档顶层前缀为 `<resolved stage name>/`，无条目以 `/`
+    开头或含 `..`，临时文件无残留。
+  - 评审索引撞号与本机绝对路径泄漏两条经复验已闭环：提交态 `merge-tree`
+    精确冲突块计数 0（3 处 `changed in both` 均可自动合并）、#73 / #74
+    各登记一次、新增/修改文档盘符路径命中 0。
+- 本会话主代理亲跑八项门禁（非引用前轮数字）：`GATE_RCS
+  [0, 0, 0, 0, 0, 0, 0, 0]` / `ALL_ZERO True`——
+  pyright `0 errors, 0 warnings, 0 informations`；`pytest tests/ -q -n auto`
+  100% 完成、无 FAILED/ERROR；架构 37 passed；覆盖率
+  `3498 passed, 10 skipped` / `TOTAL 19552 语句 · 93%（92.95%）`，
+  `Required test coverage of 75.0% reached`；冒烟 `121/121 scenarios`、
+  `1464/1464 checks`；changelog `released changelog sections are up to date`
+  （unreleased lag 14 属存量）；`git diff --check` 与
+  `git diff --check master...HEAD` 均 0。覆盖率本轮 `-n auto` 直接为 0，
+  未复现 §六 的 safe-delete 钩子拦截，如实记录两轮差异、不改判前轮事实。
+- 新增 minor 2 条（登记待办，不阻塞合入；均为畸形 CLI 输入或异常注入才
+  触发的边缘面，正常构建脚本路径不经过）：
+
+  | # | 位置 | 摘要 |
+  | --- | --- | --- |
+  | 8 | `tools/pack/zip_dist.py:196-197` | 两次 `os.replace` 之间失败会留下「新 zip + 旧 SHA256SUMS.txt」；可保留旧 zip 备份并回滚，或收窄 docstring 的 never touches 措辞后另案事务化并补 monkeypatch 用例 |
+  | 9 | `tools/pack/zip_dist.py:178-179` | `--dist-root` 落在 stage 内时，重跑会把上一次的 zip 当普通文件再打进新包；可在入口拒绝 `dist_root.resolve().is_relative_to(root)` 并补参数化用例 |
+
+- 按 skill Step 5 撤回重复发现 1 条：分域审查重提「`_write_archive` 每文件
+  重复 `stat` + 整文件 `read_bytes()`」，前两轮分支评审已按
+  `python-coding-style.md` §6.1「无实测依据的预优化不做」删除同一误报；
+  本会话无新的 profiler 证据，不重提、不计入清单。
+- 结论：**APPROVE 维持**（0 BLOCKER / 0 MAJOR；minor 待办由 7 条增至 9 条）。
+  仍不自动合并、不推送，合并决定归人类评审者；合并树上须重跑门禁
+  （master 架构守卫 38）并按日期统一重排评审索引编号。

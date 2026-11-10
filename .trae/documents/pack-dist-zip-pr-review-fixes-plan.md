@@ -147,3 +147,15 @@ git merge-tree <merge-base> master HEAD   # 用 Python 解析 CONFLICT_MARKERS =
 - 结论：评审记录 `2026-11-10-pr-review-feature-feat-pack-dist-zip.md` 给出
   **APPROVE**（0 BLOCKER / 0 MAJOR / 7 MINOR 待办）；索引登记 #73 / #74；
   未推送、未合流、工作树干净。
+
+## 8. 续作会话复核回填（2026-11-10）
+
+- §6 验收判据由另一会话独立复跑：八项门禁 `GATE_RCS` 全 0（覆盖率
+  92.95%·3498 passed·10 skipped / 架构 37 / 冒烟 121/121·1464 /
+  changelog 0 / diffcheck 双 0），提交态精确冲突块 0；MAJOR 修复的回归
+  用例与独立探针（畸形 stage 名 / symlink / 越界）全部通过。
+- 新增 minor 待办 2 条（两次 replace 间失败、dist-root 落在 stage 内），
+  详见评审记录 §九；按 §1 非目标登记，不扩本方案修复范围；另按
+  `pr-review` skill Step 5 撤回前轮已删除的重复 stat 误报 1 条。
+- 结论：APPROVE 维持（minor 7 → 9），未推送、未合流；合并树上重跑门禁
+  与索引重排仍由人类执行。
