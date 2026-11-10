@@ -26,8 +26,8 @@
 | 1 | 【领会】环境与情报准备 | 完成 | `pack-dist-zip-issue.md` + 本文件；venv 自证通过；提交 `a204f14` |
 | 2 | 【方案】调研取证并落盘方案 | 完成（主代理兜底，子代理零产出） | `pack-dist-zip-plan.md` + `pack-dist-zip-plans/overview.md` + 7 个子计划 a-g，含目标/非目标、5 个备选与否决理由、波次表、每步验收命令、风险与回滚、Mermaid 图 |
 | 3 | 【批准】无人值守按通过处理 | 完成 | 本文件「批准结论」章节；单独提交一笔 |
-| 4 | 【执行】按波次实施 | 待开始 | wave-1 → wave-4，见总纲 |
-| 5 | 【审核】code-review-expert 评审 + 迭代 | 待开始 | — |
+| 4 | 【执行】按波次实施 | 完成 | wave-1 `78354c9` / wave-2 `0d239f1` / wave-3 `a6b5bed` / wave-4 三次真实构建全部 exit 0，实测见「波次执行实测」 |
+| 5 | 【审核】code-review-expert 评审 + 迭代 | 进行中 | 待 spawn 与复核 |
 | 6 | 【收尾】主代理全量门禁 + 回填 + 逐步提交 | 待开始 | — |
 
 ## 批准结论（【批准】）
@@ -74,6 +74,11 @@
 - 复核发现 wave-2 bat 执行者把既有头注释示例 `--onefile --dist release` 改写为
   `--dist release`（计划外改动，plan-e §3 只要求追加），主代理将恢复原行并保留
   新增说明，登记为执行偏离。
+- 【执行】wave-4 构建 1 首次尝试 `& .\pack\pack.ps1 -SkipChangelog --dist release`
+  报 `A positional parameter cannot be found that accepts argument 'release'`
+  （`--dist` 形态在当前 PowerShell 会话直接调用时未绑定为 `-Dist`），未产生
+  构建产物。按用户要求先落盘，再用 `-Dist` / `-Help` 探针定位绑定差异；bat
+  路径因 `--dist` → `-Dist` 显式映射不受影响，E2E 将优先用 bat 覆盖 `--dist`。
 - 其它步骤暂无失败。
 
 ## 波次执行实测
@@ -104,11 +109,30 @@
   四份文档 diff 双语逐项对齐、无本机绝对路径、保留 `build,ts,lua` 字样。
   负向演练（临时改回 `2,19p` 验证守卫变红）尚未执行，收尾前补做。
 
+- wave-4（本笔提交）：主代理真实 Windows PyInstaller 构建三次，全部 exit 0：
+  ① `pack.bat --skip-changelog --dist release`（one-folder）→
+  `Collected -> .../yate-0.2.18-windows-x64 (69.3 MB)` +
+  `ZIP -> ...zip (22.4 MB)` + SHA256 输出；
+  ② `pack.ps1 -SkipChangelog -OneFile -Dist release`（onefile）→
+  同名 zip 被覆盖（hash `01f9ab9a…` → `a87e74ca…`），校验文件仍单行；
+  ③ `pack.ps1 -SkipChangelog -NoZip -Dist release` →
+  `Collected ->` 与 `ZIP skipped (-NoZip)`，zip 字节与校验文件逐字节不变、
+  stage 保留且内部 `SHA256SUMS.txt` 随本次构建更新。
+  校验：一次性 Python 探针比对 zip 364 个文件与 stage 逐字节相等、顶层
+  `<stage>/` 保留、无 `smoke-out.txt` / `.tmp`；`python -m zipfile -t` =
+  `Done testing`；`Expand-Archive` 解压成功且 `SHA256SUMS.txt` 存在；
+  `Get-FileHash` 与校验条目一致；解压后 `yate.exe --version` = 0.2.18
+  （exit 0）。负向演练：临时把 sh 的 `2,21p` 改回 `2,19p`，
+  `test_help_text_when_scripts_scanned_covers_new_switch` 变红（RC 1），
+  字节级还原成功。一次性探针与 TEMP 解压目录均已清理。
+- 偏离（详见 `pack-dist-zip-plans/overview.md` §六）：dist 目录用已被
+  `.gitignore` 忽略的 `release` 替代计划里的 `release-e2e`；ps1 直接调用
+  `--dist release` 在 PowerShell 命令模式是参数终止符形态、绑定失败
+  （既有行为，非本任务引入），改由 bat 显式映射与 `-Dist` 形态覆盖；
+  Linux 真实构建不纳入（主计划 §7 已登记等价覆盖）。
+
 ## 下一步动作
 
-1. 【执行】wave-4：主代理按 `pack-dist-zip-e2e-plan-g.md` 跑 Windows 真实
-   构建矩阵（默认 / onefile 覆盖 / `-NoZip` 跳过）与 zip 内容 / hash / 冒烟
-   校验；失败按 §5 降级并如实登记偏离。
-2. 【审核】spawn `code-review-expert`（失败按 §一.3.5 / §三 兜底），
+1. 【审核】spawn `code-review-expert`（失败按 §一.3.5 / §三 兜底），
    迭代至无 blocker / major，仅 minor 登记待办。
-3. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。
+2. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、逐步提交、更新记忆。

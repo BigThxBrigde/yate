@@ -99,3 +99,6 @@ wave-3 的 b 与 f 互不重叠；wave-4 不写源码。
 | --- | --- | --- | --- |
 | 【方案】 | `plan-architect-designer` 两次 spawn 均报 `Model "qwen-3.7-plus" not found`（首次 + §一.3.5 按表格改模型重试一次） | task 工具两次返回同一错误，零落盘产物 | 按 §三 主代理亲自按剧本调研并落盘主计划 + 本总纲 + 全部子计划，如实标注「子代理零产出」 |
 | 【方案】 | 本轮把应用内双语手册 `yate/resources/manual.{en,zh}.md` 纳入范围（issue §六未列） | `yate/resources/manual.en.md:1650-1671` / `manual.zh.md:1474-1493` 已明文描述 `--dist` 现状，不改即过时 | 纳入 wave-3 子计划 f，与 README 一起双语同步 |
+| 【执行】wave-4 | E2E dist 目录用 `release` 替代计划中的 `release-e2e` | `../../.gitignore:15` 只忽略 `release/`，`release-e2e/` 会成为未跟踪产物；三次真实构建后 `git status --short` 实测无未跟踪产物 | 采纳，语义等价，登记偏离 |
+| 【执行】wave-4 | ps1 直接调用 `--dist release` 未作为 E2E 构建入口，改由 bat `--dist` 与 ps1 `-Dist` 覆盖 | 实测 `& .\pack\pack.ps1 --dist release -Help` 报 `A positional parameter cannot be found that accepts argument 'release'`；`-Dist release -Help` exit 0；`pack.bat --skip-changelog --dist release` 真实构建 exit 0。`--dist` 在 PowerShell 命令模式是参数终止符形态，属既有参数解析行为（`../../pack/pack.bat:21-26` 注释已说明需显式映射），非本任务引入 | 不改 ps1 参数面（不破坏 `--dist` 既有语义）；验收 1 的该形态记录为既有差异，bat 映射路径与 `-Dist` 形态已覆盖 |
+| 【执行】wave-4 | Linux 真实 PyInstaller 构建不纳入 | 本机 win32、CI 不跑 pack；按 issue 验收 4 的允许口径，Windows 做三次真实构建，Linux 侧由助手 `posix=True` mode 单测、sh 静态守卫、`python -m zipfile -t`（实测 `Done testing`）覆盖 | 主计划 §7 已登记，收尾回填不声称跑过 Linux 构建 |
