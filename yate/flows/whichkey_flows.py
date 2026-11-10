@@ -32,12 +32,16 @@ from yate.logs import tracing
 log = tracing.get_logger(__name__)
 
 
-#: Predicate over a which-key switch; used for both the ``which_key``
-#: master switch and the ``which_key_auto`` auto-trigger switch, read on
-#: every :meth:`WhichKeyFlows.refresh` / :meth:`WhichKeyFlows.toggle` entry
+#: Predicate over a which-key switch, read on every
+#: :meth:`WhichKeyFlows.refresh` / :meth:`WhichKeyFlows.toggle` entry
 #: so a mid-session ``:set which_key=off`` takes effect immediately.
-#: Returning ``False`` hides the panel and turns F9 into a no-op (the
-#: pinned state is preserved, re-enabling restores it).
+#:
+#: The two predicates have distinct effects when they return ``False``:
+#: the ``which_key`` master predicate short-circuits every refresh
+#: branch and makes F9 a no-op (the pinned state is preserved,
+#: re-enabling restores it); the ``which_key_auto`` predicate
+#: suppresses only the ``ctrl+w`` chord / pending-candidate branches,
+#: while ``toggle()`` and the pinned sheet are unaffected.
 type EnabledPredicate = Callable[[], bool]
 
 

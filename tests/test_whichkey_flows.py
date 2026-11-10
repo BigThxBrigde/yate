@@ -431,7 +431,7 @@ def test_behavior_matrix_of_master_and_auto_switches(master: bool, auto: bool) -
     else:
         assert shown_before == []
         assert panel.shown == []
-        assert panel.clears >= clears_before
+        assert panel.clears == clears_before
 
 
 def test_refresh_auto_disabled_hides_pending_candidates() -> None:
@@ -523,9 +523,12 @@ def test_master_switch_off_wins_over_auto_disabled() -> None:
         which_key_auto_enabled=lambda: False,
     )
     flows.refresh()
+    assert panel.shown == []
+    assert panel.clears == 1
     flows.toggle()
     assert panel.shown == []
-    assert panel.clears >= 1
+    assert panel.clears == 1
+    assert panel.last == "clear"
 
 
 def test_vsc_never_auto_pops_with_auto_disabled() -> None:

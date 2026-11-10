@@ -34,14 +34,16 @@ The two readings are configured independently: `which_key_auto = False`
 suppresses only the auto popup -- the `<f9>` pinned sheet keeps working,
 and while pinned the sheet is unaffected by prefix state.
 
-Visibility is recomputed after every dispatch, with four mutually
-exclusive branches (first hit wins): the pinned sheet, the vim `ctrl+w`
-window chord, pending-chord candidates, otherwise hidden. The
-`which_key_auto` gate sits after the pinned branch: when it is off, the
-`ctrl+w` chord grid and the pending-chord candidates are suppressed and
-the panel stays hidden, but the pinned sheet remains reachable via `<f9>`.
-A `which_key = False` master switch outranks everything: no branch ever
-shows the panel.
+Visibility is recomputed after every dispatch through a decision
+sequence of five mutually exclusive branches (first hit wins): the
+`which_key = False` master switch short-circuits everything and no
+branch ever shows the panel; otherwise the pinned sheet wins; otherwise
+the `which_key_auto` gate decides -- when it is off, the remaining
+automatic branches are suppressed and the panel stays hidden; otherwise
+the vim `ctrl+w` window chord, then pending-chord candidates, and
+otherwise the panel is hidden. The pinned sheet remains reachable via
+`<f9>` even with `which_key_auto = False`, and it is the only branch the
+auto gate does not suppress.
 
 ---
 
