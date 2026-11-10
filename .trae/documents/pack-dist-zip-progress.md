@@ -165,9 +165,9 @@
 
 ## 下一步动作
 
-合并前 pr-review 进行中（见下节）；推送 / 合入 master 仍须用户显式要求。
+无（合并前 pr-review 已完成，结论 APPROVE）；推送 / 合入 master 仍须用户显式要求。
 
-## 合并前 pr-review 轮（2026-11-10，进行中）
+## 合并前 pr-review 轮（2026-11-10，完成）
 
 - 范围 `master...HEAD`（25 文件 +2846/−8），merge-base `b982c06`；master 已推进
   到 `18e96d2a`（合入 IKTPC2 LSP hover docs + `chore(changelog)`），架构守卫
@@ -185,6 +185,14 @@
   （`[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] count=18852 threshold=9999`，
   本机 %TEMP% 积压触发 safe-delete 钩子杀 pytest 收尾清理，属环境钩子而非产品
   缺陷）/ 冒烟 121/121·1464 / changelog 0 / diffcheck 0。
-- 下一步：按 `pack-dist-zip-pr-review-fixes-plan.md` 修 MAJOR 与合并阻碍；
-  覆盖率用 `-n 1` 复核并如实记录；复评至 APPROVE；回填评审记录与索引
-  #73/#74；逐步提交。
+- 修复波 `6f842d34`：P1-a 净化 stage 名 / 越界与 symlink 收口 + 3 个回归
+  用例；P1-b 评审索引顺延 #73 并移出冲突 hunk；提交态 `git merge-tree`
+  实测 `CONFLICT_MARKERS 0`、`IDX_70 0` / `IDX_73 1`。覆盖率首轮红经
+  `-n 1` 复核为 safe-delete 环境钩子（`count=18852 > 9999`），非产品缺陷。
+- 修复后七道门禁 `GATE_RCS [0,0,0,0,0,0,0]`：pyright 0 / pytest `-n auto` 0 /
+  架构 37 / 覆盖率 92.95%·3498 passed·10 skipped / 冒烟 121/121·1464 /
+  changelog 0 / diffcheck 0。
+- 评审记录 `.trae/reviews/2026-11-10-pr-review-feature-feat-pack-dist-zip.md`
+  给出 **APPROVE**（0 BLOCKER / 0 MAJOR / 7 MINOR 待办），索引 #74 已登记；
+  合并时需在合并树上重跑门禁（master 架构守卫 38）并确认 changelog。
+- 下一步：无（本轮闭环）；推送 / 合入 master 由用户显式要求后进行。

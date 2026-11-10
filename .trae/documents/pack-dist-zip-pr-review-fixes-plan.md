@@ -123,3 +123,24 @@ git merge-tree <merge-base> master HEAD   # 用 Python 解析 CONFLICT_MARKERS =
   覆盖率 ≥75 / 冒烟 / changelog / diffcheck）实测全 0；
   评审索引编号唯一、增量段不冲突；评审记录与方案双向互链；工作树干净。
 - minor 全部登记待办，不阻塞合入（合并决定仍由人类作出，见 skill Step 4）。
+
+## 7. 执行结果（P1/P2 回填）
+
+- P1-a（`tools/pack/zip_dist.py` +13 行、`tests/test_pack_zip.py` +25 行）：
+  入口拒绝空 / `.` / `..` 名、`root = stage.resolve()`、`stage_name = root.name`
+  贯穿产物名 / mkstemp prefix / arcname；`_stage_files` 跳过 symlink 并断言
+  `is_relative_to(root)`；`_write_archive` 接收显式 `stage_name`；3 个回归
+  用例落地。主代理复核 49 passed / pyright 0 / 架构 37。
+- P1-b（`.trae/reviews/README.md`）：IKTRDV 增量段改为 #73 并移到 #67 段之前；
+  提交 `6f842d34` 后主代理用提交态 `git merge-tree` 独立复核：
+  `CONFLICT_MARKERS 0`、`CHANGED_IN_BOTH 3`、`IDX_70 0` / `IDX_73 1` /
+  `IKTRDV_SEGMENTS 1`。P1-b 因未提交态探针不可见而用临时 index + write-tree
+  等价探测，已登记偏差并由提交态复核闭环。
+- 主代理兜底（分域 B/C）：六维度结论、行宽 100 实测 `OVER100 []`、本轮文档
+  2 处本机绝对路径脱敏、提交规范与 diffcheck 0，全部写入评审记录 §三。
+- 修复后七道门禁 `GATE_RCS [0,0,0,0,0,0,0]`（覆盖率 92.95% /
+  3498 passed·10 skipped）；首轮覆盖率红经 `-n 1` 复核为 safe-delete 环境钩子
+  （`count=18852 > 9999`），非产品缺陷。
+- 结论：评审记录 `2026-11-10-pr-review-feature-feat-pack-dist-zip.md` 给出
+  **APPROVE**（0 BLOCKER / 0 MAJOR / 7 MINOR 待办）；索引登记 #73 / #74；
+  未推送、未合流、工作树干净。

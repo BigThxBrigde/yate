@@ -156,6 +156,20 @@ changelog 0 / diffcheck 0）。**2026-11-08 #66 纪律自审增量**：用户第
 [2026-11-10-pack-dist-zip.md](2026-11-10-pack-dist-zip.md)，
 修复方案 [pack-dist-zip-review-fixes-plan.md](../documents/pack-dist-zip-review-fixes-plan.md)，
 主计划 [pack-dist-zip-plan.md](../documents/pack-dist-zip-plan.md)。
+**2026-11-10 IKTRDV 合并前 pr-review 增量**：新增 #74（`pr-review` skill
+`review` 模式，范围 `master...HEAD` / 25 文件 +2846−8；3 名只读分域审查员
+并行，B/C `code=10003 aborted` 零产出，主代理按 skill 六维度兜底并逐条回读
+复核）。**APPROVE**：0 BLOCKER / **2 MAJOR 当轮修复**（`--stage .` / `..`
+导致 zip slip 与越界 rglob；评审索引 #70 与 master #70–#72 重复且产生唯一
+合并冲突块）/ 7 MINOR 登记待办。修复波 `6f842d34`：stage 名净化 +
+symlink/越界收口 + 3 个回归用例、索引顺延 #73 并移出冲突 hunk，提交态
+`git merge-tree` 实测 `CONFLICT_MARKERS 0`。修复后七道门禁全绿：pyright 0 /
+pytest `-n auto` 0 / 架构 37 / 覆盖率 92.95%·3498 passed·10 skipped /
+冒烟 121/121·1464 / changelog 0 / diffcheck 0（首轮覆盖率红为本机
+safe-delete 钩子，`-n 1` 复核 0，非产品缺陷）。合并时需在合并树上重跑
+门禁（master 架构守卫已 38）并确认 changelog。评审记录
+[2026-11-10-pr-review-feature-feat-pack-dist-zip.md](2026-11-10-pr-review-feature-feat-pack-dist-zip.md)，
+修复方案 [pack-dist-zip-pr-review-fixes-plan.md](../documents/pack-dist-zip-pr-review-fixes-plan.md)。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
