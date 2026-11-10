@@ -9,11 +9,6 @@ sheet. The panel floats on the right edge of the editor column as a
 rounded box; the border title carries the current chord or keymap name,
 both coloured by the active theme. It never takes focus and never swallows
 keystrokes. Set `which_key = False` in your yaterc to hide it entirely.
-The two readings can be configured independently: `which_key_auto = False`
-turns off only the auto popup on pending chords, while the `<f9>` pinned
-sheet stays available; while pinned, the sheet is unaffected by any
-prefix state (it sits before the pending-chord branch in the priority
-list below, and `which_key_auto` does not touch it).
 
 ---
 

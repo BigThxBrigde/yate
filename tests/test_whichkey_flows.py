@@ -563,6 +563,6 @@ def test_hide_after_manual_unpin_does_not_auto_pop() -> None:
     clears_before = panel.clears
     flows.refresh()
     assert len(panel.shown) == shown_count
-    assert panel.clears > clears_before
+    assert panel.clears == clears_before + 1
     assert panel.last == "clear"
     assert vim.pending_prefix() == "g"
