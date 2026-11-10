@@ -68,6 +68,12 @@ use_spaces = True
 #
 # which_key = True   # set False to suppress the panel entirely
 
+# Auto-popup for pending chords / ctrl+w (on by default).
+# Set False to keep the <f9> pinned sheet but stop automatic popups;
+# the which_key master switch still hides everything.
+#
+# which_key_auto = True
+
 # ------------------------------------------------------------- trace log
 #
 # Runtime debug log, off by default: nothing is written until it is turned
