@@ -153,3 +153,25 @@
 - 评审 §一第 6 项：`-n 1` 首轮 `test_app_panes.py::test_close_command_closes_active_pane`
   存量负载时序假设，不在本分支 diff，另案；收尾门禁若复现按
   `python-coding-style.md` §4.7 修用例，不记「偶发」。
+
+## 8. 执行结果（R1/R2 回填）
+
+- R1-a（`tools/pack/zip_dist.py` +18/−15、`tests/test_pack_zip.py` +24、
+  `tests/test_pack_spec.py` +6/−5）：`_checksum_bytes` 字节级 upsert 落地，
+  目录条目固定 `_ZIP_EPOCH`，新增 2 个用例，守卫用例 8 改为 AST 提取 import 根名。
+- R1-b（`pack/pack.ps1` +3/−2、README 双语 +8、手册双语 +5）：`.EXAMPLE` 与
+  README 示例改为 `-Dist` 形态，ps1 `.DESCRIPTION`、README、手册补「双连字符
+  由包装脚本映射」澄清；`.PARAMETER NoZip` 的 `--no-zip` 拼写保留。
+- 主代理独立复核（提交 `4f11dd1d` 前）：
+  `.venv\Scripts\python.exe -m pytest tests/test_pack_zip.py tests/test_pack_spec.py -q`
+  = 46 passed（exit 0）；全量 pyright = 0 errors；架构 37 passed；
+  非 ASCII 探针 `_checksum_bytes(...)` 返回
+  `b'caf\xe9  other.zip\nabc  a.zip\n'`（exit 0，其它行字节原样、新行追加）；
+  `& .\pack\pack.ps1 -NoZip -Dist release -Help` exit 0 且输出示例为
+  `-Dist release` / `-NoZip -Dist release`；`python -m tools.changelog check`
+  exit 0（执行者实测，released sections up to date）。
+- major 判据逐项：M1 / M2 文档与帮助示例均为可执行 `-Dist` 形态且实测绑定成功；
+  M3 非 ASCII 校验行不再硬失败并有单测覆盖。m2 / m3 / m4 / m5 / m6 已闭环
+  （固定 epoch、LF 显式契约、AST 守卫、进度文档矛盾消除、偏离表退出码列）。
+- 仍待第二轮 `code-review-expert` 评审确认 blocker 0 / major 0；结论追加到
+  `../reviews/2026-11-10-pack-dist-zip.md` 的第二轮章节。

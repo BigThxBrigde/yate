@@ -27,7 +27,7 @@
 | 2 | 【方案】调研取证并落盘方案 | 完成（主代理兜底，子代理零产出） | `pack-dist-zip-plan.md` + `pack-dist-zip-plans/overview.md` + 7 个子计划 a-g，含目标/非目标、5 个备选与否决理由、波次表、每步验收命令、风险与回滚、Mermaid 图 |
 | 3 | 【批准】无人值守按通过处理 | 完成 | 本文件「批准结论」章节；单独提交一笔 |
 | 4 | 【执行】按波次实施 | 完成 | wave-1 `78354c9` / wave-2 `0d239f1` / wave-3 `a6b5bed` / wave-4 三次真实构建全部 exit 0，实测见「波次执行实测」 |
-| 5 | 【审核】code-review-expert 评审 + 迭代 | 进行中（第一轮 major 3，迭代中） | 第一轮评审记录 `.trae/reviews/2026-11-10-pack-dist-zip.md`；修复方案 `pack-dist-zip-review-fixes-plan.md` |
+| 5 | 【审核】code-review-expert 评审 + 迭代 | 进行中（迭代修复完成，待第二轮评审） | 第一轮评审记录 `.trae/reviews/2026-11-10-pack-dist-zip.md`；修复方案 `pack-dist-zip-review-fixes-plan.md`；修复提交 `4f11dd1d` |
 | 6 | 【收尾】主代理全量门禁 + 回填 + 逐步提交 | 待开始 | — |
 
 ## 批准结论（【批准】）
@@ -144,10 +144,14 @@
   文档纠偏为 `-Dist` 形态（否决改 ps1 参数面）、M3 改字节级 upsert；
   顺带闭环 m2/m3/m4/m5/m6，m1/m7 与存量 flake 登记待办。
 
+- 迭代修复（提交 `4f11dd1d`）：R1-a / R1-b 两个 `plan-executor` 并行落盘
+  8 个文件；主代理复核 46 passed / pyright 0 / 架构 37 / 非 ASCII 探针
+  保留字节 exit 0 / `-NoZip -Dist release -Help` exit 0 / changelog check 0。
+  方案 §8、总纲 §六（新增退出码列）、进度文档均已回填。
+
 ## 下一步动作
 
-1. 【迭代·执行】R1-a / R1-b 两个 `plan-executor` 并行（文件不重叠），
-   R2 主代理回填；按修复方案 §4 验收命令逐步复核并提交。
-2. 【迭代·审核】第二轮 `code-review-expert` 评审，直至 blocker 0 / major 0。
-3. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、评审索引登记、
+1. 【迭代·审核】第二轮 `code-review-expert` 评审（同一评审记录追加
+   「第二轮迭代复核」章节），确认 blocker 0 / major 0；若仍有 major 继续迭代。
+2. 【收尾】主代理亲跑全量门禁、回填文档真实结果与偏离、评审索引登记、
    逐步提交、更新记忆。
