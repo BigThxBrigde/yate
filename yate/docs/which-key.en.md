@@ -9,6 +9,11 @@ sheet. The panel floats on the right edge of the editor column as a
 rounded box; the border title carries the current chord or keymap name,
 both coloured by the active theme. It never takes focus and never swallows
 keystrokes. Set `which_key = False` in your yaterc to hide it entirely.
+The two readings can be configured independently: `which_key_auto = False`
+turns off only the auto popup on pending chords, while the `<f9>` pinned
+sheet stays available; while pinned, the sheet is unaffected by any
+prefix state (it sits before the pending-chord branch in the priority
+list below, and `which_key_auto` does not touch it).
 
 ---
 
@@ -25,10 +30,18 @@ Two ways to read the panel:
   pins the whole binding table as a full sheet grouped by category (the
   key is bound in both the vim and the vsc keymap). While pinned, the
   sheet stays up regardless of what you type; press `<f9>` again to unpin.
+The two readings are configured independently: `which_key_auto = False`
+suppresses only the auto popup -- the `<f9>` pinned sheet keeps working,
+and while pinned the sheet is unaffected by prefix state.
 
 Visibility is recomputed after every dispatch, with four mutually
 exclusive branches (first hit wins): the pinned sheet, the vim `ctrl+w`
-window chord, pending-chord candidates, otherwise hidden.
+window chord, pending-chord candidates, otherwise hidden. The
+`which_key_auto` gate sits after the pinned branch: when it is off, the
+`ctrl+w` chord grid and the pending-chord candidates are suppressed and
+the panel stays hidden, but the pinned sheet remains reachable via `<f9>`.
+A `which_key = False` master switch outranks everything: no branch ever
+shows the panel.
 
 ---
 
