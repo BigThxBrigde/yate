@@ -141,6 +141,9 @@ git merge-tree <merge-base> master HEAD   # 用 Python 解析 CONFLICT_MARKERS =
 - 修复后七道门禁 `GATE_RCS [0,0,0,0,0,0,0]`（覆盖率 92.95% /
   3498 passed·10 skipped）；首轮覆盖率红经 `-n 1` 复核为 safe-delete 环境钩子
   （`count=18852 > 9999`），非产品缺陷。
+- 探针口径订正：收尾复核的裸冲突起始标记计数因评审记录正文引用该标记文本
+  而误报 1；精确判据（冲突块起始 `.our` / 结束 `.their` 标记计数）实测 0，
+  非真实冲突回归，已在评审记录 §二与进度文档登记。
 - 结论：评审记录 `2026-11-10-pr-review-feature-feat-pack-dist-zip.md` 给出
   **APPROVE**（0 BLOCKER / 0 MAJOR / 7 MINOR 待办）；索引登记 #73 / #74；
   未推送、未合流、工作树干净。

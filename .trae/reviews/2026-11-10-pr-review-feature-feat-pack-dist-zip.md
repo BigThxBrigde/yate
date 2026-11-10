@@ -39,7 +39,10 @@ Overall: APPROVE（AI 预评审，合入决定仍由人类作出；0 BLOCKER / 0
   `decode("utf-8", errors="replace")`；
   ④ P1-b 的提交态探针看不到未提交工作区改动 → 临时 `GIT_INDEX_FILE` +
   `write-tree` 的 tree 级探测，主代理在提交 `6f842d34` 后用提交态
-  `merge-tree` 独立复核（§五）。
+  `merge-tree` 独立复核（§五）；
+  ⑤ 收尾复核的裸冲突起始标记计数一度报 1，实为本记录正文引用该标记文本
+  造成误计；改用精确冲突块标记（起始 `.our` / 结束 `.their`）计数复核得 0，
+  非真实冲突回归。本记录所有 `CONFLICT_MARKERS` 均指精确冲突块计数。
 - 修复波两子计划 P1-a / P1-b 由 `plan-executor` 并行执行、文件不重叠；
   主代理独立重跑其验收命令（49 passed / pyright 0 / 架构 37）。
 
@@ -59,7 +62,7 @@ Overall: APPROVE（AI 预评审，合入决定仍由人类作出；0 BLOCKER / 0
   守卫 8 个参数化用例全绿；`-Dist` / `--dist` / `--no-zip` 用法与实现一致。
 - 文档规范：新增计划/子计划命名符合 `doc-conventions.md` §一，评审记录
   `YYYY-MM-DD-<topic>.md`，记录↔方案双向互链；本轮新增/修改文档内本机
-  绝对路径命中 2 处（`D:\Git\bin\bash.exe` 形态与 worktree 盘符路径），已按
+  绝对路径命中 2 处（Git Bash 可执行文件绝对路径形态与 worktree 盘符路径），已按
   §五「随下次修改逐步迁移」脱敏；存量文档命中按规则不做专项清扫。
 - 提交规范：11 笔提交均全英文 `type(scope): subject`，`type` 在允许集，逐步
   单独提交；`git diff --check master...HEAD` exit 0。
@@ -87,7 +90,7 @@ Fix（提交 `6f842d34`）：入口拒绝空 / `.` / `..` 名并 `root = stage.r
 
 Problem：master 已用 #70（IKTPC2 首轮）/ #71（复审）/ #72（合并前 pr-review），
 本分支在同一文件登记「2026-11-10 IKTRDV 增量：新增 #70」，编号重复；且双方
-都在 `#69 增量段`之后插入，`git merge-tree` 出现唯一 `<<<<<<<` 冲突块，合并
+都在 `#69 增量段`之后插入，`git merge-tree` 出现唯一冲突块（起始标记 `.our` / 结束标记 `.their`），合并
 会失败并把错误编号带进主干。
 Fix（提交 `6f842d34`）：编号顺延为 #73，整段移到 `#67 增量段`之前的散文区、
 与 master hunk 错开；提交态 `git merge-tree` 实测 `CONFLICT_MARKERS 0`、
