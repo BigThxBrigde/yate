@@ -224,3 +224,19 @@ sequenceDiagram
 
 - 前 10 笔：`525f8bfb` / `93804924` / `11bdd77b` / `6e387a28` / `dde0211b` / `f5321975` / `d52dfd11` / `d5a92536` / `482221e0` / `3050d7f8`；收尾 3 笔按 scope 依次为 `fix(which-key)`（2 项新 MINOR）/ `docs(review)`（第二轮记录 + 索引 #74）/ `docs(plan)`（本节回填，本笔）。
 - 基线 `master` `18e96d2a`（与 `origin/master` 同步），worktree `yate-which-key-auto-trigger` 独立 `.venv` 已自证；**只提交、未推送、未合并**，工作树在收尾提交后干净；后续合并 / 推送由用户显式发起。
+
+## 十三、合并前 pr-review（2026-11-11）
+
+- 来源评审记录：[2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md](../reviews/2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md)；修复方案：[which-key-auto-trigger-pr-review-plan.md](which-key-auto-trigger-pr-review-plan.md)；索引登记 #75。
+- 范围：`git diff master...HEAD`，merge-base `18e96d2a`（= `origin/master`）；13 笔提交 / 30 文件 `+1529 −34`，HEAD `79dffdbd`；模式 `review`。
+- 方法：3 名只读分域审查员并行（A 功能/安全/性能、B 架构/可维护性/纪律、C 测试/双语文档/记录/合并就绪）+ 主代理逐条回读复核 + 主代理亲跑全部硬门禁。B 域首次返回被截断，按 `subagent-workflow.md` §五.4 变更任务粒度重试一次后交付完整报告（如实登记）。
+- 结论：**`Overall: APPROVE`** — 0 BLOCKER / 0 MAJOR / 5 MINOR 报告（A:0 / B:1 / C:4）；其中 C 域「双语裸 `which_key=False`」1 项经主代理字符级复核撤回为误报（目标状态在 HEAD 已存在、双语文档 diff 为空），**4 项有效 MINOR 当轮修复闭环**。
+- 5 MINOR 报告及处置（1 项撤回、4 项修复；#4/#5 索引项在 P2 落地，其余在 P1）：
+  1. `yate/flows/whichkey_flows.py:9` 模块 docstring 分支枚举漏 auto 闸门 → 已插入 `the auto-trigger gate`；
+  2. `tests/test_whichkey_flows.py:407` 矩阵用例 else 分支缺 `panel.last == "clear"` 断言 → 已补；
+  3. `yate/docs/yaterc.en.md:82` / `yaterc.zh.md:74` 裸 `which_key=False` → **撤回（误报）**：字符级检查实测两行在 HEAD 本已反引号包裹，P1 零改动；按 pr-review skill Step 5 登记撤回，本会话不再重提；
+  4. `.trae/reviews/README.md` #74「10 笔提交」（#73「7 笔提交」同理）未标时点 → 不改数字，已标注「首轮时点 7 笔 / 复审时点 10 笔；分支终态 13 笔见本计划 §12.3」；
+  5. `.trae/reviews/README.md` #73 散文段「复审前状态 🔧 进行中」与表格终态构成双状态源 → 已改为指向 #74 终态。
+- 八条硬门禁（主代理亲跑，退出码全 0）：pyright `0 errors`；`pytest tests/ -q -n auto` 全绿；架构 38 全绿；覆盖率 `TOTAL 19838 1099 6326 577 93%`（`Total coverage: 92.99%`，`3610 passed, 10 skipped in 163.73s`）；冒烟 `124/124 scenarios` / `1511/1511 checks`（90.28s）；`tools.changelog check` released 段最新（`[Unreleased]` 滞后 14 commits 属生成器机制）；`git diff --check master...HEAD` 与 `git diff --check` 双 0。
+- 提交与推送状态：评审时点分支已有 13 笔提交（清单见 §12.3），`origin/feature/enh-which-key-auto-trigger` 与 HEAD 一致（已推送、有跟踪）；本轮 pr-review 产物（评审记录、修复方案、索引 #75、本节与总纲回填）按 scope 另行提交，**只提交、不推送、不合并**，故本地将领先 origin。合并决定归人工。
+- 修复后主代理复跑八条门禁仍全 exit 0：覆盖率 `92.98%`（`3610 passed, 10 skipped`，`TOTAL 19838 1101 6326 578 93%`）/ 冒烟 124/124·1511 / changelog 0 / diffcheck 双 0；评审时点 92.99% 与修复后 92.98% 为并行覆盖率正常波动，均 ≥75。详见修复方案 §五。
