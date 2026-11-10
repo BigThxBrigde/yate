@@ -54,17 +54,23 @@ class ArchiveResult(NamedTuple):
     checksum_path: Path
 
 
-def _stage_files(stage: Path) -> list[tuple[Path, str]]:
-    """Return ``(path, arcname)`` pairs for every archivable file in *stage*.
+def _stage_files(root: Path, stage_name: str) -> list[tuple[Path, str]]:
+    """Return ``(path, arcname)`` pairs for every archivable file in *root*.
 
     Entries are sorted for deterministic entry order; ``smoke-out.txt`` is
-    skipped.
+    skipped.  Symbolic links are skipped so the traversal never follows
+    links out of the stage, and any entry whose resolved location is not
+    inside *root* is rejected with :class:`ZipDistError` so a crafted stage
+    cannot smuggle paths outside the stage directory into the archive.
     """
     entries: list[tuple[Path, str]] = []
-    for path in sorted(stage.rglob("*")):
-        if not path.is_file() or path.name in _TEMP_NAMES:
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file() or path.name in _TEMP_NAMES:
             continue
-        arcname = f"{stage.name}/{path.relative_to(stage).as_posix()}"
+        real = path.resolve()
+        if not real.is_relative_to(root):
+            raise ZipDistError(f"stage entry escapes stage root: {path}")
+        arcname = f"{stage_name}/{path.relative_to(root).as_posix()}"
         entries.append((path, arcname))
     return entries
 
@@ -85,7 +91,9 @@ def _unix_mode(path: Path, *, posix: bool) -> int:
     return 0o755 if path.name in _EXECUTABLE_NAMES else 0o644
 
 
-def _write_archive(target: Path, entries: list[tuple[Path, str]], *, posix: bool) -> None:
+def _write_archive(
+    target: Path, entries: list[tuple[Path, str]], stage_name: str, *, posix: bool
+) -> None:
     """Write the zip archive for *entries* to *target*.
 
     A top-level ``<stage-name>/`` directory entry plus one entry per nested
@@ -93,7 +101,6 @@ def _write_archive(target: Path, entries: list[tuple[Path, str]], *, posix: bool
     ZipInfo` with ``create_system = 3`` and an explicit ``external_attr`` so
     Unix mode bits survive extraction on either producing platform.
     """
-    stage_name = entries[0][1].split("/", 1)[0]
     subdirs: set[str] = set()
     for _, arcname in entries:
         parts = arcname.split("/")[:-1]
@@ -161,20 +168,25 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
     archive and leaves no temporary files behind.
     """
     posix = os.name == "posix" if posix is None else posix
+    raw_name = stage.name
+    if not raw_name or raw_name in {".", ".."}:
+        raise ZipDistError(f"invalid stage directory name: {stage!r}")
     if not stage.is_dir():
         raise ZipDistError(f"stage directory not found: {stage}")
+    root = stage.resolve()
+    stage_name = root.name
     dist_root.mkdir(parents=True, exist_ok=True)
-    archive = dist_root / f"{stage.name}.zip"
+    archive = dist_root / f"{stage_name}.zip"
     sums_path = dist_root / "SHA256SUMS.txt"
-    entries = _stage_files(stage)
+    entries = _stage_files(root, stage_name)
     if not entries:
         raise ZipDistError("stage has no files to archive")
-    fd, raw = tempfile.mkstemp(prefix=f".{stage.name}.", suffix=".zip.tmp", dir=dist_root)
+    fd, raw = tempfile.mkstemp(prefix=f".{stage_name}.", suffix=".zip.tmp", dir=dist_root)
     os.close(fd)
     zip_tmp = Path(raw)
     sums_tmp: Path | None = None
     try:
-        _write_archive(zip_tmp, entries, posix=posix)
+        _write_archive(zip_tmp, entries, stage_name, posix=posix)
         digest = _digest(zip_tmp)
         size = zip_tmp.stat().st_size
         fd2, raw2 = tempfile.mkstemp(prefix=".SHA256SUMS.", suffix=".tmp", dir=dist_root)

@@ -144,6 +144,18 @@ changelog 0 / diffcheck 0）。**2026-11-08 #66 纪律自审增量**：用户第
 结论不变。已落盘自审记录 + 独立修复方案、订正主计划 §九 归因与 2 处本机
 绝对路径、同步主计划 / 总纲 / 修复方案 / 记忆状态。纯文档变更按
 `misc-rules.md` §三 豁免测试门禁，第三轮六道门禁结果继续有效。
+**2026-11-10 IKTRDV 增量**：新增 #73（`feature/feat-pack-dist-zip` 两轮
+`code-review-expert` 评审：首轮 0 BLOCKER / 3 MAJOR / 7 MINOR（README / `.EXAMPLE`
+的 `--dist` 示例在 PowerShell 命令模式不可执行、`_checksum_text` 遇非 ASCII
+校验行硬失败），按 §二.6 迭代修复 `4f11dd1d` 后第二轮 **0 BLOCKER / 0 MAJOR /
+5 MINOR**，major 归零；Windows 三次真实 PyInstaller 构建 + zip 内容 / hash /
+`--version` 校验全通过，Linux 由助手 posix mode 单测 + 静态守卫 +
+`python -m zipfile -t` 等价覆盖并如实登记偏离）。收尾六道门禁全绿：pyright 0 /
+全量 pytest exit 0 / 架构 37 / 覆盖率 92.96%·3495 passed·10 skipped /
+冒烟 121/121·1464 checks / changelog 0。评审记录
+[2026-11-10-pack-dist-zip.md](2026-11-10-pack-dist-zip.md)，
+修复方案 [pack-dist-zip-review-fixes-plan.md](../documents/pack-dist-zip-review-fixes-plan.md)，
+主计划 [pack-dist-zip-plan.md](../documents/pack-dist-zip-plan.md)。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
@@ -175,18 +187,6 @@ changelog 0 / diffcheck 双 0。3 名只读审查员并行 spawn 零产出（`co
 按 `subagent-workflow.md` §五.4 由主代理按 skill 亲自执行并如实登记。评审记录
 [2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md](2026-11-09-pr-review-iktr5q-unused-symbols-cleanup.md)，
 主计划 [iktr5q-pr-review-plan.md](../documents/iktr5q-pr-review-plan.md)。
-**2026-11-10 IKTRDV 增量**：新增 #70（`feature/feat-pack-dist-zip` 两轮
-`code-review-expert` 评审：首轮 0 BLOCKER / 3 MAJOR / 7 MINOR（README / `.EXAMPLE`
-的 `--dist` 示例在 PowerShell 命令模式不可执行、`_checksum_text` 遇非 ASCII
-校验行硬失败），按 §二.6 迭代修复 `4f11dd1d` 后第二轮 **0 BLOCKER / 0 MAJOR /
-5 MINOR**，major 归零；Windows 三次真实 PyInstaller 构建 + zip 内容 / hash /
-`--version` 校验全通过，Linux 由助手 posix mode 单测 + 静态守卫 +
-`python -m zipfile -t` 等价覆盖并如实登记偏离）。收尾六道门禁全绿：pyright 0 /
-全量 pytest exit 0 / 架构 37 / 覆盖率 92.96%·3495 passed·10 skipped /
-冒烟 121/121·1464 checks / changelog 0。评审记录
-[2026-11-10-pack-dist-zip.md](2026-11-10-pack-dist-zip.md)，
-修复方案 [pack-dist-zip-review-fixes-plan.md](../documents/pack-dist-zip-review-fixes-plan.md)，
-主计划 [pack-dist-zip-plan.md](../documents/pack-dist-zip-plan.md)。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。

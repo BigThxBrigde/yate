@@ -165,6 +165,31 @@ def test_archive_stage_when_stage_empty_raises_zip_dist_error(tmp_path: Path) ->
         zip_dist.archive_stage(stage, dist)
 
 
+def test_archive_stage_when_stage_is_dot_raises_zip_dist_error(tmp_path: Path) -> None:
+    with pytest.raises(zip_dist.ZipDistError, match="invalid stage directory name"):
+        zip_dist.archive_stage(Path("."), tmp_path)
+    assert list(tmp_path.glob("*.zip")) == []
+    assert list(tmp_path.glob("*.tmp")) == []
+    assert list(tmp_path.glob(".*")) == []
+
+
+def test_archive_stage_when_stage_is_parent_segment_raises_zip_dist_error(tmp_path: Path) -> None:
+    with pytest.raises(zip_dist.ZipDistError, match="invalid stage directory name"):
+        zip_dist.archive_stage(tmp_path / "release" / "..", tmp_path)
+    assert list(tmp_path.glob("*.zip")) == []
+    assert list(tmp_path.glob("*.tmp")) == []
+    assert list(tmp_path.glob(".*")) == []
+
+
+def test_archive_stage_when_stage_name_is_resolved_top_level_prefix(stage: Path) -> None:
+    result = zip_dist.archive_stage(stage, stage.parent)
+    with zipfile.ZipFile(result.path) as zf:
+        names = zf.namelist()
+    prefix = f"{stage.resolve().name}/"
+    assert all(name.startswith(prefix) for name in names)
+    assert all(not name.startswith("/") and ".." not in name for name in names)
+
+
 def test_archive_stage_when_archived_zip_integrity_is_verified(stage: Path) -> None:
     result = zip_dist.archive_stage(stage, stage.parent)
     with zipfile.ZipFile(result.path) as zf:

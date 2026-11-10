@@ -66,7 +66,7 @@
   `Hy4 preview` 并变更配置（`max_turns` 60）重试一次，仍返回同一错误，
   零落盘产物。按 §三 判定子代理零产出，由主代理亲自按剧本调研 + 落盘全部
   方案文档；已在 `pack-dist-zip-plans/overview.md` §六登记偏离。
-- 【执行】wave-2 主代理复核时，一条包含 `where.exe` / `cmd /c` / `& 'D:\Git\bin\bash.exe'` 的
+- 【执行】wave-2 主代理复核时，一条包含 `where.exe` / `cmd /c` / Git Bash 可执行文件绝对路径引用 的
   长串验收命令整体报「系统找不到指定的路径」(exit 1)，随后同样形态的诊断命令因
   「Awaiting user approval timed out」被取消。按用户「失败重新更新状态继续执行」
   要求，本条先落盘，再改用短命令逐条执行（PowerShell 内置 `Get-Command` /
@@ -165,5 +165,26 @@
 
 ## 下一步动作
 
-无（任务闭环完成）。分支 `feature/feat-pack-dist-zip` 只提交不推送；
-推送 / 合入 master 由用户显式要求后进行。
+合并前 pr-review 进行中（见下节）；推送 / 合入 master 仍须用户显式要求。
+
+## 合并前 pr-review 轮（2026-11-10，进行中）
+
+- 范围 `master...HEAD`（25 文件 +2846/−8），merge-base `b982c06`；master 已推进
+  到 `18e96d2a`（合入 IKTPC2 LSP hover docs + `chore(changelog)`），架构守卫
+  37→38。
+- 失败与续作（用户无人值守「失败先更新状态继续执行」）：3 名只读审查员并行，
+  分域 A 交付「1 MAJOR（`--stage .` / `..` 产生 `/` / `../` arcname 与越界
+  rglob）+ 5 MINOR」；分域 B / C 均 `code=10003 aborted` 零产出，按
+  `subagent-workflow.md` §五.4 不原样重试，主代理亲自按 skill 六维度兜底并
+  如实标注。首条 `$(...)` bash 语法在 PowerShell 失效、merge-tree 探针 GBK
+  解码失败，均已改用三点语法 / `errors="replace"` 后重跑成功。
+- 已取证：评审索引本分支登记 #70 与 master #70/#71/#72 重复；
+  `git merge-tree` 唯一冲突块在 `.trae/reviews/README.md`；`manual.en/zh`
+  双方 hunk 不重叠可自动合并；`tools.changelog check` 分支侧 exit 0。
+- 七道门禁首轮：pyright 0 / pytest `-n auto` 0 / 架构 37 / 覆盖率 **RC=1**
+  （`[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] count=18852 threshold=9999`，
+  本机 %TEMP% 积压触发 safe-delete 钩子杀 pytest 收尾清理，属环境钩子而非产品
+  缺陷）/ 冒烟 121/121·1464 / changelog 0 / diffcheck 0。
+- 下一步：按 `pack-dist-zip-pr-review-fixes-plan.md` 修 MAJOR 与合并阻碍；
+  覆盖率用 `-n 1` 复核并如实记录；复评至 APPROVE；回填评审记录与索引
+  #73/#74；逐步提交。

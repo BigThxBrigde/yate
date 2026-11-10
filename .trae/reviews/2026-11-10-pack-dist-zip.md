@@ -201,7 +201,7 @@
 
 复核对象：`git diff 508c7b2..HEAD`（`4f11dd1d` 修 8 个代码/文档文件、`f5117e1f` 回填 3 份文档），并以 `git diff master...HEAD`（24 文件）作整体回归视角。
 框架来源：`.trae/skills/python-code-review/SKILL.md`（6 维度 + 三级严重等级 + 输出格式）。Skill 工具无 `python-code-review` 注册项（返回 not found），按剧本回退为直接读取该 SKILL 文件，未阻塞评审。
-本机 shell 为 cmd.exe + powershell -NoProfile，工作目录为 `d:\Programming\yate-pack-dist-zip`。
+本机 shell 为 cmd.exe + powershell -NoProfile，工作目录为本任务 worktree 根目录。
 
 ### 7.1 实测命令与退出码
 
