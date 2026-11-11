@@ -139,10 +139,45 @@ def test_close_command_closes_active_pane(pane_root: Path) -> None:
             assert await wait_until(pilot, lambda: panes.leaf_count == 2)
             app.editor.run_command("close")
             assert await wait_until(pilot, lambda: panes.leaf_count == 1)
+            await pilot.pause()
             # the last pane is never closed by :close
             app.editor.run_command("cl")
             await pilot.pause()
             assert panes.leaf_count == 1
+            assert app.is_running
+
+    asyncio.run(scenario())
+
+
+def test_notify_focus_when_leaf_was_closed_returns_silently(
+    pane_root: Path,
+) -> None:
+    """A late focus event for a closed pane is dropped without crashing
+    (regression: notify_focus used to hard-assert the leaf was live)."""
+
+    async def scenario() -> None:
+        app = YateApp(target=pane_root / "alpha.txt", keymap="vim")
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            panes = app.editor.panes
+            assert panes is not None
+
+            app.editor.run_command("sp")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 2)
+            ids = [leaf.id for leaf in pane_leaves(panes.root)]
+            assert len(ids) == 2
+
+            app.editor.run_command("close")
+            assert await wait_until(pilot, lambda: panes.leaf_count == 1)
+            await pilot.pause()
+            survivor = panes.active.id
+            stale_ids = [leaf_id for leaf_id in ids if leaf_id != survivor]
+
+            for stale_id in stale_ids:
+                panes.notify_focus(stale_id)
+            await pilot.pause()
+            assert panes.leaf_count == 1
+            assert panes.active.id == survivor
             assert app.is_running
 
     asyncio.run(scenario())
