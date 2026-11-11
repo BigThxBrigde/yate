@@ -87,3 +87,4 @@ wave-2 / wave-3 与 wave-1 文件不重叠；wave-3 不写源码。
 | 【执行】wave-1 | 去掉子代理引入的 `# type: ignore[arg-type]` | `tests/test_pack_zip.py` monkeypatch 桩改为 `src: Path, dst: Path` 正确签名；pyright strict 实测 0 诊断 | 0 | 采纳，符合 python-coding-style「不得用 type ignore 掩盖问题」 |
 | 【执行】wave-1 | 一次性验证脚本打印 bat 中文帮助时触发 GBK `UnicodeEncodeError` | 属脚本自身问题、非产品失败（前 5 条命令已 RC=0）；打印改 `ascii+replace` 编码后重跑全部七条 | 0（重跑后） | 采纳，如实登记失败与修正 |
 | 【执行】wave-1 | 静态守卫 stdlib 白名单补 `shutil`（F6 复制式备份所需） | 重跑 `WAVE1_RCS` 首项为 1，失败点 `test_pack_spec.py:948` 报 `offenders ['shutil']`；`shutil` 为 stdlib、无第三方依赖，补入白名单而非删断言 | 0（补后重跑） | 采纳，登记偏离 |
+| 【审核】R1 | 第一轮评审 major 1（M1 锁残留回归）触发迭代 | `.trae/reviews/2026-11-11-fix-all-minor-review.md` 实测三条失败路径残留 `.lock`；按 §二.6 回到步骤 2 产出 `pack-dist-zip-minor-fixes-review-iteration-plan.md` | 0（迭代方案落盘） | 裁定 A 大 `try` 覆盖，m2/m4 同批，m1/m3/m5/m6 登记待办 |
