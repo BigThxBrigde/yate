@@ -215,7 +215,10 @@ class PaneManager:
         """EditorView.on_focus hook: switch the active pane."""
         if not self.is_mounted():
             return
-        leaf = self.leaf_by_id(leaf_id)
+        leaf = find_leaf(self.root, leaf_id)
+        if leaf is None:
+            # A late focus event can arrive after its pane was closed.
+            return
         if leaf is self.active:
             return
         log.debug("pane focus: leaf=%d", leaf_id)

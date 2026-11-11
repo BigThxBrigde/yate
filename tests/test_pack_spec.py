@@ -682,3 +682,272 @@ def test_exe_call_when_onefile_spec_parsed_omits_contents_directory() -> None:
     """Onefile embeds everything in the exe, so the layout knob is meaningless."""
     exe = _one_call(_parse(_ONEFILE_SPEC), "EXE", _ONEFILE_SPEC)
     assert _keyword_value(exe, "contents_directory") is None
+
+
+# --- the --no-zip contract of the three build scripts --------------------------
+
+
+#: The three build scripts whose ``--no-zip`` contract is pinned here.
+_PS1_SCRIPT: Path = _REPO_ROOT / "pack" / "pack.ps1"
+_SH_SCRIPT: Path = _REPO_ROOT / "pack" / "pack.sh"
+_BAT_SCRIPT: Path = _REPO_ROOT / "pack" / "pack.bat"
+
+
+def _script_text(path: Path) -> str:
+    """The full text of a build script (or the zip helper), read as UTF-8."""
+    return path.read_text(encoding="utf-8")
+
+
+def _after(text: str, marker: str, path: Path) -> str:
+    """The text after the single occurrence of *marker*, asserted not guessed.
+
+    The count is asserted instead of silently taking ``text.split(marker)[1]``:
+    a marker that drifted to zero or duplicated occurrences must fail loudly
+    with the offending file named, not return some unrelated slice.
+    """
+    count = text.count(marker)
+    assert count == 1, (
+        f"{path.name} must contain {marker!r} exactly once, found {count}"
+    )
+    return text[text.index(marker) + len(marker):]
+
+
+def test_no_zip_switch_when_scripts_parsed_is_declared_and_mapped_in_all_three() -> None:
+    """All three scripts must declare, document and map the ``--no-zip`` switch.
+
+    Each platform spells the switch differently, so each is pinned in its own
+    spelling; the shared ``zip`` substring only checks that the feature is
+    present in all three at all.
+    """
+    ps1 = _script_text(_PS1_SCRIPT)
+    sh = _script_text(_SH_SCRIPT)
+    bat = _script_text(_BAT_SCRIPT)
+    assert "[switch]$NoZip" in ps1
+    assert ".PARAMETER NoZip" in ps1
+    assert "--no-zip" in ps1
+    assert "by default" in ps1
+    assert "--no-zip)" in sh
+    assert "no_zip=0" in sh
+    assert "no_zip=1" in sh
+    assert 'if /i "%arg%"=="--no-zip" set "arg=-NoZip"' in bat
+    assert all("zip" in text for text in (ps1, sh, bat))
+
+
+def test_zip_default_when_dist_used_is_enabled_and_guarded_by_dist() -> None:
+    """Zip generation must live only inside the ``--dist`` branch, after the guard.
+
+    Everything after the dist guard is *tail*; the helper invocation must
+    appear exactly once there and nowhere before it, so a stray archive call
+    outside ``--dist`` (or a second one) fails loudly.  Each tail must keep
+    the no-zip guard, which is what makes "no switch" mean "produce a zip".
+    Within the tail the smoke test (its timeout / cleanup) and the collected
+    message must precede the archive call, and the call must stay inside the
+    dist block (before its closing delimiter).
+    """
+    ps1 = _script_text(_PS1_SCRIPT)
+    sh = _script_text(_SH_SCRIPT)
+    ps1_tail = _after(ps1, 'if ($Dist -ne "")', _PS1_SCRIPT)
+    sh_tail = _after(sh, 'if [ -n "$dist_arg" ]; then', _SH_SCRIPT)
+    for name, tail, prefix in (
+        (_PS1_SCRIPT.name, ps1_tail, ps1[: ps1.index('if ($Dist -ne "")')]),
+        (_SH_SCRIPT.name, sh_tail, sh[: sh.index('if [ -n "$dist_arg" ]; then')]),
+    ):
+        assert tail.count("tools.pack.zip_dist") == 1, (
+            f"{name} must invoke the zip helper exactly once in its dist tail"
+        )
+        assert prefix.count("tools.pack.zip_dist") == 0, (
+            f"{name} must not invoke the zip helper before its dist guard"
+        )
+    assert "if ($NoZip)" in ps1_tail
+    assert 'if [ "$no_zip" -eq 1 ]; then' in sh_tail
+    # Order guard: the smoke test (its 30s timeout and temp-file cleanup) and
+    # the "Collected ->" message must run before the archive call, and the
+    # call must stay inside the --dist block (before its closing delimiter).
+    # Note: a bare "finally" also occurs inside the dist block (nested try),
+    # so the ps1 closer is pinned as the block-closing "} finally {" pair.
+    assert ps1_tail.index("WaitForExit(30000)") < ps1_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("Remove-Item $smokeOut") < ps1_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("Collected ->") < ps1_tail.index("tools.pack.zip_dist")
+    assert sh_tail.index("timeout 30") < sh_tail.index("tools.pack.zip_dist")
+    assert sh_tail.index("Collected ->") < sh_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("tools.pack.zip_dist") < ps1_tail.index("\n}\nfinally {")
+    assert sh_tail.index("tools.pack.zip_dist") < sh_tail.index("\nfi")
+
+
+def test_no_zip_when_requested_skips_archive_without_touching_existing_files() -> None:
+    """The ``--no-zip`` branch must only report the skip; the helper stays in else.
+
+    The skip branch must not clean up, rewrite or hash anything: the stage and
+    ``SHA256SUMS.txt`` already produced by the --dist collection must survive
+    untouched, which is what "skip the archive" promises.
+    """
+    ps1 = _script_text(_PS1_SCRIPT)
+    sh = _script_text(_SH_SCRIPT)
+    ps1_tail = _after(ps1, "if ($NoZip)", _PS1_SCRIPT)
+    sh_tail = _after(sh, 'if [ "$no_zip" -eq 1 ]; then', _SH_SCRIPT)
+    ps1_skip, _, ps1_else = ps1_tail.partition("} else {")
+    sh_skip, _, sh_else = sh_tail.partition("else")
+    for name, skip in ((_PS1_SCRIPT.name, ps1_skip), (_SH_SCRIPT.name, sh_skip)):
+        assert "skipped" in skip, f"{name} skip branch must report the skip"
+        for banned in ("Remove-Item", "rm -rf", "Set-Content", "SHA256SUMS.txt", "zip_dist"):
+            assert banned not in skip, (
+                f"{name} skip branch must not contain {banned!r}"
+            )
+    assert "tools.pack.zip_dist" in ps1_else
+    assert "tools.pack.zip_dist" in sh_else
+
+
+def test_help_text_when_scripts_scanned_covers_new_switch() -> None:
+    """The sh help slice must reach past every usage, ``--no-zip`` and default line.
+
+    ``show_help()`` prints a fixed ``sed -n '2,Np'`` range; the guard parses N
+    out of the script instead of duplicating it, so new header usage lines
+    cannot silently fall outside the printed help.  The old ``2,19p`` range is
+    banned outright to catch a revert of the endpoint.
+    """
+    sh = _script_text(_SH_SCRIPT)
+    ps1 = _script_text(_PS1_SCRIPT)
+    bat = _script_text(_BAT_SCRIPT)
+    match = re.search(r"sed -n '2,(\d+)p'", sh)
+    assert match is not None, "pack.sh show_help() lost its sed range"
+    endpoint = int(match.group(1))
+    header = sh.splitlines()[:40]
+    usage_lines = [
+        number
+        for number, line in enumerate(header, start=1)
+        if re.match(r"^#\s+\./pack/pack\.sh", line)
+    ]
+    no_zip_lines = [
+        number
+        for number, line in enumerate(header, start=1)
+        if "--no-zip" in line
+    ]
+    default_lines = [
+        number
+        for number, line in enumerate(header, start=1)
+        if "by default" in line
+    ]
+    assert usage_lines, "pack.sh header lost its usage lines"
+    assert no_zip_lines, "pack.sh header lost its --no-zip line"
+    assert default_lines, "pack.sh header lost its by-default line"
+    assert max(usage_lines) <= endpoint, (
+        f"usage line {max(usage_lines)} exceeds the sed endpoint {endpoint}"
+    )
+    assert max(no_zip_lines) <= endpoint, (
+        f"--no-zip line {max(no_zip_lines)} exceeds the sed endpoint {endpoint}"
+    )
+    assert max(default_lines) <= endpoint, (
+        f"by-default line {max(default_lines)} exceeds the sed endpoint {endpoint}"
+    )
+    assert "sed -n '2,19p'" not in sh, "the old help range 2,19p must stay gone"
+    assert ".PARAMETER NoZip" in ps1
+    assert "by default" in ps1
+    assert "--no-zip" in "\n".join(bat.splitlines()[:40])
+    assert "by default" in "\n".join(bat.splitlines()[:40])
+
+
+def test_unknown_arguments_when_sh_parsed_still_exit_two() -> None:
+    """Unknown arguments must stay rejected with exit 2; no ``--zip`` flag may exist.
+
+    The catch-all ``*)`` branch is sliced out explicitly so a reordering of
+    the ``case`` arms cannot move the rejection away.  The issue's rejected
+    ``--zip`` / ``--zip=value`` spellings are banned from the whole script.
+    """
+    sh = _script_text(_SH_SCRIPT)
+    # Anchored to a standalone arm: `--dist=*)` also contains the `*)`
+    # substring, so an unanchored index() would slice the wrong branch.
+    start_match = re.search(r"^\s+\*\)\s*$", sh, flags=re.MULTILINE)
+    assert start_match is not None, "pack.sh lost its `*)` catch-all arm"
+    start = start_match.start()
+    end = sh.index(";;", start)
+    catch_all = sh[start:end]
+    assert "unknown argument" in catch_all
+    assert "exit 2" in catch_all
+    assert "--zip)" not in sh
+    assert "--zip=" not in sh
+
+
+def test_dist_and_smoke_semantics_when_scripts_scanned_are_unchanged() -> None:
+    """The pre-existing ``--dist`` collection and smoke-test wiring must survive.
+
+    Pinned as fixed literal checklists per script: the timeout, the checksum
+    file, the smoke-test cleanup, the versioned directory name and the summary
+    line, plus the spec-interpreted layout copy on POSIX.
+    """
+    ps1 = _script_text(_PS1_SCRIPT)
+    sh = _script_text(_SH_SCRIPT)
+    for required in (
+        "WaitForExit(30000)",
+        "SHA256SUMS.txt",
+        "Remove-Item $smokeOut",
+        "Collected ->",
+        "yate-$version-windows-$arch",
+        "Set-Content -Encoding ascii",
+    ):
+        assert required in ps1, f"pack.ps1 lost {required!r}"
+    for required in (
+        "timeout 30",
+        "sha256sum yate > SHA256SUMS.txt",
+        "chmod 0755",
+        "yate-$version-linux-$arch",
+        "Collected ->",
+        "cp -a",
+    ):
+        assert required in sh, f"pack.sh lost {required!r}"
+
+
+def test_bat_wrapper_when_mapping_scanned_keeps_existing_mappings() -> None:
+    """The bat wrapper must keep every existing mapping and its quoting logic.
+
+    Adding the ``--no-zip`` mapping must not crowd out the four pre-existing
+    ones, the early ``SCRIPT`` resolution, the trailing-backslash doubling,
+    the exit-code propagation or the PowerShell startup-failure notice.
+    """
+    bat = _script_text(_BAT_SCRIPT)
+    for mapping in ("--onefile", "--skip-changelog", "--dist", "--help"):
+        assert f'if /i "%arg%"=="{mapping}"' in bat, (
+            f"pack.bat lost its {mapping} mapping"
+        )
+    assert 'set "SCRIPT=%~dp0pack.ps1"' in bat
+    assert 'if "%arg:~-1%"=="\\" set "arg=%arg%\\"' in bat
+    assert "exit /b %ERRORLEVEL%" in bat
+    assert "if errorlevel 1" in bat, "pack.bat lost its failure notice"
+    assert "error: pack.ps1 failed" in bat
+    assert bat.index("if errorlevel 1") < bat.index("exit /b %ERRORLEVEL%"), (
+        "pack.bat failure notice must precede exit /b"
+    )
+
+
+def test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode() -> None:
+    """The zip helper must keep its atomic-swap and mode-bit guarantees.
+
+    Pinned by shape: same-directory ``mkstemp`` temporaries swapped in with
+    ``os.replace``, explicit ``external_attr`` mode bits, ``ZIP_DEFLATED``
+    compression, exclusion of the smoke-test output and a ``missing_ok``
+    cleanup.  The helper stays stdlib-only -- no shell-outs and no third-party
+    dependency may appear.
+    """
+    helper = _script_text(_REPO_ROOT / "tools" / "pack" / "zip_dist.py")
+    for required in (
+        "os.replace(",
+        "external_attr",
+        "ZIP_DEFLATED",
+        "smoke-out.txt",
+        "mkstemp",
+        "unlink(missing_ok=True)",
+    ):
+        assert required in helper, f"zip_dist.py lost {required!r}"
+    assert "Compress-Archive" not in helper
+    assert "subprocess" not in helper
+    allowed_roots = frozenset({
+        "argparse", "hashlib", "os", "shutil", "stat", "sys", "tempfile",
+        "time", "zipfile", "collections", "pathlib", "typing", "__future__",
+    })
+    import_roots: set[str] = set()
+    for node in ast.walk(ast.parse(helper)):
+        if isinstance(node, ast.Import):
+            import_roots.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            import_roots.add(node.module.split(".")[0])
+    offenders = sorted(import_roots - allowed_roots)
+    assert offenders == [], f"zip_dist.py gained non-stdlib imports: {offenders}"

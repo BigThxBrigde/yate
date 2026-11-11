@@ -1666,7 +1666,9 @@ pip install -e ".[build,ts,lua]"
 **Collect artifacts into a versioned directory**: after a successful build,
 add `--dist <dir>` to copy the artifact into `<dir>/yate-<version>-<os>-<arch>/`
 for direct pick-up or Gitee Release upload. This is a local copy only, no
-network operation is performed:
+network operation is performed. When calling pack.ps1 directly from
+PowerShell, pass `-Dist`; the `--dist` / `--no-zip` spellings are mapped by
+the pack.bat / pack.sh wrapper scripts:
 
 ```powershell
 .\pack\pack.ps1 -OneFile -Dist release
@@ -1680,11 +1682,30 @@ network operation is performed:
 # -> release/yate-0.2.0-linux-x64/SHA256SUMS.txt
 ```
 
+By default the collect step also zips the stage directory into a same-named
+`<stage>.zip` (the stage directory is kept as the top-level folder inside the
+archive) and appends its SHA256 to the dist-root `SHA256SUMS.txt`; pass
+`--no-zip` to skip the archive:
+
+```powershell
+.\pack\pack.ps1 -OneFile -Dist release -NoZip
+# -> release\yate-0.2.0-windows-x64\yate.exe  (no zip, stage kept as-is)
+```
+
+```bash
+./pack/pack.sh --onefile --dist release --no-zip
+# -> release/yate-0.2.0-linux-x64/yate  (no zip, stage kept as-is)
+```
+
 The identically-named version subdirectory is removed first (other version
 directories are kept), a `SHA256SUMS.txt` (for `yate.exe`/`yate`) is written,
 and a `--version` smoke test runs. On a copy or smoke failure the script exits
-with code 1 and the original build in `dist/` is left untouched. Without
-`--dist` the behavior is unchanged -- only `dist/` is produced.
+with code 1 and the original build in `dist/` is left untouched. Note that the
+dist-root `SHA256SUMS.txt` is the manifest for the collected artifacts (and the
+zip when produced) and is semantically different from the identically-named
+files inside each stage directory. Without `--dist` the behavior is unchanged
+-- only `dist/` is produced, and no zip is emitted whether or not `--no-zip`
+is passed.
 
 ---
 

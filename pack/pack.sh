@@ -9,6 +9,8 @@
 #                                skip refreshing the bundled changelogs
 #   ./pack/pack.sh --dist DIR    collect artifact into DIR/yate-<ver>-linux-<arch>/
 #   ./pack/pack.sh -h            show this help
+#   ./pack/pack.sh --no-zip      skip the default zip archive for --dist
+# A successful --dist collection produces a zip archive by default.
 #
 # Before PyInstaller runs, the bundled bilingual changelogs are refreshed
 # with `python -m tools.changelog generate --bundle-only` (best-effort: a
@@ -23,14 +25,16 @@
 
 set -euo pipefail
 
+# The 2,21p range is pinned by tests/test_pack_spec.py; keep both in sync.
 show_help() {
-    sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
 }
 
 onefile=0
 skip_changelog=0
 dist_arg=""
+no_zip=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --onefile|-1)
@@ -49,6 +53,9 @@ while [ $# -gt 0 ]; do
             ;;
         -d=*)
             dist_arg="${1#-d=}"
+            ;;
+        --no-zip)
+            no_zip=1
             ;;
         -h|--help)
             show_help
@@ -206,4 +213,12 @@ if [ -n "$dist_arg" ]; then
     echo
     echo "Collected -> $stage  (${stage_size_mb} MB)"
     sed 's/^/  SHA256 yate: /' "$stage/SHA256SUMS.txt"
+    if [ "$no_zip" -eq 1 ]; then
+        echo "zip skipped (--no-zip)"
+    else
+        "$py" -m tools.pack.zip_dist --stage "$stage" --dist-root "$dist_root" || {
+            echo "error: failed to create zip archive for '$stage'" >&2
+            exit 1
+        }
+    fi
 fi

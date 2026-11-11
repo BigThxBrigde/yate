@@ -144,6 +144,43 @@ changelog 0 / diffcheck 0）。**2026-11-08 #66 纪律自审增量**：用户第
 结论不变。已落盘自审记录 + 独立修复方案、订正主计划 §九 归因与 2 处本机
 绝对路径、同步主计划 / 总纲 / 修复方案 / 记忆状态。纯文档变更按
 `misc-rules.md` §三 豁免测试门禁，第三轮六道门禁结果继续有效。
+**2026-11-10 IKTRDV 增量**：新增 #73（`feature/feat-pack-dist-zip` 两轮
+`code-review-expert` 评审：首轮 0 BLOCKER / 3 MAJOR / 7 MINOR（README / `.EXAMPLE`
+的 `--dist` 示例在 PowerShell 命令模式不可执行、`_checksum_text` 遇非 ASCII
+校验行硬失败），按 §二.6 迭代修复 `4f11dd1d` 后第二轮 **0 BLOCKER / 0 MAJOR /
+5 MINOR**，major 归零；Windows 三次真实 PyInstaller 构建 + zip 内容 / hash /
+`--version` 校验全通过，Linux 由助手 posix mode 单测 + 静态守卫 +
+`python -m zipfile -t` 等价覆盖并如实登记偏离）。收尾六道门禁全绿：pyright 0 /
+全量 pytest exit 0 / 架构 37 / 覆盖率 92.96%·3495 passed·10 skipped /
+冒烟 121/121·1464 checks / changelog 0。评审记录
+[2026-11-10-pack-dist-zip.md](2026-11-10-pack-dist-zip.md)，
+修复方案 [pack-dist-zip-review-fixes-plan.md](../documents/pack-dist-zip-review-fixes-plan.md)，
+主计划 [pack-dist-zip-plan.md](../documents/pack-dist-zip-plan.md)。
+**2026-11-10 IKTRDV 合并前 pr-review 增量**：新增 #74（`pr-review` skill
+`review` 模式，范围 `master...HEAD` / 25 文件 +2846−8；3 名只读分域审查员
+并行，B/C `code=10003 aborted` 零产出，主代理按 skill 六维度兜底并逐条回读
+复核）。**APPROVE**：0 BLOCKER / **2 MAJOR 当轮修复**（`--stage .` / `..`
+导致 zip slip 与越界 rglob；评审索引 #70 与 master #70–#72 重复且产生唯一
+合并冲突块）/ 7 MINOR 登记待办。修复波 `6f842d34`：stage 名净化 +
+symlink/越界收口 + 3 个回归用例、索引顺延 #73 并移出冲突 hunk，提交态
+`git merge-tree` 实测 `CONFLICT_MARKERS 0`。修复后七道门禁全绿：pyright 0 /
+pytest `-n auto` 0 / 架构 37 / 覆盖率 92.95%·3498 passed·10 skipped /
+冒烟 121/121·1464 / changelog 0 / diffcheck 0（首轮覆盖率红为本机
+safe-delete 钩子，`-n 1` 复核 0，非产品缺陷）。合并时需在合并树上重跑
+门禁（master 架构守卫已 38）并确认 changelog。评审记录
+[2026-11-10-pr-review-feature-feat-pack-dist-zip.md](2026-11-10-pr-review-feature-feat-pack-dist-zip.md)，
+修复方案 [pack-dist-zip-pr-review-fixes-plan.md](../documents/pack-dist-zip-pr-review-fixes-plan.md)。
+**2026-11-11 IKTRDV 全量 minor 修复轮增量**：新增 #75（用户「更新记忆，
+fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review-expert`
+评审迭代 0/1/6 → 0/1/2 → **0/0/3**，M1 锁残留与 N1 `finally` 清理异常
+两轮 major 修复；主代理收尾八项门禁全绿、覆盖率 92.93%·3514 passed、
+冒烟 121/121·1464；合并模拟架构 38 与 changelog 处置路径实测）。评审记录
+[2026-11-11-fix-all-minor-review.md](2026-11-11-fix-all-minor-review.md)，
+主计划 [pack-dist-zip-minor-fixes-plan.md](../documents/pack-dist-zip-minor-fixes-plan.md)，
+迭代方案 [pack-dist-zip-minor-fixes-review-iteration-plan.md](../documents/pack-dist-zip-minor-fixes-review-iteration-plan.md)。
+> **编号分歧登记**（2026-11-11）：本分支 #75 与并行分支
+> `feature/feat-which-key-auto-trigger` 的合并前 pr-review #75 重号；
+> 两者均按各自分支顺序登记，合并时按日期统一重排，不互相覆盖事实。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
