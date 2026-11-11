@@ -358,7 +358,11 @@ flowchart TD
      78 行后越线；迁出新模块会破坏 manager 对 `_clients` / `_open` 的封装，
      故按本节「单一职责长文件可登记豁免」登记，并与
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
-     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）。
+     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）、
+     `editor.py`（2026-11-11 macro-record-replay wave-1 重新登记 802 行：
+     big-module-split-2 拆分后恰 800 行，MacroFlows 流程属性 + 导入 +2 行
+     越线；组装工厂薄委托单一职责，拆分会破坏 split-2 钉死的形态，
+     故重新登记。该模块曾于 2026-11-04 拆分后出名单，见下方「已出名单」）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -391,7 +395,9 @@ flowchart TD
      不再需要豁免；
      `yate/editor.py`（2026-11-04 big-module-split-2，issue IKSFMQ：组装工厂
      迁出 `editor_compose.py`、按键/鼠标分派迁出 `editor_dispatch.py`，
-     `Editor` 留薄委托，拆分后 800 行，摘除豁免并登记 `_LAYER_RANKS` L3）；
+     `Editor` 留薄委托，拆分后 800 行，摘除豁免并登记 `_LAYER_RANKS` L3；
+     2026-11-11 macro-record-replay wave-1 因 MacroFlows 属性 +2 行重新
+     登记豁免，见上方正式名单）；
      `tools/pack/wiki.py`（2026-11-04 big-module-split-2，issue IKSFMQ：
      子包化 `tools/pack/wiki/`（lint/sources/publish/translate/report/run +
      门面 `__init__`），门面路径与 `python -m tools.pack wiki` 语义不变，

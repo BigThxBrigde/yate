@@ -72,6 +72,7 @@ from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
+from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
@@ -141,6 +142,7 @@ class Editor:
     hover: HoverFlows
     mouse_flows: MouseFlows
     chunked_flows: ChunkedFlows
+    macro: MacroFlows
 
     def __init__(
         self,

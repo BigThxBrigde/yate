@@ -162,6 +162,11 @@ def _handle_key(ed: yate.editor.Editor, event: Key) -> bool:
 
 def _handle_raw_key(ed: yate.editor.Editor, raw: str) -> bool:
     """Dispatch one raw key to the active keymap, then refresh the UI."""
+    if ed.macro.pre_dispatch(raw):
+        # Macro control keys are consumed here (R10); a state flip (record
+        # started/stopped, replay fired) must repaint the chrome.
+        ed.refresh_ui()
+        return True
     try:
         handled = ed.keymaps.active.handle_key(
             ActionContext(ed.session, ed.key_ui), raw

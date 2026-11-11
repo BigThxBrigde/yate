@@ -366,7 +366,12 @@ MAX_SOURCE_LINES: int = 800
 #: 875 splitlines; plan-d added hover-request packaging that still belongs to
 #: the LSP request orchestration single duty, and moving it out would break
 #: the manager's encapsulation of ``_clients`` / ``_open``.
+#: 2026-11-11 macro-record-replay wave-1: ``editor.py`` re-registered at 802
+#: splitlines; the MacroFlows attribute + import pushed the previously
+#: exact-800 assembly shell two lines over, and the split-2 shape stays
+#: frozen (moving the flow out would break the compose-factory contract).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
+    "editor.py",
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",

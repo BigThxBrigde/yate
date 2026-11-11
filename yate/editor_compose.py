@@ -38,6 +38,7 @@ from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
+from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
@@ -372,6 +373,14 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
     # WindowFlows notifies on every ctrl+w flip, covering the explorer path
     # whose on_key never reaches Editor.handle_key.
     ed.window_flows.on_chord_change = ed.whichkey.refresh
+    # Macro flow: state on the session, replay through the editor's raw-key
+    # dispatch, count prefix consumed from the active keymap on demand.
+    ed.macro = MacroFlows(
+        session=ed.session,
+        handle_raw_key=ed.handle_raw_key,
+        message=ed.message,
+        count_source=lambda: ed.keymaps.active.take_pending_count(),
+    )
 
 
 def _build_key_ui(ed: yate.editor.Editor) -> None:
