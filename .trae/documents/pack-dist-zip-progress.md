@@ -223,8 +223,36 @@
 - 【批准】无人值守按通过处理（用户「所有问题无须过问」）：豁免询问与审批，
   不冒充用户答复；批准范围为主计划 + 总纲的 4 个 wave 与 5 个子计划，
   执行中偏离须当轮回填 `overview.md` §六并附实测依据。
-- 下一步：【执行】wave-1 三个子计划并行 → wave-2 F16 → wave-3 合并模拟
-  →【审核】→【收尾】全量门禁 + 回填 + 记忆更新。
+- wave-1 复核（主代理）：三个子代理均有落盘产出，8 个文件 +255/−37；
+  前 5 条验收命令 RC=0（`test_pack_zip.py` + `test_pack_spec.py` 合计
+  58 passed、pyright 0、架构 37、diffcheck 0、changelog 0）。验证脚本在
+  打印 bat 中文帮助输出时因 GBK 编码崩溃（脚本自身问题、非产品失败），
+  第 7 条 sh `-h` 未跑到 → 修脚本打印编码后重跑。
+- 复核发现 2 个新缺陷（须当轮修，不得静默带入 wave-2）：
+  ① `tests/test_pack_zip.py:355` 使用 `# type: ignore[arg-type]`
+  （违反 python-coding-style「不得用 type ignore 掩盖问题」）→ 改正确签名；
+  ② F6 事务在「旧 zip 移到备份后、新 zip 首次 `os.replace` 失败」时会丢
+  旧 zip（异常只覆盖第二次 replace）→ 改复制式备份 + 整个 swap 块异常回滚。
+- 复核失败与续作（无人值守「失败先落盘状态继续执行」）：修好验证脚本后
+  七条命令跑完，`WAVE1_RCS [1,0,0,0,0,0,0]` —— 唯一红项是
+  `test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode:948`
+  （静态守卫的 stdlib import 根白名单未含新增的 `shutil`），pyright 0 /
+  架构 37 / diffcheck 0 / changelog 0 / bat `--help` 0 / sh `-h` 0 均绿。
+  下一步把 `shutil` 补入白名单（stdlib、无第三方依赖）并重跑，不得删断言。
+- wave-1 复核最终实测：`WAVE1_RCS [0,0,0,0,0,0,0]`（59 passed / pyright 0 /
+  架构 37 / diffcheck 0 / changelog 0 / bat `--help` 0 / sh `-h` 0）；
+  负向演练 `NEGATIVE_RCS {'help_stale_range': 1, 'bat_no_notice': 1}`、
+  `RESTORED True`、`GUARDS_CATCH True`（补做 plan-b 未执行的推荐项）。
+- **并发会话事实登记**：核对 `git status` 时发现同 worktree 另有并行会话提交
+  `1472c10b fix(pack): harden zip helper and pin archive order in fix-all wave 1`
+  与 `f9a0cd4d fix(panes): tolerate late focus events for closed leaves`，
+  HEAD 已推进到 `f9a0cd4d`；README 双语 / bat / sh / 偏离表 F10 等 wave-1
+  产物与 F16 已落盘提交。主代理本轮的复核修正（F6 复制式备份 + 全 swap
+  回滚、去 `# type: ignore`、白名单补 `shutil`、F12 守卫、负向演练脚本、
+  偏离登记）仍以未提交增量形式在工作树，按「只认落盘结果」以当前 HEAD
+  为事实基线继续，不重复报已提交产物、不覆盖并行会话的提交。
+- 下一步：提交本轮复核修正 → 复核 F16 的四次 `-n 1` 与全量门禁 →
+  wave-3 合并模拟 →【审核】→【收尾】全量门禁 + 回填 + 记忆。
 
 ## 续作会话独立复核（2026-11-10，完成）
 

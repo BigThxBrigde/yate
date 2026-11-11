@@ -900,8 +900,8 @@ def test_bat_wrapper_when_mapping_scanned_keeps_existing_mappings() -> None:
     """The bat wrapper must keep every existing mapping and its quoting logic.
 
     Adding the ``--no-zip`` mapping must not crowd out the four pre-existing
-    ones, the early ``SCRIPT`` resolution, the trailing-backslash doubling or
-    the exit-code propagation.
+    ones, the early ``SCRIPT`` resolution, the trailing-backslash doubling,
+    the exit-code propagation or the PowerShell startup-failure notice.
     """
     bat = _script_text(_BAT_SCRIPT)
     for mapping in ("--onefile", "--skip-changelog", "--dist", "--help"):
@@ -911,6 +911,8 @@ def test_bat_wrapper_when_mapping_scanned_keeps_existing_mappings() -> None:
     assert 'set "SCRIPT=%~dp0pack.ps1"' in bat
     assert 'if "%arg:~-1%"=="\\" set "arg=%arg%\\"' in bat
     assert "exit /b %ERRORLEVEL%" in bat
+    assert "if errorlevel 1" in bat, "pack.bat lost its failure notice"
+    assert "error: pack.ps1 failed" in bat
 
 
 def test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode() -> None:
@@ -935,8 +937,8 @@ def test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode() -> None:
     assert "Compress-Archive" not in helper
     assert "subprocess" not in helper
     allowed_roots = frozenset({
-        "argparse", "hashlib", "os", "stat", "sys", "tempfile", "time",
-        "zipfile", "collections", "pathlib", "typing", "__future__",
+        "argparse", "hashlib", "os", "shutil", "stat", "sys", "tempfile",
+        "time", "zipfile", "collections", "pathlib", "typing", "__future__",
     })
     import_roots: set[str] = set()
     for node in ast.walk(ast.parse(helper)):

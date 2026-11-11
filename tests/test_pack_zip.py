@@ -349,16 +349,38 @@ def test_archive_stage_when_checksum_replace_fails_restores_previous_zip(
     sums_path.write_text("oldhash  old.zip\n", encoding="ascii")
     real_replace = os.replace
 
-    def fake_replace(src: object, dst: object, **kwargs: object) -> None:
+    def fake_replace(src: Path, dst: Path, **kwargs: object) -> None:
         if dst == sums_path:
             raise OSError("mock failure")
-        real_replace(src, dst)  # type: ignore[arg-type]
+        real_replace(src, dst)
 
     monkeypatch.setattr(zip_dist.os, "replace", fake_replace)
     with pytest.raises(OSError, match="mock failure"):
         zip_dist.archive_stage(stage, dist)
     assert archive.read_bytes() == b"old"
     assert sums_path.read_text(encoding="ascii") == "oldhash  old.zip\n"
+    assert list(dist.glob("*.tmp")) == []
+    assert list(dist.glob("*.bak")) == []
+    assert list(dist.glob(".*")) == []
+
+
+def test_archive_stage_when_zip_replace_fails_restores_previous_zip(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+    archive = dist / f"{stage.name}.zip"
+    archive.write_bytes(b"old")
+    real_replace = os.replace
+
+    def fake_replace(src: Path, dst: Path, **kwargs: object) -> None:
+        if dst == archive and src.suffix == ".tmp":
+            raise OSError("mock zip failure")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(zip_dist.os, "replace", fake_replace)
+    with pytest.raises(OSError, match="mock zip failure"):
+        zip_dist.archive_stage(stage, dist)
+    assert archive.read_bytes() == b"old"
     assert list(dist.glob("*.tmp")) == []
     assert list(dist.glob("*.bak")) == []
     assert list(dist.glob(".*")) == []

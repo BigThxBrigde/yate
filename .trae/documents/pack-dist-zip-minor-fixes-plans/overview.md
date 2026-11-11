@@ -83,3 +83,7 @@ wave-2 / wave-3 与 wave-1 文件不重叠；wave-3 不写源码。
 | 【方案】 | `plan-architect-designer` 未派发（模型 `qwen-3.7-plus` 在本运行时未注册，前轮已两次 spawn 失败） | 前轮 task 工具两次返回同一错误、零落盘产物 | N/A（模型错误） | 按 §三 主代理亲自按剧本产出主计划 + 本总纲 + 全部子计划，如实标注「子代理零产出」 |
 | 【方案】 | F16 纳入本轮（评审原判「另案、不阻塞」） | 用户 2026-11-11 明确「fix 所有的isuee」 | N/A（范围裁定） | 纳入 wave-2；产品源码由主代理亲改（子代理不得改 `yate/`） |
 | 【方案】 | F13 不新增行为改动，仅注释 + 销账 | 评审原文「无需改动（当前处置已达最优），仅记录为已知脆弱点」 | N/A | 采纳评审裁定，待办表状态改为已闭环 |
+| 【执行】wave-1 | F6 由「旧 zip 移到备份」改为「复制式备份 + 整个 swap 块异常回滚」 | 主代理复核发现：若 `os.replace(zip_tmp, archive)` 自身失败，旧 zip 已被移走且 finally 删除备份 → 旧 zip 丢失；改用 `shutil.copyfile` 后旧 zip 始终在场，任一 swap 失败都从副本恢复；补 `test_archive_stage_when_zip_replace_fails_restores_previous_zip` 回归用例 | 0（重跑 wave-1 验收） | 采纳，实质增强 F6 闭环，登记偏离 |
+| 【执行】wave-1 | 去掉子代理引入的 `# type: ignore[arg-type]` | `tests/test_pack_zip.py` monkeypatch 桩改为 `src: Path, dst: Path` 正确签名；pyright strict 实测 0 诊断 | 0 | 采纳，符合 python-coding-style「不得用 type ignore 掩盖问题」 |
+| 【执行】wave-1 | 一次性验证脚本打印 bat 中文帮助时触发 GBK `UnicodeEncodeError` | 属脚本自身问题、非产品失败（前 5 条命令已 RC=0）；打印改 `ascii+replace` 编码后重跑全部七条 | 0（重跑后） | 采纳，如实登记失败与修正 |
+| 【执行】wave-1 | 静态守卫 stdlib 白名单补 `shutil`（F6 复制式备份所需） | 重跑 `WAVE1_RCS` 首项为 1，失败点 `test_pack_spec.py:948` 报 `offenders ['shutil']`；`shutil` 为 stdlib、无第三方依赖，补入白名单而非删断言 | 0（补后重跑） | 采纳，登记偏离 |

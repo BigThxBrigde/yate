@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import shutil
 import stat
 import sys
 import tempfile
@@ -185,8 +186,9 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
     The zip and the updated ``SHA256SUMS.txt`` are each prepared in a
     same-directory temporary file and swapped in with :func:`os.replace`
     transactionally: a failure before the swap leaves the previous archive
-    untouched; a checksum-swap failure restores the previous archive; all
-    temporary/lock files are cleaned up.  A lock file (``.<stage-name>.lock``)
+    untouched; any swap failure restores the previous archive from a copy
+    backup; all temporary/lock files are cleaned up.  A lock file
+    (``.<stage-name>.lock``)
     guards against concurrent archives of the same stage, and a dist root
     inside the stage is rejected.
     """
@@ -237,9 +239,9 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
             os.close(fd3)
             backup = Path(raw3)
             os.chmod(backup, 0o644)
-            os.replace(archive, backup)
-        os.replace(zip_tmp, archive)
+            shutil.copyfile(archive, backup)
         try:
+            os.replace(zip_tmp, archive)
             os.replace(sums_tmp, sums_path)
         except OSError:
             if backup is not None:
