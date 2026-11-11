@@ -175,7 +175,10 @@ def check_source(
     if not source.endswith("\n"):
         issues.append(Issue(path, len(source.split("\n")), "eof-newline", "missing final newline"))
     elif source.endswith("\n\n"):
-        issues.append(Issue(path, len(source.split("\n")) - 1, "eof-newline", "extra blank line at end"))
+        issues.append(
+            Issue(path, len(source.split("\n")) - 1, "eof-newline",
+                  "extra blank line at end")
+        )
 
     code_lines = strip_comments(source)
     for number, raw in enumerate(source.split("\n"), start=1):
