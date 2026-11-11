@@ -333,9 +333,25 @@
   `Path.unlink`）。主代理五条验收命令全 0：3 个测试文件 91 passed、
   pyright 0、架构 37、`test_app_panes -n 1` 0、`git diff --check` 0；
   m3/m5/m6 维持登记待办。
-- 下一步：第三轮 `code-review-expert` 限定复核 N1/m1/N2/N3 与门禁 →
-  确认 0 blocker / 0 major →【收尾】主代理全量七项门禁 + 回填 +
-  提交 + 记忆更新。
+- 【审核】第三轮 `code-review-expert` 已在评审记录追加 §八（165 行）：
+  **blocker 0 / major 0 / minor 3**，达到收门禁条件。N1（`finally`
+  异常隔离）、m1（回滚失败保留原异常）、N2/N3 全部闭环；独立探针
+  反证新增用例在修复前必然变红；七条实测命令全 0（32/32 passed、
+  全量 pytest、pyright 0、架构 37、panes 27、diffcheck 0、连跑 5 次全绿）。
+  新 minor N4（`os.close` 失败路径，存量形态）、N5（清理异常未记日志，
+  静默为正确取舍）、N6（close 路径无守卫用例）按 §二.6 登记待办；
+  m3/m5/m6 维持待办，均不阻塞。
+- 【收尾门禁】主代理亲跑八项：`FINAL_GATE_RCS [0,0,0,0,0,0,0,1]` ——
+  前七项全 0（pyright 0 errors、全量 pytest `-n auto` 0、架构 37、
+  覆盖率 `--cov-fail-under=75` 实测 92.93%·3514 passed·10 skipped、
+  冒烟 121/121·1464 checks、changelog 0、diffcheck 0）；
+  第八项 `pytest tests/test_app_panes.py -q -n 1` 的 27 个用例输出全绿后
+  尾部出现 `[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED]
+  {"count":10024,"threshold":9999}`，本机 %TEMP% 积压触发钩子杀 pytest
+  收尾清理（与历史覆盖率轮同源），非产品失败。按无人值守要求先落盘，
+  单独重跑该项复核并如实登记，不记「偶发」。
+- 下一步：单独重跑第 8 项 → 回填评审记录/方案/进度/总纲与索引 →
+  提交 → 更新记忆（用户显式要求）。
 
 ## 续作会话独立复核（2026-11-10，完成）
 
@@ -352,4 +368,17 @@
   skill Step 5 撤回前轮已删除的重复 stat 误报 1 条；APPROVE 维持，
   minor 待办 7 → 9。
 - 提交态复核：工作树干净；merge-tree 精确冲突块 0；未推送、未合流。
-- 下一步：无（闭环完成，待用户显式要求推送 / 合入）。
+## 全量 minor 修复轮 · 收尾（2026-11-11，完成）
+
+- 三轮评审迭代至 **0 blocker / 0 major / 3 minor**；16 条登记 issue 全部
+  闭环（F15 为合并时人工处置项，处置路径实测有效）。
+- 主代理全量门禁：pyright 0 / pytest `-n auto` 0 / 架构 37 / 覆盖率
+  92.93%·3514 passed·10 skipped / 冒烟 121/121·1464 / changelog 0 /
+  diffcheck 0；`test_app_panes -n 1` 红项经单独重跑 RC=0，属本机
+  safe-delete 钩子（count=10024 > 9999），非产品缺陷、不记「偶发」。
+- 合并模拟已实测架构 38、全量 pytest 0、diffcheck 0；临时 worktree 与
+  合并提交已按 git 安全协议删除并显式登记。
+- 遗留 minor：m3 / m5 / m6 / N4 / N5 / N6 登记待办；F15 合并时运行
+  `tools.changelog generate`。
+- 下一步：无（闭环完成）；未推送、未合流，推送 / 合入 master 由用户
+  显式要求后进行。

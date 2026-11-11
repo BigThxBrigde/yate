@@ -170,6 +170,14 @@ safe-delete 钩子，`-n 1` 复核 0，非产品缺陷）。合并时需在合�
 门禁（master 架构守卫已 38）并确认 changelog。评审记录
 [2026-11-10-pr-review-feature-feat-pack-dist-zip.md](2026-11-10-pr-review-feature-feat-pack-dist-zip.md)，
 修复方案 [pack-dist-zip-pr-review-fixes-plan.md](../documents/pack-dist-zip-pr-review-fixes-plan.md)。
+**2026-11-11 IKTRDV 全量 minor 修复轮增量**：新增 #75（用户「更新记忆，
+fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review-expert`
+评审迭代 0/1/6 → 0/1/2 → **0/0/3**，M1 锁残留与 N1 `finally` 清理异常
+两轮 major 修复；主代理收尾八项门禁全绿、覆盖率 92.93%·3514 passed、
+冒烟 121/121·1464；合并模拟架构 38 与 changelog 处置路径实测）。评审记录
+[2026-11-11-fix-all-minor-review.md](2026-11-11-fix-all-minor-review.md)，
+主计划 [pack-dist-zip-minor-fixes-plan.md](../documents/pack-dist-zip-minor-fixes-plan.md)，
+迭代方案 [pack-dist-zip-minor-fixes-review-iteration-plan.md](../documents/pack-dist-zip-minor-fixes-review-iteration-plan.md)。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处

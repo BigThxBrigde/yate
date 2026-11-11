@@ -408,3 +408,191 @@ F14 / F15 仍按前轮裁定：合并树上重跑门禁（架构 38 已由本会
 - 产品源码 / 测试 / 脚本 / 计划文档零改动：git status 仅含另一会话未提交的 .trae/documents/pack-dist-zip-progress.md 修改，本评审未触碰；tools / pack / tests / yate 下无未跟踪残留。
 - 本会话临时探针目录与导出文件已在系统临时目录下清理，仓库内无残留。
 - 探针与负向演练全部在仓库外临时目录或内存中完成，未对仓库文件做任何写入（唯一写入是本评审记录的本章节）。
+
+## 八、第三轮迭代复核（N1 收敛）
+
+范围：仅提交 `66540333` 的 2 个代码/测试文件（`tools/pack/zip_dist.py`、`tests/test_pack_zip.py`），前两轮已复核内容不重复审。
+角色：code-review-expert（DeepSeek-V4.1-Flash），无人值守只读复核；产品源码 / 测试 / 脚本 / 计划文档零改动。
+审查框架：`.trae/skills/python-code-review` 六维度 + 剧本三级严重等级，已执行强制自我批判。
+
+结论摘要：blocker 0 / major 0 / minor 3；N1、m1、N2、N3 全部闭环，达到收门禁条件。
+
+### 8.1 实测命令与退出码（本会话亲跑）
+
+| # | 命令 | 结果 | 退出码 |
+| --- | --- | --- | --- |
+| 1 | `.venv/Scripts/python.exe -m pytest tests/test_pack_zip.py -q` | 32 passed | 0 |
+| 2 | `.venv/Scripts/python.exe -m pytest tests/test_pack_spec.py -q` | 32 passed | 0 |
+| 3 | `.venv/Scripts/python.exe -m pytest tests/ -q -n auto` | 全绿（仅 1 skipped，无 failed/error） | 0 |
+| 4 | `.venv/Scripts/python.exe -m pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations | 0 |
+| 5 | `.venv/Scripts/python.exe -m pytest tests/test_architecture.py -q` | 37 passed | 0 |
+| 6 | `.venv/Scripts/python.exe -m pytest tests/test_app_panes.py -q -n 1` | 27 passed | 0 |
+| 7 | `git diff --check master...HEAD` | 无输出 | 0 |
+| 8 | `tests/test_pack_zip.py` 连跑 5 次 | 5 次全 32 passed | 0,0,0,0,0 |
+
+备注：并行 `-n auto` 轮无失败，故无需 `-n 1` 复核；本轮按任务约定未跑覆盖率与冒烟（由主代理收尾统一执行）。
+
+### 8.2 N1 是否闭环：逐路径独立探针实证
+
+探针在仓库外系统临时目录独立编写，直接调用 `tools.pack.zip_dist.archive_stage`，定向 monkeypatch `Path.unlink` 让指定后缀抛 `PermissionError`，失败后断言 `list(dist.glob(".*.lock")) == []`。
+
+| 注入路径 | 实测对外异常 | 锁残留 | tmp 残留 | bak 残留 | 结论 |
+| --- | --- | --- | --- | --- | --- |
+| zip tmp 的 `unlink` 抛 `PermissionError` | 无（归档成功） | `[]` | `[]` | `[]` | 闭环 |
+| backup 的 `unlink` 抛 `PermissionError` | 无（归档成功） | `[]` | `[]` | 注入所致残留（预期） | 闭环 |
+| 锁自身 `unlink` 抛 `PermissionError` | 无（归档成功） | `[.yate-0.2.18-windows-x64.lock]` | `[]` | `[]` | 锁无法删除，属注入的必然结果，非缺陷 |
+
+修复前反证（决定性证据）：把父提交 `4a4ce9a7` 的 `zip_dist.py` 导出到仓库外独立目录，以同一段断言逻辑复跑 zip tmp unlink 失败场景：
+
+- 修复前：`raised=PermissionError: busy`、`locks=[.yate-0.2.18-windows-x64.lock]`（锁残留）；
+- 修复后：`raised=None`、`locks=[]`。
+
+即 `tests/test_pack_zip.py` 的两条新增用例在修复前必然变红、修复后转绿，用例真实拦截回归，不是空跑。
+
+清理异常是否掩盖原始业务异常（同时注入 swap 失败 + 清理失败）：实测 `raised=OSError: business swap failed`、`locks=[]` —— 对外异常仍是原始业务异常，锁已释放。**N1 闭环**。
+
+### 8.3 m1 是否闭环：回滚失败不掩盖首次失败
+
+注入「首次 `os.replace(zip_tmp, archive)` 失败 + 回滚 `os.replace(backup, archive)` 也失败」：
+
+| 版本 | 对外异常 | 旧 zip 字节 | 残留 |
+| --- | --- | --- | --- |
+| 修复前（`4a4ce9a7`） | `OSError: rollback replace failed`（原始错误被掩盖） | `b"old"` | 无 |
+| 修复后（`66540333`） | `OSError: first replace failed`（原始错误保留） | `b"old"` | 无 tmp / bak / lock |
+
+代码证据：`tools/pack/zip_dist.py:253-261` —— 回滚动作整体包进 `try/except OSError`，`:259-260` 捕获后 `pass`，`:261` 无条件 `raise` 重抛原始 swap 异常。**m1 闭环**。
+
+### 8.4 N2 / N3 是否闭环
+
+- **N2（已闭环）**：`tests/test_pack_zip.py:423` 函数名已由 `fail_once` 改为 `fail_mkstemp`，与「无条件抛错」实现（`:424`）一致；`:426` monkeypatch 目标同步更新。命名不再暗示「只失败一次」。
+- **N3（已闭环）**：职责已分离 —— 既有 `test_archive_stage_when_stage_empty_raises_zip_dist_error`（`:164-169`）只断言 `pytest.raises(ZipDistError, match="no files")`，锁断言已移除；新增 `test_archive_stage_when_stage_is_empty_releases_lock`（`:389-399`）专职覆盖「抛出后锁释放 + 补文件后重试成功」。两条用例不再逐字重复。
+
+### 8.5 反向核查
+
+| 核查面 | 结论 |
+| --- | --- |
+| `for temporary in (zip_tmp, sums_tmp, backup)` 可选 Path 循环 | `tools/pack/zip_dist.py:266-271`，三元组含三个可选变量，逐项 `is not None` 判空后 unlink，无漏项；`backup` 在回滚成功时被置 None（`:256`），finally 判空后跳过，正确 |
+| 三处 `except OSError: pass` 的英文注释 | `:259`「a failed rollback must not hide the swap error」、`:270`「cleanup is best effort; keep the original error」、`:274`「a busy lock must not hide the original error」，均说明「不掩盖原始异常 / 不跳过删锁」，意图清晰 |
+| 裸 `except:` / `except Exception` | 实测两文件均无；全部为具体 `except OSError` / `except FileExistsError` |
+| `Path.unlink` monkeypatch 是否影响 pytest 自身 | 连跑 5 次全 32 passed；桩按 `self.suffix` 定向，实测 `.tmp` / `.bak` / `.lock` 后缀判定正确，`.lock` 不被误拦，未干扰 pytest 的 tmp_path 清理 |
+| `Any` / `type: ignore` / 相对导入 / 非 ASCII 注释 | 实测：无 `typing.Any`（源码中 3 处 `Any` 均为英文散文）、无 `type: ignore`、无 `noqa`、无相对导入、两文件均含 `from __future__ import annotations` |
+
+### 8.6 问题清单（按严重程度排序，含自我批判状态）
+
+本节无 blocker、无 major。以下 3 条均为 minor。
+
+#### [minor] N4 `os.close` 失败路径不在清理覆盖内，可致临时文件或锁残留
+
+位置：`tools/pack/zip_dist.py:214`（`os.close(lock_fd)`，位于 try 之前）、`:227`（`os.close(fd)`，`zip_tmp` 到 `:229` 才赋值）、`:234`（`os.close(fd2)`，`sums_tmp` 到 `:236` 才赋值）。
+
+描述：`mkstemp` / `os.open` 成功产出的 fd，若 `os.close` 抛 `OSError`，临时文件或锁已落盘但尚未登记到可选 Path 变量，`finally` 无从清理。实测三次定向注入 `os.close` 失败：
+
+- 第 1 次（`:214` 锁 fd）：`files=[.yate-0.2.18-windows-x64.lock, ...]` —— **锁残留**，后果与 N1 相同（后续归档报 another archive is in progress）；
+- 第 2 次（`:227` zip tmp fd）：`files=[.yate-0.2.18-windows-x64.360u2ky0.zip.tmp, ...]` —— zip tmp 残留，锁正常释放；
+- 第 3 次（`:234` sums tmp fd）：`files=[.SHA256SUMS.6bm5lzwy.tmp, ...]` —— sums tmp 残留，锁正常释放。
+
+影响评估：`os.close` 对刚成功打开的 fd 极少失败（`EBADF` 不可能；POSIX 上 `close` 可被 `EINTR` 中断且 CPython 不重试；Windows 上无 `EINTR` 语义，实际不可达）。因此触发条件比 N1 的「文件被外部进程占用」罕见得多，不构成常规重试失败路径；无数据丢失（旧 zip 完好，异常如实抛出）。
+
+修复建议（可选，非阻塞）：把 fd 关闭写成 `try: os.close(fd) finally:` 或改用 `contextlib.closing(os.fdopen(fd, ...))`；或先赋值 Path 变量再 close，让 `finally` 至少能删除已落盘的空临时文件。
+
+引用：`.trae/rules/python-coding-style.md` §4.5（资源清理纪律）；skill Error Handling 维度「Missing finally or with for resource cleanup」。
+
+自我批判：初版曾想升为 major（后果与 N1 同型：锁残留 → 永久失败）。反证后维持 minor —— N1 判 major 的前提是「Windows 文件占用常见、常规重试即命中」，本条需 `close()` 系统调用失败，两者概率不在同一量级；且属存量设计形态 —— 父提交 `4a4ce9a7` 的 `:214` / `:221` / `:230` 同样是「先 close 后赋值」，非本轮 `66540333` 引入。确认保留 minor。
+
+#### [minor] N5 三处 `except OSError: pass` 未记日志，偏离 §4.5「禁止静默吞异常」
+
+位置：`tools/pack/zip_dist.py:259-260`、`:270-271`、`:274-275`。
+
+描述：`.trae/rules/python-coding-style.md` §4.5 规定「`except` 块内至少记录日志或向用户反馈；禁止静默吞异常」，§6.1 进一步明确「silenced 只指显式捕获并记录」。三处 `pass` 均未记录日志，仅有注释说明意图。
+
+反证与限定：静默在此处是**正确取舍** —— 记录日志本身可能抛错或改变异常链，反而违背「清理失败不得掩盖原始异常」的既定目标。因此本条不是功能缺陷，而是「规则字面 vs 实际必要性」的偏离，且注释已交代原因。
+
+修复建议（可选）：`except OSError as exc:` 后用惰性 `%` 记录到 `logging`（`tools/` 下已有先例：`tools/pack/errors.py:23`、`tools/mdlint/lint.py:10` 直接 `import logging`），或保留 `pass` 并在 `.trae/rules/` 登记该场景为显式豁免。
+
+自我批判：初版考虑删除（理由是注释已说明意图，且规则 §6.3 允许必要例外）。复核后保留为 minor —— 规则原文是「禁止 / 必须」，两个文件均适用于 `tools/`，属客观偏离；降级理由已写明「非功能缺陷、正确取舍」。确认保留 minor。
+
+#### [minor] N6 `os.close` 三处失败路径无测试覆盖
+
+位置：`tests/test_pack_zip.py` 全文（无 `os.close` 相关用例）。
+
+描述：N4 暴露的三条路径（`:214` / `:227` / `:234` 的 close 失败）无用例钉住。与 N4 区别：N4 是代码形态，N6 是守卫空缺 —— 若将来有人把「先赋值再 close」改成「先 close 后赋值」的反向顺序，或用例外的清理方式，CI 不会报警。
+
+修复建议：若采纳 N4 的「先赋值再 close」修复，补一条 `monkeypatch os.close` 抛 `OSError` 的用例，断言锁与临时文件不残留（与 N1 的两条用例同型）。
+
+自我批判：与 N4 同根因，本可合并。独立登记的理由是「代码修复」与「补守卫」是两件事，分开便于跟踪；但若主代理认为合并更清晰，可并入 N4 一并处置，不强求。确认保留 minor。
+
+### 8.7 第一轮 / 第二轮存量 minor 是否升级
+
+| 条目 | 状态 | 本轮裁定 |
+| --- | --- | --- |
+| m1 回滚掩盖原始异常（第二轮降为 minor） | 已修 | 闭环（§8.3） |
+| m3 symlink 用例为 monkeypatch 模拟 | 未改动 | 维持 minor；设计层/平台限制（Windows 建 symlink 需特权），按收敛判据登记待办、不升级 |
+| m5 跨 stage 并发共享 SHA256SUMS.txt 丢更新 | 未改动 | 维持 minor；锁粒度仍为每 stage 一把（`:207`），打包脚本人工串行调用，无并发实证 |
+| m6 陈旧锁无 PID/TTL 自愈 | 未改动 | 维持 minor；设计层缺口，需外部强杀才触发 |
+
+### 8.8 强制自我批判登记（结论可追溯）
+
+| 条目 | 初版定级 | 最终 | 状态 | 理由 |
+| --- | --- | --- | --- | --- |
+| N1 finally 内 unlink 无隔离 | major（上轮） | — | 确认闭环 | 三条注入路径锁均释放；修复前反证 `locks=[.lock]` → 修复后 `locks=[]` |
+| m1 回滚掩盖原始异常 | minor（上轮） | — | 确认闭环 | 修复前抛 `rollback replace failed`，修复后抛 `first replace failed` |
+| N2 `fail_once` 命名 | minor（上轮） | — | 确认闭环 | 已改 `fail_mkstemp`，与无条件抛错一致 |
+| N3 空 stage 用例断言重复 | minor（上轮） | — | 确认闭环 | 既有用例只断言抛错，新用例专职锁释放与重试 |
+| N4 `os.close` 失败致残留 | major → minor | minor | 降级保留 | 后果同 N1 但触发需 `close()` 失败，概率量级远低；存量形态非本轮引入 |
+| N5 `except OSError: pass` 无日志 | minor | minor | 确认保留 | 属性正确取舍 vs 规则字面的偏离，非功能缺陷 |
+| N6 `os.close` 路径无守卫 | minor | minor | 确认保留 | 与 N4 同根因但「修代码」与「补守卫」分列 |
+| 三处 `except OSError` 注释是否充分 | minor | 删除 | 删除 | 三处注释均明确写出「不掩盖原始异常 / 不跳过删锁」，符合剧本对注释的要求，无实证不足 |
+| `Path.unlink` 桩影响 pytest 自身 | minor | 删除 | 删除 | 连跑 5 次全绿，后缀定向正确，无失败实证，按剧本不留无依据断言 |
+已删除 / 未报条目（避免无实证断言）：
+
+- 「`except OSError` 三处注释不够充分」：逐条核对 `:259` / `:270` / `:274`，注释均显式覆盖「不掩盖原始异常」与「不跳过删锁」两个要点，删除。
+- 「`Path.unlink` monkeypatch 全局作用面影响 pytest」：连跑 5 次全绿，`.lock` 不被后缀桩误拦，删除。
+- 「`_write_archive` 整文件 `read_bytes()` 内存峰值」：前两轮已按 §6.1 判为无实测依据的预优化，本轮无 profiler 证据，不重提。
+- 「`stage.is_dir()` 与 `resolve()` 之间的 TOCTOU」：构建脚本单进程人工调用，无外部并发改写 stage 的实证，不报。
+- 「CALL4（`:244` bak fd close）残留」：实测 `raised=None`，因新目录无旧 zip、`archive.exists()` 为假未走 backup 分支，该路径未被触发，不成立，删除。
+
+### 8.9 总体结论
+
+- blocker：**0**
+- major：**0**
+- minor：**3**（N4 `os.close` 失败路径未纳入清理、N5 三处 `except OSError: pass` 未记日志、N6 `os.close` 路径无守卫用例）
+
+#### N1 / m1 / N2 / N3 闭环结论
+
+- **N1：已闭环。** `finally` 内三个临时文件 `unlink` 各自独立 `try/except OSError`（`tools/pack/zip_dist.py:266-271`），`lock_path.unlink` 独立包裹（`:272-275`）。独立探针实证：zip tmp / backup 的 `unlink` 抛 `PermissionError` 时 `locks=[]`；同时注入 swap 失败 + 清理失败时对外异常仍为原始业务异常且锁已释放；修复前版本反证锁残留。
+- **m1：已闭环。** `:253-261` 回滚段包 `try/except OSError` 后无条件 `raise`；实证注入双失败时对外异常为 `first replace failed`（修复前为 `rollback replace failed`）。
+- **N2：已闭环。** `tests/test_pack_zip.py:423` 已改名为 `fail_mkstemp`，与无条件抛错一致。
+- **N3：已闭环。** `:164-169` 只断言抛错，`:389-399` 专职锁释放与重试成功，职责已分离。
+
+#### 是否达到收门禁条件
+
+**达到。** 0 blocker / 0 major；3 条 minor 均为平台限制或规则字面偏离类，不阻塞合入。八项实测命令退出码全 0（pyright 0 诊断、全量 pytest 全绿、架构 37 passed、panes 27 passed、diffcheck 无输出），新增两条用例经修复前版本反证确非空跑。
+
+#### 无副作用的证据
+
+- 产品源码 / 测试 / 脚本 / 计划文档零改动：`git status --porcelain` 输出为空（本会话曾误建一个工作树临时文件，已即时删除并复核为空）。
+- 探针脚本、父版本源码导出与结果日志全部位于系统临时目录（仓库外）；探针在仓库外临时目录内构造 stage / dist 并自清理。
+- 本会话唯一写入仓库的文件是本评审记录的本章节（追加，不覆盖既有内容）。
+
+## 九、收尾门禁与闭环结论（主代理，2026-11-11）
+
+- 三轮评审：第一轮 0 blocker / 1 major (M1) / 6 minor；第二轮 0 / 1 (N1) / 2；
+  第三轮 **0 / 0 / 3**（N4/N5/N6），达到收门禁条件。M1（锁创建后 `try`
+  覆盖不足）与 N1（`finally` 内 `unlink` 无异常隔离）均经独立探针反证
+  修复后闭环；m1 / m2 / m4 / N2 / N3 同批闭环。
+- 16 条登记 issue：F1–F14、F16 全部闭环；F15 裁定为合并时人工处置项
+  （合并树 changelog 红、master 侧 0、`generate` 后转绿 0，处置路径已
+  实测），不冒充已修复。
+- 合并模拟（隔离临时 worktree，已按 git 安全协议移除）：架构 38 passed、
+  全量 pytest 0、diffcheck 0；`tools.changelog generate` 后 check 0。
+- 主代理收尾全量门禁：pyright 0 errors / pytest `-n auto` 0 / 架构 37 /
+  覆盖率 92.93%（3514 passed·10 skipped，阈值 75）/ 冒烟 121/121·
+  1464 checks / changelog 0 / diffcheck 0；第八项 `test_app_panes.py -n 1`
+  用例全绿后被本机 `[safe-delete]` 钩子（count=10024 > 9999）杀收尾清理，
+  单独重跑 RC=0，非产品缺陷、不记「偶发」。
+- 遗留 minor（按 §二.6 登记待办、不阻塞）：m3 真实 symlink（Windows 权限）、
+  m5 跨 stage 并发校验文件、m6 陈旧锁 PID/TTL 自愈、N4 `os.close` 失败
+  路径（存量形态）、N5 清理异常未记日志（静默为正确取舍）、N6 close
+  路径无守卫用例；F15 为合并时流程项。
+- 评审索引登记 #75；工作树干净、未推送、未自动合流；推送 / 合入 master
+  须用户显式要求。
