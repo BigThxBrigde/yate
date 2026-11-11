@@ -178,6 +178,9 @@ fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review
 [2026-11-11-fix-all-minor-review.md](2026-11-11-fix-all-minor-review.md)，
 主计划 [pack-dist-zip-minor-fixes-plan.md](../documents/pack-dist-zip-minor-fixes-plan.md)，
 迭代方案 [pack-dist-zip-minor-fixes-review-iteration-plan.md](../documents/pack-dist-zip-minor-fixes-review-iteration-plan.md)。
+> **编号分歧登记**（2026-11-11）：本分支 #75 与并行分支
+> `feature/feat-which-key-auto-trigger` 的合并前 pr-review #75 重号；
+> 两者均按各自分支顺序登记，合并时按日期统一重排，不互相覆盖事实。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
