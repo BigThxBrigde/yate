@@ -21,6 +21,7 @@ from yate.editor_core.document import Document
 from yate.keymaps.keys import (
     HOVER_DOC_KEY as HOVER_DOC_KEY,
     KEY_ALIASES as KEY_ALIASES,
+    MACRO_PREFIX_KEY as MACRO_PREFIX_KEY,
     SPECIAL_KEYS as SPECIAL_KEYS,
     key_name,
     parse_key,
@@ -171,6 +172,15 @@ class Keymap:
     def lookup(self, key: str) -> KeyBinding | None:
         """The binding for a raw key, or ``None`` when unbound."""
         return self._index.get(key)
+
+    def take_pending_count(self) -> int:
+        """Consume and return the pending count prefix (1 when absent).
+
+        The macro replay flow calls this when a ``@`` replay fires, so a
+        vim-style ``3@a`` replays three times.  Table-driven keymaps hold
+        no count state and keep the default; stateful keymaps override.
+        """
+        return 1
 
     # -------------------------------------------------------------- dispatch
 

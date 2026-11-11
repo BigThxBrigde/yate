@@ -59,6 +59,13 @@ SPECIAL_KEYS: dict[str, str] = {
 #: because it aliases <ctrl-shift-k> (delete_line) at raw byte \x0b.
 HOVER_DOC_KEY: str = "<f7>"
 
+#: Shared macro prefix (both built-in keymaps import this single L0 constant,
+#: AC3): ``<f6> r {reg}`` records, ``<f6> p {reg}`` replays, ``<f6> @``
+#: repeats the last macro, ``<f6>`` while recording stops.  A function key on
+#: purpose: printable prefixes (vim's q/@) would be swallowed as text in the
+#: modeless keymap, and <f6> is unoccupied in both stock binding tables.
+MACRO_PREFIX_KEY: str = "<f6>"
+
 # Common terminal variants not covered by the canonical names.
 KEY_ALIASES: dict[str, str] = {
     "\x1b[1~": "home",

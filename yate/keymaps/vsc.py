@@ -8,6 +8,7 @@ from yate.keymaps.base import (
     HOVER_DOC_KEY,
     KeyBinding,
     Keymap,
+    MACRO_PREFIX_KEY,
     parse_key,
 )
 
@@ -125,4 +126,6 @@ class VscKeymap(Keymap):
             _k("<f8>", "manual", "Open user manual (read-only)", HELP),
             _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
             _k(HOVER_DOC_KEY, "show_hover_docs", "Show API documentation at cursor", VIEW),
+            _k(MACRO_PREFIX_KEY, "macro_prefix",
+               "Macro prefix: r{reg} record, p{reg} replay, @ last", EDIT),
         ]

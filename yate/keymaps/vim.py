@@ -35,6 +35,7 @@ from yate.keymaps.base import (
     HOVER_DOC_KEY,
     KeyBinding,
     KeyUi,
+    MACRO_PREFIX_KEY,
     Keymap,
     parse_key,
 )
@@ -233,6 +234,8 @@ class VimKeymap(Keymap):
                        "Toggle the which-key panel", HLP),
             KeyBinding(parse_key(HOVER_DOC_KEY), "show_hover_docs",
                        "Show API documentation at cursor", HLP),
+            KeyBinding(parse_key(MACRO_PREFIX_KEY), "macro_prefix",
+                       "Macro prefix: r{reg} record, p{reg} replay, @ last", EDT),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -1264,6 +1267,11 @@ class VimKeymap(Keymap):
 
     def _peek_count(self) -> int:
         return int(self.count_str) if self.count_str else 1
+
+    @override
+    def take_pending_count(self) -> int:
+        """Consume the typed count prefix for a macro replay (``3@a``)."""
+        return self._take_count()
 
     # ----------------------------------------------------------- registers
 
