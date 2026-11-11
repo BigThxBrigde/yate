@@ -250,20 +250,29 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
             os.replace(zip_path, archive)
             os.replace(sums_path_tmp, sums_path)
         except OSError:
-            if backup is not None:
-                os.replace(backup, archive)
-                backup = None
-            else:
-                archive.unlink(missing_ok=True)
+            try:
+                if backup is not None:
+                    os.replace(backup, archive)
+                    backup = None
+                else:
+                    archive.unlink(missing_ok=True)
+            except OSError:  # a failed rollback must not hide the swap error
+                pass
             raise
     finally:
-        if zip_tmp is not None:
-            zip_tmp.unlink(missing_ok=True)
-        if sums_tmp is not None:
-            sums_tmp.unlink(missing_ok=True)
-        if backup is not None:
-            backup.unlink(missing_ok=True)
-        lock_path.unlink(missing_ok=True)
+        # Cleanup failures must neither mask the original error nor skip the
+        # lock release: isolate each unlink so a busy file cannot strand the
+        # lock and block every later build.
+        for temporary in (zip_tmp, sums_tmp, backup):
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:  # cleanup is best effort; keep the original error
+                    pass
+        try:
+            lock_path.unlink(missing_ok=True)
+        except OSError:  # a busy lock must not hide the original error
+            pass
     return ArchiveResult(archive, size, digest, sums_path)
 
 

@@ -305,8 +305,37 @@
   评审记录已双向互链。
 - 【迭代·批准】无人值守按通过处理，豁免询问与审批，不冒充用户答复；
   范围为本方案 R1/R2，执行中偏离须回填 `overview.md` §六。
-- 下一步：执行 R1 修复 → 局部验收 → 第二轮 `code-review-expert` 复核 →
-  【收尾】全量门禁 + 回填 + 提交 + 记忆更新。
+- 【迭代·执行】R1 已提交：`tools/pack/zip_dist.py` 锁创建成功后立即进入
+  大 `try`（`zip_tmp`/`sums_tmp`/`backup` 改 `Path | None` 并判空清理），
+  3 条「失败后无锁残留」用例（空 stage 含重试成功、`_stage_files` 拒绝、
+  `mkstemp` 失败）+ 既有用例补锁断言；m2（bat 提示先于 `exit /b`）、
+  m4（`stale_ids` 非空）同批补齐。主代理实测五条验收命令全 0：
+  `test_pack_zip.py`+`test_pack_spec.py`+`test_app_panes.py` 89 passed、
+  pyright 0、架构 37、`test_app_panes -n 1` 0、`git diff --check` 工作树与
+  `master...HEAD` 双 0。m1/m3/m5/m6 按方案登记待办。
+- 【审核】第二轮 `code-review-expert` 已在评审记录追加 §七（212 行，
+  只追加不覆盖）：blocker 0 / **major 1 (N1)** / minor 2；m2/m4 已闭环，
+  M1 部分闭环（10 条路径实测无锁残留，含锁创建失败不删他人锁）；
+  但 `finally` 内四个 `unlink` 无异常隔离，`zip_tmp.unlink` 或
+  `backup.unlink` 抛 `PermissionError` 即跳过 `lock_path.unlink`，
+  锁仍残留。八条实测命令全 0（30/32 passed、全量 pytest、pyright 0、
+  架构 37、panes 27 passed、diffcheck 0、相关用例连跑 5 次全绿）。
+  另 N2（`fail_once` 无条件抛错、命名失真）、N3（空 stage 两条用例断言重复）。
+- 按 §二.6 再迭代：迭代方案追加 §7 —— 修 N1（finally 每项 try/except
+  OSError 隔离 + 锁清理独立）、m1（回滚二次失败不掩盖原始异常）、N2/N3，
+  补 2 条「unlink 失败仍释放锁」用例；m3/m5/m6 维持登记待办。
+  无人值守下本轮批准按通过处理。
+- 【迭代·R2 执行】N1（`finally` 三个临时文件 `unlink` 各自 `try/except
+  OSError` 隔离、`lock_path.unlink` 独立包裹）、m1（回滚二次失败不替换
+  原始 swap 异常）、N2（`fail_mkstemp` 正名）、N3（既有用例恢复只断言
+  抛错、新增用例专职覆盖锁释放与重试）已全部落盘；新增 2 条
+  「`unlink` 抛 `PermissionError` 仍释放锁」用例（定向 monkeypatch
+  `Path.unlink`）。主代理五条验收命令全 0：3 个测试文件 91 passed、
+  pyright 0、架构 37、`test_app_panes -n 1` 0、`git diff --check` 0；
+  m3/m5/m6 维持登记待办。
+- 下一步：第三轮 `code-review-expert` 限定复核 N1/m1/N2/N3 与门禁 →
+  确认 0 blocker / 0 major →【收尾】主代理全量七项门禁 + 回填 +
+  提交 + 记忆更新。
 
 ## 续作会话独立复核（2026-11-10，完成）
 

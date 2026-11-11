@@ -113,7 +113,27 @@ git diff --check master...HEAD
 回滚总路径：R1 四个文件单独提交，`git revert` 即回到评审时状态；
 F1–F16 其它修复与合并模拟结论不受影响。
 
-## 6. 回填与提交纪律
+## 6. 第二轮迭代（N1 / m1 / N2 / N3）
+
+来源：评审记录 §七（blocker 0 / major 1 N1 / minor 2）。按 §二.6 再次迭代。
+
+| 项 | 裁定 | 处置 |
+| --- | --- | --- |
+| N1（major） | 实质修复 | `finally` 内三个临时文件 `unlink` 每项各包 `try/except OSError` 并加英文注释「清理失败不得掩盖原始异常或跳过删锁」；`lock_path.unlink` 独立包裹，确保任一 unlink 失败后锁仍释放 |
+| m1（第一轮 minor） | 同批闭环 | swap 的 `except OSError` 内回滚动作再包 `try/except OSError`，回滚失败时 `pass` 后 `raise` 保留原始 swap 异常，不被回滚异常替换 |
+| N2（minor） | 同批闭环 | `fail_once` 改名为 `fail_mkstemp`（无条件抛错） |
+| N3（minor） | 同批闭环 | 既有 `test_archive_stage_when_stage_empty_raises_zip_dist_error` 恢复为只断言抛错；新增 `test_archive_stage_when_stage_is_empty_releases_lock` 专职覆盖锁释放与重试成功 |
+| m3 / m5 / m6 | 登记待办 | 真实 symlink（Windows 权限）、跨 stage 并发校验文件、陈旧锁 PID/TTL 自愈，均为设计层/平台限制，按 §二.6 登记不阻塞 |
+
+新增 2 条用例：`test_archive_stage_when_zip_tmp_unlink_fails_still_releases_lock`
+与 `test_archive_stage_when_backup_unlink_fails_still_releases_lock`，
+用 monkeypatch 定向让 `.tmp` / `.bak` 的 `Path.unlink` 抛 `PermissionError`，
+断言 `list(dist.glob(".*.lock")) == []`（`Path.unlink` 桩按后缀定向，
+不影响 `.lock` 的删除）。验收命令沿用 §4 五条，另加这两条用例单独跑。
+第三轮 `code-review-expert` 限定复核 N1/m1/N2/N3 与门禁，直至
+0 blocker / 0 major。
+
+## 7. 回填与提交纪律
 
 评审记录追加「第二轮迭代复核」章节（只追加、不覆盖既有事实）；
 `overview.md` §六 登记 M1 迭代；`progress.md` 登记修复与复评结论；

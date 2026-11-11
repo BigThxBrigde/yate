@@ -167,7 +167,6 @@ def test_archive_stage_when_stage_empty_raises_zip_dist_error(tmp_path: Path) ->
     stage.mkdir(parents=True)
     with pytest.raises(zip_dist.ZipDistError, match="no files"):
         zip_dist.archive_stage(stage, dist)
-    assert list(dist.glob(".*.lock")) == []
 
 
 def test_archive_stage_when_stage_is_dot_raises_zip_dist_error(tmp_path: Path) -> None:
@@ -421,15 +420,50 @@ def test_archive_stage_when_mkstemp_fails_releases_lock(
 ) -> None:
     dist = stage.parent
 
-    def fail_once(*args: object, **kwargs: object) -> None:
+    def fail_mkstemp(*args: object, **kwargs: object) -> None:
         raise OSError("disk full")
 
-    monkeypatch.setattr(zip_dist.tempfile, "mkstemp", fail_once)
+    monkeypatch.setattr(zip_dist.tempfile, "mkstemp", fail_mkstemp)
     with pytest.raises(OSError, match="disk full"):
         zip_dist.archive_stage(stage, dist)
     assert list(dist.glob(".*.lock")) == []
     assert list(dist.glob("*.tmp")) == []
     assert list(dist.glob("*.bak")) == []
+
+
+def test_archive_stage_when_zip_tmp_unlink_fails_still_releases_lock(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+    real_unlink = Path.unlink
+
+    def flaky_unlink(self: Path, missing_ok: bool = False) -> None:
+        if self.suffix == ".tmp":
+            raise PermissionError("busy temp file")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+    result = zip_dist.archive_stage(stage, dist)
+    assert result.path.is_file()
+    assert list(dist.glob(".*.lock")) == []
+
+
+def test_archive_stage_when_backup_unlink_fails_still_releases_lock(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+    (dist / f"{stage.name}.zip").write_bytes(b"old")
+    real_unlink = Path.unlink
+
+    def flaky_backup_unlink(self: Path, missing_ok: bool = False) -> None:
+        if self.suffix == ".bak":
+            raise PermissionError("busy backup")
+        real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", flaky_backup_unlink)
+    result = zip_dist.archive_stage(stage, dist)
+    assert result.path.is_file()
+    assert list(dist.glob(".*.lock")) == []
 
 
 @pytest.mark.parametrize("inside", ["inside", "inside/nested"])

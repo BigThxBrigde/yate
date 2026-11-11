@@ -196,3 +196,215 @@ F14 / F15 仍按前轮裁定：合并树上重跑门禁（架构 38 已由本会
 已撤销：本会话临时探针与日志文件已清理；产品源码 / 测试 / 脚本 / 计划文档零改动（git status 仅含另一会话未提交的 progress 文档修改，本评审未触碰）。
 
 修复方案：[pack-dist-zip-minor-fixes-review-iteration-plan.md](../documents/pack-dist-zip-minor-fixes-review-iteration-plan.md)（M1 迭代修复，双向互链）。
+
+## 七、第二轮迭代复核（M1）
+
+范围：仅提交 729a2c6e 的 4 个文件（tools/pack/zip_dist.py、tests/test_pack_zip.py、tests/test_pack_spec.py、tests/test_app_panes.py），不重跑第一轮 16 条全量审查。
+角色：code-review-expert（DeepSeek-V4.1-Flash），无人值守只读复核；产品源码 / 测试 / 脚本 / 计划文档零改动。
+审查框架：.trae/skills/python-code-review 六维度 + 剧本三级严重等级，已执行强制自我批判。
+
+结论摘要：blocker 0 / major 1 / minor 2；M1 的三条原失败路径已闭环，但 M1 目标（所有失败路径释放锁）在 finally 内部异常隔离上仍未闭环（见 N1）。
+
+### 7.1 实测命令与退出码（本会话亲跑）
+
+| # | 命令 | 结果 | 退出码 |
+| --- | --- | --- | --- |
+| 1 | .venv/Scripts/python.exe -m pytest tests/test_pack_zip.py -q | 30 passed | 0 |
+| 2 | .venv/Scripts/python.exe -m pytest tests/test_pack_spec.py -q | 32 passed | 0 |
+| 3 | .venv/Scripts/python.exe -m pytest tests/ -q -n auto | 全绿（仅 skipped，无 failed/error） | 0 |
+| 4 | .venv/Scripts/python.exe -m pyright yate/ tests/ tools/ pack/ | 0 errors, 0 warnings, 0 informations | 0 |
+| 5 | .venv/Scripts/python.exe -m pytest tests/test_architecture.py -q | 37 passed | 0 |
+| 6 | .venv/Scripts/python.exe -m pytest tests/test_app_panes.py -q -n 1 | 27 passed | 0 |
+| 7 | git diff --check master...HEAD | 无输出 | 0 |
+| 8 | 相关用例连跑 5 次（mkstemp/releases_lock/copyfile/replace） | 5 次全 7 passed | 0,0,0,0,0 |
+
+备注：并行 -n auto 轮无失败，故无需 -n 1 复核；本轮未跑覆盖率与冒烟（按任务约定由主代理收尾统一执行）。
+
+### 7.2 M1 是否闭环：逐路径独立探针实证
+
+探针在仓库外临时目录独立编写，直接调用 tools.pack.zip_dist.archive_stage，失败后断言 list(dist.glob(.*.lock)) == []，并同时检查 *.tmp / *.bak / 隐藏文件。
+
+| 失败路径 | 注入方式 | 实测异常 | 锁/临时文件残留 | 结论 |
+| --- | --- | --- | --- | --- |
+| 空 stage（第一轮原路径 1） | 空目录 + dist | ZipDistError: stage has no files to archive | locks=[] tmp=[] bak=[] hidden=[] | 闭环 |
+| 修复后重试（补文件） | 同 stage 再调一次 | 无异常 | 归档成功，locks=[] | 闭环 |
+| _stage_files 抛错（原路径 2） | monkeypatch _stage_files | ZipDistError: stage entry escapes stage root | 全空 | 闭环 |
+| 首个 mkstemp 失败（原路径 3） | monkeypatch tempfile.mkstemp | OSError: disk full | 全空 | 闭环 |
+| 第二个 mkstemp（sums tmp）失败 | 计数桩第 2 次抛错 | OSError: sums disk full | 全空（已建 zip tmp 亦清） | 闭环 |
+| 首次 zip os.replace 失败（有旧 zip） | monkeypatch os.replace | OSError: zip replace failed | 全空，旧 zip 字节仍为 old | 闭环 |
+| sums os.replace 失败（无旧 zip，backup=None） | monkeypatch os.replace | OSError: sums replace failed | 全空，新 zip 已回滚删除 | 闭环 |
+| shutil.copyfile 失败（有旧 zip） | monkeypatch copyfile | OSError: copy failed | 全空，旧 zip 仍为 old | 闭环 |
+| zip tmp 已建后中途抛非 OSError | monkeypatch _digest 抛 RuntimeError | RuntimeError | 全空 | 闭环 |
+| 他人已持锁（FileExistsError） | 预置 .yate-0.2.18.lock | ZipDistError: another archive is in progress | 他人锁保留（FOREIGN_LOCK_PRESERVED=True） | 闭环（未误删他人锁） |
+
+#### 新增用例有效性反向验证（非空过的决定性证据）
+
+把父提交 4a4ce9a7 的 tools/pack/zip_dist.py（修复前）复制到仓库外独立包目录，以同一段断言逻辑复跑三条新增用例：
+
+- case1（空 stage）：修复前 C1_NEW_TEST_PASSES=False，修复后 True
+- case2（_stage_files 抛错）：修复前 False，修复后 True
+- case3（mkstemp 失败）：修复前 False，修复后 True
+
+即三条新用例在修复前**必然变红**，修复后转绿 —— 用例真实拦截回归，不是空跑。
+
+### 7.3 m2 / m4 是否真能拦截漂移（负向演练）
+
+
+#### m2（tests/test_pack_spec.py:916-918）
+
+- 进程内实测真实文本偏移：if errorlevel 1 在 2352，exit /b %ERRORLEVEL% 在 2440，前者在前，守卫成立。
+- 负向演练：在内存副本中把提示行挪到 exit /b 之后（不写盘、不改仓库文件），同样断言算出 DRIFT_GUARD_HOLDS=False。
+- 结论：**m2 已闭环**，顺序契约被真实钉住。
+
+
+#### m4（tests/test_app_panes.py:175）
+
+- 实测 exec 一段等价断言，stale_ids 为空列表时抛 AssertionError 且带消息 guard must exercise at least one closed leaf。
+- 结论：**m4 已闭环**，空过（vacuous pass）被阻断。
+- 备注：第一轮建议写成 assert len(stale_ids) == 1，实际用 assert stale_ids。两者都能拦截空集；后者不锁定具体数量，更耐受 pane id 分配变化，判定可接受。
+
+### 7.4 反向核查：Path / None 改造是否覆盖所有使用点
+
+
+#### 三个可选变量的使用点
+
+- zip_tmp（tools/pack/zip_dist.py:217 声明 None，:229 赋值为 zip_path，:260-261 判空后 unlink）。所有使用点都在赋值之后，finally 判空齐全。
+- sums_tmp（:218 声明，:236 赋值，:262-263 判空）。同上。
+- backup（:219 声明，:246 赋值，:253 判空判断，:264-265 判空 unlink）。:253 的 if backup is not None 让回滚分支在 backup 为 None 时正确走 archive.unlink(:257)，已由「sums replace 失败（无旧 zip）」路径实证：新 zip 被回滚删除、无残留。
+- zip_path / sums_path_tmp / backup_path 三个非 None 局部变量仅在 try 内使用，作用域足够，pyright strict 0 诊断（实测）。
+
+
+#### return ArchiveResult 的位置与变量赋值
+
+
+- return 位于 :267，在 try / finally 之外；异常路径不会到达（异常向上传播），正常路径下 size / digest 必已在 :231-232 赋值。无 UnboundLocalError 风险。
+- 实测 10 条失败路径全部正确抛出预期异常，无 UnboundLocalError / NameError。
+
+
+#### mkstemp monkeypatch 对 pytest 的影响
+
+
+- 实证 zip_dist.tempfile is tempfile 为 True，故 monkeypatch.setattr(zip_dist.tempfile, mkstemp, ...) 实际替换的是**全局 tempfile.mkstemp**（PATCHED_GLOBAL=True），monkeypatch 退出时自动还原（RESTORED=True）。
+- 稳定性实测：相关用例连跑 5 次全部 7 passed；全量 -n auto 通过。xdist 为进程级隔离、同进程内串行执行，未观察到对 pytest 自身或其它用例的影响。
+- 判定：**不构成缺陷**（无失败实证），但作用面大于用例意图，登记为说明而非问题。
+
+### 7.5 问题清单（按严重程度排序，含自我批判状态）
+
+
+#### [major] N1 finally 内任一 unlink 抛错会跳过后续清理，锁仍残留（M1 目标未完全闭环）
+
+位置：tools/pack/zip_dist.py:259-266（finally 块，四个 unlink 顺序执行，彼此无异常隔离）。
+
+描述：：260-266 依次清理 zip_tmp / sums_tmp / backup / lock，但任一 unlink 抛出 OSError（Windows 上文件被杀毒软件或其它进程短暂占用即触发 PermissionError 是现实场景）时，finally 会在此处中断，**后面的清理全部不执行**，包括第 266 行的 lock_path.unlink。
+
+实测两条独立路径（仓库外探针，monkeypatch Path.unlink 定向抛 PermissionError）：
+
+- zip tmp 的 unlink 抛 PermissionError: locked by another process → 抛该异常，且 locks=[.stg.lock] 残留；
+- backup 的 unlink 抛 PermissionError: bak locked → 抛该异常，且 locks=[.stg.lock]、bak 文件同时残留。
+
+影响：与 M1 同一后果 —— 残留锁使同一 stage 的任何后续归档永久报 another archive is in progress（:210-213），必须人工删锁。M1 的既定目标是「所有失败路径都经 finally 释放锁」，本路径说明该目标尚未完全达成。
+
+归因：**存量缺陷，非本轮 729a2c6e 引入**（在父提交 4a4ce9a7 上同样探针同样残留），但属 M1 修复范围应覆盖而未覆盖的残余面。
+
+修复建议：给 finally 内每个清理动作各自包一层 try/except OSError，或至少把 lock_path.unlink 提到最前 / 用单独 try 包裹，保证锁一定被尝试删除；可参考：
+
+    finally:
+        for tmp in (zip_tmp, sums_tmp, backup):
+            if tmp is None:
+                continue
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        try:
+            lock_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+并补两条用例：monkeypatch Path.unlink 让 *.tmp / *.bak 抛 PermissionError，断言 lock 已删除。
+
+引用：skill Error Handling 维度「Missing finally or with for resource cleanup」；python-coding-style.md 资源清理纪律。
+
+自我批判：初版定级 blocker（常规重试即永久失败 + Windows 文件占用常见），复核后降为 **major** —— 触发需外部进程占用临时文件这一额外条件，非确定性失败；且不造成数据丢失（旧 zip 完好、异常如实抛出）。确认保留 major。
+
+#### [minor] N2 新用例的 fail_once 实际无条件抛错，命名与行为不符
+
+位置：tests/test_pack_zip.py:424-425。
+
+描述：函数名 fail_once 暗示「只失败一次」，实现却是无条件 raise OSError(disk full)，且返回类型标注为 None（不返回 fd/路径），与 mkstemp 契约不符。命名会让后来者误以为覆盖了「首次失败后重试成功」的场景（实际没有）。
+
+修复建议：改名为 fail_always / reject_mkstemp，或真的实现「首次抛错、后续透传原名 mkstemp」以同时覆盖重试路径。
+
+自我批判：确认保留 minor。非功能缺陷，属可读性 / 命名准确性。
+
+
+#### [minor] N3 空 stage 的两条用例前半段断言完全重复
+
+位置：tests/test_pack_zip.py:164-170（test_archive_stage_when_stage_empty_raises_zip_dist_error）与 :390-400（test_archive_stage_when_stage_is_empty_releases_lock）。
+
+描述：:168-170 与 :394-396 都是「空 stage 抛 no files，再断言 list(dist.glob(.*.lock)) == []」，逐字等价。新增用例的增量价值只在后半段（补文件后重试成功），前半段属重复。
+
+修复建议：把新增用例收敛为「重试成功」单一诉求，或让既有用例只保留抛错断言、把无锁断言集中到新用例一处。
+
+自我批判：确认保留 minor。第一轮 M1 的修复建议要求「既有空 stage 用例补 *.lock 断言」，本轮照做后又新建了同样断言的用例，属演进中的冗余，非错误。
+
+### 7.6 第一轮待办 minor 是否升级
+
+- m1（回滚二次失败掩盖原始异常）：代码路径 tools/pack/zip_dist.py:252-258 本轮未改动，无新实证，不升级，维持 minor。
+- m3（symlink 用例为 monkeypatch）：相关代码与用例未改动，不升级，维持 minor。
+- m5（跨 stage 并发共享 SHA256SUMS.txt 丢更新）：锁粒度仍为每 stage 一个锁（:207），未改动，不升级，维持 minor。
+- m6（陈旧锁无进程号与过期时间自愈）：锁创建逻辑（:208-214）未改动，不升级，维持 minor。
+
+附注：N1 与 m6 表现相同（后续归档永久失败）但根因不同 —— N1 是 finally 内部异常隔离缺失（可修），m6 是缺少陈旧锁识别（设计层）。二者修复可合并考虑。
+
+### 7.7 强制自我批判登记（结论可追溯）
+
+| 条目 | 初版定级 | 最终 | 状态 | 理由 |
+| --- | --- | --- | --- | --- |
+| N1 finally 内 unlink 抛错致锁残留 | blocker | major | 降级保留 | 触发需外部进程占用临时文件这一额外条件，非确定性失败；旧 zip 完好，无数据丢失 |
+| N2 fail_once 命名与行为不符 | minor | minor | 确认保留 | 非功能缺陷，仅命名准确性 |
+| N3 空 stage 两条用例断言重复 | minor | minor | 确认保留 | 演进产生的冗余，非错误 |
+| M1 三条原失败路径 | — | — | 确认闭环 | 8 条路径探针全清 + 修复前版本反证 False/True 翻转 |
+| m2 顺序守卫 | — | — | 确认闭环 | 真实偏移正确 + 内存漂移演练变红 |
+| m4 stale_ids 非空 | — | — | 确认闭环 | 空列表实测触发 AssertionError |
+| mkstemp monkeypatch 全局作用面 | minor | 删除 | 删除 | 5 次连跑 + 全量并行均无失败实证，按剧本不留无实证断言 |
+| 三组双变量 zip_path/zip_tmp 等 | minor | 删除 | 删除 | pyright strict 收窄所需的惯用写法，属风格偏好而非缺陷 |
+
+已删除 / 未报条目：
+
+- 测试与产品代码之间的 glob 通配符写法差异（.*.lock 与 .* 混用）：逐条核对后均能命中目标文件，无漏断言，不报。
+- test_archive_stage_when_stage_files_reject_entry_releases_lock 用整体替换 _stage_files 而非构造真实越界条目：用例语义是「_stage_files 抛错时锁是否清理」，与真实越界路径等价，不报。
+- 新增用例未断言 ArchiveResult 字段：与本次修复目标无关，既有用例已覆盖，不报。
+
+
+### 7.8 总体结论
+
+
+- blocker：0
+- major：1（N1 finally 内任一 unlink 抛错会跳过后续清理，锁仍残留；存量缺陷、非本轮引入，但属 M1 修复目标未覆盖的残余面）
+- minor：2（N2 fail_once 命名与行为不符、N3 空 stage 两条用例断言重复）
+
+
+#### M1 是否已闭环
+
+
+**部分闭环。**
+
+
+- 已闭环：第一轮点名的三条失败路径（空 stage、_stage_files 抛错、首个 mkstemp 失败）以及本轮追加核查的另外七条路径（sums mkstemp 失败、zip replace 失败、sums replace 失败且 backup 为 None、copyfile 失败、中途非 OSError、他人已持锁）全部经 finally 清理，锁与临时文件零残留；锁创建失败时不误删他人锁。
+- 未闭环：finally 内部四个 unlink 之间没有异常隔离，任一抛 OSError 会跳过 lock_path.unlink，锁仍残留（N1，tools/pack/zip_dist.py:259-266）。
+- 因此「所有失败路径都释放锁」这一 M1 验收口径尚未达成；修复面很小 —— finally 内逐项 try/except，或把 lock_path.unlink 提到最前并用独立 try 包裹。
+
+
+#### 合并判断
+
+
+本轮 729a2c6e 的改动方向正确、三条原路径与 m2 / m4 均已实证闭环，且新增用例经修复前版本反证确非空跑。但 M1 的验收口径是「所有失败路径释放锁」，N1 属于同一口径下的漏网路径，建议与 N1 一并修复后再收门禁；N2 / N3 可与 N1 同批，成本各一两行。修复 N1 后即达 0 blocker / 0 major / 2 minor。
+
+
+#### 无副作用的证据
+
+
+- 产品源码 / 测试 / 脚本 / 计划文档零改动：git status 仅含另一会话未提交的 .trae/documents/pack-dist-zip-progress.md 修改，本评审未触碰；tools / pack / tests / yate 下无未跟踪残留。
+- 本会话临时探针目录与导出文件已在系统临时目录下清理，仓库内无残留。
+- 探针与负向演练全部在仓库外临时目录或内存中完成，未对仓库文件做任何写入（唯一写入是本评审记录的本章节）。
