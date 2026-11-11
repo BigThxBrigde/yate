@@ -582,6 +582,12 @@ class TextBuffer:
             anchor_after,
             extra_after,
         )
+        if lines_changed and len(old) != len(new):
+            # Structural change: rows below the replaced interval shifted, so
+            # the dirty range extends to the end -- the same rule
+            # ``_apply_deltas`` applies on undo/redo replay, keeping the two
+            # delta-recording primitives on one dirty-marking contract.
+            self._note_dirty(prefix, len(self.lines) - 1)
 
     def _set_cursor_state(
         self, cursor: Pos, anchor: Pos | None, extra: tuple[Pos, ...]
