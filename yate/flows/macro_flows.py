@@ -18,11 +18,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from yate.keymaps.keys import MACRO_PREFIX_KEY
+from yate.keymaps.keys import MACRO_PREFIX_KEY, parse_key
 from yate.logs import tracing
 from yate.session import EditorSession
 
 log = tracing.get_logger(__name__)
+
+#: The prefix key in raw (dispatch) form: the keymap tables and the key
+#: codec speak raw bytes, so comparisons below must use ``parse_key`` output,
+#: never the ``<f6>`` notation (which is for bindings and docs only).
+_PREFIX_RAW: str = parse_key(MACRO_PREFIX_KEY)
 
 #: Characters a macro register name accepts (vim-style single characters).
 REGISTER_CHARS: frozenset[str] = frozenset(
@@ -67,8 +72,8 @@ class MacroFlows:
     # --------------------------------------------------------------- queries
 
     def is_control_key(self, raw: str) -> bool:
-        """Whether *raw* is the macro prefix control key."""
-        return raw == MACRO_PREFIX_KEY
+        """Whether *raw* is the macro prefix control key (raw form)."""
+        return raw == _PREFIX_RAW
 
     # --------------------------------------------------------- dispatch hook
 
@@ -113,7 +118,7 @@ class MacroFlows:
                 return True
             self._message("macro: register name must be a-z or 0-9")
             return False
-        if raw == MACRO_PREFIX_KEY:
+        if raw == _PREFIX_RAW:
             if session.macro_recording is not None:
                 self._stop_recording()
             else:
