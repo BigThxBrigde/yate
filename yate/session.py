@@ -60,6 +60,20 @@ class EditorSession:
         #: The welcome page shows on a pristine startup buffer until a user
         #: requested buffer (:enew) dismisses it; :welcome turns it back on.
         self.welcome_visible = True
+        # -------------------------------------------------------------- macros
+        #: Recorded raw-key sequences by register name (``a-z0-9``);
+        #: session-scoped, never persisted.
+        self.macro_registers: dict[str, list[str]] = {}
+        #: ``(register, sequence)`` while a recording is in flight.
+        self.macro_recording: tuple[str, list[str]] | None = None
+        #: Guards against nested replay (a replayed sequence triggering
+        #: another replay) -- see :meth:`yate.flows.macro_flows.MacroFlows.play`.
+        self.macro_playing = False
+        #: Register replayed by ``@@`` / ``:macro-repeat``.
+        self.macro_last_register: str | None = None
+        #: Pending macro prefix state: ``"prefix"`` (awaiting r/p/@),
+        #: ``"record"`` / ``"play"`` (awaiting the register), or ``None``.
+        self.macro_awaiting: str | None = None
         self._on_closed = on_closed
         self._on_opened = on_opened
 
