@@ -15,7 +15,38 @@
 | wave-1 a/b/c | 完成 | 主代理亲改 9 个产品文件；提交 `c37896ca`（a：session+flows）、`31c5b4a8`（b：keys/base/vim/vsc）、`a2a4980b`（c：dispatch/compose/editor + editor.py 豁免） |
 | wave-2 d | 完成 | 主代理亲改 5 产品文件 + 测试 helper 同步；提交 `54a71d8a`；方案键弦裁决回填 `6f297c0f` |
 | wave-3 测试 | 完成 | 两名 plan-executor 落盘 4 个测试文件（t1：flows+key_binding；t2：commands+app）；主代理独立复核：29 用例全绿、pyright 0、e2e `-n 1` 8 连 0（一次 flake 系与全量并发争抢，串行复核通过）、全量 pytest 过（ASCII 守卫揪出 `§` 一处已修） |
-| wave-4 审核+收尾 | 进行中 | code-review-expert 评审 → 迭代 → 七项门禁 → 手册回填 → 记忆更新 |
+| wave-4 审核+收尾 | 完成 | 详见下方「评审与门禁记录」 |
+
+## wave-4 评审与门禁记录（2026-11-11）
+
+- **评审者判死登记**：spawn `code-review-expert`（bypassPermissions）后
+  68 分钟未交付报告（先例约 30 分钟）。可观察产物显示其完成了大量验证
+  （覆盖率口径 93.06%、全量 3621 passed、**冒烟 exit 1**）——主代理按
+  其冒烟产物自查出 `unknown_command_and_action` 场景借用 `<f6>` 作无绑定
+  干净键的前提被宏功能打破（4 断言失效），改借 `<f10>`（同形态 xterm
+  序列、两表空闲）修复，冒烟恢复 123/123（`1be94e9`）。评审判死后主代理
+  按剧本自查替代并如实登记「子代理零交付」。
+- **主代理自查结论**（替代评审，APPROVE 口径）：依赖方向合规
+  （macro_flows L3 → session L1 / keys L0，无 editor_components 导入）；
+  R10 单点拦截；AC4 回放递归双防护有测试锁定；pyright strict 0；注释
+  ASCII；提交按范围 11 笔。**MINOR 登记（v1 设计裁定，不修）**：
+  ① `:macro-play`/count 前缀无上限，极大 count 会同步阻塞事件循环
+  （同步回放是 issue 允许的 v1 裁定，与 vim 语义一致，用户显式输入）；
+  ② 录制序列无大小上限（会话内自然有界）。
+- **手册与站外文档**：应用内手册 5.3 节双语（en/zh manual）、站外
+  `macros.{en,zh}.md` + README 索引双语（`5f802d2`）；issue 素材尾随
+  空白剥离（`3915832`）。
+- **收尾七项门禁（主代理亲跑，exit 0 全绿）**：
+
+| 门禁 | 结果 |
+| --- | --- |
+| pyright yate/ tests/ tools/ pack/ | 0 errors |
+| pytest tests/ -q -n auto | 3621 passed / 10 skipped（覆盖率口径内含） |
+| pytest tests/test_architecture.py -q | 38 passed |
+| pytest --cov=yate --cov-branch -n auto（≥75） | 92.98% |
+| tools.smoke_test run --jobs 4 | 123/123 场景 / 1493 checks |
+| tools.changelog check | exit 0（unreleased lag 为生成器存量状态） |
+| git diff --check master...HEAD + git diff --check | 双 0 |
 
 ## wave-3 产品缺陷发现与修复（e2e 揪出，已修）
 
