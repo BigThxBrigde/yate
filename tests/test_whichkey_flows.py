@@ -17,7 +17,11 @@ from typing import cast
 
 from yate.editor_components.whichkey import ChordEntry, WhichKeyPanel
 from yate.flows import StateQuery
-from yate.flows.whichkey_flows import WhichKeyFlows, WindowChordHintsFn
+from yate.flows.whichkey_flows import (
+    MacroAwaitingFn,
+    WhichKeyFlows,
+    WindowChordHintsFn,
+)
 from yate.flows.window_flows import (
     WINDOW_CHORD_HINT,
     WINDOW_CHORD_TABLE,
@@ -54,6 +58,7 @@ def _make_flows(
     keymaps: KeymapSet,
     window_pending: StateQuery = lambda: False,
     window_chord_hints: WindowChordHintsFn = lambda: WINDOW_CHORD_TABLE,
+    macro_awaiting: MacroAwaitingFn = lambda: None,
     which_key_enabled: Callable[[], bool] = lambda: True,
 ) -> tuple[WhichKeyFlows, _PanelRecorder]:
     """Build the flow over a recording panel (message line kept inert)."""
@@ -62,6 +67,7 @@ def _make_flows(
         keymaps=keymaps,
         window_pending=window_pending,
         window_chord_hints=window_chord_hints,
+        macro_awaiting=macro_awaiting,
         panel=cast(WhichKeyPanel, panel),
         message=lambda _text, _kind: None,
         which_key_enabled=which_key_enabled,

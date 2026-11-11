@@ -143,6 +143,12 @@ class StatusBar(Static):
             f"{part}   " for part in self._extension_texts("right")
         )
 
+        # Macro recording indicator (pull model, R13): a recording in flight
+        # shows ``rec @<reg>`` right after the mode chip.
+        recording = self.session.macro_recording
+        macro_plain = f"rec @{recording[0]}" if recording is not None else ""
+        macro_cells = (theme.cell_len(macro_plain) + 1) if macro_plain else 0
+
         pos_plain = f"Ln {buf.row + 1}, Col {buf.col + 1}"
         meta_plain = f"{buf.line_count} lines · {doc.filetype} · {doc.encoding}"
         lsp_plain, lsp_style = self._lsp_segment(doc)
@@ -160,8 +166,8 @@ class StatusBar(Static):
         dot_cells = 2 if doc.modified else 0
         # minimum: chip + gap + a 4-cell name + gap + extension + right block
         include_right = (
-            chip_len + 1 + 4 + dot_cells + lock_cells + left_ext_len
-            + 1 + right_len <= width
+            chip_len + macro_cells + 1 + 4 + dot_cells + lock_cells
+            + left_ext_len + 1 + right_len <= width
         )
         budget = width - (1 + right_len if include_right else 0)
 
@@ -186,6 +192,7 @@ class StatusBar(Static):
             left_ext,
             right_ext,
             lsp_plain,
+            macro_plain,
             self.loaded_extensions() if self.loaded_extensions else 0,
         )
         if fingerprint == self._last_fingerprint:
@@ -195,10 +202,13 @@ class StatusBar(Static):
         text = Text()
         # Flat mode chip (hard color edge, no powerline triangle).
         text.append(chip, style=f"bold {t.on_accent} on {chip_bg}")
+        if macro_plain:
+            text.append(f" {macro_plain}", style=f"bold {t.yellow} {bar}")
 
         # gap, pencil+space, then the left extension segments' width
         name_budget = (
-            budget - chip_len - 3 - dot_cells - lock_cells - left_ext_len
+            budget - chip_len - macro_cells - 3 - dot_cells - lock_cells
+            - left_ext_len
         )
         name = doc.name
         if name_budget < 4:
@@ -215,7 +225,7 @@ class StatusBar(Static):
         if left_ext:
             text.append(f"   {left_ext}", style=f"{t.on_accent} {bar}")
         used = (
-            chip_len + 1
+            chip_len + macro_cells + 1
             + (theme.cell_len(name) + 2 if name else 0)
             + dot_cells + lock_cells + left_ext_len
         )

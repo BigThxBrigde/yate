@@ -70,6 +70,22 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("outdent", lambda ctx: ctx.buffer.outdent_selection(), "Outdent")
     reg("join_lines", lambda ctx: ctx.buffer.join_lines(), "Join lines")
 
+    # ---------------------------------------------------------------- macros
+
+    def _macro_prefix(ctx: ActionContext) -> None:
+        # The real prefix handling lives in MacroFlows.pre_dispatch; this
+        # registered body is the action-registry anchor both keymaps bind
+        # to the shared MACRO_PREFIX_KEY (and a fallback for direct
+        # execute_action calls).
+        if not ctx.session.macro_playing:
+            ctx.session.macro_awaiting = "prefix"
+
+    reg(
+        "macro_prefix",
+        _macro_prefix,
+        "Macro prefix: r = record, p = play, @ = repeat last",
+    )
+
     # ---------------------------------------------------------- navigation
 
     reg("move_left", lambda ctx: ctx.buffer.move_left(), "Move left")

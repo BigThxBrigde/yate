@@ -365,6 +365,7 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         keymaps=ed.keymaps,
         window_pending=lambda: ed.window_flows.window_pending,
         window_chord_hints=ed.window_flows.window_chord_hints,  # IKQ3IT
+        macro_awaiting=lambda: ed.session.macro_awaiting,
         panel=ed.which_key_panel,
         message=ed.message,
         which_key_enabled=lambda: ed.config.which_key,

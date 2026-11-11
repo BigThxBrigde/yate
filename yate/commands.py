@@ -323,6 +323,46 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         "close the active pane (no-op on the last one; use :q to quit)")
     reg("cl", _close, "alias for :close")
 
+    # ---- macros ------------------------------------------------------------
+
+    def _macro_record(args: str) -> None:
+        # Blank arg stops a running recording; anything else (including an
+        # invalid register) surfaces usage through the flow.
+        editor.macro.toggle_record(args.strip() or None)
+
+    def _macro_play(args: str) -> None:
+        parts = args.split()
+        if len(parts) > 2:
+            editor.message("macro: usage :macro-play {a-z0-9} [count]",
+                           kind="error")
+            return
+        count: int | None = None
+        if len(parts) == 2:
+            if not parts[1].isdigit() or int(parts[1]) < 1:
+                editor.message("macro: count must be a positive integer",
+                               kind="error")
+                return
+            count = int(parts[1])
+        editor.macro.play(parts[0] if parts else None, count)
+
+    def _macro_repeat(args: str) -> None:
+        token = args.strip()
+        count: int | None = None
+        if token:
+            if not token.isdigit() or int(token) < 1:
+                editor.message("macro: count must be a positive integer",
+                               kind="error")
+                return
+            count = int(token)
+        editor.macro.repeat_last(count)
+
+    reg("macro-record", _macro_record,
+        "start/stop macro recording (:macro-record [a-z0-9])")
+    reg("macro-play", _macro_play,
+        "replay a macro (:macro-play {a-z0-9} [count])")
+    reg("macro-repeat", _macro_repeat,
+        "replay the last macro (:macro-repeat [count])")
+
     # ---- open / buffers ----------------------------------------------------
 
     def _edit(args: str) -> None:

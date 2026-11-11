@@ -3,14 +3,15 @@
 The editor constructs this module with the active :class:`KeymapSet`, a
 read-only probe of the vim ``ctrl+w`` chord state, a source of canonical
 ``ctrl+w`` chord rows (single-sourced in :mod:`yate.flows.window_flows`),
-the which-key panel, the message line and a master-switch predicate over
-the yaterc ``which_key`` option.  :meth:`WhichKeyFlows.refresh` recomputes
-the panel after every dispatch: pinned full sheet, ``ctrl+w`` chord,
-pending-chord candidates, otherwise hidden.  The master-switch predicate is
-read on every entry (so a mid-session ``:set which_key=off`` takes effect on
-the next refresh) and short-circuits all four branches.  No rendering here
-(the panel owns that) and no App handle (capability injection, issue
-IKJB0Q).
+a read-only probe of the macro prefix-await state (session-owned), the
+which-key panel, the message line and a master-switch predicate over the
+yaterc ``which_key`` option.  :meth:`WhichKeyFlows.refresh` recomputes the
+panel after every dispatch: pinned full sheet, ``ctrl+w`` chord, the macro
+prefix await, pending-chord candidates, otherwise hidden.  The
+master-switch predicate is read on every entry (so a mid-session
+``:set which_key=off`` takes effect on the next refresh) and short-circuits
+all five branches.  No rendering here (the panel owns that) and no App
+handle (capability injection, issue IKJB0Q).
 """
 
 from __future__ import annotations
@@ -40,6 +41,12 @@ type EnabledPredicate = Callable[[], bool]
 type WindowChordHintsFn = Callable[[], tuple[tuple[str, str], ...]]
 
 
+#: Read-only probe of the session macro prefix-await state (``"prefix"`` /
+#: ``"record"`` / ``"play"`` / ``None``); state lives on the session, the
+#: macro flow module writes it.
+type MacroAwaitingFn = Callable[[], str | None]
+
+
 def _spec_label(spec: str) -> str:
     """Panel label for one binding spec: raw bytes humanized, else verbatim.
 
@@ -60,6 +67,7 @@ class WhichKeyFlows:
         keymaps: KeymapSet,
         window_pending: StateQuery,
         window_chord_hints: WindowChordHintsFn,
+        macro_awaiting: MacroAwaitingFn,
         panel: WhichKeyPanel,
         message: MessageFn,
         which_key_enabled: EnabledPredicate,
@@ -70,6 +78,8 @@ class WhichKeyFlows:
         # Canonical ctrl+w chord rows (single source: window_flows' table);
         # the panel entry construction stays local to this module.
         self._window_chord_hints = window_chord_hints
+        # Read-only probe: the macro await state lives on the session.
+        self._macro_awaiting = macro_awaiting
         self._panel = panel
         # Editor-owned message line, injected for user-facing notices.
         self._message = message
@@ -82,10 +92,10 @@ class WhichKeyFlows:
 
         Master-switch short-circuit: with ``which_key = False`` the panel is
         hidden unconditionally (no-op regardless of pending chord / ctrl+w /
-        pin state).  The four branches are otherwise mutually exclusive,
-        first hit wins: the pinned full sheet, the pending ``ctrl+w`` window
-        chord, the pending-chord candidates; with none of them the panel
-        hides.
+        macro await / pin state).  The branches are otherwise mutually
+        exclusive, first hit wins: the pinned full sheet, the pending
+        ``ctrl+w`` window chord, the macro prefix await, the pending-chord
+        candidates; with none of them the panel hides.
         """
         if not self._enabled():
             self._panel.clear()
@@ -97,10 +107,26 @@ class WhichKeyFlows:
             entries = [ChordEntry(k, d) for k, d in self._window_chord_hints()]
             self._panel.show_entries("ctrl+w", tuple(entries))
             return
+        if (awaiting := self._macro_awaiting()) is not None:
+            self._panel.show_entries("<f6>", self._macro_await_entries(awaiting))
+            return
         if pending := self.keymaps.active.pending_prefix():
             self._panel.show_entries(pending, self._candidates(pending))
             return
         self._panel.clear()
+
+    @staticmethod
+    def _macro_await_entries(awaiting: str) -> tuple[ChordEntry, ...]:
+        """Panel rows for the in-flight macro prefix await."""
+        if awaiting == "prefix":
+            return (
+                ChordEntry("r", "record into register a-z0-9"),
+                ChordEntry("p", "play register a-z0-9"),
+                ChordEntry("@", "repeat the last macro"),
+            )
+        if awaiting == "record":
+            return (ChordEntry("a-z 0-9", "register to record into"),)
+        return (ChordEntry("a-z 0-9", "register to play (or nothing)"),)
 
     def toggle(self) -> None:
         """Pin / unpin the full keymap sheet (the <f9> / action entry).
