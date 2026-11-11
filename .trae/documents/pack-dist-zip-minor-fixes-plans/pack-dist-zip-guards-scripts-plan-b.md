@@ -29,7 +29,7 @@ assert sh_tail.index("Collected ->") < sh_tail.index("tools.pack.zip_dist")
 
 再加块边界断言：助手调用必须位于 `--dist` 块的 `fi` / 闭合 `}` 之前——
 用 `sh_tail.index("tools.pack.zip_dist") < sh_tail.index("\nfi")` 与
-ps1 的 `ps1_tail.index("tools.pack.zip_dist") < ps1_tail.index("finally")` 
+ps1 的 `ps1_tail.index("tools.pack.zip_dist") < ps1_tail.index("finally")`
 （若当前脚本结构不同，按真实结构取最接近的闭合标记，并在报告说明）。
 若字符串定位不稳，改用 `_after()` 已切出的 tail + 正则，不得削弱断言强度。
 docstring 补充说明「smoke test / collected message precede the archive call

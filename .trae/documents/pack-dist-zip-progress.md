@@ -251,8 +251,25 @@
   回滚、去 `# type: ignore`、白名单补 `shutil`、F12 守卫、负向演练脚本、
   偏离登记）仍以未提交增量形式在工作树，按「只认落盘结果」以当前 HEAD
   为事实基线继续，不重复报已提交产物、不覆盖并行会话的提交。
-- 下一步：提交本轮复核修正 → 复核 F16 的四次 `-n 1` 与全量门禁 →
-  wave-3 合并模拟 →【审核】→【收尾】全量门禁 + 回填 + 记忆。
+- wave-2 实测：`WAVE2_RCS [0,0,0,0,0,0,0]`（F16 四次
+  `pytest tests/test_app_panes.py -q -n 1` 连续全 0、pyright 0、架构 37、
+  全量 pytest `-n auto` 0）；本轮复核修正已提交 `44bd6c0e`。
+- **wave-3 前置记录（git 安全协议）**：即将创建隔离临时 worktree
+  `../yate-pack-dist-zip-merge-check`（detached HEAD，仓库同级）并在其中
+  `git merge --no-edit master` 做合并模拟；不推送、不合流、不改主分支。
+  验证完成后将 `git worktree remove` 删除该 worktree 及其合并提交，
+  收尾汇报显式列出该删除动作；主 worktree 的 `git status --short` 须为空。
+- wave-3 合并模拟实测（临时 worktree `../yate-pack-dist-zip-merge-check`，
+  合并提交 `b8dddf0d`，0 冲突）：`MERGE_TREE_RCS [0,0,1,2]` ——
+  架构守卫 **38 passed** ✓、合并树全量 `pytest -n 1` ✓（F14 实测达标）、
+  `tools.changelog check` **RC=1**（合并树红门禁，需诊断根因）、
+  `git diff --check master...HEAD` **RC=2**（本轮子计划文档尾随空白，
+  `pack-dist-zip-guards-scripts-plan-b.md:32`）。按无人值守要求先落盘，
+  下一步取完整错误输出：diffcheck 尾随空白必须在本分支修掉；changelog
+  红项按历史 IKTPC2 pr-review 同类项诊断，若属发布流程交互则如实登记为
+  合并时人工处置、不擅自改 CHANGELOG。
+- 下一步：修尾随空白 → 诊断 changelog 根因 → 重跑合并树门禁 →
+  移除临时 worktree →【审核】→【收尾】全量门禁 + 回填 + 记忆。
 
 ## 续作会话独立复核（2026-11-10，完成）
 
