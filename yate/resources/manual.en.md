@@ -615,6 +615,27 @@ Under the vim keymap `Ctrl+F` pages instead of finding; `Ctrl+P` quick open,
 `Alt+Shift+P` command palette, `` Ctrl+` `` integrated terminal, `F1` help and
 `F8` manual still work.
 
+### 5.3 Macro recording and replay (both keymaps)
+
+yate records a sequence of raw keystrokes into a single-character register
+(``a-z0-9``) and replays it. Both keymaps share the same `<f6>` prefix:
+
+* `<f6>` `r` `{a-z0-9}` -- start recording into the register. Every
+  keystroke after that is executed *and* recorded (including unbound
+  ones); the status bar shows `rec @<register>` while recording;
+* `<f6>` -- stop the recording. Registers live for the session and are
+  overwritten when you record the same register again;
+* `<f6>` `p` `{a-z0-9}` -- replay a register. In the vim keymap a count
+  prefix works as usual (`3` `<f6>` `p` `a` replays three times); the
+  modeless keymap replays once -- use `:macro-play a 3` for a count;
+* `<f6>` `@` -- replay the register played or recorded last.
+
+While a replay is running a nested replay is rejected with a notice, and
+replays go through the same dispatch path as manual typing, so what was
+recorded is what gets replayed. Command-line equivalents:
+`:macro-record [a-z0-9]` (blank argument stops a running recording),
+`:macro-play {a-z0-9} [count]`, `:macro-repeat [count]`.
+
 ## 6. File Explorer
 
 ### 6.1 Opening and focusing

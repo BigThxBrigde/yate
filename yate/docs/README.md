@@ -5,6 +5,7 @@ GitHub / Gitee), each topic paired `*.en.md` / `*.zh.md`:
 
 - `extensions.*.md` -- writing yate extensions;
 - `file-manager.*.md` -- the lf-style terminal file manager;
+- `macros.*.md` -- macro recording and replay (`<f6>` prefix);
 - `games.*.md` -- the bundled game pack and the shared game engine;
 - `lsp.*.md` -- language server setup;
 - `themes.*.md` -- theme customization and the shipped templates;
@@ -22,6 +23,7 @@ note saying so.
 
 - `extensions.*.md` -- 编写 yate 扩展；
 - `file-manager.*.md` -- lf 风格终端文件管理器；
+- `macros.*.md` -- 宏录制与回放（`<f6>` 前缀）；
 - `games.*.md` -- 随身游戏包与共享游戏引擎；
 - `lsp.*.md` -- 语言服务器配置；
 - `themes.*.md` -- 主题定制与随包模板；
