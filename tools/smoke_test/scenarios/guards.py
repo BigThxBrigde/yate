@@ -18,7 +18,7 @@ The scenarios are grouped by *what they guard* rather than by widget:
 Teardown: each scenario restores what it touched.  The read-only flag is
 switched back off, the theme is set back to ``mocha`` and the prompt is always
 cancelled rather than submitted -- see
-:func:`_unknown_command_and_action` for why the temporary ``<f6>`` binding
+:func:`_unknown_command_and_action` for why the temporary ``<f10>`` binding
 needs no ``remove_binding`` call.
 """
 
@@ -60,10 +60,11 @@ _NO_MATCHES: str = "no matches for"
 _NOT_A_LINE_NUMBER: str = "not a line number"
 #: ``PromptFlows.goto_line_command`` -- yate/prompt_flows.py.
 
-#: Raw sequence behind ``<f6>`` (``yate.keymaps.base.SPECIAL_KEYS``).  Spelled
-#: out instead of calling ``parse_key`` so the leak check does not depend on
-#: the very codec that turns the key into this sequence.
-_F6_RAW: str = "\x1b[17~"
+#: Raw sequence behind ``<f10>`` (``yate.keymaps.base.SPECIAL_KEYS``).
+#: Spelled out instead of calling ``parse_key`` so the leak check does not
+#: depend on the very codec that turns the key into this sequence.  f10 (not
+#: f6) because the macro feature now owns ``<f6>`` in both built-in keymaps.
+_F10_RAW: str = "\x1b[21~"
 
 
 def _message(app: YateApp) -> str:
@@ -147,12 +148,12 @@ async def _unknown_command_and_action(tmp: Path) -> ScenarioResult:
     return, i.e. the key is reported as *unhandled* rather than swallowed
     (yate/keymaps/base.py).
 
-    ``<f6>`` has no built-in binding, so the scenario registers one pointing
+    ``<f10>`` has no built-in binding, so the scenario registers one pointing
     at the missing action and presses the key.  ``Keymap`` exposes no
     ``remove_binding``, but it does not need one here: ``YateApp`` builds a
     brand new ``VscKeymap`` for every ``Editor`` (``yate/editor.py``), so the
     binding dies with the app.  ``binding_not_leaked`` proves that instead of
-    asserting it: a freshly constructed keymap has no ``<f6>`` entry.
+    asserting it: a freshly constructed keymap has no ``<f10>`` entry.
     """
     app = new_app(target=tmp / "a.txt")
     checks: list[Check] = []
@@ -164,10 +165,10 @@ async def _unknown_command_and_action(tmp: Path) -> ScenarioResult:
                             app.editor.execute_action("nosuch_action")))
 
         keymap = app.editor.keymaps.active
-        keymap.add_binding("<f6>", "nosuch_action")
+        keymap.add_binding("<f10>", "nosuch_action")
         checks.append(Check("binding_registered", "nosuch_action",
-                            _binding_action(keymap, _F6_RAW)))
-        await pilot.press("f6")
+                            _binding_action(keymap, _F10_RAW)))
+        await pilot.press("f10")
         await pilot.pause()
         checks.append(Check("unknown_action", _UNKNOWN_ACTION, _message(app)))
         # The key reached the keymap (the message proves it) and was *not*
@@ -180,10 +181,10 @@ async def _unknown_command_and_action(tmp: Path) -> ScenarioResult:
         # consuming it as a successful edit.
         checks.append(Check(
             "dispatch_unhandled", False,
-            app.editor.handle_key(Key("f6", None)),
+            app.editor.handle_key(Key("f10", None)),
         ))
         checks.append(Check("binding_not_leaked", None,
-                            _binding_action(VscKeymap(), _F6_RAW)))
+                            _binding_action(VscKeymap(), _F10_RAW)))
         rows = snapshot_svg(app, tmp)
     return ScenarioResult("unknown_command_and_action", checks, rows)
 
