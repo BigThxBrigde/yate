@@ -328,11 +328,11 @@ pack\pack.bat --onefile
 ./pack/pack.sh
 ./pack/pack.sh --onefile
 #    归集产物到版本目录（相对仓库根）：
-.\pack\pack.ps1 -Dist release                    # 归集并默认生成 release/<stage>.zip
-.\pack\pack.ps1 -NoZip -Dist release             # 只归集，不生成 zip 压缩包
-pack\pack.bat --no-zip --dist release          # 经 cmd 包装脚本传同一开关
-./pack/pack.sh --dist release                  # Linux：默认生成 zip
-./pack/pack.sh --no-zip --dist release        # Linux：跳过 zip
+.\pack\pack.ps1 -Dist release           # 归集并默认生成 release/<stage>.zip
+.\pack\pack.ps1 -NoZip -Dist release    # 只归集，不生成 zip 压缩包
+pack\pack.bat --no-zip --dist release   # 经 cmd 包装脚本传同一开关
+./pack/pack.sh --dist release           # Linux：默认生成 zip
+./pack/pack.sh --no-zip --dist release  # Linux：跳过 zip
 #    注意：PowerShell 直接调用 pack.ps1 时用 -Dist；--dist / --no-zip
 #    写法由 pack.bat / pack.sh 包装脚本提供。
 ```

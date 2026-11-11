@@ -312,11 +312,11 @@ pack\pack.bat --onefile
 ./pack/pack.sh
 ./pack/pack.sh --onefile
 #    Collect artifacts into a versioned directory (relative to the repo root):
-.\pack\pack.ps1 -Dist release                    # collect + write release/<stage>.zip by default
-.\pack\pack.ps1 -NoZip -Dist release             # collect without the zip archive
-pack\pack.bat --no-zip --dist release            # same switch through the cmd wrapper
-./pack/pack.sh --dist release                    # Linux: zip by default
-./pack/pack.sh --no-zip --dist release        # Linux: skip the zip
+.\pack\pack.ps1 -Dist release           # collect + write release/<stage>.zip by default
+.\pack\pack.ps1 -NoZip -Dist release    # collect without the zip archive
+pack\pack.bat --no-zip --dist release   # same switch through the cmd wrapper
+./pack/pack.sh --dist release           # Linux: zip by default
+./pack/pack.sh --no-zip --dist release  # Linux: skip the zip
 #    Note: call pack.ps1 directly from PowerShell with -Dist; the --dist /
 #    --no-zip spellings are provided by pack.bat / pack.sh wrappers.
 ```

@@ -13,6 +13,7 @@ rem                                collect + produce a zip archive by default
 rem    pack\pack.bat --no-zip --dist release
 rem                                collect without producing a zip archive
 rem    pack\pack.bat -?            show PowerShell help
+rem  A non-zero PowerShell exit code is reported on stderr before return.
 rem ============================================================
 setlocal
 
@@ -46,4 +47,5 @@ goto parse
 
 :run
 powershell -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" %ARGS%
+if errorlevel 1 echo error: pack.ps1 failed (check parameters and ExecutionPolicy) 1>&2
 exit /b %ERRORLEVEL%

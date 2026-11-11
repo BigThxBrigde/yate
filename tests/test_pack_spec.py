@@ -740,6 +740,9 @@ def test_zip_default_when_dist_used_is_enabled_and_guarded_by_dist() -> None:
     appear exactly once there and nowhere before it, so a stray archive call
     outside ``--dist`` (or a second one) fails loudly.  Each tail must keep
     the no-zip guard, which is what makes "no switch" mean "produce a zip".
+    Within the tail the smoke test (its timeout / cleanup) and the collected
+    message must precede the archive call, and the call must stay inside the
+    dist block (before its closing delimiter).
     """
     ps1 = _script_text(_PS1_SCRIPT)
     sh = _script_text(_SH_SCRIPT)
@@ -757,6 +760,18 @@ def test_zip_default_when_dist_used_is_enabled_and_guarded_by_dist() -> None:
         )
     assert "if ($NoZip)" in ps1_tail
     assert 'if [ "$no_zip" -eq 1 ]; then' in sh_tail
+    # Order guard: the smoke test (its 30s timeout and temp-file cleanup) and
+    # the "Collected ->" message must run before the archive call, and the
+    # call must stay inside the --dist block (before its closing delimiter).
+    # Note: a bare "finally" also occurs inside the dist block (nested try),
+    # so the ps1 closer is pinned as the block-closing "} finally {" pair.
+    assert ps1_tail.index("WaitForExit(30000)") < ps1_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("Remove-Item $smokeOut") < ps1_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("Collected ->") < ps1_tail.index("tools.pack.zip_dist")
+    assert sh_tail.index("timeout 30") < sh_tail.index("tools.pack.zip_dist")
+    assert sh_tail.index("Collected ->") < sh_tail.index("tools.pack.zip_dist")
+    assert ps1_tail.index("tools.pack.zip_dist") < ps1_tail.index("\n}\nfinally {")
+    assert sh_tail.index("tools.pack.zip_dist") < sh_tail.index("\nfi")
 
 
 def test_no_zip_when_requested_skips_archive_without_touching_existing_files() -> None:

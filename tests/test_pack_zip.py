@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import stat
+import time
 import zipfile
 from pathlib import Path
 
@@ -72,6 +74,7 @@ def test_archive_stage_when_checksum_rows_contain_non_ascii_bytes_preserves_them
 
 
 def test_archive_stage_when_directory_entries_are_written_uses_fixed_epoch(stage: Path) -> None:
+    os.utime(stage / "yate.exe", (1700000000, 1700000000))
     result = zip_dist.archive_stage(stage, stage.parent)
     with zipfile.ZipFile(result.path) as zf:
         top = zf.getinfo(f"{stage.name}/")
@@ -79,6 +82,7 @@ def test_archive_stage_when_directory_entries_are_written_uses_fixed_epoch(stage
         file_info = zf.getinfo(f"{stage.name}/yate.exe")
     assert top.date_time == (1980, 1, 1, 0, 0, 0)
     assert runtime.date_time == (1980, 1, 1, 0, 0, 0)
+    assert file_info.date_time == time.localtime(1700000000)[:6]
     assert file_info.create_system == 3
 
 
@@ -230,3 +234,143 @@ def test_main_when_arguments_missing_exits_two() -> None:
     with pytest.raises(SystemExit) as exc_info:
         zip_dist.main([])
     assert exc_info.value.code == 2
+
+
+def test_archive_stage_when_stage_name_has_non_ascii_chars_writes_matching_checksum_row(
+    tmp_path: Path,
+) -> None:
+    stage = tmp_path / "yate-0.2.18-发布"
+    stage.mkdir()
+    (stage / "yate.exe").write_bytes(b"exe")
+    result = zip_dist.archive_stage(stage, tmp_path)
+    content = (tmp_path / "SHA256SUMS.txt").read_bytes()
+    assert content.endswith(os.fsencode(f"{stage.name}.zip") + b"\n")
+    rows = [line for line in content.splitlines() if os.fsencode(stage.name + ".zip") in line]
+    assert len(rows) == 1
+    assert rows[0] == f"{result.digest}  {stage.name}.zip".encode("utf-8")
+
+
+def test_archive_stage_when_checksum_row_has_trailing_unicode_space_replaces_it(stage: Path) -> None:
+    dist = stage.parent
+    (dist / "SHA256SUMS.txt").write_bytes(
+        b"dead  yate-0.2.18-windows-x64.zip\xe3\x80\x80\nh1  other.zip\n"
+    )
+    result = zip_dist.archive_stage(stage, dist)
+    lines = (dist / "SHA256SUMS.txt").read_bytes().splitlines()
+    assert b"h1  other.zip" in lines
+    rows = [line for line in lines if b"yate-0.2.18-windows-x64.zip" in line]
+    assert rows == [f"{result.digest}  yate-0.2.18-windows-x64.zip".encode("ascii")]
+
+
+def test_archive_stage_when_stage_contains_symlink_records_link_entry(
+    stage: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "outside-secret.txt"
+    target.write_bytes(b"secret")
+    link = stage / "link.txt"
+    link.write_bytes(b"placeholder")
+    real_is_symlink = Path.is_symlink
+
+    def fake_is_symlink(self: Path) -> bool:
+        return self == link or real_is_symlink(self)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    def fake_readlink(path: Path) -> str:
+        return str(target)
+
+    monkeypatch.setattr(zip_dist.os, "readlink", fake_readlink)
+    result = zip_dist.archive_stage(stage, stage.parent)
+    with zipfile.ZipFile(result.path) as zf:
+        names = zf.namelist()
+        info = zf.getinfo(f"{stage.name}/link.txt")
+        data = zf.read(f"{stage.name}/link.txt")
+    assert f"{stage.name}/link.txt" in names
+    assert (info.external_attr >> 16) & stat.S_IFLNK == stat.S_IFLNK
+    assert data == os.fsencode(str(target))
+    assert b"secret" not in result.path.read_bytes()
+
+
+def test_archive_stage_when_symlink_points_outside_stage_does_not_read_target(
+    stage: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "outside-secret.txt"
+    target.write_bytes(b"secret")
+    link = stage / "dangling-link"
+    link.write_bytes(b"placeholder")
+    real_is_symlink = Path.is_symlink
+
+    def fake_is_symlink(self: Path) -> bool:
+        return self == link or real_is_symlink(self)
+
+    monkeypatch.setattr(Path, "is_symlink", fake_is_symlink)
+    def fake_readlink2(path: Path) -> str:
+        return str(target)
+
+    monkeypatch.setattr(zip_dist.os, "readlink", fake_readlink2)
+    result = zip_dist.archive_stage(stage, stage.parent)
+    with zipfile.ZipFile(result.path) as zf:
+        assert zf.testzip() is None
+        data = zf.read(f"{stage.name}/dangling-link")
+    assert data == os.fsencode(str(target))
+    assert b"secret" not in result.path.read_bytes()
+
+
+def test_archive_stage_when_archive_finishes_sets_readable_permissions(stage: Path) -> None:
+    result = zip_dist.archive_stage(stage, stage.parent)
+    zip_mode = result.path.stat().st_mode
+    sums_mode = result.checksum_path.stat().st_mode
+    if os.name == "posix":
+        assert stat.S_IMODE(zip_mode) == 0o644
+        assert stat.S_IMODE(sums_mode) == 0o644
+    else:
+        assert stat.S_IMODE(zip_mode) & stat.S_IWRITE
+        assert stat.S_IMODE(sums_mode) & stat.S_IWRITE
+
+
+def test_archive_stage_when_lock_file_exists_raises_and_keeps_lock(stage: Path) -> None:
+    dist = stage.parent
+    lock = dist / f".{stage.name}.lock"
+    lock.write_bytes(b"")
+    with pytest.raises(zip_dist.ZipDistError, match="in progress"):
+        zip_dist.archive_stage(stage, dist)
+    assert lock.exists()
+    assert list(dist.glob("*.zip")) == []
+    assert list(dist.glob("*.tmp")) == []
+    assert list(dist.glob("*.bak")) == []
+
+
+def test_archive_stage_when_checksum_replace_fails_restores_previous_zip(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+    archive = dist / f"{stage.name}.zip"
+    archive.write_bytes(b"old")
+    sums_path = dist / "SHA256SUMS.txt"
+    sums_path.write_text("oldhash  old.zip\n", encoding="ascii")
+    real_replace = os.replace
+
+    def fake_replace(src: object, dst: object, **kwargs: object) -> None:
+        if dst == sums_path:
+            raise OSError("mock failure")
+        real_replace(src, dst)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(zip_dist.os, "replace", fake_replace)
+    with pytest.raises(OSError, match="mock failure"):
+        zip_dist.archive_stage(stage, dist)
+    assert archive.read_bytes() == b"old"
+    assert sums_path.read_text(encoding="ascii") == "oldhash  old.zip\n"
+    assert list(dist.glob("*.tmp")) == []
+    assert list(dist.glob("*.bak")) == []
+    assert list(dist.glob(".*")) == []
+
+
+@pytest.mark.parametrize("inside", ["inside", "inside/nested"])
+def test_archive_stage_when_dist_root_is_inside_stage_raises_zip_dist_error(
+    stage: Path, inside: str
+) -> None:
+    target = stage / inside
+    with pytest.raises(zip_dist.ZipDistError, match="inside the stage"):
+        zip_dist.archive_stage(stage, target)
+    assert not target.exists()
+    assert list(stage.rglob("*.zip")) == []
+    assert list(stage.rglob(".*lock")) == []

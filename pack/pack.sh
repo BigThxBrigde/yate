@@ -25,6 +25,7 @@
 
 set -euo pipefail
 
+# The 2,21p range is pinned by tests/test_pack_spec.py; keep both in sync.
 show_help() {
     sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
