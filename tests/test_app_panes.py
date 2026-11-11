@@ -172,6 +172,7 @@ def test_notify_focus_when_leaf_was_closed_returns_silently(
             await pilot.pause()
             survivor = panes.active.id
             stale_ids = [leaf_id for leaf_id in ids if leaf_id != survivor]
+            assert stale_ids, "guard must exercise at least one closed leaf"
 
             for stale_id in stale_ids:
                 panes.notify_focus(stale_id)

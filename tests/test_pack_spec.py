@@ -913,6 +913,9 @@ def test_bat_wrapper_when_mapping_scanned_keeps_existing_mappings() -> None:
     assert "exit /b %ERRORLEVEL%" in bat
     assert "if errorlevel 1" in bat, "pack.bat lost its failure notice"
     assert "error: pack.ps1 failed" in bat
+    assert bat.index("if errorlevel 1") < bat.index("exit /b %ERRORLEVEL%"), (
+        "pack.bat failure notice must precede exit /b"
+    )
 
 
 def test_zip_helper_when_scanned_keeps_atomic_replace_and_unix_mode() -> None:

@@ -167,6 +167,7 @@ def test_archive_stage_when_stage_empty_raises_zip_dist_error(tmp_path: Path) ->
     stage.mkdir(parents=True)
     with pytest.raises(zip_dist.ZipDistError, match="no files"):
         zip_dist.archive_stage(stage, dist)
+    assert list(dist.glob(".*.lock")) == []
 
 
 def test_archive_stage_when_stage_is_dot_raises_zip_dist_error(tmp_path: Path) -> None:
@@ -384,6 +385,51 @@ def test_archive_stage_when_zip_replace_fails_restores_previous_zip(
     assert list(dist.glob("*.tmp")) == []
     assert list(dist.glob("*.bak")) == []
     assert list(dist.glob(".*")) == []
+
+
+def test_archive_stage_when_stage_is_empty_releases_lock(tmp_path: Path) -> None:
+    dist = tmp_path / "release"
+    stage = dist / "empty-stage"
+    stage.mkdir(parents=True)
+    with pytest.raises(zip_dist.ZipDistError, match="no files"):
+        zip_dist.archive_stage(stage, dist)
+    assert list(dist.glob(".*.lock")) == []
+    (stage / "yate.exe").write_bytes(b"exe")
+    result = zip_dist.archive_stage(stage, dist)
+    assert result.path.is_file()
+    assert list(dist.glob(".*.lock")) == []
+
+
+def test_archive_stage_when_stage_files_reject_entry_releases_lock(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+
+    def reject(root: Path, name: str) -> list[tuple[Path, str, bool]]:
+        raise zip_dist.ZipDistError(f"stage entry escapes stage root: {root}")
+
+    monkeypatch.setattr(zip_dist, "_stage_files", reject)
+    with pytest.raises(zip_dist.ZipDistError, match="escapes stage root"):
+        zip_dist.archive_stage(stage, dist)
+    assert list(dist.glob(".*.lock")) == []
+    assert list(dist.glob("*.tmp")) == []
+    assert list(dist.glob("*.bak")) == []
+
+
+def test_archive_stage_when_mkstemp_fails_releases_lock(
+    stage: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    dist = stage.parent
+
+    def fail_once(*args: object, **kwargs: object) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(zip_dist.tempfile, "mkstemp", fail_once)
+    with pytest.raises(OSError, match="disk full"):
+        zip_dist.archive_stage(stage, dist)
+    assert list(dist.glob(".*.lock")) == []
+    assert list(dist.glob("*.tmp")) == []
+    assert list(dist.glob("*.bak")) == []
 
 
 @pytest.mark.parametrize("inside", ["inside", "inside/nested"])

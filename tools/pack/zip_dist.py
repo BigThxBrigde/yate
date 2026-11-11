@@ -214,35 +214,41 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
     os.close(lock_fd)
     archive = dist_root / f"{stage_name}.zip"
     sums_path = dist_root / "SHA256SUMS.txt"
-    entries = _stage_files(root, stage_name)
-    if not entries:
-        raise ZipDistError("stage has no files to archive")
-    fd, raw = tempfile.mkstemp(prefix=f".{stage_name}.", suffix=".zip.tmp", dir=dist_root)
-    os.close(fd)
-    zip_tmp = Path(raw)
+    zip_tmp: Path | None = None
     sums_tmp: Path | None = None
     backup: Path | None = None
     try:
-        _write_archive(zip_tmp, entries, stage_name, posix=posix)
-        digest = _digest(zip_tmp)
-        size = zip_tmp.stat().st_size
+        entries = _stage_files(root, stage_name)
+        if not entries:
+            raise ZipDistError("stage has no files to archive")
+        fd, raw = tempfile.mkstemp(
+            prefix=f".{stage_name}.", suffix=".zip.tmp", dir=dist_root
+        )
+        os.close(fd)
+        zip_path = Path(raw)
+        zip_tmp = zip_path
+        _write_archive(zip_path, entries, stage_name, posix=posix)
+        digest = _digest(zip_path)
+        size = zip_path.stat().st_size
         fd2, raw2 = tempfile.mkstemp(prefix=".SHA256SUMS.", suffix=".tmp", dir=dist_root)
         os.close(fd2)
-        sums_tmp = Path(raw2)
+        sums_path_tmp = Path(raw2)
+        sums_tmp = sums_path_tmp
         sums_tmp.write_bytes(_checksum_bytes(sums_path, archive.name, digest))
-        os.chmod(zip_tmp, 0o644)
-        os.chmod(sums_tmp, 0o644)
+        os.chmod(zip_path, 0o644)
+        os.chmod(sums_path_tmp, 0o644)
         if archive.exists():
             fd3, raw3 = tempfile.mkstemp(
                 prefix=f".{stage_name}.", suffix=".zip.bak", dir=dist_root
             )
             os.close(fd3)
-            backup = Path(raw3)
-            os.chmod(backup, 0o644)
-            shutil.copyfile(archive, backup)
+            backup_path = Path(raw3)
+            backup = backup_path
+            os.chmod(backup_path, 0o644)
+            shutil.copyfile(archive, backup_path)
         try:
-            os.replace(zip_tmp, archive)
-            os.replace(sums_tmp, sums_path)
+            os.replace(zip_path, archive)
+            os.replace(sums_path_tmp, sums_path)
         except OSError:
             if backup is not None:
                 os.replace(backup, archive)
@@ -251,7 +257,8 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
                 archive.unlink(missing_ok=True)
             raise
     finally:
-        zip_tmp.unlink(missing_ok=True)
+        if zip_tmp is not None:
+            zip_tmp.unlink(missing_ok=True)
         if sums_tmp is not None:
             sums_tmp.unlink(missing_ok=True)
         if backup is not None:
