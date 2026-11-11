@@ -119,15 +119,16 @@ class SearchEngine:
         match = self.current()
         if match is None:
             return False
+        # Compile once: the backreference expansion and the row rescan below
+        # share the same pattern, so the same query is never compiled twice.
+        pattern = self._compile(self.query)
         if self.use_regex:
-            pattern = self._compile(self.query)
             text = buffer.lines[match.row][match.start : match.end]
             if pattern is not None:
                 replacement = pattern.sub(replacement, text)
         buffer.replace_range((match.row, match.start), (match.row, match.end), replacement)
         # Rework matches incrementally: only the edited row can change, so
         # rescan just that row and keep every other row's matches untouched.
-        pattern = self._compile(self.query)
         row_matches: list[Match] = []
         if pattern is not None:
             for found in pattern.finditer(buffer.lines[match.row]):
