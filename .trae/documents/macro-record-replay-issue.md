@@ -70,4 +70,4 @@ Title: Feat - 宏录制与回放（vim/vsc 统一同一套按键与命令）
 - 双语手册（`yate/docs/manual.en.md` / `manual.zh.md`）与键位文档需同步更新
   （doc-conventions §三：双语同时新增、同时更新）。
 
-#IKUCKM 
+#IKUCKM
