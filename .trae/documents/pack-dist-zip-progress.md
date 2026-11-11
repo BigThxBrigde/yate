@@ -268,8 +268,45 @@
   下一步取完整错误输出：diffcheck 尾随空白必须在本分支修掉；changelog
   红项按历史 IKTPC2 pr-review 同类项诊断，若属发布流程交互则如实登记为
   合并时人工处置、不擅自改 CHANGELOG。
-- 下一步：修尾随空白 → 诊断 changelog 根因 → 重跑合并树门禁 →
-  移除临时 worktree →【审核】→【收尾】全量门禁 + 回填 + 记忆。
+- wave-3 最终实测（临时 worktree 基于 `decdd769` 重建合并树，0 冲突）：
+  `MERGE_TREE_RCS [0,0,1,0]`——架构 **38 passed** ✓、合并树全量
+  `pytest -q -n 1` ✓、diffcheck **0** ✓（尾随空格修复生效）；
+  仅 `tools.changelog check` RC=1。
+- F15 根因与处置路径（已实测）：master 侧同命令 RC=0（
+  "released changelog sections are up to date"），合并树报
+  "stale changelog files → run generate"，是合并提交重算 v0.2.18
+  已发布段的发布流程交互（历史 IKTPC2 pr-review 同类项），非本分支
+  代码缺陷、PR diff 不含 CHANGELOG。在隔离合并树运行
+  `python -m tools.changelog generate`（RC=0，写 4 个 changelog）后
+  `check` **转绿 RC=0**。按非目标不改本分支 CHANGELOG，登记为合并时
+  人工处置项并给出已验证命令；不冒充已修复、不记「偶发」。
+- 清理（git 安全协议）：按前置记录用 `git worktree remove --force`
+  删除临时 worktree 与其合并提交及 generate 产生的未提交改动，
+  `git worktree list` 复核；一次性验证脚本 4 个已删除。
+- 【审核】第一轮 `code-review-expert` 已落盘
+  `.trae/reviews/2026-11-11-fix-all-minor-review.md`（196 行）：
+  blocker 0 / **major 1** / minor 6；八项门禁全绿（pyright 0、
+  pytest 3519 tests、架构 37、覆盖率 93.02%、冒烟 121/121·1464、
+  changelog 0、diffcheck 0、`test_app_panes -n 1` 四连 0）；16 条中
+  14 条已闭环、F5 未闭环、F15 判定为合并时人工处置（处置路径充分）。
+  M1：锁创建后 `try` 起点过晚，空 stage / `_stage_files` 越界拒绝 /
+  `mkstemp` 失败三条路径残留 `.lock`，`O_EXCL` 使重试永久失败；
+  评审实测复现并判为本轮 F5 引入的回归。minor 6 条（m1 回滚二次失败、
+  m2 F12 守卫顺序、m3 symlink 用例为 monkeypatch、m4 F16 守卫
+  `stale_ids` 未断言非空、m5 跨 stage 并发、m6 陈旧锁无自愈）。
+- 按 §二.6「存在 major → 回到步骤 2 重新设计」：本轮进入迭代轮，
+  产出修复方案 → 无人值守批准 → 修 M1（调 `try` 起点 + 补 3 条
+  「失败后无锁残留」断言）与评审建议同批的 m2 / m4 → 复评至
+  0 blocker / 0 major →【收尾】全量门禁 + 回填 + 记忆更新。
+- 【迭代·方案】已落盘 `pack-dist-zip-minor-fixes-review-iteration-plan.md`：
+  裁定 A（锁创建成功后立即进入大 `try`，三个临时 Path 改可选并判空清理），
+  否决 B（校验移到锁外，`mkstemp` 仍漏）/ C（多一个易错标志位 + 误转异常）；
+  R1 修 M1 + m2/m4 + 3 条「失败后无锁残留」用例，m1/m3/m5/m6 登记待办；
+  评审记录已双向互链。
+- 【迭代·批准】无人值守按通过处理，豁免询问与审批，不冒充用户答复；
+  范围为本方案 R1/R2，执行中偏离须回填 `overview.md` §六。
+- 下一步：执行 R1 修复 → 局部验收 → 第二轮 `code-review-expert` 复核 →
+  【收尾】全量门禁 + 回填 + 提交 + 记忆更新。
 
 ## 续作会话独立复核（2026-11-10，完成）
 
