@@ -49,7 +49,7 @@ undo 粒度）；vsc 侧数字 count 状态机（count 前缀仅 vim，vsc 用 `
 | 录制记录点 | `_handle_raw_key` 顶部 `pre_dispatch`（raw 规范化后、keymap 派发前全量记录） | keymap 层记录：两表各写一份；`EditorView.on_key` 记 Textual event：携带 Textual 依赖且绕开 raw 规范化 |
 | 回放执行 | 注入 `ed.handle_raw_key` 回调，逐 raw 循环 | 直接调 `execute_action`：丢 chord/count/未映射键语义，违背「录制什么重放什么」 |
 | vsc count | 无数字前缀，`:` 命令给 count | 给 vsc 建 count 状态机：大改纯表派发模型，v1 范围外 |
-| 键弦选择 | `q`（录制）/ `@`（回放）——vim 事实标准，IKUCKM 原文指定 | `<f5>`/`<f8>` 类功能键：部分终端吞键，issue 明示避免 |
+| 键弦选择 | `<f6>` 单前缀 chord（`r` record / `p` play / `@` repeat last）——两表空闲、不吞 vsc 文本输入、AC3 两表同键弦同动作；issue 明文授权「具体键弦在方案文档定稿」 | `q`/`@` 可打印前缀：vsc 无模式编辑器里是文本字符（存量守卫 `test_colon_is_inserted_literally` 锁定），绑定即破坏输入；f10+ 有终端吞键风险 |
 | awaiting 状态归属 | `session.macro_awaiting`（L1） | MacroFlows 实例属性：which-key 流程模块需直读，放 session 免新依赖 |
 
 ## 4. 总体设计

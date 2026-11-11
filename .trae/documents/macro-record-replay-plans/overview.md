@@ -36,9 +36,14 @@ self.macro_awaiting: str | None = None  # "record" | "play" | None
 ### 2.2 `yate/keymaps/keys.py` — 新常量（`HOVER_DOC_KEY` 同款形态）
 
 ```python
-MACRO_RECORD_KEY: str = "q"   # both built-in keymaps import these (AC3)
-MACRO_PLAY_KEY: str = "@"
+MACRO_PREFIX_KEY: str = "<f6>"   # both built-in keymaps import this (AC3)
 ```
+
+键弦裁决（2026-11-11 wave-1，详见 §六偏离 2）：原拟 `q` / `@` 可打印前缀
+在 vsc（无模式）下是文本输入字符，绑定即破坏输入语义（存量守卫
+`test_colon_is_inserted_literally` 锁定）；改单功能键前缀 chord——
+`<f6> r {reg}` 录制 / 录制中 `<f6>` 停止 / `<f6> p {reg}` 回放 /
+`<f6> @` 重复上次。
 
 ### 2.3 `yate/keymaps/base.py` — `Keymap` 新方法（vim 覆写）
 
@@ -48,47 +53,48 @@ def take_pending_count(self) -> int:
     return 1
 ```
 
-`vim.py` 覆写：`count = int(self.count_str) if self.count_str else 1`，
-随后 `self.count_str = ""`（语义对齐 `_take_count` 先例，vim.py:1256-1266）。
+`vim.py` 覆写：直接 `return self._take_count()`（读 `count_str` 并清零，
+语义对齐先例 vim.py:1260-1266）。
 
 ### 2.4 `yate/flows/macro_flows.py`（新模块，L3，禁止 import editor_components）
 
 ```python
 type RawKeySink = Callable[[str], bool]      # ed.handle_raw_key
 type MessageSink = Callable[[str], None]     # ed.message
+type CountSource = Callable[[], int]         # keymaps.active.take_pending_count
 REGISTER_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
 
 class MacroFlows:
     def __init__(self, session: EditorSession, handle_raw_key: RawKeySink,
-                 message: MessageSink) -> None: ...
-    def is_control_key(self, raw: str) -> bool: ...        # raw in {q, @}
+                 message: MessageSink, count_source: CountSource) -> None: ...
+    def is_control_key(self, raw: str) -> bool: ...        # raw == <f6>
     def pre_dispatch(self, raw: str) -> bool: ...          # True = consumed
     def toggle_record(self, register: str | None = None) -> None: ...
     def play(self, register: str | None = None, count: int | None = None) -> None: ...
     def repeat_last(self, count: int | None = None) -> None: ...
 ```
 
-`pre_dispatch` 行为规格（分支按序）：
+`pre_dispatch` 行为规格（分支按序，落定形态）：
 
 1. `session.macro_playing` 为真 → 返回 `False`（回放产生的键原样派发，
    不触发宏控制、不记录）。
-2. `macro_awaiting == "record"`：清 awaiting；raw 是寄存器字符 →
+2. `macro_awaiting == "prefix"`：清 awaiting；`r` → 置 `"record"` 返回
+   `True`；`p` → 置 `"play"` 返回 `True`；`@` → `repeat_last()` 返回
+   `True`；否则 warn 用法并返回 `False`（该键照常派发）。
+3. `macro_awaiting == "record"`：清 awaiting；raw 是寄存器字符 →
    开始录制（`macro_recording = (reg, [])`）返回 `True`；否则 warn
-   `macro: register name must be a-z or 0-9` 并返回 `False`（该键照常派发）。
-3. `macro_awaiting == "play"`：清 awaiting；raw 是寄存器字符 →
-   `play(reg)` 返回 `True`；raw 为 `@` → `repeat_last()` 返回 `True`；
-   否则 warn 并返回 `False`。
-4. raw 为 `MACRO_RECORD_KEY`：录制中 → 停止（序列覆盖写入
+   `macro: register name must be a-z or 0-9` 并返回 `False`。
+4. `macro_awaiting == "play"`：清 awaiting；raw 是寄存器字符 →
+   `play(reg)` 返回 `True`；否则 warn 并返回 `False`。
+5. raw 为 `MACRO_PREFIX_KEY`：录制中 → 停止（序列覆盖写入
    `macro_registers`、记 `macro_last_register`）返回 `True`；否则置
-   `awaiting="record"` 返回 `True`。
-5. raw 为 `MACRO_PLAY_KEY`：录制中 → warn `macro: stop recording first`
-   返回 `True`；否则置 `awaiting="play"` 返回 `True`。
+   `awaiting="prefix"` 返回 `True`。
 6. 录制中 → `macro_recording[1].append(raw)` 后返回 `False`。
 7. 其余返回 `False`（照常派发）。
 
 `play` 行为：录制中或 `macro_playing` → warn 拒绝（AC4）；空寄存器 →
-warn（AC5/AC6）；否则 `macro_playing = True`，`count` 缺省时用
-`keymap.take_pending_count()` 结果（由调用方传入，`None` 表示 1），
+warn（AC5/AC6）；否则记 `macro_last_register`，`count` 缺省时用
+`count_source()`（vim `3` 前缀 → `take_pending_count`；vsc 恒 1），
 `for _ in range(count): for raw in list(seq): handle_raw_key(raw)`，
 `finally` 复位 `macro_playing`。`repeat_last` 无 last → warn。
 
@@ -163,3 +169,5 @@ if ed.macro.pre_dispatch(raw):
 | --- | --- | --- | --- |
 | 【方案】 | `plan-architect-designer` 未派发（本机运行时 `qwen-3.7-plus` / `Hy4 preview` 前轮均 spawn 失败在案，同环境不再重试） | pack-dist-zip 进度文档「失败与重试记录」 | 主代理按剧本亲自产出主计划 + 本总纲 + 5 子计划，如实标注「子代理零产出」 |
 | 【方案】 | 执行职责重排：产品源码全由主代理亲改（§一职责划分），wave-1 的 a/b/c 由主代理按序完成而非三执行者并行 | `subagent-workflow.md` §一.3 禁止子代理改 `yate/**`；wave-1 三子计划产品文件本就归主代理 | 合并为「主代理串行亲改 + 测试执行者并行」，波次验收口径不变 |
+| wave-1 | 键弦由 `q` / `@` 双可打印键改为 `<f6>` 单前缀 chord（`r` record / `p` play / `@` repeat），常量合并为 `MACRO_PREFIX_KEY`；两表绑定合一 `macro_prefix` 动作 | 冲突探针 `q`/`@` 两表空闲，但 vsc 为无模式编辑器、可打印字符是文本输入（存量守卫 `test_colon_is_inserted_literally` 锁定）；issue IKUOAM 明文授权「具体键弦在方案文档定稿」且要求两表同键弦同动作——`<f6>` 同时满足三约束（两表空闲 / 不吞文本 / AC3 统一） | 采纳；§2.2/§2.4 契约已更新为落定形态，子计划 a/b 原文键弦描述为历史事实 |
+| wave-1 | `editor.py`（802 行）登记 `SIZE_EXEMPT_FILES` 豁免 | big-module-split-2 拆分后恰 800 行，MacroFlows 属性 + 导入 +2 行越线；`test_source_files_within_size_threshold` 实测 `AssertionError: [('editor.py', 802)]` | 单一职责（组装工厂薄委托）按 §三.7 登记豁免，`tests/test_architecture.py` 与 `.trae/rules/architecture-boundaries.md` 两处同步 |
