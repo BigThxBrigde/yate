@@ -274,6 +274,8 @@ Left: mode block + file info; right: position and metadata.
 - Right side: `Ln row, Col col`, total lines, file type (extension), encoding;
   then the hint icon area: loaded extension count, `:!` (shell command), `F1`
   (help).
+- While a macro is recording, the status bar shows `rec @<reg>` (e.g. `rec @a`)
+  right next to the mode chip; the indicator disappears once recording stops.
 
 ### 3.7 Command line / message bar
 
@@ -369,6 +371,16 @@ Ways to switch (any one of):
 
 The `F1` help overlay always shows the complete bindings of the **current**
 keymap, grouped by category, plus all `:` commands.
+
+**Macro replay count.** Under the vim keymap a numeric prefix `N` before a
+macro replay key replays the macro N times (`3<f11>` = three replays, default
+one when no prefix is given). The vsc keymap has no count state machine
+(`take_pending_count()` is always one), so `F11` replays once and `F12` reuses
+the count of the last replay. The commands `:macro-play <reg> [count]` and
+`:macro-replay-last [count]` form the equivalent double entry point with an
+explicit count argument. Under vim both an explicit `1<f12>` and a bare `F12`
+fall into the "reuse last count" branch, since the captured pending count
+cannot tell them apart; `:macro-replay-last 1` still replays exactly once.
 
 ### 5.1 vsc keymap (default, modeless)
 
@@ -512,6 +524,9 @@ work on all terminals.
 | `F1` | Key reference (help overlay) |
 | `F8` | Open the user manual (this manual, read-only; `/` or `Ctrl+F` searches inside it) |
 | `F7` | Show API documentation at cursor (LSP hover) |
+| `F10` | Toggle macro recording |
+| `F11` | Play a recorded macro |
+| `F12` | Repeat last macro replay |
 
 ### 5.2 vim keymap (modal)
 
@@ -589,6 +604,9 @@ selections and no bracket auto-completion while multi-cursor is active.
 | `Ctrl+H` | Find & replace in project |
 | `:` | ex command line (`:w` `:q` `:e` `:!` …) |
 | `F7` | Show API documentation at cursor (LSP hover) |
+| `F10` | Toggle macro recording |
+| `F11` | Play a recorded macro |
+| `F12` | Repeat last macro replay |
 
 **Panes and windows (`Ctrl+W` prefix in NORMAL mode; see 8.1)**
 
@@ -721,6 +739,19 @@ since `:` is an ordinary editable character there. Commands may take
 arguments separated by spaces. `Esc` / `Ctrl+C` cancels; `↑` / `↓` cycles
 history. Unknown commands report
 `not an editor command: … (try :help)`.
+
+**Macro commands** (`:macro-*`) -- key equivalents live in section 5:
+
+| Command | Description |
+|---|---|
+| `:macro-record [reg]` | Start recording (same as pressing `F10`); an optional one-character register can be given, otherwise the editor prompts for one |
+| `:macro-stop` | Stop the current recording |
+| `:macro-play <reg> [count]` | Replay the macro in register `reg` `count` times (default one) |
+| `:macro-replay-last [count]` | Repeat the last replay, optionally overriding its count |
+
+Registers are single characters in `a-z0-9`. After `F10` / `F11` the editor
+waits for one register character; an invalid register or a syntax error shows
+a warning in the message bar.
 
 ### 8.1 Split panes (`:split` / `:vsplit`)
 
