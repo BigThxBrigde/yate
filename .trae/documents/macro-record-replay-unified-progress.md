@@ -37,3 +37,11 @@
 - 评审轮次、blocker / major / minor 清单与修复提交。
 - 收尾七项门禁真实数字（pyright / pytest / 架构 / 覆盖率 / 冒烟 / changelog / diffcheck）。
 - 偏离计划项与实测依据；模型可用性与回退处置的实测记录。
+
+## 3. 批准后的文档一致性勘误（进入【执行】前）
+
+- D7：statusbar 测试文件名在方案组内出现两种写法（`test_statusbar_macro.py` 与
+  `test_macro_statusbar.py`）。主代理裁定统一为 `tests/test_macro_statusbar.py`
+  （子计划 c / plan-f / plan-k 既有口径，且执行者以子计划为唯一规范来源），
+  主计划 §6 与 `overview.md` §1.10 / §4 共 4 处同步订正；不改任何设计、键位、
+  波次与 API 契约。订正先于 wave-1 下发。

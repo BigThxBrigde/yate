@@ -389,12 +389,12 @@ sequenceDiagram
 - 输入：F1/F2（keys.py）、F11（session.py）、F15（statusbar.py）、overview API 契约。
 - 改动文件：`yate/keymaps/keys.py`、`yate/session.py`、
   `yate/editor_components/statusbar.py`、`tests/test_macro_constants.py`、
-  `tests/test_macro_state.py`、`tests/test_statusbar_macro.py`。
+  `tests/test_macro_state.py`、`tests/test_macro_statusbar.py`。
 - 输出：3 个共享常量；`MacroState` 挂 `EditorSession`（含 `pending_count` 缺省 1）；
   `recording_label` 注入 + fingerprint；两组纯数据单测。
 - 验收命令：
   `.venv\Scripts\python.exe -m pyright yate/keymaps/keys.py yate/session.py yate/editor_components/statusbar.py`
-  `.venv\Scripts\python.exe -m pytest tests/test_macro_state.py tests/test_statusbar_macro.py -q`
+  `.venv\Scripts\python.exe -m pytest tests/test_macro_state.py tests/test_macro_statusbar.py -q`
 
 **S2（wave-2，2 并行）双表登记 + 编排模块 + 键位守卫**
 

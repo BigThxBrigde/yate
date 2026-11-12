@@ -243,7 +243,7 @@ count 状态机，恒 1）；`VimKeymap` 覆写并 `return self._take_count()`�
 | `tests/test_macro_wiring.py` | plan-f | `Editor.macro_flows` 注入、StatusBar 回调接线、规则文本与守卫集合两处同步 |
 | `tests/test_macro_docs.py` | plan-j | manual 双语手册成对含宏键行 / `:macro-*` 命令 / `rec @a` 指示 / **新 count 口径**（vim 数字前缀 N 次 / vsc 恒 1 / `:` 双入口） |
 | `tests/test_macro_state.py` | plan-b | `MacroState` 正 / 边界 / 异常流 + `pending_count` 缺省 1 与复位 |
-| `tests/test_statusbar_macro.py` | plan-c | 指示出现 / 消失 / fingerprint 重绘 |
+| `tests/test_macro_statusbar.py` | plan-c | 指示出现 / 消失 / fingerprint 重绘 |
 | `tests/test_macro_flows.py` | plan-e | 编排、覆盖、count、递归拒绝、上限、重复上次 + `request_play(count)` / `replay_last(count)` / `begin_with` 读 `pending_count` 的 N 次与沿用 / 越界用例 |
 | `tests/test_macro_dispatch.py` | plan-g | 录制捕获、awaiting、回放拒绝、单次派发 + `take_pending_count()` 捕获 / `3<play>` / `3<replay-last>` / vsc 恒 1 / `macro_record` 不消耗 count / count 非法与越界 |
 | `tests/test_macro_commands.py` | plan-h | 4 命令合法 / 非法 / 语法错误 / 双入口一致 + 按键入口与 `:` 命令 count 口径一致断言 |
@@ -390,7 +390,7 @@ flowchart LR
 | `yate/docs/which-key.en.md` | | | | | | | | | ● | | |
 | `yate/docs/which-key.zh.md` | | | | | | | | | ● | | |
 | `tests/test_macro_state.py` | | ● | | | | | | | | | |
-| `tests/test_statusbar_macro.py` | | | ● | | | | | | | | |
+| `tests/test_macro_statusbar.py` | | | ● | | | | | | | | |
 | `tests/test_macro_flows.py` | | | | | ● | | | | | | |
 | `tests/test_macro_dispatch.py` | | | | | | | ● | | | | |
 | `tests/test_macro_commands.py` | | | | | | | | ● | | | |
