@@ -25,6 +25,12 @@
 - `yate/editor_compose.py`
 - `.trae/rules/architecture-boundaries.md`（**执行阶段**同步）
 - `tests/test_macro_wiring.py`（新增）
+- `tests/test_editor_compose.py`（**D9 主代理亲改**，执行阶段补登）：既有
+  `test_editor_compose_exports_five_factories` 硬编码「恰好 5 个工厂」，本计划新增
+  第 6 个 `_build_macro_flows` 后确定性冲突。执行者按纪律停下上报、未改断言；
+  主代理裁定先补登本清单再亲自更新 expected 集合为 6 个工厂（保持「恰好」强度），
+  并同步 `test_editor_imports_factories_from_compose` 的名字列表；改后须实测
+  `pytest tests/ -q -k "editor or compose"` 退出码 0。
 
 > **不动** `tests/test_architecture.py`（plan-d 独占）、`yate/editor_dispatch.py`
 > （plan-g）、`yate/keymaps/*`、`yate/flows/macro_flows.py`（plan-e）。

@@ -86,3 +86,25 @@
 - D2–D6（plan-d）import 位置 / 命令前缀 / 守卫 forbidden 含 `<f7>` / 负向断言触发点 / cmd shell 适配：均为形态或环境适配，**接受**。
 - E1（plan-e）`tests/conftest.py` 无全局 `config` fixture，测试内定义局部 fixture 返回 `YateConfig()`：与 wave-1 已落盘构造风格一致，不改产品契约，**接受**。
 - 两名成员均未跑计划外全量门禁，符合剧本。
+
+### wave-3：plan-f ∥ plan-g（2 并行，Hy4，bypassPermissions）
+
+| 项 | 主代理独立复核实测 |
+| --- | --- |
+| 存活 / 落盘 | 2/2 全部交付；零产出 0；`git status --short` 10 文件（8 个 `M` + 2 个 `??`），含 plan-f 独占 4 件、plan-g 独占 2 件、D9 补登 1 件、方案修订 3 件 |
+| pyright | `pyright yate/editor.py yate/editor_compose.py yate/editor_dispatch.py yate/flows/macro_flows.py` → `0 errors, 0 warnings, 0 informations`，exit 0 |
+| 新测试 + 架构 | `pytest tests/test_macro_wiring.py tests/test_macro_dispatch.py tests/test_architecture.py -q` → 68 passed（10 接线 + 17 派发 + 41 架构），exit 0 |
+| D9 回归 | `pytest tests/ -q -k "editor or compose"` → 修复前 exit 1（`test_editor_compose_exports_five_factories` 硬编码 5 工厂），主代理按 D9 修改后 **exit 0**（1 skipped） |
+| 派发回归 | `pytest tests/ -q -k "dispatch or handle_raw_key or editor_key"` → 56 passed，exit 0 |
+| 空白检查 | `git diff --check` → exit 0 |
+| D8 状态 | `pytest tests/ -q -k "keymap or keys"` 仍按方案预期红（宏动作归 wave-4 注册），**wave-4 后硬复核**条件不变 |
+
+**执行者自述验收**（仅参考）：plan-f 命令 1/2 exit 0、命令 3 exit 1 后按纪律停下上报；另做单文件 pyright 自检（0/0/0）与负向演练（临时删 `macro_flows: MacroFlows` → pyright `2 errors` → 还原 → `0/0/0`）。plan-g 四条 §5 命令全部 exit 0（38 / 51 / 4 / 1 用例），并实测只读拒绝路径「不记录按键」与 §2.1(B) 裁定相符。
+
+**关键实测**：`editor.py` 改后 `splitlines()` = **807**（基线 800）> 800，§三.7 体量豁免成立；规则文本回填写的是执行阶段实测值（41 个架构用例 / `41 passed` / 对照表 #39-#41），未臆测。`editor_dispatch.py` 卫语句 0 在 `try:` 与 `handle_key` 之前（`:179-183` vs `:198-199`），卫语句 3 在 `except` 之后（`:207-209`），R10 单次派发不变。
+
+**偏离裁定（主代理）**：
+- D9（**方案遗漏，MAJOR 级**）：`tests/test_editor_compose.py::test_editor_compose_exports_five_factories` 硬编码「恰好 5 个工厂」，新增第 6 个 `_build_macro_flows` 后确定性冲突，而该文件原不在任何子计划独占清单。执行者按纪律停下上报、未改断言。裁决：**先回填**主计划 §6 S3 / plan-f §1 / `overview.md` §4，**再由主代理亲自**把 expected 集合补为 6 个工厂、同步 `test_editor_imports_factories_from_compose` 的名字列表与两处 docstring，保持「恰好」断言强度不降；实测命令 3 由 exit 1 → exit 0。
+- F1–F6（plan-f）：`_build_macro_flows as ...` 显式导入、3 行 ASCII 组装注释、§六 对照表按实测补 3 行（而非措辞「两行」）、无 editor fixture 改用项目既有 `YateApp` 构造、用例 2 用构造前 monkeypatch、额外自检/负向演练 —— 均为形态适配且有实测，**接受**。
+- G1（plan-g）子计划中文注释改为等价英文（overview §1 硬契约 + 编码风格）：逻辑未变，**接受**；G2 并行半成品观察：非偏离，**记录**。
+- 两名成员均未跑计划外全量门禁，符合剧本。

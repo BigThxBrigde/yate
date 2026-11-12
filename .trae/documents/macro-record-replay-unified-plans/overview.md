@@ -397,6 +397,7 @@ flowchart LR
 | `tests/test_macro_whichkey.py` | | | | | | | | | ● | | |
 | `tests/test_macro_constants.py` | ● | | | | | | | | | | |
 | `tests/test_macro_wiring.py` | | | | | | ● | | | | | |
+| `tests/test_editor_compose.py`（D9，主代理亲改） | | | | | | ● | | | | | |
 | `tests/test_macro_docs.py` | | | | | | | | | | ● | |
 | `tests/test_macro_integration.py` | | | | | | | | | | | ● |
 | `tools/smoke_test/scenarios/macro.py` + `__init__.py`（可选） | | | | | | | | | | | ● |

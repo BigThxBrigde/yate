@@ -420,7 +420,11 @@ sequenceDiagram
 - 改动文件：`yate/editor.py`、`yate/editor_compose.py`、
   `.trae/rules/architecture-boundaries.md`（§一 L3 清单 / §三.8 接入清单 / §三.7
   豁免名单，执行阶段改）、`yate/editor_dispatch.py`、
-  `tests/test_macro_wiring.py`、`tests/test_macro_dispatch.py`。
+  `tests/test_macro_wiring.py`、`tests/test_macro_dispatch.py`、
+  `tests/test_editor_compose.py`（**D9**：执行阶段实测发现既有守卫硬编码「恰好 5 个
+  工厂」，新增第 6 个工厂后必然红；该文件原未列入任何子计划独占清单，属方案遗漏。
+  主代理裁定先回填本清单，再由**主代理亲自**把 expected 集合补为 6 个工厂并同步
+  `test_editor_imports_factories_from_compose` 的名字列表，保持「恰好」断言强度不降）。
 - 输出：`Editor.macro_flows` 类属性 + `_build_macro_flows` 工厂 + StatusBar 回调注入 +
   组装注释；`_handle_raw_key` 在 `handle_key` 之前对 `MACRO_PLAY_KEY` /
   `MACRO_REPLAY_LAST_KEY` 调 `take_pending_count()` 捕获 count 写入 `pending_count`
