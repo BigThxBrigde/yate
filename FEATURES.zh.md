@@ -21,7 +21,8 @@
 
 - VS Code 风格布局：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平状态栏、欢迎页
 - 状态栏 + 命令行/消息栏；扩展可注入自定义状态栏段与模态字符画布（`api.ui`）
-- which-key 面板：和弦挂起时实时显示下一键候选、`F9` 钉住全键位分类表（`which_key` 可关）
+- which-key 面板：和弦挂起时实时显示下一键候选、`F9` 钉住全键位分类表（`which_key` 可关；
+  自动触发可经 `which_key_auto` 单独关闭，`F9` 仍可用）
 - Nerd Font 文件类型图标（`--install-font` / `:font` 自动安装并配置 Windows Terminal）
 - 瘦滚动条注入、每组件自持主题着色
 
@@ -64,14 +65,14 @@
   `:check-keys` `:game` 及扩展注册命令
 - `:!命令`（`F2`）后台线程执行 shell，输出到可滚动浮层并标注退出码
 - `:set` 运行时可设：`keymap`/`theme`/`shell`/`terminal_height`/`filetype`/`show_hidden`/
-  `readonly`/`support_mouse`/`which_key`
+  `readonly`/`support_mouse`/`which_key`/`which_key_auto`
 
 ## 8. 配置系统（yaterc）
 
 - Python 语法配置文件（vimrc 风格），用户级 → 项目级逐级向上加载，`-u FILE` 指定、
   `-u NONE` 跳过
 - 全部选项：`keymap` `theme` `tab_width` `use_spaces` `shell` `terminal_height`(3–40)
-  `show_hidden` `support_mouse` `which_key` `key_protocol` `extensions`
+  `show_hidden` `support_mouse` `which_key` `which_key_auto` `key_protocol` `extensions`
   `disabled_extensions` `theme_dirs` `yate_trace`/`yate_trace_level`（运行日志）
   + 字典 `screen_saver`（enable/interval/switch/距离区间/角色白名单）、
   `file_preview`（enable/position/size/max_lines/max_size）、
@@ -165,4 +166,5 @@
 `.yxp` 扩展包管理、Lua 扩展与四款游戏、which-key 面板、多光标 `Alt+C`、
 项目查找替换 `Ctrl+H`、`:check-keys`/`:trust`/`:font`、vim 命名寄存器、
 扩展高级 API（`syntax`/`sprites`/`ui` 画布/`events`/`data`/`clipboard`），以及 yaterc 的
-`key_protocol`/`show_hidden`/`support_mouse`/`which_key`/`yate_trace` 等选项。
+`key_protocol`/`show_hidden`/`support_mouse`/`which_key`/`which_key_auto`/
+`yate_trace` 等选项。

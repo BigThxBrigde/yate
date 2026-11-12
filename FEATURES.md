@@ -28,7 +28,8 @@ start see [README.md](README.md), and for the full usage guide see the
 - Status bar + command line / message bar; extensions can inject custom status
   segments and a modal character canvas (`api.ui`)
 - which-key panel: live next-key candidates while a chord is pending, `F9` pins
-  the full keymap table (`which_key` toggles it off)
+  the full keymap table (`which_key` toggles it off; auto-trigger can be turned
+  off separately via `which_key_auto`, keeping `F9` usable)
 - Nerd Font file-type icons (`--install-font` / `:font` installs the bundled font
   and configures Windows Terminal when possible)
 - Slim scrollbar injection; theme colors owned by each component
@@ -80,7 +81,7 @@ start see [README.md](README.md), and for the full usage guide see the
 - `:!cmd` (`F2`) runs a shell command on a background thread; output shows in a
   scrollable overlay annotated with the exit code
 - `:set` runtime options: `keymap`/`theme`/`shell`/`terminal_height`/`filetype`/
-  `show_hidden`/`readonly`/`support_mouse`/`which_key`
+  `show_hidden`/`readonly`/`support_mouse`/`which_key`/`which_key_auto`
 
 ## 8. Configuration (yaterc)
 
@@ -88,7 +89,7 @@ start see [README.md](README.md), and for the full usage guide see the
   upward; `-u FILE` selects one, `-u NONE` skips all
 - Full option set: `keymap` `theme` `tab_width` `use_spaces` `shell`
   `terminal_height` (3–40) `show_hidden` `support_mouse` `which_key`
-  `key_protocol` `extensions` `disabled_extensions` `theme_dirs`
+  `which_key_auto` `key_protocol` `extensions` `disabled_extensions` `theme_dirs`
   `yate_trace`/`yate_trace_level` (runtime logging) + dicts `screen_saver`
   (enable/interval/switch/distance bounds/character whitelist), `file_preview`
   (enable/position/size/max_lines/max_size), `language_servers`
@@ -202,4 +203,5 @@ start see [README.md](README.md), and for the full usage guide see the
 which-key panel, multi-cursor `Alt+C`, project-wide find & replace `Ctrl+H`,
 `:check-keys`/`:trust`/`:font`, vim named registers, advanced extension APIs
 (`syntax`/`sprites`/`ui` canvas/`events`/`data`/`clipboard`), and the yaterc
-options `key_protocol`/`show_hidden`/`support_mouse`/`which_key`/`yate_trace`.
+options `key_protocol`/`show_hidden`/`support_mouse`/`which_key`/
+`which_key_auto`/`yate_trace`.

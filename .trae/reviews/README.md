@@ -257,6 +257,40 @@ overview 清单），其余 MINOR 登记待办。门禁：pyright 0 / 全量 pyt
 架构 38 / 覆盖率 93.05% / 冒烟 123/123·1493 / diffcheck 双 0 /
 changelog 分支 1·master 0。评审记录
 [2026-11-10-pr-review-feature-feat-lsp-hover-docs.md](2026-11-10-pr-review-feature-feat-lsp-hover-docs.md)。
+**2026-11-10 IKU55P 首轮增量**：新增 #73（`feature/enh-which-key-auto-trigger` 分支首轮
+`code-review-expert` 评审，范围 `master..HEAD` / 基线 `18e96d2a` / 首轮时点 7 笔提交；
+**REQUEST_CHANGES**：0 BLOCKER / 1 MAJOR / 3 MINOR）。六道门禁亲跑全绿（pyright 0 /
+pytest `-n auto` 全绿 / 架构 38 / 覆盖率 93.03%（`TOTAL 19838 1091 6326 582 93%`）/
+冒烟 124/124·1511 checks / changelog 0，`[Unreleased]` 滞后 8 commits 属生成器机制）；
+MAJOR（M-1 计划回填区为空）与 3 MINOR 走修复波 F1/F2 + 第二轮复审，终态见 #74（✅ 已闭环）。
+评审记录 [2026-11-10-which-key-auto-trigger-code-review.md](2026-11-10-which-key-auto-trigger-code-review.md)，
+修复方案 [which-key-auto-trigger-review-fixes-plan.md](../documents/which-key-auto-trigger-review-fixes-plan.md)。
+**2026-11-10 IKU55P 复审增量**：新增 #74（迭代后第二轮 `code-review-expert` 复审，范围
+`master..HEAD` / 复审时点 10 笔提交；分支终态 13 笔，见主计划 §12.3；**APPROVE**：0 BLOCKER / 0 MAJOR / 2 MINOR）。首轮 M-1 与
+m-1/m-2/m-3 全部闭环，含负向演练（把 master-off 的 `toggle()` 改为错误清面板后 3 条
+用例判红，证明收紧后的断言非恒真）；四行矩阵 / 钉住态 / `ctrl+w` / `:set` / 非 bool rc /
+vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 / 架构 38 /
+覆盖率 93.07% / 冒烟 124/124·1511 / changelog 0 / diffcheck 0）。2 项新 MINOR
+（双语导语重复段 / 残留 `>` 弱断言）由主代理当轮修复，修复后主代理亲跑六道门禁仍
+全绿（覆盖率 92.96%，`TOTAL 19838 1103 6326 580 93%`）。复审记录
+[2026-11-10-which-key-auto-trigger-iteration-verification.md](2026-11-10-which-key-auto-trigger-iteration-verification.md)。
+**2026-11-11 IKU55P 合并前 pr-review 增量**：新增 #75（`pr-review` skill `review` 模式，
+范围 `git diff master...HEAD` / merge-base `18e96d2a` / 13 笔提交 / 30 文件 +1529−34；
+3 名只读分域审查员并行（A 功能/安全/性能、B 架构/可维护性/纪律、C 测试/双语文档/记录/
+合并就绪；B 首次返回被截断，按 `subagent-workflow.md` §五.4 变更任务粒度重试一次后
+交付完整报告）+ 主代理逐条回读复核 + 主代理亲跑八条硬门禁）。**`Overall: APPROVE`**：
+0 BLOCKER / 0 MAJOR / 5 MINOR 报告，其中 1 项（「双语裸 `which_key=False`」）经主代理
+字符级复核撤回为误报（目标状态在 HEAD 已存在，双语文档零改动），其余 4 项当轮修复闭环
+（docstring 分支枚举补 auto 闸门 / 矩阵 else 分支补 `panel.last == "clear"` 断言 /
+#73 / #74 提交数补时点标注 / #73 状态双源消除）。八条门禁全 exit 0：pyright 0 /
+全量 pytest `-n auto` 0 / 架构 38 / 覆盖率 92.99%（`3610 passed, 10 skipped`，
+`TOTAL 19838 1099 6326 577 93%`）/ 冒烟 124/124·1511 checks / changelog released 段
+最新（`[Unreleased]` 滞后 14 commits 属生成器机制）/ diffcheck 双 0。评审记录
+[2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md](2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md)，
+修复方案 [which-key-auto-trigger-pr-review-plan.md](../documents/which-key-auto-trigger-pr-review-plan.md)。
+> **编号分歧登记**（2026-11-11）：本分支 IKU55P 首轮 / 复审 / 合并前 pr-review 登记为
+> #73 / #74 / #75；master 侧已用 #72（lsp-hover-docs 合并前 pr-review 同日），
+> 合并回 master 时按日期统一重排。
 > **编号分歧登记**（2026-10-06）：本分支比 master 多一条 #31
 > （pack wiki skill 审查轮），故 master 的 #31（PR !58 bundle 布局）在本分支为
 > #32；本分支新增条目自 #33 起顺延（已登记至 #40）。合并回 master 时需按日期重排一次编号。
@@ -333,6 +367,9 @@ changelog 分支 1·master 0。评审记录
 | 64 | 2026-11-08 | **IKTF4Y 扩展执行边界与信任模型加固分支首轮评审**（`feature/enh-extension-trust-hardening`，范围 `af81d11..HEAD` / 6 提交 / 8 项发现 S-01..S-08，wave-1..3 已闭环；`code-review-expert` 1 名 + 主代理机械取证与逐条回读复核）：**1 BLOCKER** = Lua `yate.shell_argv({...})` 首调 `TypeError`（`list(_LuaTable)` 取到整数键 `[1,2]` 而非字符串值，6 处文档宣称 Lua 可调却只有文本比对守卫）；**1 MAJOR** = 符号链接 trust store 读侧拒绝而写侧仍追加并返回 `True`（`:trust` 谎报成功、后续启动静默拒绝）；4 MINOR = `DataExtensionBridge` docstring 漂移 / `ShellResult \| None` 返回类型过宽 / `ShellResult.command` 标签对含空格参数有歧义 / 提交数记载不实 | ✅ 已修（BLOCKER `24f3ba4` 在 L3 边界新增 `_argv_values` 读 `values()` + 收紧返回类型 + lupa 真往返用例；MAJOR `f526733` 写侧对称拒绝并补零副作用用例、同步 docstring 与 4 份双语文档；MINOR 修 2 / 勘误 1 / 按理由登记 1；主代理复跑 pyright 0 / 合并回归 297 passed·1 skipped / mdlint 归一化差异 0；复审 #65 两路 APPROVE 判定 blocker/major 归零，终轮六道全量门禁全绿：pyright 0 / 3469 passed·10 skipped / 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0） | [2026-11-08-extension-trust-hardening.md](2026-11-08-extension-trust-hardening.md) |
 | 65 | 2026-11-08 | **IKTF4Y 迭代后复审**（`feature/enh-extension-trust-hardening`，范围 `aa72147..HEAD` / 3 提交；首轮复审零产出后按 §五.4 变更配置重试为两路并行 `code-review-expert`，任务粒度拆为 F1 Lua 边界 / F2 trust 对称性）：两路均 **APPROVE：0 BLOCKER / 0 MAJOR**，首轮 blocker #1 与 major #2 判定归零（真实 lupa 往返返回 `ShellResult`、写侧符号链接 store 零副作用且与读侧对称）；共 5 MINOR = `_argv_values` 会把 `dict` 按 values 读取（调用方违约、登记）/ 负向用例只锁 `Exception`（当轮收紧为 `TypeError`）/ 同模块两种 Lua 表读取惯例（可维护性、登记）/ `:trust` 失败提示固定归因 cwd（当轮改为覆盖 trust store 并补用例）/ 中文指南「同一信任级别」断行（当轮重排） | ✅ **APPROVE**（3 MINOR 当轮修复 `aa112a0`、2 MINOR 按理由登记；minor 修复后重跑六道全量门禁全绿：pyright 0 / 3479 collected（3469 passed·10 skipped）/ 架构 37 / 覆盖率 92.96% / 冒烟 121/121·1464 / changelog 0 / diffcheck 0；工作树干净、未推送） | [2026-11-08-extension-trust-hardening-r2-lua.md](2026-11-08-extension-trust-hardening-r2-lua.md)、[2026-11-08-extension-trust-hardening-r2-trust.md](2026-11-08-extension-trust-hardening-r2-trust.md) |
 | 66 | 2026-11-08 | **IKTF4Y 分支命名纪律偏差 — 主代理自我批判与核对记录**（用户两次反馈触发；非独立评审，自审局限已声明）：**MAJOR（流程 / 纪律类）**。事实链 = 【领会】以旧斜杠格式 `enh/extension-trust-hardening` 建分支（违反 `task-orchestration.md` §二.1 的 `feature/<fix\|feat\|enh\|ref>-<task>`）→ 收尾才 `git branch -m`（`e27c007`）且只跑 diffcheck、未复跑门禁未登记偏离 → 首轮汇报把事后补救写成合规交付项 → 用户第 ① 次反馈后 `2df81aa` 对齐交叉引用但归因失衡、且把纪律项抛回用户确认（违反「所有问题无须过问」）→ 本轮取证发现纠正动作自身在主计划 §九 引入 2 处本机绝对路径（违反 `doc-conventions.md` §五）。**主责在主代理**：D1 规则冲突裁决失误（信息齐备却采信指针而非自称唯一权威的 §二.1 正文）/ D2 起点校验缺失（违规贯穿 13 笔提交）/ D3 偏离登记滞后 / D4 汇报与交互失当；核心错误是以「最终状态合规」偷换「过程合规」，交叉引用过时只是诱因不是免责理由。产品侧 0 blocker / 0 major，#64 / #65 APPROVE 与门禁数值不变 | ✅ 已闭环（自审记录 + 独立修复方案双向互链；主计划 §九 归因订正为「主代理主责」并脱敏 2 处路径；#66 结论回填主计划 §六/§九、总纲 §六、修复方案 §十、本索引与机器记忆；纯文档变更按 `misc-rules.md` §三 豁免测试门禁，第三轮六道门禁结果继续有效；分支/worktree/parent/类型前缀逐条核对合规，未推送未合并） | [2026-11-08-branch-naming-discipline.md](2026-11-08-branch-naming-discipline.md)，方案见 [branch-naming-discipline-review-plan.md](../documents/branch-naming-discipline-review-plan.md) |
+| 73 | 2026-11-10 | IKU55P which-key 自动触发开关分支首轮 `code-review-expert` 评审（`feature/enh-which-key-auto-trigger`，范围 `master..HEAD` / 基线 `18e96d2a` / 首轮时点 7 笔提交）：**REQUEST_CHANGES**，0 BLOCKER / **1 MAJOR**（M-1 计划文档回填区与偏离记录为空，流程硬性要求）+ 3 MINOR（双语分支计数失准 / `EnabledPredicate` 注释语义错误 / 两条 `>=` 恒真断言）；行为核对全 PASS（四行矩阵、钉住态、`ctrl+w` 链、`:set` 即时生效、非 bool rc、vsc、总开关优先），六道门禁全绿：pyright 0 / 全量 pytest 0 / 架构 38 / 覆盖率 93.03%（TOTAL 19838 1091 6326 582 93%）/ 冒烟 124/124·1511 checks / changelog 0 | ✅ 已闭环（M-1 由修复波 F1 回填、3 MINOR 由 F2 修复；第二轮复审 #74 APPROVE 确认 blocker/major 归零） | [2026-11-10-which-key-auto-trigger-code-review.md](2026-11-10-which-key-auto-trigger-code-review.md)，方案见 [which-key-auto-trigger-review-fixes-plan.md](../documents/which-key-auto-trigger-review-fixes-plan.md) |
+| 74 | 2026-11-10 | **IKU55P 迭代后第二轮复审**（`feature/enh-which-key-auto-trigger`，范围 `master..HEAD` / 复审时点 10 笔提交；分支终态 13 笔，见主计划 §12.3；1 名 `code-review-expert` + 强制自我批判）：**APPROVE：0 BLOCKER / 0 MAJOR / 2 MINOR**。七项强制核验逐条 PASS（M-1 回填 / 3 MINOR 闭环 / 负向演练把 master-off `toggle()` 改为错误清面板后 3 用例判红 / 四行矩阵零回归 / 双语配对 / CHANGELOG 未手改 / 未推送）；七道验证命令全 exit 0：pyright 0 / 全量 pytest 0 / 架构 38 / 覆盖率 93.07%（3610 passed·10 skipped）/ 冒烟 124/124·1511 / changelog 0 / diffcheck 0。2 MINOR = 双语导语重复段（F2 引入）/ 残留 `panel.clears > clears_before` 弱断言 | ✅ **APPROVE**（2 MINOR 由主代理当轮修复：删除 en/zh 前置重复段 + 收紧等值断言；修复后主代理亲跑六道全量门禁全绿：pyright 0 / 3610 passed·10 skipped / 架构 38 / 覆盖率 92.96%（TOTAL 19838 1103 6326 580 93%）/ 冒烟 124/124·1511 / changelog 0 / diffcheck 双 0；工作树干净、未推送、未合并） | [2026-11-10-which-key-auto-trigger-iteration-verification.md](2026-11-10-which-key-auto-trigger-iteration-verification.md) |
+| 75 | 2026-11-11 | **IKU55P 合并前 pr-review**（`feature/enh-which-key-auto-trigger`，范围 `master...HEAD` / merge-base `18e96d2a` / 13 笔提交 / 30 文件 +1529−34；3 只读分域审查员并行（A 功能/安全/性能 / B 架构/可维护性/纪律 / C 测试/双语文档/记录/合并就绪；B 首次返回被截断，按 `subagent-workflow.md` §五.4 变更任务粒度重试一次后交付完整报告）+ 主代理逐条回读复核 + 八条硬门禁亲跑）：**`Overall: APPROVE`**：0 BLOCKER / 0 MAJOR / 5 MINOR 报告（1 项「双语裸 `which_key=False`」经字符级复核撤回为误报；4 项有效 = docstring 分支枚举漏 auto 闸门 / 矩阵 else 分支缺 `panel.last == "clear"` 断言 / #73·#74 提交数未标时点 / #73 状态双源） | ✅ **APPROVE**（4 项有效 MINOR 当轮修复闭环、1 项误报撤回；八条门禁全 exit 0：pyright 0 / 全量 pytest `-n auto` 0 / 架构 38 / 覆盖率 92.99%（`3610 passed, 10 skipped`，`TOTAL 19838 1099 6326 577 93%`）/ 冒烟 124/124·1511 checks / changelog released 段最新（`[Unreleased]` 滞后 14 commits 属生成器机制）/ diffcheck 双 0） | [2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md](2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md)，方案见 [which-key-auto-trigger-pr-review-plan.md](../documents/which-key-auto-trigger-pr-review-plan.md) |
 ---
 
 ### 2026-10-09 closure-sweep 批注（维持登记项）

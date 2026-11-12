@@ -186,3 +186,40 @@ def test_set_which_key_invalid_value_reports() -> None:
     )
     assert editor.config.which_key is True
     assert editor.whichkey.clears == 0
+
+
+# --- which_key_auto dispatch -------------------------------------------------
+
+
+def test_set_which_key_auto_on_off_roundtrip() -> None:
+    """``:set which_key_auto=off/on`` flips the auto gate, never clears."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry.func("which_key_auto=off")
+    assert editor.config.which_key_auto is False
+    assert editor.refresh_calls == 1
+    # the auto gate never wipes the panel (a pinned sheet must survive)
+    assert editor.whichkey.clears == 0
+    assert any("auto trigger off" in text for text, _ in editor.notes)
+
+    entry.func("which_key_auto=on")
+    assert editor.config.which_key_auto is True
+    assert editor.refresh_calls == 2
+    assert editor.whichkey.clears == 0
+
+
+def test_set_which_key_auto_invalid_value_reports() -> None:
+    """An unrecognised value warns on the message line, value unchanged."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry.func("which_key_auto=maybe")
+    assert any(
+        "which_key_auto must be on|off" in text for text, _ in editor.notes
+    )
+    assert editor.config.which_key_auto is True
+    assert editor.refresh_calls == 0
+    assert editor.whichkey.clears == 0

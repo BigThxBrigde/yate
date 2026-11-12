@@ -35,7 +35,7 @@ KNOWN_OPTIONS: tuple[str, ...] = (
     "keymap", "theme", "tab_width", "use_spaces",
     "shell", "terminal_height", "show_hidden",
     "yate_trace", "yate_trace_level", "key_protocol",
-    "support_mouse", "which_key", "large_file",
+    "support_mouse", "which_key", "which_key_auto", "large_file",
 )
 
 VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
@@ -174,6 +174,13 @@ class YateConfig:
     #: vsc layout.  Re-enabling mid-session restores the panel at whatever
     #: pinned state the flows module holds.
     which_key: bool = True
+    #: Gate for automatic which-key popups only (``which_key_auto = False``
+    #: in yaterc).  ``False`` stops the pending-prefix and ``ctrl+w`` chord
+    #: grids from auto-triggering; the ``<f9>`` manual toggle keeps working
+    #: and the pinned sheet stays visible.  The ``which_key`` master switch
+    #: takes priority: when it is off nothing shows regardless of this
+    #: option.  On by default -- keeps the existing behavior.
+    which_key_auto: bool = True
     #: Runtime trace log switch (``yate_trace = True`` in yaterc). Off by
     #: default: nothing is written until it is turned on. ``YATE_TRACE``
     #: overrides it per session.
@@ -352,6 +359,13 @@ SET_OPTION_SPECS: tuple[SetOption, ...] = (
         parse=_parse_bool_option,
         invalid_message="which_key must be on|off (true/false/1/0/yes/no accepted)",
         summary="which_key=on|off",
+    ),
+    SetOption(
+        name="which_key_auto",
+        aliases=(),
+        parse=_parse_bool_option,
+        invalid_message="which_key_auto must be on|off (true/false/1/0/yes/no accepted)",
+        summary="which_key_auto=on|off",
     ),
 )
 

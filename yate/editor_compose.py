@@ -379,6 +379,7 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         panel=ed.which_key_panel,
         message=ed.message,
         which_key_enabled=lambda: ed.config.which_key,
+        which_key_auto_enabled=lambda: ed.config.which_key_auto,
     )
     # Late chord observer (same binding pattern as window_prefix above):
     # WindowFlows notifies on every ctrl+w flip, covering the explorer path
