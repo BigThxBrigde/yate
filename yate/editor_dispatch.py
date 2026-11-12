@@ -19,9 +19,23 @@ from textual.events import Key, MouseEvent
 from yate.editor_components.terminal import TOGGLE_KEYS
 from yate.editor_components.view import EditorView
 from yate.editor_core import BufferReadOnlyError
+from yate.flows.macro_flows import MACRO_REGISTER_CHARS
 from yate.keymaps.base import ActionContext
+from yate.keymaps.keys import (
+    MACRO_CONTROL_KEYS,
+    MACRO_PLAY_KEY,
+    MACRO_REPLAY_LAST_KEY,
+    parse_key,
+)
 from yate.keyproto.key_codec import event_to_raw
 from yate.logs import tracing
+
+#: Raw forms of the two count-carrying macro keys; guard 0 only captures a
+#: pending count for these (record / plain keys never consume it).
+_MACRO_COUNT_KEYS: frozenset[str] = frozenset({
+    parse_key(MACRO_PLAY_KEY),
+    parse_key(MACRO_REPLAY_LAST_KEY),
+})
 
 #: Trace logger ("yate.editor_dispatch"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -162,6 +176,25 @@ def _handle_key(ed: yate.editor.Editor, event: Key) -> bool:
 
 def _handle_raw_key(ed: yate.editor.Editor, raw: str) -> bool:
     """Dispatch one raw key to the active keymap, then refresh the UI."""
+    macro = ed.session.macro
+    # Guard 0: capture the pending count before handle_key clears it (AC2).
+    if (not macro.playing and macro.awaiting is None
+            and raw in _MACRO_COUNT_KEYS):
+        macro.pending_count = ed.keymaps.active.take_pending_count()
+    # Guard 1: reject macro control keys while a replay is in flight (AC4).
+    if raw in MACRO_CONTROL_KEYS and macro.playing:
+        ed.message("macro replay already in progress", kind="warn")
+        return True
+    # Guard 2: consume the awaited register character at dispatch level.
+    if macro.awaiting is not None:
+        if len(raw) == 1 and raw in MACRO_REGISTER_CHARS:
+            ed.macro_flows.begin_with(raw)
+        else:
+            ed.message(
+                "macro register must be one character in a-z0-9", kind="warn"
+            )
+            macro.awaiting = None
+        return True
     try:
         handled = ed.keymaps.active.handle_key(
             ActionContext(ed.session, ed.key_ui), raw
@@ -171,6 +204,9 @@ def _handle_raw_key(ed: yate.editor.Editor, raw: str) -> bool:
         # the key is consumed (R10) with a notice instead of an edit.
         ed.readonly_notice()
         return True
+    # Guard 3: append the raw key while recording (control keys excluded).
+    if macro.recording is not None and raw not in MACRO_CONTROL_KEYS:
+        ed.macro_flows.record_raw(raw)
     # Unconsumed keys pay nothing: only a handled key changed editor
     # state worth repainting (plan-f P3).  The completion feed stays
     # unconditional -- the popup needs every raw key even when the
