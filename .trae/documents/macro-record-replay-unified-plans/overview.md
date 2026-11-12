@@ -394,6 +394,7 @@ flowchart LR
 | `tests/test_macro_flows.py` | | | | | ● | | | | | | |
 | `tests/test_macro_dispatch.py` | | | | | | | ● | | | | |
 | `tests/test_macro_commands.py` | | | | | | | | ● | | | |
+| `tests/test_action_table.py`（D13，主代理亲改） | | | | | | | | ● | | | |
 | `tests/test_macro_whichkey.py` | | | | | | | | | ● | | |
 | `tests/test_macro_constants.py` | ● | | | | | | | | | | |
 | `tests/test_macro_wiring.py` | | | | | | ● | | | | | |

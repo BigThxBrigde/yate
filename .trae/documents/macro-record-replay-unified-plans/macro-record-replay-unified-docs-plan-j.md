@@ -97,10 +97,21 @@ issue 备注写 `yate/docs/manual.en.md` / `manual.zh.md`，但当前基线不�
 ```
 .venv\Scripts\python.exe -m pytest tests/test_macro_docs.py -q
 .venv\Scripts\python.exe -m pytest tests/ -q -k "manual"
-.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
+.venv\Scripts\python.exe -m pyright tests/test_macro_docs.py
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 ```
 
-（本子计划无产品源码改动，pyright 由 wave-6 全量门禁统一覆盖。）
+**D11 延伸（主代理补登）**：wave-4 实测证明「无产品源码改动」不能省略
+pyright 与全量架构守卫（`test_comments_and_docstrings_stay_ascii` 会扫 `tests/`，
+pyright strict 会扫新增测试文件）。故本子计划出口硬条件新增上面第 3、4 条命令，
+要求 `pyright` 零诊断、`tests/test_architecture.py` 全量 exit 0。
+
+**D12（并发冒烟避让）**：原第 3 条 `tools.smoke_test run --jobs 4` 与同波
+plan-k §5 的同名全量冒烟并发执行，存在 `subagent-workflow.md` §三.3 与
+`macro-record-replay-unified-integration-plan-k.md` §7 已登记的 timing 干扰风险。
+主代理裁定：plan-j 本波**不跑全量冒烟**；manual modal 场景由 plan-k 的全量冒烟
+与 wave-6 主代理独立复跑覆盖（wave-4 plan-i 已实测 `123/123 scenarios passed`）。
+覆盖不降低，且避免两个 `--jobs 4` 冒烟互相踩踏；该偏离在进度文档登记。
 
 ## 6. 架构边界与守卫
 

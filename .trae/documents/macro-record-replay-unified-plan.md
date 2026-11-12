@@ -584,3 +584,25 @@ sequenceDiagram
    wave-2 实测：vsc 恒 1、vim `3<f11>` 取到 3；`1<f12>` 与「无前缀」并入「沿用
    上次次数」的边界（§5.5(3)）在 wave-5 手册 / 集成用例登记。若 issue 评审要求精确
    区分「显式前缀 1」，须先改 `overview.md` §1.8 契约与本主计划再回填，不得静默改设计。
+
+### 执行阶段已回填（wave-1..5 实测）
+
+8. **F4 / F23 时序**：wave-2 plan-d 实测 `VimKeymap().handle_key(ActionContext(...),
+   parse_key(MACRO_RECORD_KEY))` 命中 `macro_record`；wave-3 plan-g 在
+   `editor_dispatch.py:179-183` 于 `try:` / `handle_key`（`:198-199`）之前捕获
+   `take_pending_count()`，wave-5 plan-k 的真实 pilot `3<f11>` / `3<f12>` 精确 3 次
+   端到端通过。`_clear_pending()` 二次清理不影响已捕获值，结论成立。
+9. **F18**：wave-4 plan-i 实测 `VscKeymap().lookup("\x1b[17~") is None` 与
+   `VimKeymap()` 同，`guards.py` / `whichkey_flows.py` 零 diff（sha256 MATCH），
+   全量冒烟 `123/123 scenarios passed`；本轮不改 `guards.py` 的裁定成立。
+10. **手册路径裁决（plan-j §2.3 要求回填）**：当前基线只有
+    `yate/resources/manual.en.md` / `manual.zh.md`，`yate/docs/manual.*.md` **不存在**；
+    wave-5 plan-j 按实际路径在 `### 3.6` / `## 5` / `### 5.1` / `### 5.2` / `## 8`
+    双语同步落地，并由 `tests/test_macro_docs.py::test_manual_paths_use_actual_resources_location`
+    断言固化。issue 备注的路径为笔误，按 D2 偏离登记。
+11. **`editor.py` 体量**：wave-3 plan-f 实测改后 `splitlines()` = **807**（基线 800）>
+    800，§三.7 豁免成立；规则文本 §一 / R11 / §三.7 / §三.8 / §六 已按实测值
+    （41 个架构用例、对照表 #39-#41）回填，两处同步由 `test_macro_wiring.py` 断言。
+12. **N2 / GUI 遗留**：回放合并单步 undo 按 issue「暂不做」保留自然 undo 粒度；
+    which-key 面板与应用内手册的**真实 GUI 视觉验证**在无人值守会话中无法执行，
+    登记为遗留项（wave-5 两个执行者均如实声明）。

@@ -20,6 +20,16 @@
 - `yate/actions.py`
 - `yate/commands.py`
 - `tests/test_macro_commands.py`（新增）
+- `tests/test_action_table.py`（**D13 主代理亲改**，wave-5 全量 pytest 实测后补登）：
+  既有守卫 `test_every_action_runs_and_forwards_only_known_hooks` 的
+  `_FLOW_NAMESPACES` / `FORWARDED_HOOKS` 未登记 `macro_flows`，且
+  `_StubEditor` 无 `session.macro.pending_count`，导致 wave-4 新增的 3 个宏动作
+  在 `pytest tests/ -q -n auto` 确定性失败（`AttributeError: 'function' object
+  has no attribute 'request_play'`）。该文件原未列入任何子计划独占清单，属方案
+  遗漏；plan-k 执行者按纪律停下上报、未改它。主代理裁定先补登本清单，再亲自
+  给 `_FLOW_NAMESPACES` 追加 `macro_flows`、`FORWARDED_HOOKS` 追加 3 个
+  `macro_flows.*` hook、给 `_StubEditor` 加带 `macro.pending_count` 的真实
+  session 替身；改后须实测全量 pytest 退出码 0。
 
 > **不动** `yate/editor.py`（plan-f）、`yate/editor_dispatch.py`（plan-g）、
 > `yate/keymaps/*`（plan-d）、`tests/test_architecture.py`（plan-d）、

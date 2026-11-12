@@ -129,3 +129,40 @@
 - H1（plan-h）22 条用例 vs 任务书写「21 条」：以子计划 §3 全表为准，**接受**；H2（AC6 用例 arrange 具体化）并入 D10。
 - I1–I5（plan-i）用例口径放宽（description OR action 含 macro、标题配对按数量/编号/主题而非文本全等、全文检查路径、插入位置微调）：均有实测依据且未改产品源码，**接受**；I6 命令 1 首跑红（`numeric prefix` 被 Markdown 软换行拆开）→ 只改本人独占文档后 8 passed，**接受**。
 - 遗留：`which-key` 面板与手册的**真实 GUI 视觉验证**未做（两执行者均如实声明），登记为遗留项，收尾汇报列出。
+
+### wave-5：plan-j ∥ plan-k（2 并行，Hy4，bypassPermissions）
+
+| 项 | 主代理独立复核 / 执行者实测 |
+| --- | --- |
+| 存活 / 落盘 | 2/2 全部交付；零产出 0；`git status --short`：plan-j 3 件（`manual.en.md` / `manual.zh.md` / `test_macro_docs.py`）、plan-k 1 件（`test_macro_integration.py`）、D12 修订 1 件、D13 主代理修复 1 件。可选冒烟场景**零改动** |
+| plan-j 自述验收 | `pytest test_macro_docs.py -q` 8 passed、`pytest tests/ -q -k "manual"` 45 passed、`pyright tests/test_macro_docs.py` 0/0/0、`pytest tests/test_architecture.py -q` 41 passed，四条 exit 0；双语各 +31 / +28 行，标题 46/46 配对，F7/F5/TOC 零改动 |
+| plan-k 自述验收 | `pytest test_macro_integration.py -q` 17 passed、`pytest tests/test_architecture.py -q` 41 passed、`pyright yate/ tests/ tools/` 0/0/0、`tools.smoke_test run --jobs 4` **123/123 scenarios、1493/1493 checks、exit 0**；`pytest tests/ -q -n auto` **exit 1**（见 D13） |
+| 主代理复核 | `pyright yate/ tests/ tools/` → 0/0/0 exit 0；`pytest tests/test_architecture.py -q` → 41 passed exit 0；全量 `pytest tests/ -q -n auto` 修复前 exit 1、修复后 **exit 0**；`git diff --check` exit 0 |
+| 空白检查 | `git diff --check` → exit 0 |
+
+**D12（并发冒烟避让）**：plan-j §5 原第 3 条全量冒烟与 plan-k §5 同名命令并发，存在 `subagent-workflow.md` §三.3 与 plan-k §7 已登记的 timing 干扰。主代理裁定 plan-j 本波不跑全量冒烟，改跑 `pyright tests/test_macro_docs.py` + 全量架构守卫（D11 延伸硬条件）；manual modal 场景由 plan-k 全量冒烟与 wave-6 主代理覆盖。plan-j 实测遵守，覆盖不降低。
+
+**D13（阻塞 MAJOR，方案遗漏）**：`pytest tests/ -q -n auto` 确定性失败
+`tests/test_action_table.py::test_every_action_runs_and_forwards_only_known_hooks`
+（`AttributeError: 'function' object has no attribute 'request_play'`，`yate/actions.py:243`）。
+根因：既有守卫的 `_FLOW_NAMESPACES` 未登记 `macro_flows`、`FORWARDED_HOOKS` 缺
+3 个 `macro_flows.*` hook，且 `_StubEditor` 无 `session.macro.pending_count`（wave-4
+宏动作读取之）。该文件原不在任何子计划独占清单，plan-k 执行者按纪律停下上报、未改它。
+主代理裁定：**先回填** plan-h §1 / `overview.md` §4，**再亲自**给守卫补
+`macro_flows` 命名空间、3 个 hook 与带类型化 `_StubSession` / `_StubMacroState` 的
+真实 `session` 替身（不用豁免注释）。实测 `pytest test_action_table.py -q` 27 passed
+exit 0、`pyright tests/test_action_table.py` 0/0/0、全量 `pytest tests/ -q -n auto`
+**exit 0**。
+
+**D14（可选冒烟场景未采用）**：plan-k 依 §2.3 明确不采用 `tools/smoke_test/scenarios/macro.py`
+与 `__init__.py`，零改动且写明四条理由（可选、AC1–AC7 已由 17 个 pilot 用例覆盖、
+避免与 plan-j 并行扩大共享面、波次时间），**接受**；不得声称已改。
+
+**plan-k 偏离裁定（主代理）**：
+- K1（AC1 用 `:enew` 复位 A 缓冲区 + 两 app 先切 vim）：不复位则 A = 录制+回放、B = 手动一次，无法逐值相等；有实测，**接受**。
+- K2（AC7 B 侧用 `<f10>` 停止而非 `:macro-stop`）：录制态按 f5 会把 `\x1b[15~` 录入宏序列（f5 不属 `MACRO_CONTROL_KEYS`），这是「录什么重放什么」的正确行为；B 仍用 `:macro-record a` 开始、`:macro-play a` 回放，双入口覆盖不变。**不改产品代码，接受**。
+- K3（`test_macro_rejects_nested_recording` 语义）：issue N4「录制中跨寄存器嵌套回放」明确暂不做，AC4 只要求回放中拒绝回放；落地为「回放中调用 `macro_record` 被拒绝」符合 AC4。**不改产品代码，接受**，嵌套录制/回放列为遗留候选。
+- K4（`3<f12>` 后 `pending_count` 保持 3）：`replay_last()` 不经 `begin_with()` 复位，属 §1.8 契约内；执行者移除计划外断言，**接受**。
+- K5（全量套件用例未写成递归 pytest 测试函数）：它是 §5 波出口命令而非用例，**接受**；K6 首轮 pyright 2 errors / 1 failed 自修（`Callable[[], object]` 标注等）有实测，**接受**。
+
+**回填**：主计划 §12 已按执行实测补 8–12 项（F4/F23 时序、F18 零 diff、`manual.*.md` 路径裁决、`editor.py` 807 行、N2 与 GUI 遗留）。
