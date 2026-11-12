@@ -64,6 +64,18 @@ registers), so the auto popup never fires; there are no pseudo prefixes
 to trigger it. Its way to browse bindings is the pinned sheet via
 `<f9>`, where the full table is grouped by category.
 
+Macro recording / replay adds three shared function-key bindings (`F10`
+record toggle, `F11` play, `F12` repeat last replay).  Pressing `F10` or
+`F11` waits for one register name in `a-z0-9`; the pinned sheet lists all
+three keys with their descriptions, and the register wait is documented
+here because the pending register is session-level state, not a printable
+keymap chord.  Function keys never continue a printable prefix (they are
+raw-byte specs), so they appear only in the pinned sheet.  In vim a numeric
+prefix before `F11` / `F12` (for example `3F11`) sets the replay count, with
+N defaulting to one; vsc has no count state machine and always uses one.
+The `:` commands `:macro-play <reg> [count]` and `:macro-replay-last [count]`
+are the equivalent entry points.
+
 ---
 
 ## 3. Conflict checking
@@ -107,3 +119,18 @@ table entries and the report stays readable.
   no command-line fallback for the panel toggle itself.
 * **Pinned state is not persisted** -- the pinned state lives in
   `WhichKeyFlows` only, so after a restart the sheet starts unpinned.
+* **Function keys are not printable prefixes** -- `F10` / `F11` / `F12`
+  and every other function key are raw-byte specs, not typed characters,
+  so they never continue a printable prefix and show up only in the pinned
+  sheet (`_candidates` cannot match them).
+* **Replay count has two equivalent entry points** -- a numeric prefix
+  in vim before `F11` / `F12` (for example `3F11`) replays N times, with
+  N defaulting to one; vsc has no count state machine
+  (`take_pending_count()` always returns one), so `<f11>` replays once
+  and `<f12>` reuses the count of the last replay. The `:` commands
+  `:macro-play <reg> [count]` and `:macro-replay-last [count]` take the
+  count as an argument and are the equivalent second entry point. The
+  vim `1<f12>` case is folded into "reuse the last count" together with
+  an unprefixed `F12`, because `take_pending_count()` returns an int and
+  cannot tell the two apart; `:macro-replay-last 1` still replays
+  exactly once.

@@ -55,6 +55,16 @@ vim 的 `ctrl+w` 窗格组合、挂起组合候选，其余情况面板隐藏。
 永远不会触发，也没有可触发它的"伪前缀"。它浏览绑定的方式是 `<f9>`
 钉住式速查页，整张表按类别分组展示。
 
+宏录制与回放新增三条共享功能键绑定（`F10` 录制开关、`F11` 回放、
+`F12` 重复上次回放）。按下 `F10` 或 `F11` 后等待一个 `a-z0-9` 范围内的
+寄存器名；pinned sheet（钉住式速查页）会列出这三个键及其描述，而
+寄存器等待在这里登记，是因为待决寄存器属于会话级状态，不是可打印的
+keymap 组合前缀。功能键不会延续 printable 前缀（它们是 raw-byte spec），
+因此只出现在 pinned sheet 中。在 vim 中，`F11` / `F12` 前的数字前缀
+（例如 `3F11`）设定回放次数 N，N 缺省为 1；vsc 没有 count 状态机，
+恒为 1。`:` 命令 `:macro-play <reg> [count]` 与 `:macro-replay-last [count]`
+是等价的另一入口。
+
 ---
 
 ## 3. 冲突检查（Conflict checking）
@@ -91,3 +101,14 @@ reserved 一类非空，报告末尾会追加一句说明。
   命令行经 `:check-keys` 使用，但面板切换本身尚无命令行回退入口。
 - **钉住状态不持久化**——钉住状态只保存在 `WhichKeyFlows` 中，重启后
   速查页默认处于未钉住状态。
+- **f 键不参与 printable 前缀**——`F10` / `F11` / `F12` 等宏键与其它
+  功能键都是 raw-byte spec，不是可打印字符，不能延续 printable 组合前缀，
+  因此只出现在 pinned sheet（`_candidates` 不会匹配它们）。
+- **回放次数的双入口口径**——vim 中 `F11` / `F12` 前的数字前缀
+  （例如 `3F11`）回放 N 次，N 缺省为 1；vsc 没有 count 状态机
+  （`take_pending_count()` 恒返回 1），按 `<f11>` 只回放 1 次、`<f12>`
+  沿用上次回放的次数。`:` 命令 `:macro-play <reg> [count]` 与
+  `:macro-replay-last [count]` 以参数给出次数，是等价的第二入口。
+  vim 的 `1<f12>` 与无前缀 `<f12>` 因 `take_pending_count()` 只返回整数、
+  无法区分二者，并入「沿用上次次数」的已登记边界；`:macro-replay-last 1`
+  仍精确回放 1 次。
