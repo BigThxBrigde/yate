@@ -181,6 +181,20 @@ fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review
 > **编号分歧登记**（2026-11-11）：本分支 #75 与并行分支
 > `feature/feat-which-key-auto-trigger` 的合并前 pr-review #75 重号；
 > 两者均按各自分支顺序登记，合并时按日期统一重排，不互相覆盖事实。
+**2026-11-12 IKUOAM 新任务轮增量**：新增 #76（`feature/feat-macro-record-replay-unified`
+合并前只读评审，范围 `master..HEAD` / 21 笔提交；`code-review-expert`（Hy4）
+**APPROVE**：0 BLOCKER / 0 MAJOR / 3 MINOR 登记待办）。评审亲跑门禁全绿：
+pyright 0 / 全量 pytest exit 0 / 架构 41 / 覆盖率 92.99%（≥75）·3758 passed·
+10 skipped / 冒烟 123/123·1493 checks；`git diff --check` 双 0、changelog check 0。
+AC1–AC8 逐条实证、D1–D14 偏离裁决复核通过、D11 / D13 两处主代理修复经复核
+未削弱守卫。3 条 MINOR：L3→L3 连线图补登（建议常量下沉 L0）、N4 范围外
+「录制中经 `:` 命令触发回放」、`:macro-replay-last` 多参数 warn 缺用例；
+真实 GUI 视觉验证未做（无人值守），登记遗留。主代理同源门禁数字 93.01% /
+83.88s 与评审 92.99% / 80.00s 属正常负载波动。评审记录
+[2026-11-12-pr-review-feat-macro-record-replay-unified.md](2026-11-12-pr-review-feat-macro-record-replay-unified.md)，
+主计划 [macro-record-replay-unified-plan.md](../documents/macro-record-replay-unified-plan.md)，
+进度 [macro-record-replay-unified-progress.md](../documents/macro-record-replay-unified-progress.md)。
+> 编号沿用 #75 分歧口径：本分支按自身顺序登记，合并时按日期统一重排。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
