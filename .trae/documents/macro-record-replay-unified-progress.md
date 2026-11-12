@@ -25,7 +25,7 @@
 | 【领会】 | 完成 | 素材 `macro-record-replay-unified-issue.md`、本进度文件；worktree + venv 自证；提交 `05c180a1` |
 | 【方案】 | 完成 | `plan-architect-designer`（Hy4）产出主计划 + 12 份子计划/总纲（13 文档 / 2554 行）；【批准】前审查发现 AC2 count 前缀缺口，二次 spawn 定点修订补齐（`Keymap.take_pending_count()` + dispatch 捕获），13 文档一致性复核通过 |
 | 【批准】 | 完成 | 2026-11-12 08:22 无人值守按通过处理，主计划 §11 已回填结论 + D1–D6 偏离；详见该节 |
-| 【执行】 | 待办 | 按波次并行，2~3 个一批、硬上限 6；只认落盘结果 |
+| 【执行】 | 进行中 | wave-1 完成（3/3 执行者落盘、主代理复核全绿、3 笔提交）；wave-2..5 待办，详见 §4 |
 | 【审核】 | 待办 | `code-review-expert` 评审 + 门禁五项实测 |
 | 【迭代】 | 待办 | blocker / major 归零；minor 登记 |
 | 【收尾】 | 待办 | 主代理亲跑全量门禁、回填真实数字、按步提交、更新记忆 |
@@ -45,3 +45,24 @@
   （子计划 c / plan-f / plan-k 既有口径，且执行者以子计划为唯一规范来源），
   主计划 §6 与 `overview.md` §1.10 / §4 共 4 处同步订正；不改任何设计、键位、
   波次与 API 契约。订正先于 wave-1 下发。
+
+## 4. 执行波次实测（主代理独立复核，非采信执行者自述）
+
+### wave-1：plan-a ∥ plan-b ∥ plan-c（3 并行，Hy4，bypassPermissions）
+
+| 项 | 实测 |
+| --- | --- |
+| 存活 / 落盘 | 3/3 全部交付；零产出成员 0；各成员只改名下文件（主代理 `git status --short` 复核：3 个 `M` 产品文件 + 3 个 `??` 新测试文件） |
+| pyright | `.venv\Scripts\python.exe -m pyright yate/keymaps/keys.py yate/session.py yate/editor_components/statusbar.py` → `0 errors, 0 warnings, 0 informations`，exit 0 |
+| 新增测试 | `.venv\Scripts\python.exe -m pytest tests/test_macro_constants.py tests/test_macro_state.py tests/test_macro_statusbar.py -q` → 19 passed（点阵 19），exit 0 |
+| 架构守卫 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` → 38 passed，exit 0 |
+| 空白检查 | `git diff --check` → exit 0 |
+| 提交 | `5edf48c8`（plan-a）、`fb7aab69`（plan-b）、`9a86c37f`（plan-c），三笔按子计划分开 |
+
+**执行者自述验收**（仅作参考，以上主代理复核为准）：plan-a 2 条命令 exit 0；plan-b 3 条 exit 0（首跑 pyright 报 2 个 `reportUnknownVariableType`，最小适配后 0）；plan-c 4 条 exit 0。
+
+**偏离裁定（主代理）**：
+- A1（plan-a）生成器局部变量名 `key` 代替契约示意 `k`、行号平移：集合值相同、求值顺序契约实测成立，**接受**（非设计偏离）。
+- D1（plan-b）`field(default_factory=dict)` / `list` 改为参数化 `dict[str, tuple[str, ...]]` / `list[str]`：pyright strict 首跑 2 errors → 改后 0 errors 有实测；字段类型契约未变，项目既有 21 处同形态，**接受**（实现细节适配，非契约冲突）。
+- C1（plan-c）`used` 表达式补 `+ rec_cells`：窄宽 40 渲染不溢出有探测 + 用例实测，无 label 时 `rec_cells=0` 零影响，**接受**。
+- 三成员均未跑计划外全量门禁；全量由 wave-6 / 收尾统一执行（符合剧本）。
