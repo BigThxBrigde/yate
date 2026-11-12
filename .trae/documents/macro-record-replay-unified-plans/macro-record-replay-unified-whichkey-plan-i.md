@@ -127,9 +127,23 @@ are the equivalent entry points.
 .venv\Scripts\python.exe -m pytest tests/ -q -k "whichkey or which_key"
 .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q -k "collaborators_keep_widget_coupling_frozen or no_unregistered_upward_imports"
+.venv\Scripts\python.exe -m pyright tests/test_macro_whichkey.py
+.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 ```
 
-（本子计划无产品源码改动，故不单独跑 pyright；wave-6 全量门禁统一覆盖。）
+**D11（主代理复核补登）**：原 §5 只跑架构守卫子集、且不跑 pyright，导致两项
+MAJOR 漏网——`tests/test_macro_whichkey.py` 导入私有 `_spec_label` / 调用
+`flows._sheet_entries()` 触发 pyright strict `reportPrivateUsage` 2 errors；其注释与
+docstring 含 `§` / CJK 触发 `test_comments_and_docstrings_stay_ascii` 失败。主代理
+独立复核（`pyright ...` exit 1 / `pytest ... tests/test_architecture.py -q` exit 1）
+发现后**亲改测试文件**：改用公开 `WhichKeyFlows.toggle()` + `panel.show_entries`
+取证、用本地 raw→label 映射替代私有函数、注释与 docstring 全部改 ASCII；
+复跑 `pyright` → `0 errors` exit 0、`pytest test_macro_commands.py
+test_macro_whichkey.py test_architecture.py -q` → 71 passed exit 0。
+**补登两条命令为本子计划出口硬条件**，后续 wave 不得再以「无产品源码改动」
+为由省略 pyright 与全量架构守卫。
+
+（本子计划无产品源码改动；pyright 仍须覆盖新增测试文件，架构守卫须跑全量。）
 
 ## 6. 架构边界与守卫
 

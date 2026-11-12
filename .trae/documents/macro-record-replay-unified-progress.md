@@ -108,3 +108,24 @@
 - F1–F6（plan-f）：`_build_macro_flows as ...` 显式导入、3 行 ASCII 组装注释、§六 对照表按实测补 3 行（而非措辞「两行」）、无 editor fixture 改用项目既有 `YateApp` 构造、用例 2 用构造前 monkeypatch、额外自检/负向演练 —— 均为形态适配且有实测，**接受**。
 - G1（plan-g）子计划中文注释改为等价英文（overview §1 硬契约 + 编码风格）：逻辑未变，**接受**；G2 并行半成品观察：非偏离，**记录**。
 - 两名成员均未跑计划外全量门禁，符合剧本。
+
+### wave-4：plan-h ∥ plan-i（2 并行，Hy4，bypassPermissions）
+
+| 项 | 主代理独立复核实测 |
+| --- | --- |
+| 存活 / 落盘 | 2/2 全部交付；零产出 0；`git status --short` 6 文件（4 个 `M`：`actions.py` / `commands.py` / `which-key.en.md` / `which-key.zh.md`；2 个 `??`：两份新测试） |
+| pyright（修复后） | `pyright yate/actions.py yate/commands.py tests/test_macro_commands.py tests/test_macro_whichkey.py` → `0 errors, 0 warnings, 0 informations`，exit 0（**修复前 2 errors**，见 D11） |
+| 新测试 + 架构（修复后） | `pytest tests/test_macro_commands.py tests/test_macro_whichkey.py tests/test_architecture.py -q` → 71 passed（22 命令 + 8 which-key + 41 架构），exit 0（**修复前** `test_comments_and_docstrings_stay_ascii` 1 failed） |
+| D8 硬复核 | `pytest tests/ -q -k "keymap or keys"` → **308 passed，exit 0**，由 wave-2 的预期红转绿；执行者另重跑一次仍 308 passed。宏动作名与双表逐字一致，未改既有断言 |
+| which-key 回归 | `pytest tests/ -q -k "whichkey or which_key"` → 45 passed，exit 0 |
+| 冒烟 | plan-i 自述 `123/123 scenarios passed`、`1493/1493 checks`、`unknown_command_and_action PASS`、exit 0；主代理将在 wave-6 独立复跑 |
+| 空白检查 | `git diff --check` → exit 0 |
+
+**执行者自述验收**（仅参考）：plan-h §5 四条命令 + D8 命令全 exit 0（43 / 198 / 4 / 308 用例）；plan-i §5 四条命令全 exit 0（8 / 45 用例、冒烟 123/123、架构子集 2），并复核 `guards.py` / `whichkey_flows.py` 零 diff（sha256 与开工前基线 MATCH）、`VscKeymap().lookup("\x1b[17~") is None`。
+
+**偏离裁定（主代理）**：
+- D11（**MAJOR，验收命令覆盖不足**）：plan-i §5 只跑架构守卫子集且完全不跑 pyright，漏掉两项——`tests/test_macro_whichkey.py` 导入私有 `_spec_label` / 调用 `flows._sheet_entries()` 触发 `reportPrivateUsage` 2 errors；其注释与 docstring 含 `§` / CJK 触发 `test_comments_and_docstrings_stay_ascii` 失败。主代理独立复核（`pyright` exit 1、`pytest ... test_architecture.py -q` exit 1）发现后**亲改测试文件**：改用公开 `WhichKeyFlows.toggle()` + `panel.show_entries` 取证、本地 raw→label 映射替代私有函数、注释/docstring 全改 ASCII；复跑 pyright `0 errors`、71 passed、45 passed、diffcheck 0 全绿。已在 plan-i §5 **补登 pyright 与全量架构守卫为出口硬条件**，后续 wave 不得再以「无产品源码改动」为由省略。
+- D10（plan-h 上报的 AC6 交互疑点）：裁定**不改产品代码**。只读取证：`macro_flows.py:48-60` `toggle_record()` 录制中走 `stop()`（issue 明文「再次触发录制开关即停止」）、`:82-100` `begin_with()` 在 `awaiting is None` 时早返回且 `:96` `registers.pop(reg)` 实现同名覆盖；`commands.py:625-632` 的 `:macro-record` 先 toggle 再 begin_with。故「录制中 `:macro-record b`」= 停止且不开始 b（符合 issue），AC6 同名覆盖由「停止 → 再次 `:macro-record a`」满足。plan-h §3 的 AC6 用例 arrange（「已录制 a 序列」）表述含糊，执行者具体化为「已冻结 a、当前空闲」并有实测依据，**接受**；wave-5 plan-k 的 `test_macro_same_register_overwrite_and_other_register_untouched` 端到端覆盖该语义，并追加「录制中再触发开关即停止」断言（见 wave-5 任务书）。
+- H1（plan-h）22 条用例 vs 任务书写「21 条」：以子计划 §3 全表为准，**接受**；H2（AC6 用例 arrange 具体化）并入 D10。
+- I1–I5（plan-i）用例口径放宽（description OR action 含 macro、标题配对按数量/编号/主题而非文本全等、全文检查路径、插入位置微调）：均有实测依据且未改产品源码，**接受**；I6 命令 1 首跑红（`numeric prefix` 被 Markdown 软换行拆开）→ 只改本人独占文档后 8 passed，**接受**。
+- 遗留：`which-key` 面板与手册的**真实 GUI 视觉验证**未做（两执行者均如实声明），登记为遗留项，收尾汇报列出。
