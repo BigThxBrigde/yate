@@ -25,10 +25,20 @@ Two ways to read the panel:
   pins the whole binding table as a full sheet grouped by category (the
   key is bound in both the vim and the vsc keymap). While pinned, the
   sheet stays up regardless of what you type; press `<f9>` again to unpin.
+The two readings are configured independently: `which_key_auto = False`
+suppresses only the auto popup -- the `<f9>` pinned sheet keeps working,
+and while pinned the sheet is unaffected by prefix state.
 
-Visibility is recomputed after every dispatch, with four mutually
-exclusive branches (first hit wins): the pinned sheet, the vim `ctrl+w`
-window chord, pending-chord candidates, otherwise hidden.
+Visibility is recomputed after every dispatch through a decision
+sequence of five mutually exclusive branches (first hit wins): the
+`which_key = False` master switch short-circuits everything and no
+branch ever shows the panel; otherwise the pinned sheet wins; otherwise
+the `which_key_auto` gate decides -- when it is off, the remaining
+automatic branches are suppressed and the panel stays hidden; otherwise
+the vim `ctrl+w` window chord, then pending-chord candidates, and
+otherwise the panel is hidden. The pinned sheet remains reachable via
+`<f9>` even with `which_key_auto = False`, and it is the only branch the
+auto gate does not suppress.
 
 ---
 
