@@ -15,16 +15,16 @@
 | 独立沙箱 | worktree 内 `python -m venv .venv` + `pip install -e ".[dev]"`；自证 `.venv\Scripts\python.exe -c "import yate; print(yate.__file__)"` 输出本 worktree 的 `yate/__init__.py` |
 | 主仓未提交改动 | `yate/resources/changelog.{en,zh}.md`（生成器刷新），本轮不触碰、不提交 |
 | 分流 | 用户消息含「新任务」关键字 → `task-orchestration.md` §1.2 闭环流程；无人值守【批准】按通过处理（§硬性要求 5），不向用户发起询问或审批 |
-| 子代理模型 | 用户指定全程 Hy4，限流回退 GLM-5.3-Flash（本轮唯一例外）。本机 `task` 工具无模型参数、frontmatter 生效的环境事实已登记在上一轮进度文档；本轮 spawn 实测结果与处置见 §1 |
+| 子代理模型 | 用户指定全程 Hy4，限流回退 GLM-5.3-Flash（本轮唯一例外）。实测：`task` 工具无模型参数，运行时按主工作区 `.trae/agents/<role>.md` frontmatter 解析；`qwen-3.7-plus` / `Hy4 preview` / `qwen-3.8-plus` 均未注册，**有效名 `Hy4`**。三角色 frontmatter 已临时统一为 `Hy4`（收尾还原）；未触发 GLM-5.3-Flash 回退。主仓并发提交 `68c4d781 chore: update subagent model` 曾把方案角色改成 `qwen-3.8-plus` 导致一次 spawn 失败，恢复 `Hy4` 后成功 |
 | 既有分支 | `feature/feat-macro-record-replay`（14 提交、未合流未推送）为同一 issue 的上一轮产物，本轮作**只读情报**，不合流、不推送 |
 
 ## 1. 步骤状态
 
 | 步骤 | 状态 | 产物 / 提交 / 实测 |
 | --- | --- | --- |
-| 【领会】 | 完成 | 素材 `macro-record-replay-unified-issue.md`、本进度文件；worktree + venv 自证 |
-| 【方案】 | 待办 | 主计划 `<task>-plan.md` + 子计划目录 `<task>-plans/`（含总纲 `overview.md`）、执行波次与文件互斥矩阵 |
-| 【批准】 | 待办 | 无人值守按通过处理，须落盘「批准记录」章节 |
+| 【领会】 | 完成 | 素材 `macro-record-replay-unified-issue.md`、本进度文件；worktree + venv 自证；提交 `05c180a1` |
+| 【方案】 | 完成 | `plan-architect-designer`（Hy4）产出主计划 + 12 份子计划/总纲（13 文档 / 2554 行）；【批准】前审查发现 AC2 count 前缀缺口，二次 spawn 定点修订补齐（`Keymap.take_pending_count()` + dispatch 捕获），13 文档一致性复核通过 |
+| 【批准】 | 完成 | 2026-11-12 08:22 无人值守按通过处理，主计划 §11 已回填结论 + D1–D6 偏离；详见该节 |
 | 【执行】 | 待办 | 按波次并行，2~3 个一批、硬上限 6；只认落盘结果 |
 | 【审核】 | 待办 | `code-review-expert` 评审 + 门禁五项实测 |
 | 【迭代】 | 待办 | blocker / major 归零；minor 登记 |
