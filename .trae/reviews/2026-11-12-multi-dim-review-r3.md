@@ -29,6 +29,18 @@
 
 七道门禁全绿；本轮发现不改变「基线可发布」判定，MAJOR/MINOR 见 §三。
 
+修复闭环后收尾复测（主代理亲跑，2026-11-12，全部改动落盘后）：
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| pyright strict | `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/` | **0 errors**，exit 0 |
+| pyright（pack 面） | `.venv\Scripts\python.exe -m pyright pack/` | **0 errors**，exit 0 |
+| 架构守卫 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | **38 passed**，exit 0 |
+| 全量回归 | `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | exit 0；junit 计数 **3647 tests / 0 failures / 0 errors / 10 skipped** |
+| 覆盖率 | `--cov=yate --cov-branch --cov-fail-under=75 -n auto` | **92.98% ≥ 75%**，exit 0 |
+| 冒烟 | `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | **123/123 scenarios**，exit 0 |
+| changelog | `.venv\Scripts\python.exe -m tools.changelog check` | exit 0 |
+
 ## 二、审计执行方式
 
 5 个只读评审员两波 fan-out（批内 ≤3，符合 subagent-workflow 上限），各维度分工
@@ -266,3 +278,40 @@ Overall: **REQUEST_CHANGES**（1 MAJOR / 15 MINOR 确证，8 Suspects，6 Sugges
 七道门禁基线全绿；MAJOR 与全部 MINOR 经
 [`../documents/multi-dim-review-r3-fixes-plan.md`](../documents/multi-dim-review-r3-fixes-plan.md)
 当轮闭环，修复后复测门禁全绿并回填 §一（先例：#57 基线→当轮修复→收尾全绿）。
+
+## 十一、本轮修复事实（收尾回填）
+
+按修复计划三波执行，分支 `feature/fix-repo-audit` 共 15 笔提交（评审/计划 2 笔 +
+Wave-A 5 笔 + Wave-B 6 笔 + Wave-C 2 笔），只提交未推送：
+
+| 提交 | 项 | 内容 |
+|---|---|---|
+| `8542c5e0` | M1 | `search_lines` 可选 `limit` 早停，`_search_one_file` 传 budget；2 条回归用例（早停可观测 + 默认契约不变） |
+| `81986cde` | m1 | `replace_current` 单次编译复用 |
+| `685e6cc2` | m2/m3 | `_load_json_member` 改走 `_read_member`；`_verify_digests` 与 `_extract_payload` 按真实字节累计封顶 `MAX_PAYLOAD_BYTES`（头部预检保留为快速拒绝）；2 条 lying-stream 用例证明写入前拦截 |
+| `4ed78531` | m4 | `commit()` 结构 delta 补末行扩排，与 `_apply_deltas` 对齐同一脏标记契约 |
+| `15429736` | m5 | didOpen 失败补 `log.debug`（与 didClose/didSave 同型） |
+| `1e24136b` | m6 | lint_lua 超宽行折行 |
+| `b4a45671` | m7 | wait_for_complete 抑制补理由注释 |
+| `2c500e6c` | m8/m9 | 固定 sleep 改因果轮询（didChange 到达；`fake.started`——state 自 `__init__` 即 STARTING 不能作同步点，且 `started` 在 client 注册之后置位，reaper 可回收） |
+| `537b7c30` | m10 | terminate 场景收集输出 + `_wait_for` ready 标记（含 `_no_inherited_std_handles` 护栏，与同文件范本一致） |
+| `ec154422` | m11 | 删除从未赋值的 `delay` 死旋钮 |
+| `88ed96ad` | m12 | 恒真 caplog 断言改为钉死 NOTSET→DEBUG→NOTSET 真实 logger 级别 |
+| `d18a8d69` | m13/m14/#38 | 规则 §三.7 三处行数复测同步（vim 1534、screen 1017、manager 883；buffer 经 m4 后恰回到登记值 1565 无需修订）；§三.5② 补登 yxp 门面例外；§六 #38 登记负向演练（单侧 `parse_key("<f7>")` → 守卫失败 AssertionError: vim.py → 还原通过） |
+| `851f01a1` | m15 | 10 处单行盘符 worktree 路径改 `../yate-*` 相对表述，grep 复核命中 0 |
+
+计划偏离登记（`plan-before-execute.md` §二.4 要求显式列出）：
+
+1. **验收命令文件名修正**：计划 Wave-A 验收列出的 `test_search.py` / `test_buffer.py` /
+   `test_yxp_manifest.py` / `test_yxp_install.py` 不存在——实测布局为
+   `test_project_search.py`（含 SearchEngine 用例）、`test_editor_core.py`（含 buffer
+   用例）、`test_yxp.py` + `test_yxp_subpackage.py` + `test_tools_yxp.py`（Glob 取证），
+   按实际文件执行，覆盖面不变；
+2. **m2/m3 合并一笔提交**：两项同改 `manifest.py`，无法按文件分笔（计划「逐条独立提交」
+   的例外），提交信息同时引用 m2/m3；
+3. **m9 轮询信号改选**：第一版按计划轮询 `state is STARTING` 复测失败（该值
+   `__init__` 即成立，非同步点），依 manager 注册顺序取证改轮询 `fake.started`；
+4. **m10 补 std-handles 护栏**：第一版复测失败（缺护栏时 ready 标记不达），按同文件
+   resize 场景先例补齐。
+
+时序敏感目标文件（test_lsp.py / test_pty_proc.py）按计划风险条款连跑 3 次全绿。

@@ -190,7 +190,9 @@ fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review
 yxp 恶意包双封顶缺口、buffer commit 标脏契约漂移、didOpen 静默失败、
 固定 sleep 断言 3 处、恒真负向断言、规则文本漂移 2 组、文档单行盘符路径 10 处等），
 8 Suspects / 6 Suggestions；MAJOR 与全部 MINOR 当轮修复闭环
-（方案 [multi-dim-review-r3-fixes-plan.md](../documents/multi-dim-review-r3-fixes-plan.md)）。
+（方案 [multi-dim-review-r3-fixes-plan.md](../documents/multi-dim-review-r3-fixes-plan.md)；
+收尾复测全绿：pyright 0 / 架构 38 / 全量 3647 tests exit 0 / 覆盖率 92.98% /
+冒烟 123/123 / changelog 0，修复事实见评审记录 §十一）。
 评审记录 [2026-11-12-multi-dim-review-r3.md](2026-11-12-multi-dim-review-r3.md)。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
