@@ -89,6 +89,7 @@ class StatusBar(Static):
             [Literal["left", "right"]], list[SegmentRow]
         ] | None = None,
         loaded_extensions: Callable[[], int] | None = None,
+        recording_label: Callable[[], str | None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
@@ -101,6 +102,9 @@ class StatusBar(Static):
         self.extension_segments = extension_segments
         #: Loaded-extension count for the hints segment (``None`` renders 0).
         self.loaded_extensions = loaded_extensions
+        #: Pull model: returns ``rec @<reg>`` while recording, else ``None``.
+        #: ``None`` keeps standalone constructions working (no indicator).
+        self.recording_label = recording_label
         #: Content fingerprint of the last rendered bar (plan-f P3): when the
         #: next refresh produces the same fingerprint the Rich Text rebuild
         #: is skipped entirely.  ``None`` until the first render.
@@ -132,6 +136,13 @@ class StatusBar(Static):
         mode, chip_bg = mode_chip(self.prompt, self.keymaps, buf)
         chip = f" {mode} "
         chip_len = theme.cell_len(chip)
+        # Recording indicator (pull model): a raising provider degrades to
+        # no indicator, mirroring the extension-segment failure policy.
+        try:
+            rec_text = self.recording_label() if self.recording_label is not None else None
+        except Exception:  # noqa: BLE001 - user callback, never crash the bar
+            log.exception("status recording label provider failed")
+            rec_text = None
 
         # Extension segments (pull model): left ones trail the existing left
         # content, right ones lead the existing right content.  They share
@@ -187,6 +198,7 @@ class StatusBar(Static):
             right_ext,
             lsp_plain,
             self.loaded_extensions() if self.loaded_extensions else 0,
+            rec_text,
         )
         if fingerprint == self._last_fingerprint:
             return
@@ -195,10 +207,14 @@ class StatusBar(Static):
         text = Text()
         # Flat mode chip (hard color edge, no powerline triangle).
         text.append(chip, style=f"bold {t.on_accent} on {chip_bg}")
+        if rec_text:
+            text.append(f" {rec_text} ", style=f"bold {t.on_accent} {bar}")
 
         # gap, pencil+space, then the left extension segments' width
+        rec_cells = theme.cell_len(rec_text) + 2 if rec_text else 0
         name_budget = (
             budget - chip_len - 3 - dot_cells - lock_cells - left_ext_len
+            - rec_cells
         )
         name = doc.name
         if name_budget < 4:
@@ -215,7 +231,7 @@ class StatusBar(Static):
         if left_ext:
             text.append(f"   {left_ext}", style=f"{t.on_accent} {bar}")
         used = (
-            chip_len + 1
+            chip_len + 1 + rec_cells
             + (theme.cell_len(name) + 2 if name else 0)
             + dot_cells + lock_cells + left_ext_len
         )
