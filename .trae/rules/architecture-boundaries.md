@@ -23,7 +23,8 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          （completion_flows.py / prompt_flows.py / document_flows.py / window_flows.py /
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
          lsp_sync.py / mouse_flows.py / hover_flows.py / chunked_flows.py /
-         file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移））/
+         file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移）/
+         macro_flows.py（2026-11-12 宏录制与回放 wave-3 接线补登））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
@@ -141,7 +142,8 @@ flowchart TD
   `whichkey_flows.py` / `chunked_flows.py` / `file_manager_flows.py`（2026-11-02
   命名统一波以新名首次补登，修复漏登漂移）/
   `hover_flows.py`（其 `editor_components` 导入已在 `tests/test_architecture.py`
-  的 `UI_FROZEN_FILES` 登记）；
+  的 `UI_FROZEN_FILES` 登记）/ `macro_flows.py`（2026-11-12 宏录制与回放 wave-3
+  接线补登：**不** import `editor_components`，故不进 `UI_FROZEN_FILES`）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
@@ -358,7 +360,14 @@ flowchart TD
      78 行后越线；迁出新模块会破坏 manager 对 `_clients` / `_open` 的封装，
      故按本节「单一职责长文件可登记豁免」登记，并与
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
-     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）。
+     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）、
+     `editor.py`（2026-11-12 宏录制与回放 wave-3 接线登记：新增
+     `MacroFlows` 类属性注解 / `_build_macro_flows` 工厂接线 / StatusBar
+     `recording_label` 回调 / 组装顺序注释后，`splitlines()` 实测 807 行
+     （基线 800 行），越过 800 行阈值；`Editor` 是 L3 单一职责薄委托
+     （组装 + 跨协作者操作），拆分无行为收益，故按本节「单一职责长文件可
+     登记豁免」登记，并与 `tests/test_architecture.py` 的
+     `SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -410,6 +419,11 @@ flowchart TD
    4. 更新 `Editor.__init__` 组装顺序注释；
    5. 如需 `editor_components` 导入，先登记 `tests/test_architecture.py` 的 `UI_FROZEN_FILES`（R11）；
    6. 同步 §一 L3 清单与本清单。
+   （2026-11-12 宏录制与回放 wave-3 已按上述 6 条接入 `macro_flows.py`：
+   `Editor.macro_flows` 类属性注解 + `_build_macro_flows` 工厂注入 `session`
+   / `dispatch_raw` / `notify` + 组装顺序注释 + 不 import `editor_components`
+   故免登记 `UI_FROZEN_FILES` + §一 L3 清单已同步；`editor.py` 实测 807 行
+   按 §三.7 登记豁免，守卫集合 `SIZE_EXEMPT_FILES` 两处同步。）
 
 ## 四、跨模块交互
 
@@ -458,9 +472,13 @@ flowchart TD
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **38 个用例**（2026-11-09 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `38 passed`；本次 IKTPC2
-新增统一 hover 键位漂移守卫 `test_hover_key_is_shared_and_identical` 一条；
+`tests/test_architecture.py` 已落地 **41 个用例**（2026-11-12 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `41 passed`；宏录制与回放
+wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
+`test_editor_size_exemption_is_registered` /
+`test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one`；
+此前 2026-11-09 为 38（IKTPC2 新增统一 hover 键位漂移守卫
+`test_hover_key_is_shared_and_identical` 一条）；
 2026-10-24 为 37（新增 R15 可滚动组件滚动条接线守卫一条）；
 2026-10-21 为 36，2026-10-18 为 35：
 新增非 ASCII 注释 / `print()` 调试 / 本机家目录路径守卫三条，此前 2026-10-17 为 32；
@@ -578,8 +596,9 @@ flowchart TD
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**38 个用例逐条对照**（2026-11-09 实测 `38 passed`；2026-10-24 为 `37 passed`，
-2026-10-21 为 `36 passed`，2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
+**41 个用例逐条对照**（2026-11-12 实测 `41 passed`；2026-11-09 为 `38 passed`，
+2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，2026-10-18 为 `35 passed`，
+2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -621,6 +640,9 @@ flowchart TD
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 | 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_components/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
 | 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧） |
+| 39 | `test_macro_keys_are_shared_and_identical` | AC3 宏键位漂移守卫（2026-11-12 宏录制与回放 wave-2 plan-d：AST 断言 vsc / vim 的 `build_bindings` 都引用 3 个 `MACRO_*_KEY` 共享常量且无 `<f10>` / `<f11>` / `<f12>` / `<f7>` 字面量；运行时断言两套表同一 raw 键解析到同一宏动作名） |
+| 40 | `test_editor_size_exemption_is_registered` | §三.7 体量豁免两处同步（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `editor.py` 在 `SIZE_EXEMPT_FILES`、集合长度为 6 且与规则 §三.7 名单一致） |
+| 41 | `test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one` | L1 count 口径守卫（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `Keymap` / `VimKeymap` 两侧均定义 `take_pending_count`、`VscKeymap` 继承缺省恒 1） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -38,6 +38,7 @@ from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
+from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
@@ -56,6 +57,7 @@ from yate.session import EditorSession
 
 __all__ = [
     "_build_key_ui",
+    "_build_macro_flows",
     "_build_models",
     "_build_pane_stack",
     "_build_widgets",
@@ -124,6 +126,15 @@ def _build_models(ed: yate.editor.Editor, keymap: str | None) -> None:
     )
 
 
+def _build_macro_flows(ed: yate.editor.Editor) -> None:
+    """Build the macro recorder/replayer with editor capabilities injected."""
+    ed.macro_flows = MacroFlows(
+        ed.session,
+        dispatch_raw=ed.handle_raw_key,
+        notify=ed.message,
+    )
+
+
 def _build_widgets(ed: yate.editor.Editor) -> None:
     """Create the widget tree members and keep the references ops need."""
     ed.prompt_bar = PromptBar(
@@ -164,6 +175,7 @@ def _build_widgets(ed: yate.editor.Editor) -> None:
         ed.session, ed.lsp, ed.keymaps, ed.prompt_bar,
         extension_segments=_extension_segment_rows,
         loaded_extensions=lambda: len(ed.extension_loader.loaded),
+        recording_label=lambda: ed.session.macro.recording_label(),
         id="statusbar",
     )
     ed.which_key_panel = WhichKeyPanel(id="which-key")
