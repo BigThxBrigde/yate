@@ -1,6 +1,6 @@
 # 子计划 fix-cli — m1 字面量 + m2 空转用例 + m6 CLI 校验缺口 + m7 手册补行
 
-**Worktree 根**：`D:\Programming\yate-file-manager`（分支 `feat/file-manager`）。
+**Worktree 根**：`../yate-file-manager`（分支 `feat/file-manager`）。
 **评审依据**：`.trae/reviews/2026-11-01-pr-review-feat-file-manager.md` §一 m1 / m2 / m6 / m7
 （先读对应小节全文）。
 

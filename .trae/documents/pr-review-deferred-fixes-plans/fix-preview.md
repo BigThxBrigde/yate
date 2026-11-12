@@ -1,6 +1,6 @@
 # 子计划 fix-preview — m5 预览装配去重 + m9 空操作守卫替换
 
-**Worktree 根**：`D:\Programming\yate-file-manager`（分支 `feat/file-manager`，下述路径以此为根）。
+**Worktree 根**：`../yate-file-manager`（分支 `feat/file-manager`，下述路径以此为根）。
 **评审依据**：`.trae/reviews/2026-11-01-pr-review-feat-file-manager.md` §一 m5 / m9（先读全文）。
 
 ## 独占文件

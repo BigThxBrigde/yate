@@ -131,7 +131,7 @@ sequenceDiagram
 
 ## 七、执行记录（收尾回填）
 
-- [x] 步骤 1 worktree + 沙箱自举：`d:/Programming/yate-ci-waitfor-stall`（分支
+- [x] 步骤 1 worktree + 沙箱自举：`../yate-ci-waitfor-stall`（分支
   `fix/ci-pilot-waitfor-stall`），`.venv` 重建 + `pip install -e ".[dev]"`，
   `import yate` 自证指向 worktree（editable Location 实测）。
 - [x] 步骤 2 conftest 埋点 + 单测：提交 82a8e96（实现）+ 913af4c（评审修复波）。
