@@ -300,7 +300,7 @@ count 状态机，恒 1）；`VimKeymap` 覆写并 `return self._take_count()`�
 | 波次 | 子计划（并行） | 前置 | 本波出口判据 |
 |---|---|---|---|
 | wave-1 | **plan-a ∥ plan-b ∥ plan-c** | 主计划批准 | 三者验收命令退出码 0 |
-| wave-2 | **plan-d ∥ plan-e** | wave-1 全绿 | 双表守卫 + 编排单测退出码 0 |
+| wave-2 | **plan-d ∥ plan-e** | wave-1 全绿 | 双表守卫 + 编排单测退出码 0；D8：plan-d §5 命令 3 排除跨波用例 `test_vsc_bindings_use_registered_actions`（宏动作归 wave-4 注册），**wave-4 后主代理必须复核原命令转绿** |
 | wave-3 | **plan-f ∥ plan-g** | wave-2 全绿 | 接线 / 派发单测 + 架构守卫退出码 0 |
 | wave-4 | **plan-h ∥ plan-i** | wave-3 全绿 | 命令 / which-key 双语文档 + 冒烟复核退出码 0 |
 | wave-5 | **plan-j ∥ plan-k** | wave-4 全绿 | 双语文档成对 diff + 集成 / 冒烟退出码 0 |

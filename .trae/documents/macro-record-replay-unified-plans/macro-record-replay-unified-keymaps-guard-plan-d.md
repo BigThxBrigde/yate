@@ -197,8 +197,20 @@ MACRO_REPLAY_LAST_KEY`，直接引用 L0 真源（L1 → L0 向下，合法；F1
 ```
 .venv\Scripts\python.exe -m pyright yate/keymaps/vim.py yate/keymaps/vsc.py yate/keymaps/base.py
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py tests/test_macro_constants.py -q
-.venv\Scripts\python.exe -m pytest tests/ -q -k "keymap or keys"
+.venv\Scripts\python.exe -m pytest tests/ -q -k "(keymap or keys) and not test_vsc_bindings_use_registered_actions"
 ```
+
+**（D8 主代理裁决，2026-11-12，执行阶段实测后回填）**：原命令
+`pytest tests/ -q -k "keymap or keys"` 在本波**预期红**——既有用例
+`tests/test_vsc_keymap.py::test_vsc_bindings_use_registered_actions` 断言 vsc 每个
+字符串动作名都已在 `actions.py::populate()` 注册，而本方案的 3 个宏动作归
+**wave-4 plan-h** 独占注册，波次设计使其必然跨波临时失败。主代理独立复核实测：
+原命令 exit 1（稳定复现两次），失败断言 `unknown == []` 多出 `macro_record` /
+`macro_play` / `macro_replay_last`；排除该用例的命令 exit 0。裁决：**不改既有断言、
+不改 `actions.py`、不提前注册动作**（避免破坏文件互斥与波次），本波出口判据以
+命令 1 / 2 与上述排除版命令 3 全绿为准；**wave-4 plan-h 完成动作注册后，主代理必须
+复核原命令 `pytest tests/ -q -k "keymap or keys"` 转绿**，该复核为 wave-4 出口与
+收尾全量门禁的硬条件。此偏离不改变任何设计、键位、API 契约与波次顺序。
 
 （负向演练为手工临时改动 + 上述 `-k macro_keys` 命令，执行后必须还原。）
 

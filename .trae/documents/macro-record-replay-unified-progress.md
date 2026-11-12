@@ -66,3 +66,23 @@
 - D1（plan-b）`field(default_factory=dict)` / `list` 改为参数化 `dict[str, tuple[str, ...]]` / `list[str]`：pyright strict 首跑 2 errors → 改后 0 errors 有实测；字段类型契约未变，项目既有 21 处同形态，**接受**（实现细节适配，非契约冲突）。
 - C1（plan-c）`used` 表达式补 `+ rec_cells`：窄宽 40 渲染不溢出有探测 + 用例实测，无 label 时 `rec_cells=0` 零影响，**接受**。
 - 三成员均未跑计划外全量门禁；全量由 wave-6 / 收尾统一执行（符合剧本）。
+
+### wave-2：plan-d ∥ plan-e（2 并行，Hy4，bypassPermissions）
+
+| 项 | 主代理独立复核实测 |
+| --- | --- |
+| 存活 / 落盘 | 2/2 全部交付；零产出 0；`git status --short` 6 文件（4 个 `M`：`vim.py` / `vsc.py` / `base.py` / `test_architecture.py`；2 个 `??`：`macro_flows.py` / `test_macro_flows.py`） |
+| pyright | `pyright yate/keymaps/vim.py yate/keymaps/vsc.py yate/keymaps/base.py yate/flows/macro_flows.py` → `0 errors, 0 warnings, 0 informations`，exit 0 |
+| 新测试 + 架构 | `pytest tests/test_macro_flows.py tests/test_architecture.py -q` → 62 passed（21 flows + 41 架构 = 38 既有 + 3 新增守卫），exit 0 |
+| 跨波用例 | `pytest tests/ -q -k "keymap or keys"` → exit 1，失败 `tests/test_vsc_keymap.py:47::test_vsc_bindings_use_registered_actions`（`unknown == []` 多出 3 个宏动作名），与执行者自述一致、稳定复现两次；排除该用例后 `exit 0` |
+| AC3 负向演练（主代理补做） | 保留 3 个常量引用的同时临时插入 `_k("<f10>", "macro_probe_literal", ...)` → `pytest tests/test_architecture.py -q -k macro_keys` exit 1，断言 `assert '<f10>' not in literals` 明确失败（`test_architecture.py:1694`）→ 精确还原 → exit 0；`git diff -- yate/keymaps/vsc.py` 中 `f10` / `macro_probe` 残留计数 0 |
+| 空白检查 | `git diff --check` → exit 0 |
+
+**执行者自述验收**（仅参考）：plan-d 命令 1/2 exit 0、命令 3 exit 1 后按纪律停下上报（未改断言 / 未改清单外文件）；其负向演练（替换常量为字面量）exit 1 → 还原 exit 0；实测 `VimKeymap().handle_key(..., parse_key(MACRO_RECORD_KEY))` 命中 `macro_record`。plan-e 三条命令全 exit 0（21 新用例、6 守卫）。
+
+**偏离裁定（主代理）**：
+- D8（**方案波次缺陷，MAJOR 级流程问题**）：`test_vsc_bindings_use_registered_actions` 在 wave-2 预期红，因 3 个宏动作按 `overview.md` §1.2 归 wave-4 plan-h 注册。裁决：不改既有断言、不改 `actions.py`、不提前注册（保文件互斥与波次）；本波出口判据改用排除版命令；**wave-4 完成后主代理必须复核原 `pytest tests/ -q -k "keymap or keys"` 转绿**，已回填 plan-d §5 与 `overview.md` §3 作为硬条件。此偏离不改变设计 / 键位 / API / 波次顺序。
+- D1（plan-d）`VimKeymap.take_pending_count` 补 `@override`：pyright strict `reportImplicitOverride` 首跑 1 error、补后 0 errors 有实测，符合 `python-coding-style.md` §五，**接受**。
+- D2–D6（plan-d）import 位置 / 命令前缀 / 守卫 forbidden 含 `<f7>` / 负向断言触发点 / cmd shell 适配：均为形态或环境适配，**接受**。
+- E1（plan-e）`tests/conftest.py` 无全局 `config` fixture，测试内定义局部 fixture 返回 `YateConfig()`：与 wave-1 已落盘构造风格一致，不改产品契约，**接受**。
+- 两名成员均未跑计划外全量门禁，符合剧本。
