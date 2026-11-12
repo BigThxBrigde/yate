@@ -10,6 +10,7 @@ from yate.keymaps.base import (
     Keymap,
     parse_key,
 )
+from yate.keymaps.keys import MACRO_PLAY_KEY, MACRO_RECORD_KEY, MACRO_REPLAY_LAST_KEY
 
 # help categories (module level: uppercase constants)
 EDIT: str = "Editing"
@@ -125,4 +126,7 @@ class VscKeymap(Keymap):
             _k("<f8>", "manual", "Open user manual (read-only)", HELP),
             _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
             _k(HOVER_DOC_KEY, "show_hover_docs", "Show API documentation at cursor", VIEW),
+            _k(MACRO_RECORD_KEY, "macro_record", "Toggle macro recording", VIEW),
+            _k(MACRO_PLAY_KEY, "macro_play", "Play a recorded macro", VIEW),
+            _k(MACRO_REPLAY_LAST_KEY, "macro_replay_last", "Repeat last replay", VIEW),
         ]

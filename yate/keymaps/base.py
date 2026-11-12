@@ -233,3 +233,12 @@ class Keymap:
         holds chord state, so it answers empty; stateful subclasses override.
         """
         return ""
+
+    def take_pending_count(self) -> int:
+        """Return the pending count for a macro key, or ``1`` if none.
+
+        Table-driven keymaps hold no count state machine, so the default is
+        always ``1`` (N defaults to one). Stateful keymaps (vim) override this
+        and must be called before ``handle_key`` clears pending state.
+        """
+        return 1
