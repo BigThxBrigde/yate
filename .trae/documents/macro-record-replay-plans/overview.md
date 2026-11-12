@@ -1,5 +1,13 @@
 # 宏录制回放 子计划总纲（波次与契约唯一依据）
 
+> 【历史产物 · 方案已排除】本组文档记录 2026-11-11 第一轮宏录制回放方案
+> （`<f6>` 单前缀 chord：`r` 录制 / `p` 回放 / `@` 重复），其实现**未并入**现行代码。
+> 现行实现是 2026-11-12 第二轮方案（`<f10>` / `<f11>` / `<f12>` 三单键，
+> 见 `../macro-record-replay-unified-progress.md`），键位、API 与命令契约以产品源码为准。
+> 本文出现的 `MACRO_PREFIX_KEY`、`pre_dispatch`、`macro_awaiting`、`<f6>` 等符号
+> 在现行代码中不存在，**不得**作为开发或施工依据。
+> 2026-11-12 合并 `replay` 分支时仅为保留历史轨迹收录本组文档，代码未采纳。
+
 主计划：`../macro-record-replay-plan.md`；issue 素材：
 `../macro-record-replay-issue.md`（AC1–AC8）。路径基准：本目录
 `.trae/documents/macro-record-replay-plans/` 下 `../../../yate/...` 即仓库根
