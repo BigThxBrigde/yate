@@ -25,10 +25,10 @@
 | 【领会】 | 完成 | 素材 `macro-record-replay-unified-issue.md`、本进度文件；worktree + venv 自证；提交 `05c180a1` |
 | 【方案】 | 完成 | `plan-architect-designer`（Hy4）产出主计划 + 12 份子计划/总纲（13 文档 / 2554 行）；【批准】前审查发现 AC2 count 前缀缺口，二次 spawn 定点修订补齐（`Keymap.take_pending_count()` + dispatch 捕获），13 文档一致性复核通过 |
 | 【批准】 | 完成 | 2026-11-12 08:22 无人值守按通过处理，主计划 §11 已回填结论 + D1–D6 偏离；详见该节 |
-| 【执行】 | 进行中 | wave-1 完成（3/3 执行者落盘、主代理复核全绿、3 笔提交）；wave-2..5 待办，详见 §4 |
-| 【审核】 | 待办 | `code-review-expert` 评审 + 门禁五项实测 |
-| 【迭代】 | 待办 | blocker / major 归零；minor 登记 |
-| 【收尾】 | 待办 | 主代理亲跑全量门禁、回填真实数字、按步提交、更新记忆 |
+| 【执行】 | 完成 | wave-1..5 共 11 名执行者全部落盘、零产出 0；5 波主代理复核全绿、D8–D14 全部裁决；详见 §4 |
+| 【审核】 | 完成 | `code-review-expert`（Hy4）只读评审 21 笔提交，**APPROVE**：0 BLOCKER / 0 MAJOR / 3 MINOR；记录 `.trae/reviews/2026-11-12-pr-review-feat-macro-record-replay-unified.md`，索引 #76 |
+| 【迭代】 | 完成 | 无 blocker / major，按 `task-orchestration.md` §二.6 仅登记 3 条 MINOR 待办；执行阶段已修的 D9 / D11 / D13 三处 MAJOR 全部复核转绿 |
+| 【收尾】 | 完成 | 主代理亲跑五道全量门禁全绿（详见 §5）；回填真实数字、按步提交、还原临时模型配置、更新记忆；不 push / 不合流 |
 
 ## 2. 待回填
 
@@ -166,3 +166,50 @@ exit 0、`pyright tests/test_action_table.py` 0/0/0、全量 `pytest tests/ -q -
 - K5（全量套件用例未写成递归 pytest 测试函数）：它是 §5 波出口命令而非用例，**接受**；K6 首轮 pyright 2 errors / 1 failed 自修（`Callable[[], object]` 标注等）有实测，**接受**。
 
 **回填**：主计划 §12 已按执行实测补 8–12 项（F4/F23 时序、F18 零 diff、`manual.*.md` 路径裁决、`editor.py` 807 行、N2 与 GUI 遗留）。
+
+## 5. 收尾门禁（主代理亲跑，2026-11-12 10:5x 本地时间）
+
+| # | 命令 | 实测 | 退出码 |
+| --- | --- | --- | --- |
+| 1 | `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations` | 0 |
+| 2 | `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | 点阵至 `[100%]`（`-q` 无汇总行，只认退出码） | 0 |
+| 3 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 41 passed | 0 |
+| 4 | `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch -n auto` | `TOTAL 20049/1108/6392/582 = 93%`、`Required test coverage of 75.0% reached. Total coverage: 93.01%`、`3758 passed, 10 skipped in 151.37s` | 0 |
+| 5 | `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | `123/123 scenarios passed`、`1493/1493 checks (100%)`、`83.88s total`、`exit 0` | 0 |
+| 附 | `git diff --check` | 无输出 | 0 |
+| 附 | `.venv\Scripts\python.exe -m tools.changelog check` | `released changelog sections are up to date`；unreleased lag 51 提交为 release 期刷新提示，非失败 | 0 |
+
+批量执行五条命令曾因「长时间无输出」触发工具空闲超时被取消（**非门禁失败**）；
+改为逐条运行后全部取得真实输出与退出码。评审者独立复跑同组命令得覆盖率
+92.99% / 冒烟 80.00s，差异属负载波动，结论一致。
+
+## 6. 评审结论与遗留
+
+- **评审**：`code-review-expert`（Hy4，bypassPermissions，103 tool uses）只读评审
+  `git diff master..HEAD`（21 笔提交 `05c180a1..b1386b38`），结论 **APPROVE**：
+  **0 BLOCKER / 0 MAJOR / 3 MINOR**。记录 `.trae/reviews/2026-11-12-pr-review-feat-macro-record-replay-unified.md`，
+  索引 `.trae/reviews/README.md` #76。评审者自撤 4 条初版疑点并逐条登记证伪依据。
+- **核验**：AC1–AC8 全部满足（含 AC3 负向演练、AC4 双层拒绝、AC2 按键 count 前缀
+  与 `:` 双入口）；架构条款逐条对照通过；D1–D14 均有实测依据、无静默改设计；
+  D11 / D13 两处主代理修复经复核**未削弱守卫强度**（`test_action_table.py:471` 仍为
+  「恰好」集合相等，which-key 仍硬断言 3 个 pinned-sheet label）；双语文档与相对
+  路径纪律通过。
+- **3 条 MINOR（按 §二.6 登记待办，不改代码）**：
+  1. `yate/commands.py:22` / `yate/editor_dispatch.py:22` 新增 L3→L3 连线
+     （`from yate.flows.macro_flows import MACRO_REGISTER_CHARS`）未在
+     `.trae/rules/architecture-boundaries.md` §一 连线图补登；建议常量下沉 L0
+     `keys.py` 或补登连线 + 守卫。同层合法、无循环依赖，不升 MAJOR。
+  2. 录制中经 `:` 命令可触发回放，形成 `recording` + `playing` 同时为真并污染录制
+     buffer（`editor_dispatch.py:208` / `macro_flows.py:105`）；属 issue N4 明确
+     「暂不做」范围，AC4 仍满足、无死循环。
+  3. `yate/commands.py:666-667`（`:macro-replay-last` 多参数 usage warn）为新增
+     代码但无用例覆盖，建议补一条边界用例。
+- **遗留（需人工 / 另行立项）**：① which-key pinned sheet、状态栏 `rec @a`、
+  应用内手册渲染的**真实 GUI 视觉验证**未做（无人值守会话无法启动 GUI）；
+  ② issue N1（寄存器持久化）/ N2（回放合并单步 undo）/ N3（宏编辑 UI）/
+  N4（嵌套录制回放）按 issue「暂不做」保留；③ 同步回放循环；
+  ④ changelog unreleased lag 属 release 期统一刷新；⑤ 既有未合流分支
+  `feature/feat-macro-record-replay`（14 提交）仍独立存在，本轮未合流、未推送。
+- **纪律确认**：全程不 push、不合流、不向用户发起询问或审批（无人值守按通过处理）；
+  主仓 `.trae/agents/*.md` 的临时 Hy4 frontmatter 配置在收尾还原；主工作区
+  `yate/resources/changelog.{en,zh}.md` 的既有未提交改动全程未触碰。
