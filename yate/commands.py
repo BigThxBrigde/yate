@@ -19,6 +19,7 @@ from yate.editor_syntax import (
     format_filetype_candidates,
     language_name,
 )
+from yate.flows.macro_flows import MACRO_REGISTER_CHARS
 from yate.logs import tracing
 from yate.registries import ArgCompleter, CommandRegistry
 from yate.services import yxp
@@ -613,5 +614,80 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.overlays.show_output("key conflicts", editor.whichkey.conflicts_report())
 
     reg("check-keys", _check_keys, "report key binding conflicts")
+
+    # ---- macros ------------------------------------------------------------
+
+    _MACRO_USAGE = (
+        "usage: :macro-record [reg] | :macro-stop | "
+        ":macro-play <reg> [count] | :macro-replay-last [count]"
+    )
+
+    def _macro_record(args: str) -> None:
+        parts = args.split()
+        if len(parts) > 1:
+            editor.message(_MACRO_USAGE, kind="warn")
+            return
+        editor.macro_flows.toggle_record()
+        if parts:
+            editor.macro_flows.begin_with(_strip_quotes(parts[0]))
+
+    def _macro_stop(args: str) -> None:
+        if args.strip():
+            editor.message(_MACRO_USAGE, kind="warn")
+            return
+        if editor.session.macro.recording is None:
+            editor.message("not recording a macro", kind="warn")
+            return
+        editor.macro_flows.stop()
+
+    def _macro_play(args: str) -> None:
+        parts = args.split()
+        if not parts or len(parts) > 2:
+            editor.message(_MACRO_USAGE, kind="warn")
+            return
+        reg_name = _strip_quotes(parts[0])
+        if len(reg_name) != 1 or reg_name not in MACRO_REGISTER_CHARS:
+            editor.message("macro register must be one character in a-z0-9",
+                           kind="warn")
+            return
+        count = 1
+        if len(parts) == 2:
+            try:
+                count = int(parts[1])
+            except ValueError:
+                editor.message("macro count must be a positive integer",
+                               kind="warn")
+                return
+        editor.macro_flows.play(reg_name, count)
+
+    def _macro_replay_last(args: str) -> None:
+        parts = args.split()
+        if len(parts) > 1:
+            editor.message(_MACRO_USAGE, kind="warn")
+            return
+        last = editor.session.macro.last_played
+        if last is None:
+            editor.message("no last macro replay", kind="warn")
+            return
+        count = last[1]
+        if parts:
+            try:
+                count = int(parts[0])
+            except ValueError:
+                editor.message("macro count must be a positive integer",
+                               kind="warn")
+                return
+        editor.macro_flows.play(last[0], count)
+
+    def _complete_register(prefix: str) -> list[str]:
+        return [r for r in editor.session.macro.registers
+                if r.startswith(prefix) and r != prefix]
+
+    reg("macro-record", _macro_record, "start/stop macro recording")
+    reg("macro-stop", _macro_stop, "stop macro recording")
+    reg("macro-play", _macro_play, "play a macro register [count]",
+        arg_completer=_complete_register)
+    reg("macro-replay-last", _macro_replay_last, "repeat the last replay [count]",
+        arg_completer=_complete_register)
 
     log.info("builtin commands registered: %d", len(registry.names()))
