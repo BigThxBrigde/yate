@@ -69,12 +69,18 @@ def compile_query(
 
 
 def search_lines(
-    lines: Sequence[str], pattern: re.Pattern[str]
+    lines: Sequence[str],
+    pattern: re.Pattern[str],
+    *,
+    limit: int | None = None,
 ) -> list[LineMatch]:
     """Collect every non-empty match of *pattern* across *lines*.
 
     Zero-length matches are skipped, mirroring the ``SearchEngine.update``
-    guard, so patterns like ``a*`` never produce phantom hits.
+    guard, so patterns like ``a*`` never produce phantom hits.  When
+    *limit* is given, collection stops as soon as that many hits are
+    gathered: callers that only need a bounded prefix never materialize
+    the rest (the project search caps each file at its remaining budget).
     """
     matches: list[LineMatch] = []
     for row, line in enumerate(lines):
@@ -82,6 +88,8 @@ def search_lines(
             if found.start() == found.end():
                 continue
             matches.append(LineMatch(row, found.start(), found.end()))
+            if limit is not None and len(matches) >= limit:
+                return matches
     return matches
 
 
@@ -158,7 +166,7 @@ def _search_one_file(
         log.debug("project search skipped non-utf8 file %s", path)
         return [], {}
     lines = text.split("\n")
-    matches = search_lines(lines, pattern)[:budget]
+    matches = search_lines(lines, pattern, limit=budget)
     return matches, {m.row: lines[m.row] for m in matches}
 
 

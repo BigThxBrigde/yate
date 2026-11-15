@@ -1,6 +1,6 @@
 # 子计划 fix-navtest — m10 中栏 `nav()` 重映射补 pilot 用例
 
-**Worktree 根**：`D:\Programming\yate-file-manager`（分支 `feat/file-manager`）。
+**Worktree 根**：`../yate-file-manager`（分支 `feat/file-manager`）。
 **评审依据**：`.trae/reviews/2026-11-01-pr-review-feat-file-manager.md` §一 m10（先读全文）。
 **时序**：本批必须在 fix-preview 批落盘之后执行（用例跑在其改动后的
 `filemgr.py` 上）。

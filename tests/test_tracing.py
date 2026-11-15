@@ -345,15 +345,24 @@ def test_install_twice_then_uninstall_restores_once(
 
 def test_tracing_install_does_not_leak_debug_to_the_next_test(
     isolated_home: Path, monkeypatch: pytest.MonkeyPatch,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """After install()+uninstall() a debug record stays below WARNING."""
+    """install() raises the ``yate`` logger to DEBUG; uninstall() restores it.
+
+    The assertion targets the real logger level, not a caplog window:
+    ``caplog.at_level(WARNING)`` filters DEBUG at the *handler* even when
+    the logger leaked DEBUG, so the previous record-emptiness check could
+    never fail (multi-dim-review r3 m12).
+    """
     monkeypatch.setenv("YATE_TRACE", "1")
-    assert tracing.install() is True
-    tracing.uninstall()
-    with caplog.at_level(logging.WARNING):
-        logging.getLogger("yate.x").debug("must stay invisible")
-    assert caplog.records == []
+    logger = logging.getLogger("yate")
+    assert logger.level == logging.NOTSET  # precondition: nothing leaked yet
+    try:
+        assert tracing.install() is True
+        assert logger.level == logging.DEBUG
+        tracing.uninstall()
+        assert logger.level == logging.NOTSET
+    finally:
+        logger.setLevel(logging.NOTSET)
 
 
 # --- crash service -------------------------------------------------------------

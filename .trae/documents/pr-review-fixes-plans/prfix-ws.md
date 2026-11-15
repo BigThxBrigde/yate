@@ -1,6 +1,6 @@
 # 子计划 prfix-ws — B1：`copy_entry` 目录自嵌套守卫
 
-**Worktree 根**：`D:\Programming\yate-file-manager`（分支 `feat/file-manager`，下述相对路径均以此为根）。
+**Worktree 根**：`../yate-file-manager`（分支 `feat/file-manager`，下述相对路径均以此为根）。
 **评审依据**：`.trae/reviews/2026-11-01-pr-review-feat-file-manager.md` §一 B1（先读该节全文）。
 
 ## 独占文件

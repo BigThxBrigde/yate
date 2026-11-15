@@ -794,8 +794,15 @@ def test_open_sync_change_close_lifecycle(
         doc.buffer.insert_text("x")
         monkeypatch.setattr("yate.editor_lsp.manager.CHANGE_DEBOUNCE_S", 0.01)
         mgr.notify_edit(doc)
-        await asyncio.sleep(0.1)
-        changed = [p for m, p in client.sent if m == "textDocument/didChange"]
+        # Poll for the debounced didChange instead of a fixed sleep: under
+        # xdist load the 0.01s debounce timer can fire later than any
+        # constant window would assume.
+        changed: list[Any] = []
+        for _ in range(20):
+            changed = [p for m, p in client.sent if m == "textDocument/didChange"]
+            if changed:
+                break
+            await asyncio.sleep(0.05)
         assert len(changed) == 1
         assert "text" in changed[0]["contentChanges"][0]
 
@@ -1119,7 +1126,15 @@ def test_shutdown_reaps_starting_client_task(tmp_path: Path) -> None:
         doc = make_python_doc(str(tmp_path))
         shown = asyncio.ensure_future(mgr.on_document_shown(doc))
         try:
-            await asyncio.sleep(0.1)
+            # Poll for the parked start instead of a fixed sleep: ``started``
+            # is set inside start(), which runs after the client is already
+            # registered in the manager map, so shutdown_all can reap it.
+            # (state is STARTING from __init__, so it cannot be the signal.)
+            for _ in range(20):
+                if fake.started:
+                    break
+                await asyncio.sleep(0.05)
+            assert fake.started
             assert fake.state is ServerState.STARTING
             await mgr.shutdown_all()
             assert fake.stopped

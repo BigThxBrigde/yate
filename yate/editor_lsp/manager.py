@@ -419,7 +419,11 @@ class LspManager:
                         "text": text,
                     },
                 })
-            except (LspError, OSError):
+            except (LspError, OSError) as exc:
+                # Best-effort sync: a failed didOpen leaves the document
+                # untracked; logged (never raised), matching the didClose /
+                # didSave siblings, so the failure stays traceable.
+                log.debug("didOpen failed for %s: %s", uri, exc)
                 return
             if uri not in self._opening:
                 return

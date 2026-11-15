@@ -203,9 +203,14 @@ def read_package(package_path: Path) -> YxpPackage:
 
 
 def _load_json_member(zf: zipfile.ZipFile, member: str, source: str) -> dict[str, Any]:
-    """Read and JSON-decode *member*, narrowing to a JSON object."""
+    """Read and JSON-decode *member*, narrowing to a JSON object.
+
+    The read goes through :func:`_read_member`, so a lying
+    ``ZipInfo.file_size`` header cannot turn the metadata member into an
+    unbounded in-memory decompression spike.
+    """
     try:
-        raw = zf.read(member).decode("utf-8")
+        raw = _read_member(zf, member, source).decode("utf-8")
     except (UnicodeDecodeError, zipfile.BadZipFile) as exc:
         raise YxpError(f"{source}: cannot read {member!r} member ({exc})") from exc
     try:
@@ -368,9 +373,28 @@ def _read_member(zf: zipfile.ZipFile, rel: str, source: str) -> bytes:
 def _verify_digests(
     zf: zipfile.ZipFile, payload: list[str], checksums: dict[str, str], source: str
 ) -> None:
-    """Every payload member must hash to its recorded digest."""
+    """Every payload member must hash to its recorded digest.
+
+    The real bytes are summed as they stream: the header precheck in
+    :func:`read_package` trusts forgeable ``ZipInfo.file_size`` values, so
+    this pass caps the whole payload at ``MAX_PAYLOAD_BYTES`` by
+    decompressed reality (each member is already capped by
+    :func:`_read_member`).
+    """
+    # Late-bound through the facade: tests patch the caps on the facade
+    # namespace, so they must resolve at call time.
+    from yate.services import yxp as _facade
+
+    total = 0
     for name in payload:
-        digest = sha256(_read_member(zf, name, source)).hexdigest()
+        data = _read_member(zf, name, source)
+        total += len(data)
+        if total > _facade.MAX_PAYLOAD_BYTES:
+            raise YxpError(
+                f"{source}: payload exceeds the size cap "
+                f"({total} > {_facade.MAX_PAYLOAD_BYTES} bytes)"
+            )
+        digest = sha256(data).hexdigest()
         if digest != checksums[name]:
             raise YxpError(
                 f"{source}: checksum mismatch for {name!r} "

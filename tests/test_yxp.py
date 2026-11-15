@@ -17,7 +17,7 @@ import os
 import zipfile
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, cast
+from typing import IO, Any, cast
 
 import pytest
 
@@ -674,6 +674,60 @@ def test_declared_small_but_actually_large_member_is_rejected(
         monkeypatch.setattr(zf, "open", lying_open)
         with pytest.raises(yxp.YxpError, match="exceeds the size cap"):
             yxp._read_member(zf, "hello.py", "liar.yxp")
+
+
+def test_cumulative_payload_cap_rejects_lying_headers_on_verify(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The header precheck is a fast reject, not the guarantee.
+
+    Honest headers pass it (16 bytes <= cap), while the payload streams
+    lie about their size: the verification pass must cap the *real*
+    decompressed bytes cumulatively at MAX_PAYLOAD_BYTES, not just each
+    member at MAX_MEMBER_BYTES.
+    """
+    monkeypatch.setattr(yxp, "MAX_PAYLOAD_BYTES", 20)
+    pkg = make_yxp(tmp_path / "lie.yxp", {"a.py": b"x" * 8, "b.py": b"y" * 8})
+    real_open = zipfile.ZipFile.open
+
+    def lying_open(
+        self: zipfile.ZipFile, name: object, mode: str = "r"
+    ) -> IO[bytes]:
+        if name in ("a.py", "b.py"):
+            return io.BytesIO(b"z" * 4096)
+        return real_open(self, cast(str, name))
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", lying_open)
+    with pytest.raises(yxp.YxpError, match="exceeds the size cap"):
+        yxp.read_package(pkg)
+
+
+def test_cumulative_payload_cap_enforced_at_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The extraction pass caps real bytes too, before writing to disk.
+
+    An unverified package (no checksum member) skips digest verification,
+    so the extraction loop is the only place its lying members can be
+    stopped: the over-cap member must never reach the filesystem.
+    """
+    monkeypatch.setattr(yxp, "MAX_PAYLOAD_BYTES", 20)
+    pkg = make_yxp(tmp_path / "lie.yxp", {"a.py": b"x" * 8}, checksum=None)
+    base = tmp_path / "base"
+    real_open = zipfile.ZipFile.open
+
+    def lying_open(
+        self: zipfile.ZipFile, name: object, mode: str = "r"
+    ) -> IO[bytes]:
+        if name == "a.py":
+            return io.BytesIO(b"z" * 4096)
+        return real_open(self, cast(str, name))
+
+    monkeypatch.setattr(zipfile.ZipFile, "open", lying_open)
+    with pytest.raises(yxp.YxpError, match="exceeds the size cap"):
+        yxp.install_package(pkg, base, allow_unverified=True)
+    assert not (base / "a.py").exists()
+    assert not _record_path(base, "lie").exists()
 
 
 def test_stale_file_whose_backup_fails_is_kept(

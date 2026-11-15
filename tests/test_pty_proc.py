@@ -595,14 +595,19 @@ def test_real_pty_terminate_stops_a_sleeping_child() -> None:
 
     async def _scenario() -> None:
         exits: list[int | None] = []
+        chunks: list[bytes] = []
         proc = PtyProcess(
             _child("print('pty-ready', flush=True)\nimport time\ntime.sleep(30)\n"),
             Path.cwd(),
             80,
             24,
         )
-        await proc.start(lambda _data: None, exits.append)
-        await asyncio.sleep(0.2)
+        # Collect the output and wait for the ready marker instead of a
+        # fixed sleep: terminate must only race a child that has really
+        # started printing (same pattern as the resize scenario above).
+        with _no_inherited_std_handles():
+            await proc.start(chunks.append, exits.append)
+        assert await _wait_for(lambda: b"pty-ready" in b"".join(chunks))
         proc.terminate()
         code = await asyncio.wait_for(proc.wait_closed(), REAL_PTY_TIMEOUT)
         assert code is not None and code != 0

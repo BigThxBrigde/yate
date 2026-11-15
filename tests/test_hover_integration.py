@@ -53,7 +53,6 @@ class _HoverFakeClient:
         self.error = ""
         self.trigger_characters: tuple[str, ...] = (".",)
         self.mode: object = "docs"
-        self.delay: float = 0.0
         self.requests: int = 0
         self.gate: asyncio.Event | None = None
         self.settled: bool = False
@@ -85,8 +84,6 @@ class _HoverFakeClient:
         future: asyncio.Future[object] = (
             asyncio.get_running_loop().create_future()
         )
-        if self.delay:
-            await asyncio.sleep(self.delay)
         if self.gate is not None:
             await self.gate.wait()
             self.settled = True

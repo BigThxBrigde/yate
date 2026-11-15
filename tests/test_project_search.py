@@ -84,6 +84,24 @@ def test_search_lines_skips_empty_matches() -> None:
     assert [(m.row, m.start, m.end) for m in matches] == [(0, 1, 2)]
 
 
+def test_search_lines_limit_stops_collecting_early() -> None:
+    """With a limit, collection stops at the Nth hit: the rows after the
+    cap are never scanned (the project search passes its remaining budget,
+    so a huge file cannot materialize millions of matches before the
+    caller truncates them)."""
+    pattern = compile_query("x")
+    assert pattern is not None
+    matches = search_lines(["x x", "x x"], pattern, limit=2)
+    assert [(m.row, m.start, m.end) for m in matches] == [(0, 0, 1), (0, 2, 3)]
+
+
+def test_search_lines_without_limit_keeps_the_full_contract() -> None:
+    """Default ``limit=None`` still collects every hit (public contract)."""
+    pattern = compile_query("x")
+    assert pattern is not None
+    assert len(search_lines(["x x x x x"], pattern)) == 5
+
+
 # --- search_files ------------------------------------------------------------
 
 

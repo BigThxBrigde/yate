@@ -183,7 +183,8 @@ fix 所有的isuee」；16 条去重 issue 全部闭环，含 3 轮 `code-review
 > 两者均按各自分支顺序登记，合并时按日期统一重排，不互相覆盖事实。
 **2026-11-12 IKUOAM 新任务轮增量**：新增 #76（`feature/feat-macro-record-replay-unified`
 合并前只读评审，范围 `master..HEAD` / 21 笔提交；`code-review-expert`（Hy4）
-**APPROVE**：0 BLOCKER / 0 MAJOR / 3 MINOR 登记待办）。评审亲跑门禁全绿：
+**APPROVE**：0 BLOCKER / 0 MAJOR / 3 MINOR 登记待办，3 条已于 2026-11-15
+全部修复，见进度文档 2026-11-15 修复记录）。评审亲跑门禁全绿：
 pyright 0 / 全量 pytest exit 0 / 架构 41 / 覆盖率 92.99%（≥75）·3758 passed·
 10 skipped / 冒烟 123/123·1493 checks；`git diff --check` 双 0、changelog check 0。
 AC1–AC8 逐条实证、D1–D14 偏离裁决复核通过、D11 / D13 两处主代理修复经复核
@@ -195,6 +196,22 @@ AC1–AC8 逐条实证、D1–D14 偏离裁决复核通过、D11 / D13 两处主
 主计划 [macro-record-replay-unified-plan.md](../documents/macro-record-replay-unified-plan.md)，
 进度 [macro-record-replay-unified-progress.md](../documents/macro-record-replay-unified-progress.md)。
 > 编号沿用 #75 分歧口径：本分支按自身顺序登记，合并时按日期统一重排。
+
+**2026-11-12 全仓库多维评审增量**：新增 #76（`feature/fix-repo-audit` 分支，
+基线 `master` `7665814a`；用户指令「全仓库扫描，发现潜在问题给出建议并修复，
+全程无人值守」；`multi-dim-review` 技能 13 维度，5 只读评审员两波 fan-out +
+主代理逐条回读复核 + 主代理亲跑七道门禁基线全绿：pyright 0 / 架构 38 /
+全量 pytest exit 0 / 覆盖率 92.96% / 冒烟 123/123·1493 checks / changelog 0）。
+基线 **0 BLOCKER / 1 MAJOR / 15 MINOR**（project_search 全量物化截断为 major；
+yxp 恶意包双封顶缺口、buffer commit 标脏契约漂移、didOpen 静默失败、
+固定 sleep 断言 3 处、恒真负向断言、规则文本漂移 2 组、文档单行盘符路径 10 处等），
+8 Suspects / 6 Suggestions；MAJOR 与全部 MINOR 当轮修复闭环
+（方案 [multi-dim-review-r3-fixes-plan.md](../documents/multi-dim-review-r3-fixes-plan.md)；
+收尾复测全绿：pyright 0 / 架构 38 / 全量 3647 tests exit 0 / 覆盖率 92.98% /
+冒烟 123/123 / changelog 0，修复事实见评审记录 §十一）。
+评审记录 [2026-11-12-multi-dim-review-r3.md](2026-11-12-multi-dim-review-r3.md)。
+> 两个 2026-11-12 评审同号 #76（两侧各自顺序口径），按上方 #75 先例保留双方
+> 事实、合并时按日期统一重排；本轮合并不互相覆盖。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
