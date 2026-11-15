@@ -162,7 +162,7 @@ B1 豁免裁决与登记、`Editor.handle_key` alt+shift+f 拦截裁决（D1）�
 
 ## 九、执行记录与最终门禁（2026-11-01 收尾）
 
-- 分支 `feat/file-manager`（worktree `D:\Programming\yate-file-manager`），
+- 分支 `feat/file-manager`（worktree `../yate-file-manager`），
   630b7e6..5eb134c 共 19 笔提交（评审记录 0d5901a + 修复波 7 笔 + 文档若干），
   未推送（按无人值守纪律留用户推送）。
 - 评审：code-review-expert（DeepSeek-V4.1-Flash，reviewer-fm）交付

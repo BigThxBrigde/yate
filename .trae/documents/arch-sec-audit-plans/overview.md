@@ -1,6 +1,6 @@
 # arch-sec-audit 总纲（全仓库架构 / 项目结构 / 安全性审查与迭代修复）
 
-- 日期：2026-10-29；分支 `enh/arch-sec-audit`；worktree `D:\Programming\yate-arch-sec-audit`（基于 master 98963be）。
+- 日期：2026-10-29；分支 `enh/arch-sec-audit`；worktree `../yate-arch-sec-audit`（基于 master 98963be）。
 - 流程：task-orchestration 闭环。批准环节按无人值守规则（工作区规则 §二.5 + 用户显式指令
   「进入无人值守，无须过问」）视为通过；方案落盘后直接进入执行。
 - 子代理模型（task-orchestration §一.3，CodeBuddy 来源）：plan-executor=GLM-5.3-Flash、

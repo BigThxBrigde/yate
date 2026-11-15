@@ -296,9 +296,12 @@ flowchart TD
    ② UI / 服务包（`editor_components` / `services`）**禁止** re-export（现状惯例成文化，
    `editor_components/__init__.py` 与 `services/__init__.py` 的"deliberately not re-exported"
    声明为范本）；**唯一例外**：`editor_components/theme/__init__.py` 作为主题广播枢纽与门面再导出
-  （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），以及
+  （big-module-split d 波产物，2026-10-17 审计登记，模块 docstring 已自述），
   `services/extensions/__init__.py` 门面（R14 冻结 14 名插件导入路径，
-  2026-10-29 arch-sec-audit 审计登记，docstring 已自述例外）同为登记例外，
+  2026-10-29 arch-sec-audit 审计登记，docstring 已自述例外），以及
+  `services/yxp/__init__.py` 门面（big-module-split-2 子包化，冻结
+  `yate.services.yxp` 导入路径与测试缝再导出，docstring 已自述例外，
+  2026-11-12 multi-dim-review r3 补登）同为登记例外，
   不视为本款禁止项；
    ③ 纯 L0 叶包（`editor_core` / `editor_lsp` / `editor_syntax` / `editor_term`）
    允许**有限** re-export 作为插件公共 API 面（插件手册明文示例
@@ -322,7 +325,7 @@ flowchart TD
      VISUAL 前缀与整行操作符；pr-review 修复波 2026-10-23 复测 1528 行，
      新增 VISUAL count 累积与重复查找，
      motion/operator/text-object 单一键映射域；2026-11-05 multi-dim-review r2
-     复测 1531 行，维持豁免）、
+     复测 1531 行；2026-11-12 multi-dim-review r3 复测 1534 行，维持豁免）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
@@ -338,7 +341,8 @@ flowchart TD
      （栏头 / 边框 / 整行高亮 / 主题图标调色板 / 三段状态栏接线）
      复测 1044 行；同日用户视觉修订波（去外框 / 去路径标题 / 页头页脚
      背景改 $surface）复测 1041 行；2026-11-07 用户反馈第四波（删除页眉整行
-     与 `_refresh_headers`）复测 1018 行，维持豁免）、
+     与 `_refresh_headers`）复测 1018 行；2026-11-12 multi-dim-review r3
+     复测 1017 行，维持豁免）、
      `editor_core/buffer.py`（文本模型/撤销/多点原语单一职责，2026-10-10
      评审后由口径注记上提正式名单；2026-10-16 审计复测 1069 行，维持豁免；
      chunked-loading-text-plan-b 波 2026-10-25 复测 1192 行，新增 locked
@@ -358,7 +362,9 @@ flowchart TD
      78 行后越线；迁出新模块会破坏 manager 对 `_clients` / `_open` 的封装，
      故按本节「单一职责长文件可登记豁免」登记，并与
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
-     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」）。
+     2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」；
+     2026-11-12 multi-dim-review r3 复测 879 行（本轮 m5 didOpen 日志修复后
+     883 行），维持豁免）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -620,7 +626,7 @@ flowchart TD
 | 35 | `test_no_debug_prints_in_library_modules` | 库模块禁 `print()`（coding-style §4.6：`yate/` AST 扫描，按「模块 + 宿主函数名」豁免 CLI 与两个报告函数；`tools/` 不在扫描面） |
 | 36 | `test_no_machine_local_home_paths_in_sources` | 源码禁本机家目录路径（doc-conventions §五：`yate/`+`tools/`+`tests/` 逐行匹配，仅拦 `/home/<name>/`、`/Users/<name>/`、`<Drive>:\Users\<name>\`；系统默认值与 URL 不在拦截面；文档面刻意不设守卫，存量按「随下次修改迁移」） |
 | 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_components/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
-| 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧） |
+| 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧；负向演练：2026-11-12 multi-dim-review r3 单侧改 `parse_key("<f7>")` 字面量 → 守卫失败（AssertionError: vim.py）→ 还原通过，仓库惯例补登） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -1,6 +1,6 @@
 # 子计划 fix-editor — m8 `alt+shift+f` 改走 action 注册
 
-**Worktree 根**：`D:\Programming\yate-file-manager`（分支 `feat/file-manager`）。
+**Worktree 根**：`../yate-file-manager`（分支 `feat/file-manager`）。
 **评审依据**：`.trae/reviews/2026-11-01-pr-review-feat-file-manager.md` §一 m8（先读全文）。
 
 ## 独占文件

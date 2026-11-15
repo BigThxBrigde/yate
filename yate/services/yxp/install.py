@@ -166,10 +166,18 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
     (the install record) can restore the old installation.  Each member
     is re-verified against the shipped digests before it reaches the
     disk -- :func:`read_package` validated the archive through one
-    handle while extraction reopens the file.
+    handle while extraction reopens the file.  The real bytes written
+    are summed as they arrive and capped at ``MAX_PAYLOAD_BYTES``, so a
+    package whose ``ZipInfo`` headers lie small cannot write more to
+    disk than the cap allows.
     """
+    # Late-bound through the facade: tests patch MAX_PAYLOAD_BYTES on the
+    # facade namespace, so the cap must resolve at call time.
+    from yate.services import yxp as _facade
+
     extracted: list[str] = []
     previous: dict[str, bytes] = {}
+    written_total = 0
     try:
         with zipfile.ZipFile(package.path) as zf:
             for rel in package.manifest.files:
@@ -183,7 +191,15 @@ def _extract_payload(package: YxpPackage, ext_dir: Path) -> dict[str, bytes]:
                 if target.is_file():
                     previous[rel] = target.read_bytes()
                 target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_bytes(_member_bytes(package, zf, rel))
+                data = _member_bytes(package, zf, rel)
+                written_total += len(data)
+                if written_total > _facade.MAX_PAYLOAD_BYTES:
+                    raise YxpError(
+                        f"cannot install {package.manifest.name}: payload "
+                        f"exceeds the size cap at extraction time "
+                        f"({written_total} > {_facade.MAX_PAYLOAD_BYTES} bytes)"
+                    )
+                target.write_bytes(data)
                 extracted.append(rel)
     except YxpError:
         _rollback_files(extracted, previous, ext_dir)

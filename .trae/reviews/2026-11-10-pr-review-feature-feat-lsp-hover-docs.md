@@ -66,7 +66,7 @@ if not raw_value.strip():
 | `yate/editor_lsp/manager.py:672` | 新增 `params: dict[str, Any]` 缺 `python-coding-style.md` §3.3 理由注释 | 补 `# noqa: Any - LSP wire payload, untyped server data` |
 | `yate/editor_lsp/manager.py:282` | `_ready_client_for` 未比对 `OpenDocState.client_key`，root/config 替换后可能对未在该 READY client 上 didOpen 的 URI 发请求 | 增加 `state = self._open.get(self._uri(doc))` 且 `state.client_key == key` 校验；新增不匹配返回 `""` 用例 |
 | `.trae/rules/architecture-boundaries.md` §一/R9/R11 | 三处文本清单未列 `hover_flows.py` 与 `#hover-docs`（§三.8 第 6 项 / §七 要求同步） | 补入枚举与组件自持 id 先例，未改 §六 38 计数 |
-| `.trae/documents/lsp-hover-docs-plans/` 10 份新建 Markdown | 含 `cd D:/Programming/yate-lsp-hover-docs` / 盘符绝对路径，违反 `doc-conventions.md` §五 | 删 `cd` 行、改可移植表述；目录内 `D:[/\\]Programming` 命中 0 |
+| `.trae/documents/lsp-hover-docs-plans/` 10 份新建 Markdown | 含指向任务 worktree 的 `cd` 行（盘符绝对路径），违反 `doc-conventions.md` §五 | 删 `cd` 行、改可移植表述；目录内盘符 worktree 路径命中 0 |
 | `FEATURES.md:197` / `FEATURES.zh.md:161` / `overview.md` §2 | 双语架构守卫计数仍为 36（应为 38）；plan i 文件清单缺 `harness.py`；`test_architecture.py` 实际有三次串行触碰 | 同步为 38、补登记、改为 three sequential edits 说明 |
 
 ### `[MINOR]` 登记待办（不阻塞，含历史遗留）

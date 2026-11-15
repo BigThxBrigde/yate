@@ -265,6 +265,9 @@ async def _regress_completion_popup_keys(tmp: Path) -> ScenarioResult:
         await type_text(pilot, "pri")
         await wait_until(pilot, lambda: popup.is_open)
         await pilot.press("ctrl+space")
+        # Drain the manual-trigger worker before asserting: the ignore is
+        # for Textual's bare ``Worker`` generic in wait_for_complete (same
+        # seam as the annotated call further down this scenario).
         await app.workers.wait_for_complete()  # pyright: ignore[reportUnknownMemberType]
         await pilot.pause()
         opened = popup.is_open
