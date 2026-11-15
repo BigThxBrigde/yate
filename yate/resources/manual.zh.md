@@ -347,6 +347,10 @@ yate 内置两套键位：
 无前缀 `F12` 都并入「沿用上次次数」分支（捕获的 pending count 无法区分
 二者）；`:macro-replay-last 1` 命令仍精确回放 1 次。
 
+宏录制进行中时，回放请求（按键或 `:macro-*` 命令）都会被拒绝，并在消息行
+给出 `stop macro recording before replay` 提示，因此回放的按键不会写入
+打开的录制缓冲。
+
 ### 5.1 vsc 键位（默认，无模式）
 
 **编辑（Editing）**

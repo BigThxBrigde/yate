@@ -76,6 +76,7 @@ def _sheet_entries_for(keymap: Keymap) -> list[ChordEntry]:
         panel=cast(WhichKeyPanel, panel),
         message=lambda _text, _kind: None,
         which_key_enabled=lambda: True,
+        which_key_auto_enabled=lambda: False,
     )
     flows.toggle()
     assert len(panel.shown) == 1
@@ -229,7 +230,11 @@ def test_guards_f6_premise_not_broken_by_macro_keys() -> None:
 
 
 def test_whichkey_flows_source_is_unchanged_by_macro_work() -> None:
-    """Case 3-7: WhichKeyFlows keeps its six injections; no macro state added."""
+    """Case 3-7: WhichKeyFlows gains no macro injection; no macro state added.
+
+    The seventh injection (``which_key_auto_enabled``) arrived with the
+    master which-key auto-trigger work, not from the macro feature.
+    """
     source = _WHICHKEY_FLOWS.read_text(encoding="utf-8")
     assert "macro_awaiting" not in source
     assert "session.macro" not in source
@@ -252,8 +257,9 @@ def test_whichkey_flows_source_is_unchanged_by_macro_work() -> None:
         "panel",
         "message",
         "which_key_enabled",
+        "which_key_auto_enabled",
     }
-    assert len(params) == 6
+    assert len(params) == 7
 
 
 def test_whichkey_docs_contain_no_machine_local_paths() -> None:

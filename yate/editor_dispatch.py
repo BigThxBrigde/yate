@@ -19,11 +19,11 @@ from textual.events import Key, MouseEvent
 from yate.editor_components.terminal import TOGGLE_KEYS
 from yate.editor_components.view import EditorView
 from yate.editor_core import BufferReadOnlyError
-from yate.flows.macro_flows import MACRO_REGISTER_CHARS
 from yate.keymaps.base import ActionContext
 from yate.keymaps.keys import (
     MACRO_CONTROL_KEYS,
     MACRO_PLAY_KEY,
+    MACRO_REGISTER_CHARS,
     MACRO_REPLAY_LAST_KEY,
     parse_key,
 )

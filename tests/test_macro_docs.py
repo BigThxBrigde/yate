@@ -125,6 +125,13 @@ def test_manual_both_languages_document_count_limitation() -> None:
     assert "双入口" in zh
 
 
+def test_manual_both_languages_document_recording_replay_refusal() -> None:
+    """Section 5 of both manuals states replays are refused mid-recording."""
+    for text in (_EN_TEXT, _ZH_TEXT):
+        block = _section(text, r"^## 5\b", r"^## 6\b")
+        assert "stop macro recording before replay" in block
+
+
 def test_manual_en_zh_section_headings_stay_paired() -> None:
     """Both manuals keep identical heading levels and numeric labels in order."""
     en_keys = _heading_keys(_EN_TEXT)

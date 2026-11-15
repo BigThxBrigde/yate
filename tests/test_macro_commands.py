@@ -221,6 +221,20 @@ def test_macro_play_command_empty_register_warns(env: _Env) -> None:
     assert env.editor.dispatched == []
 
 
+def test_macro_play_command_while_recording_warns(env: _Env) -> None:
+    env.macro.recording = "a"
+    env.macro.buffer = ["x"]
+    env.macro.registers["a"] = ("p", "q")
+
+    env.command("macro-play", "a")
+
+    assert env.editor.notes == [("stop macro recording before replay", "warn")]
+    assert env.editor.dispatched == []
+    assert env.macro.buffer == ["x"]
+    assert env.macro.recording == "a"
+    assert env.macro.last_played is None
+
+
 def test_macro_play_command_arg_completer_returns_recorded_names(env: _Env) -> None:
     env.macro.registers = {"a": ("x",), "b": ("y",)}
     entry = env.commands.get("macro-play")
@@ -259,6 +273,18 @@ def test_macro_replay_last_command_without_history_warns(env: _Env) -> None:
 
     assert env.editor.notes == [("no last macro replay", "warn")]
     assert env.editor.dispatched == []
+
+
+def test_macro_replay_last_command_too_many_args_warns_usage(env: _Env) -> None:
+    env.macro.registers["a"] = ("x", "y")
+    env.editor.macro_flows.play("a", 2)
+    env.editor.dispatched.clear()
+
+    env.command("macro-replay-last", "1 2")
+
+    assert env.editor.notes == [(_USAGE, "warn")]
+    assert env.editor.dispatched == []
+    assert env.macro.last_played == ("a", 2)
 
 
 def test_macro_commands_and_actions_are_registered_with_exact_names(env: _Env) -> None:

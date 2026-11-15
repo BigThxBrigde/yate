@@ -194,7 +194,7 @@ exit 0、`pyright tests/test_action_table.py` 0/0/0、全量 `pytest tests/ -q -
   D11 / D13 两处主代理修复经复核**未削弱守卫强度**（`test_action_table.py:471` 仍为
   「恰好」集合相等，which-key 仍硬断言 3 个 pinned-sheet label）；双语文档与相对
   路径纪律通过。
-- **3 条 MINOR（按 §二.6 登记待办，不改代码）**：
+- **3 条 MINOR（按 §二.6 登记待办，不改代码）** —— 2026-11-15 已全部修复，见本节末尾修复记录：
   1. `yate/commands.py:22` / `yate/editor_dispatch.py:22` 新增 L3→L3 连线
      （`from yate.flows.macro_flows import MACRO_REGISTER_CHARS`）未在
      `.trae/rules/architecture-boundaries.md` §一 连线图补登；建议常量下沉 L0
@@ -204,12 +204,25 @@ exit 0、`pyright tests/test_action_table.py` 0/0/0、全量 `pytest tests/ -q -
      「暂不做」范围，AC4 仍满足、无死循环。
   3. `yate/commands.py:666-667`（`:macro-replay-last` 多参数 usage warn）为新增
      代码但无用例覆盖，建议补一条边界用例。
+  - **2026-11-15 修复记录（三条全闭环）**：① `MACRO_REGISTER_CHARS` 下沉 L0
+    `yate/keymaps/keys.py`（与 `MACRO_CONTROL_KEYS` 同区），`commands.py` /
+    `editor_dispatch.py` / `macro_flows.py` 一律改为 L0 导入，L3→L3 连线消除、
+    无需补登规则图；② `MacroFlows.play()` 入口新增录制中拒绝守卫（
+    `stop macro recording before replay` warn），键位与 `:` 命令双路径统一拒绝，
+    回放键不再写入打开的录制缓冲；双语手册 §5 登记该语义 +
+    `test_macro_docs.py` 新增同步守卫，flows / commands 各补拒绝用例；
+    ③ 补 `:macro-replay-last` 多参数 usage-warn 边界用例。另修复 master 合并
+    （`994ecbff`，which-key auto-trigger !136）遗留的 2 个 which-key 测试
+    签名漂移（`WhichKeyFlows` 第 7 注入 `which_key_auto_enabled`）。
+    门禁复核全绿：pyright 0 / 全量 pytest exit 0·覆盖率 93.03% / 架构 41 /
+    冒烟 124/124·1511 checks / changelog 0 / diffcheck 0。
 - **遗留（需人工 / 另行立项）**：① which-key pinned sheet、状态栏 `rec @a`、
   应用内手册渲染的**真实 GUI 视觉验证**未做（无人值守会话无法启动 GUI）；
   ② issue N1（寄存器持久化）/ N2（回放合并单步 undo）/ N3（宏编辑 UI）/
   N4（嵌套录制回放）按 issue「暂不做」保留；③ 同步回放循环；
-  ④ changelog unreleased lag 属 release 期统一刷新；⑤ 既有未合流分支
-  `feature/feat-macro-record-replay`（14 提交）仍独立存在，本轮未合流、未推送。
+  ④ changelog unreleased lag 属 release 期统一刷新；⑤ 既有分支
+  `feature/feat-macro-record-replay`（14 提交）已随合并 `c8f1ffe4` 并入本分支
+  （其 `<f6>` 实现未并入代码），本地分支 2026-11-13 已删除、未推送。
 - **纪律确认**：全程不 push、不合流、不向用户发起询问或审批（无人值守按通过处理）；
   主仓 `.trae/agents/*.md` 的临时 Hy4 frontmatter 配置在收尾还原；主工作区
   `yate/resources/changelog.{en,zh}.md` 的既有未提交改动全程未触碰。

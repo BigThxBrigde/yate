@@ -94,6 +94,41 @@ def test_toggle_record_while_recording_stops_and_freezes_tuple(
     assert harness.macro.buffer == []
 
 
+def test_play_while_recording_is_refused_and_buffer_stays_clean(
+    harness: _Harness,
+) -> None:
+    """A replay started mid-recording must not pollute the open buffer."""
+    harness.macro.recording = "a"
+    harness.macro.buffer = ["x", "y"]
+    harness.macro.registers["a"] = ("p", "q")
+
+    harness.flow.play("a", 1)
+
+    assert harness.recorder.calls == []
+    assert harness.recorder.notes == [
+        ("stop macro recording before replay", "warn")
+    ]
+    assert harness.macro.buffer == ["x", "y"]
+    assert harness.macro.playing is False
+    assert harness.macro.last_played is None
+
+
+def test_replay_last_while_recording_is_refused(harness: _Harness) -> None:
+    """``replay_last`` reaches the same refusal via ``play`` (one guard)."""
+    harness.macro.recording = "a"
+    harness.macro.buffer = ["x"]
+    harness.macro.last_played = ("b", 2)
+    harness.macro.registers["b"] = ("p",)
+
+    harness.flow.replay_last()
+
+    assert harness.recorder.calls == []
+    assert harness.recorder.notes == [
+        ("stop macro recording before replay", "warn")
+    ]
+    assert harness.macro.buffer == ["x"]
+
+
 def test_stop_overwrites_same_register_and_keeps_others(
     harness: _Harness,
 ) -> None:

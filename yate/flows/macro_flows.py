@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from yate.keymaps.keys import MACRO_CONTROL_KEYS
+from yate.keymaps.keys import MACRO_CONTROL_KEYS, MACRO_REGISTER_CHARS
 from yate.logs import tracing
 from yate.session import EditorSession
 
@@ -24,8 +24,6 @@ type Notify = Callable[[str, str], None]
 MAX_PLAY_DEPTH: int = 1
 #: Upper bound on a recorded key sequence, to keep buffers finite.
 MAX_MACRO_KEYS: int = 10000
-#: Legal single-character macro register names.
-MACRO_REGISTER_CHARS: str = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 
 class MacroFlows:
@@ -100,10 +98,17 @@ class MacroFlows:
         self.play(reg, count)
 
     def play(self, reg: str, count: int) -> None:
-        """Replay *reg* exactly *count* times through the injected dispatch."""
+        """Replay *reg* exactly *count* times through the injected dispatch.
+
+        Refused with a notice while a recording is active, so a replay can
+        never append its own keys to the open recording buffer.
+        """
         if self.reject_if_playing():
             return
         macro = self._session.macro
+        if macro.recording is not None:
+            self._notify("stop macro recording before replay", "warn")
+            return
         keys = macro.get(reg)
         if keys == ():
             self._notify(f"macro register @{reg} is empty", "warn")

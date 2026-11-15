@@ -382,6 +382,10 @@ explicit count argument. Under vim both an explicit `1<f12>` and a bare `F12`
 fall into the "reuse last count" branch, since the captured pending count
 cannot tell them apart; `:macro-replay-last 1` still replays exactly once.
 
+While a macro recording is active, replay requests are refused with a
+`stop macro recording before replay` notice on the message line, so a
+replay can never append its own keys to the open recording buffer.
+
 ### 5.1 vsc keymap (default, modeless)
 
 **Editing**

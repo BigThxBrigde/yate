@@ -19,7 +19,7 @@ from yate.editor_syntax import (
     format_filetype_candidates,
     language_name,
 )
-from yate.flows.macro_flows import MACRO_REGISTER_CHARS
+from yate.keymaps.keys import MACRO_REGISTER_CHARS
 from yate.logs import tracing
 from yate.registries import ArgCompleter, CommandRegistry
 from yate.services import yxp
