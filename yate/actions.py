@@ -237,4 +237,15 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
         "Toggle the idle screensaver",
     )
 
+    reg("macro_record", lambda ctx: editor.macro_flows.toggle_record(),
+        "Toggle macro recording")
+    reg("macro_play",
+        lambda ctx: editor.macro_flows.request_play(
+            editor.session.macro.pending_count),
+        "Play a recorded macro")
+    reg("macro_replay_last",
+        lambda ctx: editor.macro_flows.replay_last(
+            editor.session.macro.pending_count),
+        "Repeat the last macro replay")
+
     log.info("builtin actions populated: %d", len(registry.names()))

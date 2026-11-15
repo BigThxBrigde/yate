@@ -31,6 +31,7 @@ from textual.screen import Screen
 from yate import __version__
 from yate.editor_compose import (
     _build_key_ui as _build_key_ui,
+    _build_macro_flows as _build_macro_flows,
     _build_models as _build_models,
     _build_pane_stack as _build_pane_stack,
     _build_widgets as _build_widgets,
@@ -72,6 +73,7 @@ from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
+from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
@@ -141,6 +143,7 @@ class Editor:
     hover: HoverFlows
     mouse_flows: MouseFlows
     chunked_flows: ChunkedFlows
+    macro_flows: MacroFlows
 
     def __init__(
         self,
@@ -174,7 +177,11 @@ class Editor:
         # exit verb is bound by the app shell on mount (bind_file_manager_exit).
         # Hover flows: built after panes, before mouse_flows (which receives
         # their on_mouse_move callback, plan h).
+        # Macro flows: built after the models (it reads session.macro) and
+        # before the widgets (StatusBar takes the recording label callback);
+        # key_ui actions reach it later through the editor attribute.
         _build_models(self, keymap)
+        _build_macro_flows(self)
         _build_widgets(self)
         _open_startup_target(self, target)
         _build_pane_stack(self)

@@ -26,8 +26,8 @@ def test_editor_compose_has_no_self_app() -> None:
                 )
 
 
-def test_editor_compose_exports_five_factories() -> None:
-    """The module must define exactly the five assembly factories."""
+def test_editor_compose_exports_six_factories() -> None:
+    """The module must define exactly the six assembly factories."""
     src = Path("yate/editor_compose.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     funcs = {
@@ -41,12 +41,13 @@ def test_editor_compose_exports_five_factories() -> None:
         "_open_startup_target",
         "_build_pane_stack",
         "_build_key_ui",
+        "_build_macro_flows",
     }
     assert funcs == expected, f"expected {expected}, got {funcs}"
 
 
 def test_editor_imports_factories_from_compose() -> None:
-    """editor.py must import the five factories from editor_compose."""
+    """editor.py must import the six factories from editor_compose."""
     src = Path("yate/editor.py").read_text(encoding="utf-8")
     assert "from yate.editor_compose import" in src
     for name in [
@@ -55,6 +56,7 @@ def test_editor_imports_factories_from_compose() -> None:
         "_open_startup_target",
         "_build_pane_stack",
         "_build_key_ui",
+        "_build_macro_flows",
     ]:
         assert name in src, f"missing import: {name}"
 

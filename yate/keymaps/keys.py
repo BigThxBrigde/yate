@@ -58,6 +58,16 @@ SPECIAL_KEYS: dict[str, str] = {
 #: keymaps import this single L0 constant (AC2); <ctrl-k> is NOT usable
 #: because it aliases <ctrl-shift-k> (delete_line) at raw byte \x0b.
 HOVER_DOC_KEY: str = "<f7>"
+#: Shared key for toggling macro recording in both built-in keymaps (AC3).
+MACRO_RECORD_KEY: str = "<f10>"
+#: Shared key for playing a recorded macro in both built-in keymaps (AC3).
+MACRO_PLAY_KEY: str = "<f11>"
+#: Shared key for repeating the last macro replay in both keymaps (AC3).
+MACRO_REPLAY_LAST_KEY: str = "<f12>"
+#: Legal single-character macro register names (a-z0-9), shared by the
+#: dispatch register guard, the L3 flows layer and the ``:macro-*`` commands
+#: (pure L0 data; keeping it here avoids an L3 -> L3 cross-module import).
+MACRO_REGISTER_CHARS: str = "abcdefghijklmnopqrstuvwxyz0123456789"
 
 # Common terminal variants not covered by the canonical names.
 KEY_ALIASES: dict[str, str] = {
@@ -155,6 +165,15 @@ def parse_key(spec: str) -> str:
         else:
             raise ValueError(f"unsupported ctrl key: {spec!r}")
     return base
+
+
+#: Raw forms of the three macro control keys; dispatch uses this set to keep
+#: the control keys themselves out of a recorded sequence and to reject a
+#: replay-triggering key while a replay is in flight (AC4).
+MACRO_CONTROL_KEYS: frozenset[str] = frozenset(
+    parse_key(key)
+    for key in (MACRO_RECORD_KEY, MACRO_PLAY_KEY, MACRO_REPLAY_LAST_KEY)
+)
 
 
 def key_name(key: str) -> str:

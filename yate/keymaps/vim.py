@@ -38,6 +38,7 @@ from yate.keymaps.base import (
     Keymap,
     parse_key,
 )
+from yate.keymaps.keys import MACRO_PLAY_KEY, MACRO_RECORD_KEY, MACRO_REPLAY_LAST_KEY
 from yate.services.clipboard import copy_text, paste_text
 
 
@@ -233,6 +234,12 @@ class VimKeymap(Keymap):
                        "Toggle the which-key panel", HLP),
             KeyBinding(parse_key(HOVER_DOC_KEY), "show_hover_docs",
                        "Show API documentation at cursor", HLP),
+            KeyBinding(parse_key(MACRO_RECORD_KEY), "macro_record",
+                       "Toggle macro recording", CMD),
+            KeyBinding(parse_key(MACRO_PLAY_KEY), "macro_play",
+                       "Play a recorded macro", CMD),
+            KeyBinding(parse_key(MACRO_REPLAY_LAST_KEY), "macro_replay_last",
+                       "Repeat last replay", CMD),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -1264,6 +1271,11 @@ class VimKeymap(Keymap):
 
     def _peek_count(self) -> int:
         return int(self.count_str) if self.count_str else 1
+
+    @override
+    def take_pending_count(self) -> int:
+        """Consume the typed count before ``handle_key`` clears it (vim)."""
+        return self._take_count()
 
     # ----------------------------------------------------------- registers
 

@@ -47,6 +47,9 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "quit",
         "shell.open_prompt",
         "hover.request_at_cursor",
+        "macro_flows.replay_last",
+        "macro_flows.request_play",
+        "macro_flows.toggle_record",
         "toggle_explorer",
         "toggle_keymap",
         "whichkey.toggle",
@@ -64,6 +67,7 @@ _FLOW_NAMESPACES: frozenset[str] = frozenset(
         "lsp_sync",
         "whichkey",
         "hover",
+        "macro_flows",
     }
 )
 
@@ -96,6 +100,20 @@ class _StubFlows:
         return record
 
 
+class _StubMacroState:
+    """Minimal macro state for the action table's count-prefix read."""
+
+    def __init__(self) -> None:
+        self.pending_count: int = 1
+
+
+class _StubSession:
+    """Minimal session stand-in exposing the macro state."""
+
+    def __init__(self) -> None:
+        self.macro: _StubMacroState = _StubMacroState()
+
+
 class _StubEditor:
     """Records every editor hook the action table forwards to.
 
@@ -104,11 +122,14 @@ class _StubEditor:
     newly added action stays a harmless no-op instead of raising
     ``AttributeError``, while tests can still assert the call.  Flow
     collaborators (:data:`_FLOW_NAMESPACES`) return a :class:`_StubFlows`
-    sub-recorder.  Private and dunder lookups are real errors.
+    sub-recorder.  ``session`` is a real stand-in because macro actions read
+    the captured count from ``editor.session.macro.pending_count``.
+    Private and dunder lookups are real errors.
     """
 
     def __init__(self) -> None:
         self.calls: list[Call] = []
+        self.session: _StubSession = _StubSession()
 
     def __getattr__(
         self, name: str

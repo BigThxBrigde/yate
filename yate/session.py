@@ -17,6 +17,8 @@ here because it is L1 state with L0-only dependencies, shared by ``EditorView``
 and ``PaneManager`` without an intermediate type-only module.  ``EditorSession``
 itself stays pane-agnostic: the window layout is owned by ``PaneManager`` (L2)
 and composed by ``Editor`` (L3).
+
+Macro registers are session-level, in-memory, and never persisted.
 """
 
 from __future__ import annotations
@@ -40,6 +42,31 @@ type ClosedHook = Callable[[list[Document]], None]
 #: Called with each document freshly opened from disk (chunked-attach hook).
 type OpenedHook = Callable[[Document], None]
 
+
+@dataclass
+class MacroState:
+    """Session-level macro registers and the recording / replay state (L1)."""
+
+    registers: dict[str, tuple[str, ...]] = field(
+        default_factory=dict[str, tuple[str, ...]]
+    )
+    recording: str | None = None
+    buffer: list[str] = field(default_factory=list[str])
+    awaiting: Literal["record", "play"] | None = None
+    last_played: tuple[str, int] | None = None
+    playing: bool = False
+    play_depth: int = 0
+    pending_count: int = 1
+
+    def recording_label(self) -> str | None:
+        """Return the ``rec @<reg>`` status-bar label, or ``None``."""
+        return f"rec @{self.recording}" if self.recording is not None else None
+
+    def get(self, reg: str) -> tuple[str, ...]:
+        """Return the recorded raw keys for *reg*, or ``()`` when unrecorded."""
+        return self.registers.get(reg, ())
+
+
 log = tracing.get_logger(__name__)
 
 
@@ -62,6 +89,7 @@ class EditorSession:
         self.welcome_visible = True
         self._on_closed = on_closed
         self._on_opened = on_opened
+        self.macro = MacroState()
 
     # ------------------------------------------------------------- documents
 

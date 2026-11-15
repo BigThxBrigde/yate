@@ -366,12 +366,16 @@ MAX_SOURCE_LINES: int = 800
 #: 875 splitlines; plan-d added hover-request packaging that still belongs to
 #: the LSP request orchestration single duty, and moving it out would break
 #: the manager's encapsulation of ``_clients`` / ``_open``.
+#: macro wiring adds the ``MacroFlows`` class attribute / factory to
+#: ``editor.py``, pushing it past 800 lines; single-duty thin delegate,
+#: registered per section 3.7.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "editor_lsp/manager.py",
+    "editor.py",
 })
 
 #: Code points a code comment or docstring must not carry (misc-rules
@@ -1644,3 +1648,107 @@ def test_hover_key_is_shared_and_identical() -> None:
     vim_binding = VimKeymap().lookup(parse_key(HOVER_DOC_KEY))
     assert vim_binding is not None
     assert vim_binding.action == "show_hover_docs"
+
+
+def test_macro_keys_are_shared_and_identical() -> None:
+    """The three macro keys come from shared L0 constants in both keymaps (AC3).
+
+    AST part: ``vsc.py`` / ``vim.py`` reference the three ``MACRO_*_KEY``
+    names inside ``build_bindings`` and never spell ``<f10>`` / ``<f11>`` /
+    ``<f12>`` literally, so a one-sided hardcoded key edit fails here.
+    Runtime part: both keymaps resolve each key to the same action name.
+    """
+    from yate.keymaps.keys import (
+        MACRO_PLAY_KEY,
+        MACRO_RECORD_KEY,
+        MACRO_REPLAY_LAST_KEY,
+        parse_key,
+    )
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    constants = (
+        ("MACRO_RECORD_KEY", MACRO_RECORD_KEY, "macro_record"),
+        ("MACRO_PLAY_KEY", MACRO_PLAY_KEY, "macro_play"),
+        ("MACRO_REPLAY_LAST_KEY", MACRO_REPLAY_LAST_KEY, "macro_replay_last"),
+    )
+    forbidden = {"<f10>", "<f11>", "<f12>", "<f7>"}
+    for name in ("vsc.py", "vim.py"):
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        for const_name, _spec, _action in constants:
+            assert const_name in source_names, (name, const_name)
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        for literal in forbidden:
+            assert literal not in literals, (name, literal)
+
+    vsc = VscKeymap()
+    vim = VimKeymap()
+    for _const_name, spec, action in constants:
+        raw = parse_key(spec)
+        vsc_binding = vsc.lookup(raw)
+        assert vsc_binding is not None, (spec, "vsc")
+        assert vsc_binding.action == action, (spec, "vsc", vsc_binding.action)
+        vim_binding = vim.lookup(raw)
+        assert vim_binding is not None, (spec, "vim")
+        assert vim_binding.action == action, (spec, "vim", vim_binding.action)
+
+
+def test_editor_size_exemption_is_registered() -> None:
+    """``editor.py`` is registered in the size-exemption guard set (AC8).
+
+    The rule text list in architecture-boundaries.md section 3.7 is synced
+    by wave-3; this guard only checks the guard-set side, so it stays green
+    in wave-2 when the rule text has not been updated yet.
+    """
+    assert "editor.py" in SIZE_EXEMPT_FILES
+    assert len(SIZE_EXEMPT_FILES) == 6
+    assert {
+        "keymaps/vim.py",
+        "editor_components/file_manager/screen.py",
+        "editor_core/buffer.py",
+        "editor_syntax/langdefs.py",
+        "editor_lsp/manager.py",
+    } <= SIZE_EXEMPT_FILES
+
+
+def test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one() -> None:
+    """``take_pending_count`` lives on the base and vim keymaps, not vsc.
+
+    AST part: the ``Keymap`` and ``VimKeymap`` class bodies both define the
+    method, while ``VscKeymap`` inherits the base default and defines none.
+    Runtime part: the base and vsc answers are both ``1``, and the vim
+    override returns an ``int`` (its default of ``1`` on a fresh keymap).
+    """
+    from yate.keymaps.base import Keymap
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    def method_names(path: str, class_name: str) -> set[str]:
+        tree = ast.parse((YATE / "keymaps" / path).read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == class_name:
+                return {
+                    item.name for item in node.body
+                    if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                }
+        raise AssertionError(f"class {class_name} not found in {path}")
+
+    assert "take_pending_count" in method_names("base.py", "Keymap")
+    assert "take_pending_count" in method_names("vim.py", "VimKeymap")
+    assert "take_pending_count" not in method_names("vsc.py", "VscKeymap")
+
+    assert Keymap().take_pending_count() == 1
+    assert VscKeymap().take_pending_count() == 1
+    assert isinstance(VimKeymap().take_pending_count(), int)
