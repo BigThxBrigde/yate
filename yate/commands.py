@@ -121,6 +121,22 @@ def _apply_which_key(editor: Editor, value: object) -> None:
     editor.message(f"which-key panel {'on' if enabled else 'off'}", kind="ok")
 
 
+def _apply_which_key_auto(editor: Editor, value: object) -> None:
+    """Apply ``:set which_key_auto`` (the flow reads it per refresh).
+
+    :meth:`~yate.flows.whichkey_flows.WhichKeyFlows.refresh` is the single
+    decision point: it consults the new ``editor.config.which_key_auto``
+    value and keeps the pinned sheet when one is active (the pinned branch
+    wins over the auto-trigger gate).  We therefore only store the value,
+    trigger one refresh and report -- never calling ``clear()`` here, which
+    would wipe a pinned panel on turn-off.
+    """
+    enabled = cast(bool, value)
+    editor.config.which_key_auto = enabled
+    editor.refresh_ui()
+    editor.message(f"which-key auto trigger {'on' if enabled else 'off'}", kind="ok")
+
+
 SET_APPLY.update(
     filetype=_apply_filetype,
     keymap=_apply_keymap,
@@ -131,6 +147,7 @@ SET_APPLY.update(
     readonly=_apply_readonly,
     support_mouse=_apply_support_mouse,
     which_key=_apply_which_key,
+    which_key_auto=_apply_which_key_auto,
 )
 
 #: ``:set`` keys whose values are filetype spellings (auto + registry).

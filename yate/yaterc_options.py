@@ -558,6 +558,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
                 f"which_key must be True or False, got {which_key!r}"
             )
 
+    which_key_auto = options.get("which_key_auto")
+    if which_key_auto is not None:
+        if isinstance(which_key_auto, bool):
+            config.which_key_auto = which_key_auto
+        else:
+            config.errors.append(
+                f"which_key_auto must be True or False, got {which_key_auto!r}"
+            )
+
     trace = options.get("yate_trace")
     if trace is not None:
         if isinstance(trace, bool):
