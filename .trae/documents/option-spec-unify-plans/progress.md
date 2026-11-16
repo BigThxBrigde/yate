@@ -14,7 +14,7 @@
 | wave-2（plan-b） | 完成 | `5c8d1aa4`：_extract_options 遍历表；627 行 < 800；35 passed |
 | wave-3（plan-c） | 完成 | `b5ffd885`：补全候选 + 架构守卫 42 条 + 规则计数同步；91 passed；N1/N2 演练均 exit 1 后还原 |
 | 【审核】 | 完成 | code-review-expert 交付 REQUEST CHANGES（5 MAJOR）；`04432f95` 全部闭合，复审 APPROVE |
-| 【收尾】 | 进行中 | 全量门禁执行中；只提交不推送 |
+| 【收尾】 | 完成 | 六道门禁全绿（见下）；只提交不推送，分支共 8 笔提交 |
 
 ## 执行纪律登记
 
@@ -37,4 +37,4 @@
 - wave-2：pyright 0 / 35 passed；_extract_options 742→627 行；dict extractors 仍在尾部调用
 - wave-3：pyright 0 / 91 passed / 架构 42 passed；N1（keymap 硬编码候选）与 N2（tab_width 内联校验）负向演练均令守卫 exit 1，还原后 exit 0
 - 审核：code-review-expert 交付；5 MAJOR / 5 MINOR 全部闭合于 04432f95；复审 APPROVE；评审记录 `.trae/reviews/2026-11-16-option-spec-unify.md`
-- 收尾门禁：pyright 0；pytest -n 1 全量 exit 0；架构 42；并行 pytest exit 1 由 safe-delete 钩子收尾清理所致（非测试失败，见记忆），清积压后复核；覆盖率 / 冒烟待执行
+- 收尾门禁（2026-11-16 主代理亲跑，六项全绿）：\n  1. pyright yate/ tests/ tools/ pack/ -> 0 errors / 0 warnings\n  2. pytest tests/ -q -n 1 -> exit 0\n  3. pytest tests/test_architecture.py -q -n 1 -> 42 passed, exit 0\n  4. pytest tests/ --cov=yate --cov-branch -q -n 1 --cov-fail-under=75 -> 93.02%, exit 0（首轮 test_palette_down_cursor_moves 一过性失败，单独复跑通过；二轮全绿）\n  5. python -m tools.smoke_test run --jobs 4 -> 124/124 scenarios, 1511/1511 checks, exit 0\n  6. python -m tools.changelog check -> exit 0\n  - 备注：并行 -n auto 全量首轮 exit 1 由本机 safe-delete 钩子收尾清理锁超时所致（非测试失败，见记忆）；串行 -n 1 为权威口径，exit 0。
