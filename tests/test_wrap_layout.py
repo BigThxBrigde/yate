@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import pytest
+
+import yate.editor_components.wrap_layout as wrap_module
 from yate.editor_components.wrap_layout import RowSpan, WrapLayout
 
 
@@ -62,10 +65,11 @@ def test_disabled_wrap_is_identity_mapping() -> None:
     layout = WrapLayout()
     layout.update(1, 4, ["ab", "a\tb"], 4, False)
     assert layout.display_count() == 2
-    assert layout.display_to_logical(0) == RowSpan(0, 0, 2, 0)
-    # the tab still expands to the next stop in identity mode (a=1 cell,
-    # tab from column 1 to 4, b from 4 to 5)
-    assert layout.display_to_logical(1) == RowSpan(1, 0, 5, 0)
+    # With wrapping off the span's cell window is unused by the render path
+    # (which windows with scroll_col), so the O(1) identity path reports a
+    # zero-width sentinel instead of scanning every line to expand tabs.
+    assert layout.display_to_logical(0) == RowSpan(0, 0, 0, 0)
+    assert layout.display_to_logical(1) == RowSpan(1, 0, 0, 0)
 
 
 def test_display_and_logical_mappings_round_trip() -> None:
@@ -120,3 +124,29 @@ def test_document_identity_change_rebuilds_even_at_same_version() -> None:
     layout.update(0, 2, ["aaaa"], 4, True, doc_a)
     assert layout.rebuild_count == 3
     assert layout.display_count() == 2
+
+
+def test_disabled_wrap_identity_update_is_o1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Wrap-off rebuilds never scan the document (default-state hot path)."""
+    calls: list[str] = []
+
+    def counting_offsets(line: str, tab_width: int) -> list[int]:
+        calls.append(line)
+        return [0] * (len(line) + 1)
+
+    monkeypatch.setattr(wrap_module, "cell_offsets", counting_offsets)
+    layout = WrapLayout()
+    lines = ["x" * 80 for _ in range(20_000)]
+    layout.update(1, 40, lines, 4, False)
+    assert layout.rebuild_count == 1
+    assert calls == []
+    # identity queries still answer correctly without a materialized table
+    assert layout.display_count() == 20_000
+    assert layout.display_to_logical(19_999) == RowSpan(19_999, 0, 0, 0)
+    assert layout.display_to_logical(20_000) is None
+    assert layout.logical_to_display(7, 12) == (7, 12)
+    assert layout.logical_display_rows(7) == 1
+    # an edit bumps the version: rebuild is counted, but still no line scan
+    layout.update(2, 40, lines, 4, False)
+    assert layout.rebuild_count == 2
+    assert calls == []

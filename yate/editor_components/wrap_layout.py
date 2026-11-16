@@ -16,11 +16,17 @@ expansions and wide glyphs are never split across rows (AC2).
 
 Caching contract (AC8): :meth:`WrapLayout.update` is called every render
 frame, but it rebuilds the span table only when the cache key
-``(content_version, text_w, wrap_enabled)`` changes.  ``content_version``
-is bumped by every buffer edit and by chunked ``fill_lines`` /
-``extend_placeholders``, so a stable key guarantees the ``lines`` sequence
-is unchanged and the cached mapping stays valid; on a key change the table
-is rebuilt once per change, never once per frame.
+``(content_version, text_w, wrap_enabled, document)`` changes.
+``content_version`` is bumped by every buffer edit and by chunked
+``fill_lines`` / ``extend_placeholders``, so a stable key guarantees the
+``lines`` sequence is unchanged and the cached mapping stays valid; on a key
+change the table is rebuilt once per change, never once per frame.
+
+Wrap disabled is the default state and takes an O(1) identity fast path: the
+mapping is ``display_row == logical_row`` and no span table is materialized.
+The no-wrap render path windows lines with ``scroll_col`` and never consumes
+a span's cell window, so building an identity table over every logical line
+on each keystroke would be pure O(document) work (the perf-audit pattern).
 """
 
 from __future__ import annotations
@@ -99,6 +105,8 @@ class WrapLayout:
         #: Number of span-table rebuilds performed; test seam for the AC8
         #: "no rebuild while the cache key is unchanged" guarantee.
         self.rebuild_count: int = 0
+        self._identity: bool = False
+        self._identity_count: int = 0
 
     def update(
         self,
@@ -129,21 +137,27 @@ class WrapLayout:
             return
         self.version_key = key
         self.rebuild_count += 1
+        self._identity = not enabled
+        if not enabled:
+            # O(1) identity fast path: no-wrap rendering windows lines with
+            # scroll_col and never reads a span's cell window, so building an
+            # identity table of every line on each keystroke is wasted O(n).
+            self._identity_count = len(lines)
+            self.logical_rows = []
+            self.cumulative = [0]
+            return
         rows: list[RowSpan] = []
         cumulative: list[int] = [0]
-        if enabled:
-            for row, line in enumerate(lines):
-                rows.extend(_wrap_line(line, row, text_w, tab_width))
-                cumulative.append(len(rows))
-        else:
-            for row, line in enumerate(lines):
-                rows.append(RowSpan(row, 0, cell_offsets(line, tab_width)[-1], 0))
-                cumulative.append(len(rows))
+        for row, line in enumerate(lines):
+            rows.extend(_wrap_line(line, row, text_w, tab_width))
+            cumulative.append(len(rows))
         self.logical_rows = rows
         self.cumulative = cumulative
 
     def display_count(self) -> int:
         """Return the total number of display rows (virtual-size height)."""
+        if self._identity:
+            return self._identity_count
         return self.cumulative[-1]
 
     def display_to_logical(self, display_row: int) -> RowSpan | None:
@@ -152,8 +166,15 @@ class WrapLayout:
         Span ``k`` in :attr:`logical_rows` is exactly display row ``k``:
         every logical line contributes at least one span and the spans are
         appended in line order, so the lookup is a direct O(1) index after a
-        bounds check against :attr:`cumulative`.
+        bounds check against :attr:`cumulative`.  With wrapping disabled the
+        identity fast path returns the trivial span without materializing a
+        table: ``cell_start`` / ``cell_end`` are unused by the no-wrap render
+        path (which windows with ``scroll_col`` instead).
         """
+        if self._identity:
+            if display_row < 0 or display_row >= self._identity_count:
+                return None
+            return RowSpan(display_row, 0, 0, 0)
         if display_row < 0 or display_row >= self.cumulative[-1]:
             return None
         return self.logical_rows[display_row]
@@ -169,6 +190,10 @@ class WrapLayout:
         empty layout (never updated, or updated with no lines) returns
         ``(0, 0)``.
         """
+        if self._identity:
+            if not self._identity_count:
+                return (0, 0)
+            return (min(max(row, 0), self._identity_count - 1), max(0, cell_col))
         if not self.logical_rows:
             return (0, 0)
         row = min(max(row, 0), len(self.cumulative) - 2)
@@ -188,6 +213,8 @@ class WrapLayout:
         Out-of-range rows (including an empty layout) report ``0``; every
         in-range line reports at least ``1``.
         """
+        if self._identity:
+            return 1 if 0 <= row < self._identity_count else 0
         if row < 0 or row >= len(self.cumulative) - 1:
             return 0
         return self.cumulative[row + 1] - self.cumulative[row]
