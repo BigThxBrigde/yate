@@ -401,6 +401,7 @@ def _build_key_ui(ed: yate.editor.Editor) -> None:
         find_prompt=ed.prompt_flows.find_prompt,
         goto_prompt=ed.prompt_flows.goto_prompt,
         toggle_keymap=ed.toggle_keymap,
+        move_display_line=ed.move_display_line,
     )
 
 

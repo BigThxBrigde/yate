@@ -64,6 +64,9 @@ MACRO_RECORD_KEY: str = "<f10>"
 MACRO_PLAY_KEY: str = "<f11>"
 #: Shared key for repeating the last macro replay in both keymaps (AC3).
 MACRO_REPLAY_LAST_KEY: str = "<f12>"
+#: Shared key for toggling soft-wrap display in both built-in keymaps
+#: (IKVRXT); alt+z parses to ESC+z and collides with no existing binding.
+SOFT_WRAP_KEY: str = "<alt-z>"
 #: Legal single-character macro register names (a-z0-9), shared by the
 #: dispatch register guard, the L3 flows layer and the ``:macro-*`` commands
 #: (pure L0 data; keeping it here avoids an L3 -> L3 cross-module import).
