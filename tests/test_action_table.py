@@ -52,6 +52,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "macro_flows.toggle_record",
         "toggle_explorer",
         "toggle_keymap",
+        "toggle_soft_wrap",
         "whichkey.toggle",
     }
 )

@@ -739,6 +739,23 @@ class Editor:
         )
         self.refresh_ui()
 
+    # ============================================================= soft wrap
+
+    def set_soft_wrap(self, enabled: bool) -> None:
+        """Set the soft-wrap display mode (``:set wrap=`` / the toggle).
+
+        The switch lives on ``self.config.wrap``; the views read it through
+        the injected ``wrap_enabled`` predicate, so one :meth:`refresh_ui`
+        repaint propagates the mode to every open pane.
+        """
+        self.config.wrap = enabled
+        self.message(f"soft wrap {'on' if enabled else 'off'}", kind="ok")
+        self.refresh_ui()
+
+    def toggle_soft_wrap(self) -> None:
+        """Flip the soft-wrap display mode (``toggle_soft_wrap`` action)."""
+        self.set_soft_wrap(not self.config.wrap)
+
     # ================================================================= shell
 
     def run_command(self, text: str) -> None:

@@ -567,6 +567,15 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
                 f"which_key_auto must be True or False, got {which_key_auto!r}"
             )
 
+    wrap = options.get("wrap")
+    if wrap is not None:
+        if isinstance(wrap, bool):
+            config.wrap = wrap
+        else:
+            config.errors.append(
+                f"wrap must be True or False, got {wrap!r}"
+            )
+
     trace = options.get("yate_trace")
     if trace is not None:
         if isinstance(trace, bool):

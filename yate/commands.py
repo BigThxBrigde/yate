@@ -138,6 +138,16 @@ def _apply_which_key_auto(editor: Editor, value: object) -> None:
     editor.message(f"which-key auto trigger {'on' if enabled else 'off'}", kind="ok")
 
 
+def _apply_wrap(editor: Editor, value: object) -> None:
+    """Apply ``:set wrap`` (message and repaint are the editor's duty).
+
+    :meth:`~yate.editor.Editor.set_soft_wrap` owns the state change, the
+    confirmation message and the repaint, so the toggle action and this
+    command share a single reporting path.
+    """
+    editor.set_soft_wrap(cast(bool, value))
+
+
 SET_APPLY.update(
     filetype=_apply_filetype,
     keymap=_apply_keymap,
@@ -149,6 +159,7 @@ SET_APPLY.update(
     support_mouse=_apply_support_mouse,
     which_key=_apply_which_key,
     which_key_auto=_apply_which_key_auto,
+    wrap=_apply_wrap,
 )
 
 #: ``:set`` keys whose values are filetype spellings (auto + registry).
