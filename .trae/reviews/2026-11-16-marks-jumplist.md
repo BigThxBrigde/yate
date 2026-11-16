@@ -35,3 +35,12 @@
 
 - Review findings written back into `.trae/documents/marks-jumplist-plans/overview.md` (deviation register, review table, TODO list).
 - Reviewer self-critique recorded: 2 candidate issues retracted after reachability analysis (chord-clear ordering unreachable; modal single-threaded delete path has no reachable failure).
+
+## Round 2: pr-review skill final pass (2026-11-16)
+
+- Verdict: APPROVE. Gates re-measured: pyright 0 diagnostics (exit 0); pytest full green (exit 0); coverage `--cov-fail-under=75` -> 92.70% (exit 0); architecture tests 42 green; editor.py 811 lines consistent with exemption.
+- Round-1 fix quality re-verified item by item (current_jump_entry public accessor, COL 1-based, header alignment, dead log removed, OverlayScreen/OverlayScroll public aliases, zero new suppressions).
+- Findings:
+  - [minor] marks_palette.py coverage 44%, panel interaction untested -> Fixed: added tests/test_marks_palette.py (6 pilot tests), coverage now 100% (navigation_flows 89% -> 91%).
+  - [minor] vim VISUAL mode retains VISUAL after nav-key dispatch (anchor cleared, no highlight) -> Registered TODO T4 (consistent with F-key all-mode precedent; not changed in v1).
+  - [minor] JumpsScreen cursor can rest on the current row; Enter is a silent no-op -> Registered TODO T5 (semantic documented in docstring).
