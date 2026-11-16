@@ -297,6 +297,7 @@ class Editor:
             handle_key=self.handle_key,
             handle_mouse=partial(self._on_view_mouse, leaf_id),
             ensure_row=partial(self._ensure_chunked_row, leaf_id),
+            wrap_enabled=lambda: self.config.wrap,
         )
 
     def _ensure_chunked_row(self, leaf_id: int, row: int) -> None:
@@ -755,6 +756,18 @@ class Editor:
     def toggle_soft_wrap(self) -> None:
         """Flip the soft-wrap display mode (``toggle_soft_wrap`` action)."""
         self.set_soft_wrap(not self.config.wrap)
+
+    def move_display_line(self, direction: int, count: int = 1) -> None:
+        """Move the active cursor by *count* display rows (vim gj/gk).
+
+        Thin delegation to the focused :class:`EditorView`, which owns the
+        wrap layout and maps display rows back to logical positions.  Injected
+        into :class:`KeyUi` so the vim keymap (L1) reaches the display geometry
+        without importing an L2 component (architecture R4).
+        """
+        view = self.panes.active_view
+        if view is not None:
+            view.move_display_line(direction, count)
 
     # ================================================================= shell
 

@@ -409,6 +409,40 @@ class EditorView(ScrollView, HighlightMixin):
         # content_changed or refresh_ui), so refreshing twice would be a
         # redundant dirty mark.
 
+    def move_display_line(self, direction: int, count: int = 1) -> None:
+        """Move the cursor by *count* display rows in *direction* (vim gj/gk).
+
+        With soft wrap on, the cursor's logical (row, cell) is mapped through
+        :class:`WrapLayout` to a display row, shifted, then mapped back to a
+        logical row plus a cell offset, so a motion can land on a continuation
+        row (AC4).  The landing column is the start cell of the target span,
+        mirroring vim's screen-column behavior across wrapped lines.  With
+        wrap off the motion degenerates to a plain logical-row move, which
+        is exactly vim's fallback when there is nothing to wrap.
+
+        The active pane's live buffer cursor is moved; selection is handled
+        by :meth:`TextBuffer.set_cursor`.  Inactive panes are left untouched
+        (a keymap motion always targets the focused view).
+        """
+        buf = self.buffer
+        on, _ = self._sync_wrap(self._text_width())
+        row, col = buf.cursor
+        if not on:
+            target = max(0, min(row + direction * count, buf.line_count - 1))
+            buf.set_cursor((target, min(col, len(buf.lines[target]))))
+            return
+        line = buf.lines[row]
+        cell = theme.char_to_cell(line, col, buf.tab_width)
+        display_row, _ = self._wrap.logical_to_display(row, cell)
+        total = self._wrap.display_count()
+        target = max(0, min(display_row + direction * count, max(0, total - 1)))
+        span = self._wrap.display_to_logical(target)
+        if span is None:
+            return
+        target_line = buf.lines[span.logical_row]
+        target_col = theme.cell_to_char(target_line, span.cell_start, buf.tab_width)
+        buf.set_cursor((span.logical_row, min(target_col, len(target_line))))
+
     def page_delta(self, half: bool = False) -> int:
         """Rows per full page (or half page when *half* is set)."""
         return max(1, ((self.size.height or 20) // 2) if half else (self.size.height or 20))
