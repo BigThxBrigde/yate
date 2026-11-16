@@ -373,7 +373,15 @@ flowchart TD
 （基线 800 行），越过 800 行阈值；`Editor` 是 L3 单一职责薄委托
 （组装 + 跨协作者操作），拆分无行为收益，故按本节「单一职责长文件可
 登记豁免」登记，并与 `tests/test_architecture.py` 的
-`SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填）。
+`SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填），
+`editor_components/view.py`（2026-11-16 soft-wrap 波（issue IKVRXT）接线
+WrapLayout 后 `splitlines()` 实测 816 行（基线 668 行）：`EditorView` 单一职责
+渲染器（render_line span-window / 虚拟尺寸 / 鼠标映射 / 光标曝光 / gj-gk
+显示行移动均围绕同一视图渲染状态），wrap 渲染属其渲染职责，拆出 mixin 会与
+render_line / mouse / cursor 深度耦合且违反 issue「不重构分层与高亮缓存架构」
+约束，故按本节「单一职责长文件可登记豁免」登记，并与
+`tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步（守卫集合扩至 7 项，
+`test_editor_size_exemption_is_registered` 断言同步为 7））。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -647,7 +655,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 | 37 | `test_scrollable_widgets_apply_theme_scrollbar_pair` | R15（可滚动组件滚动条接线：AST 递归扫 `yate/editor_components/**/*.py`，定义了基类命中 `SCROLLABLE_BASES` 的类的模块必须同时调 `apply_slim_scrollbars` + `apply_scrollbar_theme`；豁免集 `SCROLLBAR_EXEMPT` 初始为空） |
 | 38 | `test_hover_key_is_shared_and_identical` | AC2 统一键位漂移守卫（2026-11-09 IKTPC2：AST 断言 vsc / vim 的 `build_bindings` 都引用 `HOVER_DOC_KEY` 且无 `<f7>` 字面量；运行时断言两套表同一 raw 键都解析到 `show_hover_docs`，防止只改一侧；负向演练：2026-11-12 multi-dim-review r3 单侧改 `parse_key("<f7>")` 字面量 → 守卫失败（AssertionError: vim.py）→ 还原通过，仓库惯例补登） |
 | 39 | `test_macro_keys_are_shared_and_identical` | AC3 宏键位漂移守卫（2026-11-12 宏录制与回放 wave-2 plan-d：AST 断言 vsc / vim 的 `build_bindings` 都引用 3 个 `MACRO_*_KEY` 共享常量且无 `<f10>` / `<f11>` / `<f12>` / `<f7>` 字面量；运行时断言两套表同一 raw 键解析到同一宏动作名） |
-| 40 | `test_editor_size_exemption_is_registered` | §三.7 体量豁免两处同步（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `editor.py` 在 `SIZE_EXEMPT_FILES`、集合长度为 6 且与规则 §三.7 名单一致） |
+| 40 | `test_editor_size_exemption_is_registered` | §三.7 体量豁免两处同步（2026-11-12 宏录制与回放 wave-2 plan-d 断言集合长度为 6；2026-11-16 soft-wrap 波 IKVRXT 为 `editor_components/view.py` 登记豁免后扩至 7，断言 `editor.py` / `view.py` 均在 `SIZE_EXEMPT_FILES` 且与规则 §三.7 名单一致） |
 | 41 | `test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one` | L1 count 口径守卫（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `Keymap` / `VimKeymap` 两侧均定义 `take_pending_count`、`VscKeymap` 继承缺省恒 1） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。

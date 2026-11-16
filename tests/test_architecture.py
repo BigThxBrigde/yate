@@ -372,6 +372,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
+    "editor_components/view.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "editor_lsp/manager.py",
@@ -1713,10 +1714,11 @@ def test_editor_size_exemption_is_registered() -> None:
     in wave-2 when the rule text has not been updated yet.
     """
     assert "editor.py" in SIZE_EXEMPT_FILES
-    assert len(SIZE_EXEMPT_FILES) == 6
+    assert len(SIZE_EXEMPT_FILES) == 7
     assert {
         "keymaps/vim.py",
         "editor_components/file_manager/screen.py",
+        "editor_components/view.py",
         "editor_core/buffer.py",
         "editor_syntax/langdefs.py",
         "editor_lsp/manager.py",
