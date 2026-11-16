@@ -1752,3 +1752,32 @@ def test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one() ->
     assert Keymap().take_pending_count() == 1
     assert VscKeymap().take_pending_count() == 1
     assert isinstance(VimKeymap().take_pending_count(), int)
+
+
+def test_option_definitions_have_single_source() -> None:
+    """Legal ranges and candidate sets are declared only in OPTION_SPECS.
+
+    The yaterc loader and the ``:set`` completer must read their values
+    from the shared table: a reintroduced literal range in the loader or
+    a hard-coded enum candidate in the completer fails here.
+    """
+    config_src = (YATE / "config.py").read_text(encoding="utf-8")
+    assert "OPTION_SPECS: tuple[OptionSpec, ...]" in config_src
+    assert "domain=(3, 40)" in config_src
+    assert "VALID_KEYMAPS" in config_src
+
+    loader_src = (YATE / "yaterc_options.py").read_text(encoding="utf-8")
+    start = loader_src.index("def _extract_options(")
+    end = loader_src.index("\n\ndef _", start + 1)
+    body = loader_src[start:end]
+    assert "OPTION_SPECS" in body
+    assert "3 <= terminal_height" not in body
+    assert "isinstance(tab_width" not in body
+    assert "must be an integer between" not in body
+
+    commands_src = (YATE / "commands.py").read_text(encoding="utf-8")
+    start = commands_src.index("def _make_set_completer(")
+    end = commands_src.index("\n\ndef _", start + 1)
+    body = commands_src[start:end]
+    assert "set_option_value_candidates" in body
+    assert "(\"vsc\", \"vim\")" not in body

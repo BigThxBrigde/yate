@@ -12,7 +12,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import cast
 
-from yate.config import SET_OPTION_SPECS, SetOption, set_option_names
+from yate.config import (
+    SET_OPTION_SPECS,
+    SetOption,
+    set_option_names,
+    set_option_value_candidates,
+)
 from yate.editor import Editor
 from yate.editor_syntax import (
     available_filetypes,
@@ -220,16 +225,18 @@ def _make_set_completer(editor: Editor) -> ArgCompleter:
         if "=" in prefix:
             key, _, value = prefix.partition("=")
             key = key.strip()
-            if key == "keymap":
-                vals: tuple[str, ...] = ("vsc", "vim")
+            candidates = set_option_value_candidates(key)
+            if candidates:
+                vals: tuple[str, ...] = candidates
             elif key == "theme":
                 vals = tuple(editor.theme_names())
             elif key in _FILETYPE_KEYS:
                 vals = ("auto", *available_filetypes())
-            elif key == "show_hidden":
-                vals = ("on", "off")
             elif key == "readonly":
                 vals = ("true", "false")
+            elif key in ("show_hidden", "support_mouse", "which_key",
+                         "which_key_auto"):
+                vals = ("on", "off")
             else:
                 return []
             return [f"{key}={v}" for v in vals if v.startswith(value) and v != value]
