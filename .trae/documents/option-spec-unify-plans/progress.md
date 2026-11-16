@@ -10,11 +10,11 @@
 | 【领会】 | 完成 | 三文件消费端取证、issue 素材整理（master 主工作区阅读，未单独落盘） |
 | 【方案】 | 完成 | issue 文本 + 总纲 + 3 子计划（提交 `ef1c7e7b`；5 文件 808 行）。规划角色两次 spawn 因 `qwen-3.8-plus` 未注册失败，主代理兜底，已登记 |
 | 【批准】 | 完成 | 用户 2026-11-16 显式指令「进入无人值守，所有问题和操作都无须过问，更新任务状态，继续执行」，按通过处理 |
-| wave-1（plan-a） | 进行中 | 待落盘：`config.py` + `tests/test_option_specs.py` |
-| wave-2（plan-b） | 待办 | 依赖 wave-1 验收通过；`yaterc_options.py` + `tests/test_yaterc_options.py` |
-| wave-3（plan-c） | 待办 | 依赖 wave-2；`commands.py` + `tests/test_set_options.py` + `tests/test_architecture.py` |
-| 【审核】 | 待办 | code-review-expert 评审（失败则主代理自查替代并登记） |
-| 【收尾】 | 待办 | 主代理亲跑全量门禁 + 回填 + 提交，只提交不推送 |
+| wave-1（plan-a） | 完成 | `09efd402`：config.py 统一表 + 13 测试；555 行 < 800；pyright 0、27 passed |
+| wave-2（plan-b） | 完成 | `5c8d1aa4`：_extract_options 遍历表；627 行 < 800；35 passed |
+| wave-3（plan-c） | 完成 | `b5ffd885`：补全候选 + 架构守卫 42 条 + 规则计数同步；91 passed；N1/N2 演练均 exit 1 后还原 |
+| 【审核】 | 完成 | code-review-expert 交付 REQUEST CHANGES（5 MAJOR）；`04432f95` 全部闭合，复审 APPROVE |
+| 【收尾】 | 进行中 | 全量门禁执行中；只提交不推送 |
 
 ## 执行纪律登记
 
@@ -33,8 +33,8 @@
 
 ## 执行回填（逐波追加）
 
-- wave-1：（待执行）
-- wave-2：（待执行）
-- wave-3：（待执行）
-- 审核：（待执行）
-- 收尾门禁：（待执行）
+- wave-1：pyright 0 / 27 passed / 架构 41 → 555 行；N/A 演练见 plan-a
+- wave-2：pyright 0 / 35 passed；_extract_options 742→627 行；dict extractors 仍在尾部调用
+- wave-3：pyright 0 / 91 passed / 架构 42 passed；N1（keymap 硬编码候选）与 N2（tab_width 内联校验）负向演练均令守卫 exit 1，还原后 exit 0
+- 审核：code-review-expert 交付；5 MAJOR / 5 MINOR 全部闭合于 04432f95；复审 APPROVE；评审记录 `.trae/reviews/2026-11-16-option-spec-unify.md`
+- 收尾门禁：pyright 0；pytest -n 1 全量 exit 0；架构 42；并行 pytest exit 1 由 safe-delete 钩子收尾清理所致（非测试失败，见记忆），清积压后复核；覆盖率 / 冒烟待执行
