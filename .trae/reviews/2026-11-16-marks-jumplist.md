@@ -44,3 +44,13 @@
   - [minor] marks_palette.py coverage 44%, panel interaction untested -> Fixed: added tests/test_marks_palette.py (6 pilot tests), coverage now 100% (navigation_flows 89% -> 91%).
   - [minor] vim VISUAL mode retains VISUAL after nav-key dispatch (anchor cleared, no highlight) -> Registered TODO T4 (consistent with F-key all-mode precedent; not changed in v1).
   - [minor] JumpsScreen cursor can rest on the current row; Enter is a silent no-op -> Registered TODO T5 (semantic documented in docstring).
+
+## Round 3: full pr-review pass + fix iteration (2026-11-16, user-directed close-the-loop)
+
+- Full `pr-review` skill pass on `master...HEAD` (6 commits incl. pilot tests): **APPROVE**; gates re-measured: pyright 0 diagnostics, pytest green, coverage 93.07% (exit 0).
+- New minors, all fixed in commit b49a7b4b, converged CLEAN by a focused follow-up review:
+  - [minor] session.py docstrings (stray space in `JumpList.stacks`, inaccurate `all_marks` ordering claim) -> Fixed, docs-only.
+  - [minor] `jump_forward` empty-stack boundary untested at flows layer -> Fixed: `test_jump_forward_boundary_is_info_not_loop` (asserts "no later jump" info, cursor unmoved).
+  - [minor] JumpsScreen Enter on current row silent no-op (overlapped T5) -> Fixed: `MessageFn` injected callback (PEP 695 alias, find_replace precedent), current-row Enter reports "already at latest jump" info, screen stays open, cursor unmoved; pilot tests updated; marks_palette.py coverage stays 100% (145 stmts / 0 miss, 22 branches / 0 partial).
+- Convergence verification: injection chain complete (2 JumpsScreen construction sites, both wired), semantics consistent with boundary info hints, ASCII clean, architecture guards pass. Final gates: pytest marks+arch subset 75 passed (exit 0); pyright 0 diagnostics (exit 0).
+- T5 status: closed via info-hint approach (row-filtering variant remains optional, folded into v2 polish).

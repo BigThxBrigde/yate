@@ -181,4 +181,4 @@ flowchart TD
 - T2：marks/jumps 两屏按键交互的运行时用例（textual-pilot 或冒烟场景）。**已闭合**：pr-review 终审指出 marks_palette.py 覆盖 44% 后补 tests/test_marks_palette.py（6 例 pilot），覆盖升至 100%。
 - T3：搜索命中推入 jump list 的接入点已预留（契约收敛为 `push_jump`），v1 定稿不推入。
 - T4（pr-review 终审 minor）：VISUAL 模式下导航键分发后模式停留 VISUAL（anchor 已清、无高亮）——与 F-key 全模式先例一致，可恢复不崩溃；v2 评估分发后回 NORMAL 的语义（勿在 v1 单独改，保持与 F-key 行为面一致）。
-- T5（pr-review 终审 minor）：JumpsScreen 光标可停在 current 行，Enter 静默 no-op（docstring 已声明语义）——v2 可过滤 current 行候选。
+- T5（pr-review 终审 minor）：JumpsScreen 光标可停在 current 行，Enter 静默 no-op。**已闭合**（迭代轮 3）：经注入 `MessageFn` 回调改发 "already at latest jump" info 提示，屏幕不关、光标不动；行过滤变体仍可选，归入 v2 打磨。
