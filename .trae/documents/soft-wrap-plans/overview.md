@@ -401,7 +401,7 @@ flowchart TD
 - **AC8 性能**：wrap 缓存 key 比较失败会退化为逐帧全扫 → Plan A 内部 rebuild counter 测试 + Plan E spy。
 - **AC2 宽字符**：cell 边界处拆开宽字符 → 复用 `cell_offsets`/`expand_char`，整字推到下一显示行。
 - **架构守卫**：L1 keymap 不得 import L2 视图 → 全部经 `KeyUi` 注入回调；无新增 Protocol/TYPE_CHECKING/Any。
-- **体量阈值**：`vim.py`(1546)/`editor.py`(837，本任务 soft-wrap 接线后复测)/`editor_components/view.py`(816，本任务接线后新登记) 均在 `SIZE_EXEMPT_FILES`，守卫 `test_editor_size_exemption_is_registered` 断言集合长度为 7 且含 editor.py / view.py，规则 §三.7 两处同步。
+- **体量阈值**：`vim.py`(1546)/`editor.py`(840，本任务 soft-wrap 接线 + visual select 转发后复测)/`editor_components/view.py`(816，本任务接线后新登记) 均在 `SIZE_EXEMPT_FILES`，守卫 `test_editor_size_exemption_is_registered` 断言集合长度为 7 且含 editor.py / view.py，规则 §三.7 两处同步。
 - 全局回滚：各波独占文件可独立 `git checkout`；Plan A 新模块在 wiring 前无消费者，删除零副作用。
 
 ## 十一、执行结果与偏离（2026-11-16 收尾回填）
