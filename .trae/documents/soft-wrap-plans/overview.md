@@ -406,16 +406,16 @@ flowchart TD
 
 ## 十一、执行结果与偏离（2026-11-16 收尾回填）
 
-- **状态**：6 波（A-F）全部执行并提交；评审者零产出后主代理兜底自审，2 个 MAJOR 已修；门禁全绿；结论 APPROVE。评审记录见 [2026-11-16-soft-wrap.md](../../reviews/2026-11-16-soft-wrap.md)。
-- **提交**：`11c9f97b` 方案 → `a1e56125`(A) → `525e3738`(C) → `f433e31e`(B) → `144ee9dd`/`451eb106` 主代理补接线与豁免 → `9a73a965`(D) → `0e7f8a66` 测试同步 → `a12a5468`(E) → `cd1011b4`(F) → `f4e3f5b7` 规则行数同步 → `0e25ca48`/`003432e6` 自审 2 MAJOR 修复 → `242efe69` 评审记录。未推送、未合入 master。
-- **门禁真实值**：pyright `yate/ tests/ tools/ pack/` 0 errors / 0 warnings；`pytest tests/ -q -n auto` exit 0（覆盖率轮 3820 passed / 10 skipped）；架构 `42 passed`；覆盖率 TOTAL **92.62%**（阈值 75%）；冒烟 124/124 场景 · 1511/1511 checks exit 0；`git diff --check master...HEAD` 0。
+- **状态**：6 波（A-F）全部执行并提交；评审者零产出后主代理兜底自审，3 个 MAJOR 已修；门禁全绿；结论 APPROVE。评审记录见 [2026-11-16-soft-wrap.md](../../reviews/2026-11-16-soft-wrap.md)。
+- **提交**：`11c9f97b` 方案 → `a1e56125`(A) → `525e3738`(C) → `f433e31e`(B) → `144ee9dd`/`451eb106` 主代理补接线与豁免 → `9a73a965`(D) → `0e7f8a66` 测试同步 → `a12a5468`(E) → `cd1011b4`(F) → `f4e3f5b7` 规则行数同步 → `0e25ca48`/`003432e6`/`ed74926f` 自审 3 MAJOR 修复 → `242efe69`/`30a8d02d`/`b9d0a527` 评审与总纲回填。未推送、未合入 master。
+- **门禁真实值**：pyright `yate/ tests/ tools/ pack/` 0 errors / 0 warnings；`pytest tests/ -q -n auto` exit 0（覆盖率轮 3822 passed / 10 skipped）；架构 `42 passed`；覆盖率 TOTAL **92.90%**（阈值 75%）；冒烟 124/124 场景 · 1511/1511 checks exit 0；`git diff --check master...HEAD` 0。
 - **偏离登记**：
   1. 规划子代理产出总纲后被运行时回收，6 份子计划由主代理兜底续作（事实依据均来自 §三/§七 行号级取证）。
   2. 评审子代理 spawn 成功但探活 >30 分钟零回信零落盘，按 `subagent-workflow.md` §五.3 判死为零产出，主代理按 `task-orchestration.md` §三 兜底自审。
   3. 主代理在波次间接缝亲自补 3 处接线（make_view 注入 wrap_enabled / editor.move_display_line 委托 / view.move_display_line 实现），归属经自审复核正确。
-  4. view.py 越 800 行按 §三.7 登记单一职责豁免（规则 + `SIZE_EXEMPT_FILES` 两处同步，集合 6→7）；editor.py 实测行数 807→837 已同步规则文本（`test_size_exemption_rule_and_guard_are_in_sync` 曾因此转红，修复后绿）。
+  4. view.py 越 800 行按 §三.7 登记单一职责豁免（规则 + `SIZE_EXEMPT_FILES` 两处同步，集合 6→7）；editor.py 实测行数 807→840 已同步规则文本（`test_size_exemption_rule_and_guard_are_in_sync` 曾两次因此转红，修复后绿）。
   5. E 波次一个测试曾断言 `rebuild_count == rb+1`，因 `pilot.pause()` 期间 Textual 合法重绘导致计数多增而失败；正本清源改为断言缓存键与 >= 下界，不依赖框架渲染调度（避免脆弱断言）。
-  6. 自审发现并修复 2 个 MAJOR：WrapLayout 缓存键缺文档身份（切未编辑文档复用旧折行表）、visual gj/gk 丢失选区（注入回调未传 select）；均已带回归用例先红后绿。
+  6. 自审发现并修复 3 个 MAJOR：WrapLayout 缓存键缺文档身份（切未编辑文档复用旧折行表，`0e25ca48`）、visual gj/gk 丢失选区（注入回调未传 select，`003432e6`）、wrap-off 默认态每击键 O(文档) 重建恒等表（`ed74926f`，改 O(1) identity 快路径；既有 identity 测试的 cell_end 期望改 0 并注明该字段 wrap-off 无人消费）；均带回归用例先红后绿。
 
 ## 八、后续待读（续作清单，历史留档；事实已在 §七 补齐）
 
