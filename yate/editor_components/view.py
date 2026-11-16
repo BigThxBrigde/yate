@@ -32,6 +32,7 @@ from yate.editor_components import theme
 from yate.editor_components.highlighting import HighlightMixin
 from yate.editor_components.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
 from yate.editor_components.welcome import _WelcomeRow, render_welcome_row, welcome_rows
+from yate.editor_components.wrap_layout import WrapLayout
 
 #: Textual mouse button index for the primary (left) button, shared by the
 #: mouse-aware views in this package and the L3 mouse dispatch.
@@ -98,6 +99,7 @@ class EditorView(ScrollView, HighlightMixin):
         handle_key: Callable[[Key], bool],
         handle_mouse: Callable[[MouseEvent], bool] | None = None,
         ensure_row: Callable[[int], None] | None = None,
+        wrap_enabled: Callable[[], bool] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -118,6 +120,16 @@ class EditorView(ScrollView, HighlightMixin):
         #: True when the event was consumed.  ``None`` = no mouse handling
         #: (headless / legacy tests construct the view without it).
         self.handle_mouse = handle_mouse
+        #: Soft-wrap switch injected by the editor (``config.wrap``);
+        #: ``None`` (headless / legacy tests construct without it) behaves
+        #: as permanently off.
+        self._wrap_enabled: Callable[[], bool] = (
+            (lambda: False) if wrap_enabled is None else wrap_enabled
+        )
+        #: Display-line geometry for soft wrap (:class:`WrapLayout`, plan A):
+        #: identity mapping while off, refreshed per frame against its
+        #: ``(content_version, text_w, enabled)`` cache key.
+        self._wrap = WrapLayout()
         self.scroll_col = 0
         self._init_highlight_state()
         # Welcome rows cached by (theme name, vim_keys): the rows embed
@@ -227,12 +239,31 @@ class EditorView(ScrollView, HighlightMixin):
         apply_scrollbar_theme(self)
         self.content_changed()
 
+    def _sync_wrap(self, text_w: int) -> tuple[bool, int]:
+        """Refresh the wrap layout for the current buffer state and width.
+
+        Reads the injected soft-wrap switch and hands the buffer's content
+        version, *text_w*, the logical lines and the tab width to
+        :meth:`WrapLayout.update`, which rebuilds its span table only when
+        that cache key changed.  Returns ``(on, text_w)`` so callers branch
+        on the effective switch state without a second callback call.
+        """
+        on = self._wrap_enabled()
+        buf = self.buffer
+        self._wrap.update(buf.content_version, text_w, buf.lines, buf.tab_width, on)
+        return (on, text_w)
+
     def _update_virtual_size(self) -> None:
         buf = self.buffer
         # Width tracks the scrollable content area so max_scroll_x stays 0:
         # horizontal movement is manual (scroll_col), not Textual scrolling.
         width = self.scrollable_content_region.width or self.size.width or 80
-        self.virtual_size = Size(width, max(1, buf.line_count))
+        on, _ = self._sync_wrap(self._text_width())
+        # With soft wrap on, one logical line may paint as several display
+        # rows, so the scrollable height is the display-row total; off
+        # keeps one display row per logical line.
+        height = self._wrap.display_count() if on else max(1, buf.line_count)
+        self.virtual_size = Size(width, max(1, height))
 
     def on_resize(self) -> None:
         """Recompute the virtual (scrollable) size when the widget resizes."""
@@ -253,18 +284,42 @@ class EditorView(ScrollView, HighlightMixin):
         """Map a mouse event over this view to a clamped buffer position.
 
         Same geometry the renderer uses in reverse: the widget-relative y is
-        translated by the scroll offset, the x by the gutter width and the
-        manual horizontal scroll, then ``cell_to_char`` resolves the character
-        column (tab / wide-glyph aware).  Gutter clicks clamp to column 0.
-        ``None`` for an empty buffer.
+        translated by the scroll offset into a display row, mapped through
+        the wrap layout to the owning logical row (identity while soft wrap
+        is off), the x by the gutter width and the manual horizontal scroll,
+        then ``cell_to_char`` resolves the character column (tab /
+        wide-glyph aware).  Gutter clicks clamp to column 0.  ``None`` for
+        an empty buffer.
         """
         buf = self.buffer
         if buf.line_count == 0:
             return None
-        row = max(0, min(event.y + self.scroll_offset.y, buf.line_count - 1))
-        cell = event.x - self.gutter_width() + self.scroll_col
-        col = theme.cell_to_char(buf.lines[row], max(0, cell), buf.tab_width)
-        return (row, col)
+        on, text_w = self._sync_wrap(self._text_width())
+        if not on:
+            row = max(0, min(event.y + self.scroll_offset.y, buf.line_count - 1))
+            cell = event.x - self.gutter_width() + self.scroll_col
+            col = theme.cell_to_char(buf.lines[row], max(0, cell), buf.tab_width)
+            return (row, col)
+        display_row = max(
+            0, min(event.y + self.scroll_offset.y, self._wrap.display_count() - 1)
+        )
+        span = self._wrap.display_to_logical(display_row)
+        if span is None:
+            return None
+        if self._ensure_row is not None:
+            version = buf.content_version
+            self._ensure_row(span.logical_row)
+            if buf.content_version != version:
+                # Loading the chunk replaced placeholder rows and bumped the
+                # content version: re-sync the span table and re-map this
+                # display row before resolving the cell.
+                self._sync_wrap(text_w)
+                span = self._wrap.display_to_logical(display_row) or span
+        cell = span.cell_start + (event.x - self.gutter_width())
+        col = theme.cell_to_char(
+            buf.lines[span.logical_row], max(0, cell), buf.tab_width
+        )
+        return (span.logical_row, col)
 
     def _is_pane_border(self, event: MouseEvent) -> bool:
         """True when the press lands on this view's pane-separator border
@@ -313,7 +368,11 @@ class EditorView(ScrollView, HighlightMixin):
         """Scroll the view so the cursor stays inside the visible area.
 
         Repaint is left to the calling path (``content_changed`` or
-        ``refresh_ui``); this method only adjusts scroll offsets.
+        ``refresh_ui``); this method only adjusts scroll offsets.  With
+        soft wrap on, the cursor's logical row is mapped to its display row
+        and only the vertical offset follows it (horizontal scrolling is
+        disabled: ``scroll_col`` stays pinned to 0); with soft wrap off the
+        manual horizontal scroll follows the cursor's cell as before.
         """
         buf = self.buffer
         row, col = self._cursor_anchor()[0]
@@ -322,18 +381,26 @@ class EditorView(ScrollView, HighlightMixin):
             # was last captured -- clamp without mutating the stored state
             row = min(row, buf.line_count - 1)
             col = min(col, len(buf.lines[row]))
+        on, text_w = self._sync_wrap(self._text_width())
         line = buf.lines[row]
-        text_w = max(1, (self.size.width or 80) - self.gutter_width())
         cell = theme.char_to_cell(line, col, buf.tab_width)
+        # Follow the cursor only once it leaves the visible row window;
+        # unconditionally scrolling here would pin it to the top row.
+        view_h = max(1, self.size.height or 20)
+        top = self.scroll_offset.y
+        if on:
+            self.scroll_col = 0
+            display_row, _ = self._wrap.logical_to_display(row, cell)
+            if display_row < top:
+                self.scroll_to(y=display_row, animate=False)
+            elif display_row >= top + view_h:
+                self.scroll_to(y=display_row - view_h + 1, animate=False)
+            return
         if cell < self.scroll_col:
             self.scroll_col = cell
         elif cell >= self.scroll_col + text_w:
             self.scroll_col = cell - text_w + 1
         self.scroll_col = max(0, self.scroll_col)
-        # Follow the cursor only once it leaves the visible row window;
-        # unconditionally scrolling here would pin it to the top row.
-        view_h = max(1, self.size.height or 20)
-        top = self.scroll_offset.y
         if row < top:
             self.scroll_to(y=row, animate=False)
         elif row >= top + view_h:
@@ -349,6 +416,15 @@ class EditorView(ScrollView, HighlightMixin):
     def gutter_width(self) -> int:
         """Total gutter width: line number column + LSP diagnostic mark."""
         return max(3, len(str(self.buffer.line_count))) + 3
+
+    def _text_width(self) -> int:
+        """Text-area width in cells: widget width minus the gutter.
+
+        Single source for the width handed to :meth:`_sync_wrap` and used
+        by the render window, so every consumer feeds the wrap layout the
+        same cache key component.
+        """
+        return max(1, (self.size.width or 80) - self.gutter_width())
 
     def _syntax_kinds(self, row: int, cell_count: int, offsets: list[int]) -> list[str | None]:
         """Per-cell syntax token kind (char ranges mapped to display cells).
@@ -401,17 +477,36 @@ class EditorView(ScrollView, HighlightMixin):
             )
 
         # Textual hands us the row relative to the visible widget region;
-        # translate it into a buffer row via the scroll offset.
+        # translate it into a display row via the scroll offset, then map
+        # it through the wrap layout to the owning logical row and its
+        # cell window (identity while soft wrap is off).
         y += self.scroll_offset.y
+        on, _ = self._sync_wrap(text_w)
+        span = self._wrap.display_to_logical(y)
+        if span is None:
+            fill_line(t.bg)
+            return Strip(segments)
+        logical_y = span.logical_row
         # Chunked documents: load the owning chunk before the row is read,
         # so a not-yet-filled row paints real content instead of blank.
+        # The hook takes the LOGICAL row (AC7); loading it replaces
+        # placeholder rows and bumps the content version, so the span
+        # table is re-synced and this display row re-mapped before paint.
         if self._ensure_row is not None:
-            self._ensure_row(y)
-        if y >= buf.line_count:
+            version = buf.content_version
+            self._ensure_row(logical_y)
+            if buf.content_version != version:
+                self._sync_wrap(text_w)
+                span = self._wrap.display_to_logical(y)
+                if span is None:
+                    fill_line(t.bg)
+                    return Strip(segments)
+                logical_y = span.logical_row
+        if logical_y >= buf.line_count:
             fill_line(t.bg)
             return Strip(segments)
 
-        line = buf.lines[y]
+        line = buf.lines[logical_y]
         # one cursor/anchor lookup and one diagnostics lookup per rendered
         # row: both used to be repeated per consumer (3x pane-tree walks and
         # 2x full diagnostic scans per row) and are now computed once here
@@ -425,27 +520,29 @@ class EditorView(ScrollView, HighlightMixin):
         cells: list[str] = []
         for ch in line:
             theme.expand_char(ch, cells, buf.tab_width)
-        if y == cursor_row and cursor_col == len(line):
+        if logical_y == cursor_row and cursor_col == len(line):
             cells.append(" ")  # block cursor at end of line
         # extra multi-cursor points need the same padding: a point resting
         # on (y, len(line)) must own one visible block cell (issue IKKJHH)
         for point in buf.extra_cursors:
-            if point[0] == y and point[1] == len(line):
+            if point[0] == logical_y and point[1] == len(line):
                 cells.append(" ")
                 break
 
         n_cells = len(cells)
         styles = [S_NORMAL] * (n_cells + 1)
-        kinds = self._syntax_kinds(y, n_cells + 1, offsets)
-        line_diags = self.lsp.diagnostics_on_line(self.doc, y)
-        underlines = self._diagnostic_underlines(y, line, n_cells + 1, line_diags, offsets)
+        kinds = self._syntax_kinds(logical_y, n_cells + 1, offsets)
+        line_diags = self.lsp.diagnostics_on_line(self.doc, logical_y)
+        underlines = self._diagnostic_underlines(
+            logical_y, line, n_cells + 1, line_diags, offsets
+        )
 
-        for start, end, sid in self._row_style_ranges(y, line, cursor, anchor, offsets):
+        for start, end, sid in self._row_style_ranges(logical_y, line, cursor, anchor, offsets):
             for c in range(max(0, start), min(end, n_cells + 1)):
                 if sid > styles[c]:
                     styles[c] = sid
 
-        is_current = y == cursor_row
+        is_current = logical_y == cursor_row
         line_bg = t.surface if is_current else None
 
         # gutter
@@ -458,7 +555,12 @@ class EditorView(ScrollView, HighlightMixin):
         else:
             mark = " "
             num_color = t.accent if is_current else t.fg_dim
-        num = str(y + 1).rjust(digits)
+        # the line number only on the logical row's first display row;
+        # continuation rows keep the number column blank (same width)
+        if span.continuation == 0:
+            num = str(logical_y + 1).rjust(digits)
+        else:
+            num = " " * digits
         num_style = Style(
             color=num_color, bold=is_current, bgcolor=line_bg or t.bg,
         )
@@ -471,10 +573,22 @@ class EditorView(ScrollView, HighlightMixin):
         segments.append(Segment(" ", Style(bgcolor=line_bg or t.bg)))
         segments.append(Segment(mark, mark_style))
 
-        # text window (manual horizontal scroll)
-        end = min(self.scroll_col + text_w, n_cells)
+        # text window: the span's cell window.  With soft wrap on each
+        # display row paints its own span (scroll_col is pinned to 0);
+        # with soft wrap off the span covers the whole line and the manual
+        # horizontal scroll (scroll_col) windows it exactly as before.
+        if on:
+            start = span.cell_start
+            end = span.cell_end
+            if end == len(offsets) - 1 and n_cells > end:
+                # a block cursor resting on the line end appends one
+                # padding cell; it rides the line's last display row
+                end = min(start + text_w, n_cells)
+        else:
+            start = self.scroll_col
+            end = min(self.scroll_col + text_w, n_cells)
         used = 0
-        for cell_idx in range(self.scroll_col, end):
+        for cell_idx in range(start, end):
             sid = styles[cell_idx]
             kind = kinds[cell_idx]
             ch = cells[cell_idx] if cell_idx < n_cells else " "
@@ -489,7 +603,7 @@ class EditorView(ScrollView, HighlightMixin):
                 # The one exception is a wide glyph clipped by horizontal
                 # scroll at its first half: draw a blank replacement cell.
                 segments.append(Segment(ch, style))
-            elif cell_idx == self.scroll_col and cell_idx > 0:
+            elif cell_idx == start and cell_idx > 0:
                 segments.append(Segment(" ", style))
             used += 1
         # pad remainder
