@@ -40,6 +40,7 @@ from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
+from yate.flows.navigation_flows import NavigationFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
 from yate.flows.shell_flows import ShellFlows
@@ -298,6 +299,16 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
     # exist only from the line above, so the callback is bound here (the
     # DocumentFlows construction happened earlier, without it).
     ed.document_flows.bind_hex_opener(ed.overlays.open_hex_view)
+    # Navigation flows: overlays exist from the block above, so the marks /
+    # jumps screens ride the same shared push verb (quick_open shape, D5).
+    ed.navigation_flows = NavigationFlows(
+        session=ed.session,
+        panes=ed.panes,
+        activate_doc=ed.document_flows.activate_doc,
+        push_overlay=ed.overlays.push,
+        message=ed.message,
+        refresh=ed.refresh_ui,
+    )
     # The file manager flows: overlay/fullscreen open points plus the
     # workspace-switch orchestration.  Its fullscreen exit verb is bound
     # later by the app shell (Editor.bind_file_manager_exit -> flows.bind_exit,

@@ -50,6 +50,9 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "macro_flows.replay_last",
         "macro_flows.request_play",
         "macro_flows.toggle_record",
+        "navigation_flows.jump_back",
+        "navigation_flows.jump_forward",
+        "navigation_flows.show_marks",
         "toggle_explorer",
         "toggle_keymap",
         "whichkey.toggle",
@@ -68,6 +71,7 @@ _FLOW_NAMESPACES: frozenset[str] = frozenset(
         "whichkey",
         "hover",
         "macro_flows",
+        "navigation_flows",
     }
 )
 

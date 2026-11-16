@@ -75,6 +75,7 @@ from yate.flows.hover_flows import HoverFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
+from yate.flows.navigation_flows import NavigationFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
 from yate.flows.shell_flows import ShellFlows
@@ -144,6 +145,7 @@ class Editor:
     mouse_flows: MouseFlows
     chunked_flows: ChunkedFlows
     macro_flows: MacroFlows
+    navigation_flows: NavigationFlows
 
     def __init__(
         self,
@@ -180,6 +182,8 @@ class Editor:
         # Macro flows: built after the models (it reads session.macro) and
         # before the widgets (StatusBar takes the recording label callback);
         # key_ui actions reach it later through the editor attribute.
+        # Navigation flows: built in _build_pane_stack, right after overlays
+        # (it needs the shared push verb and the document flows' activate).
         _build_models(self, keymap)
         _build_macro_flows(self)
         _build_widgets(self)

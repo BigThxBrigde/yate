@@ -297,6 +297,7 @@ class PromptFlows:
         buf = self.session.buffer
         row = max(0, min(line - 1, buf.line_count - 1))
         col = min(buf.col, len(buf.lines[row]))
+        self.session.push_jump()
         buf.anchor = None
         buf.set_cursor((row, col))
         self.session.search.update("", buf)

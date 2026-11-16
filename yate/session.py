@@ -67,6 +67,127 @@ class MacroState:
         return self.registers.get(reg, ())
 
 
+#: Legal single-character mark names (v1: lowercase letters only). Lives
+#: here (L1) instead of keymaps/keys.py so the L3 command table can import
+#: it downward without a cross-L3 module dependency.
+MARK_NAME_CHARS: str = "abcdefghijklmnopqrstuvwxyz"
+
+#: Capacity of each jump-list stack (issue IKUOCI: 100).
+JUMP_LIST_LIMIT: int = 100
+
+
+@dataclass(frozen=True)
+class Mark:
+    """One buffer-local named mark: an exact buffer position (row, col)."""
+
+    row: int
+    col: int
+
+
+class MarkBook:
+    """Per-buffer named marks keyed by ``Document.uid`` (L1, UI-free)."""
+
+    def __init__(self) -> None:
+        self._by_doc: dict[int, dict[str, Mark]] = {}
+
+    def set(self, uid: int, name: str, row: int, col: int) -> None:
+        """Set (or overwrite) mark *name* on document *uid* at (row, col)."""
+        if len(name) != 1 or name not in MARK_NAME_CHARS:
+            raise ValueError(f"mark name must be one of a-z: {name!r}")
+        self._by_doc.setdefault(uid, {})[name] = Mark(row, col)
+
+    def get(self, uid: int, name: str) -> Mark | None:
+        """The mark *name* on *uid*, or ``None``."""
+        return self._by_doc.get(uid, {}).get(name)
+
+    def delete(self, uid: int, name: str) -> bool:
+        """Delete mark *name* on *uid*; ``False`` when it was not set."""
+        marks = self._by_doc.get(uid)
+        if marks is None or name not in marks:
+            return False
+        del marks[name]
+        return True
+
+    def drop_doc(self, uid: int) -> None:
+        """Drop every mark of document *uid* (buffer close cleanup)."""
+        self._by_doc.pop(uid, None)
+
+    def all_marks(self) -> list[tuple[int, str, Mark]]:
+        """Every mark as ``(uid, name, mark)`` rows, ordered by doc then name."""
+        rows: list[tuple[int, str, Mark]] = []
+        for uid in self._by_doc:
+            for name in sorted(self._by_doc[uid]):
+                rows.append((uid, name, self._by_doc[uid][name]))
+        return rows
+
+
+@dataclass(frozen=True)
+class JumpEntry:
+    """One jump-list entry: where a jump started (resolved via uid)."""
+
+    uid: int
+    path: str  # display string ("[no name]" for scratch buffers)
+    row: int
+    col: int
+
+
+class JumpList:
+    """Session-level jump history: a back stack and a forward stack (L1).
+
+    Producers call :meth:`push` with the position a jump *leaves*;
+    navigation pops one stack while pushing the current position onto the
+    other, so alt-left/alt-right round-trip and boundaries are empty stacks
+    (no looping, no pointer arithmetic).
+    """
+
+    def __init__(self) -> None:
+        self._back: list[JumpEntry] = []
+        self._forward: list[JumpEntry] = []
+
+    def push(self, origin: JumpEntry) -> None:
+        """Record *origin* as the position a new jump leaves behind.
+
+        A new jump discards the forward branch; pushing the same position
+        consecutively dedups (the forward branch still clears).
+        """
+        self._forward.clear()
+        if self._back and self._back[-1] == origin:
+            return
+        self._back.append(origin)
+        if len(self._back) > JUMP_LIST_LIMIT:
+            del self._back[0]
+
+    def take_back(self, current: JumpEntry) -> JumpEntry | None:
+        """Pop the newest back entry; *current* becomes forward-reachable."""
+        if not self._back:
+            return None
+        target = self._back.pop()
+        self._forward.append(current)
+        if len(self._forward) > JUMP_LIST_LIMIT:
+            del self._forward[0]
+        return target
+
+    def take_forward(self, current: JumpEntry) -> JumpEntry | None:
+        """Pop the newest forward entry; *current* becomes back-reachable."""
+        if not self._forward:
+            return None
+        target = self._forward.pop()
+        self._back.append(current)
+        if len(self._back) > JUMP_LIST_LIMIT:
+            del self._back[0]
+        return target
+
+    def drop_docs(self, uids: set[int]) -> None:
+        """Prune entries whose document closed (buffer close cleanup)."""
+        self._back = [e for e in self._back if e.uid not in uids]
+        self._forward = [e for e in self._forward if e.uid not in uids]
+
+    def stacks(self) -> tuple[list[JumpEntry], list[JumpEntry]]:
+        """ ``(back, forward)`` snapshots for the :jumps view (back is
+        oldest-to-newest; the current position sits between the stacks)."""
+        return (list(self._back), list(self._forward))
+
+
 log = tracing.get_logger(__name__)
 
 
@@ -90,6 +211,8 @@ class EditorSession:
         self._on_closed = on_closed
         self._on_opened = on_opened
         self.macro = MacroState()
+        self.marks = MarkBook()
+        self.jumps = JumpList()
 
     # ------------------------------------------------------------- documents
 
@@ -216,6 +339,45 @@ class EditorSession:
         """Drop the live search state (tab switches / opens clear matches)."""
         self.search = SearchEngine()
 
+    def doc_by_uid(self, uid: int) -> Document | None:
+        """The open document with *uid*, or ``None`` (closed buffers)."""
+        for doc in self.docs:
+            if doc.uid == uid:
+                return doc
+        return None
+
+    def current_jump_entry(self) -> JumpEntry:
+        """The active document's cursor as a jump-list entry."""
+        doc = self.doc
+        return JumpEntry(
+            doc.uid, doc.display_path, doc.buffer.row, doc.buffer.col
+        )
+
+    def push_jump(
+        self, doc: Document | None = None, *, row: int | None = None,
+        col: int | None = None,
+    ) -> None:
+        """Record the position a jump leaves behind (the single push contract).
+
+        Defaults capture the active document's cursor.  Jump producers --
+        mark jumps, ``:42``/ctrl-g line jumps, and the future LSP
+        goto-definition flow -- call only this; the stacks are L1-internal.
+        """
+        origin_doc = doc if doc is not None else self.doc
+        r = origin_doc.buffer.row if row is None else row
+        c = origin_doc.buffer.col if col is None else col
+        self.jumps.push(
+            JumpEntry(origin_doc.uid, origin_doc.display_path, r, c)
+        )
+
+    def jump_back(self) -> JumpEntry | None:
+        """Step one entry back; ``None`` at the boundary (empty back stack)."""
+        return self.jumps.take_back(self.current_jump_entry())
+
+    def jump_forward(self) -> JumpEntry | None:
+        """Step one entry forward; ``None`` at the boundary."""
+        return self.jumps.take_forward(self.current_jump_entry())
+
     def cycle(self, delta: int) -> Document | None:
         """Activate the tab *delta* positions away (wrapping)."""
         if len(self.docs) < 2:
@@ -238,6 +400,8 @@ class EditorSession:
         # exits on its next turn instead of reading the whole file for a
         # document nobody displays anymore.
         closed.chunked = None
+        self.marks.drop_doc(closed.uid)
+        self.jumps.drop_docs({closed.uid})
         log.debug("session close: %s (%d docs left)", closed.path, len(self.docs))
         if self.docs:
             fallback = self.docs[min(self.index, len(self.docs) - 1)]
@@ -273,6 +437,8 @@ class EditorSession:
         log.debug("session close under %s: %d doc(s)", path, len(closed))
         for doc in closed:
             doc.chunked = None  # stop the background scans (see close_active)
+            self.marks.drop_doc(doc.uid)
+        self.jumps.drop_docs({doc.uid for doc in closed})
         self._notify_closed(closed)
         return closed
 

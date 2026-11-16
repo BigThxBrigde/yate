@@ -68,6 +68,12 @@ class _OverlayScreen(ModalScreen[None]):
         return Text("")
 
 
+# Public aliases: cross-component palette screens (the marks/jumps
+# overview) subclass these bases without reaching into private names.
+OverlayScreen = _OverlayScreen
+OverlayScroll = _OverlayScroll
+
+
 class HelpScreen(_OverlayScreen):
     """Full keybinding reference, grouped by category."""
 
