@@ -495,6 +495,7 @@ no bracket auto-completion while multi-cursor is active.
 | `Ctrl+B` | Show / hide the file tree (same as `:explorer`) |
 | `` Ctrl+` `` | Show / hide the integrated terminal (see section 13) |
 | `F2` | Run a shell command |
+| `Alt+Z` | Toggle soft-wrap display (long lines fold at the viewport width) |
 
 **Tabs**
 
@@ -551,6 +552,7 @@ e.g. `3j`, `2dd`, `5w`.
 | `Ctrl+G` | Open the go-to-line prompt, type a line number and press Enter (same as `:42`) |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Page down / up |
+| `gj` / `gk` | Move down / up by display row (can land on a continuation row when soft wrap is on; degenerates to logical-row motion when wrap is off; a count repeats by display rows) |
 
 **Entering insert mode**
 
@@ -611,6 +613,7 @@ selections and no bracket auto-completion while multi-cursor is active.
 | `F10` | Toggle macro recording |
 | `F11` | Play a recorded macro |
 | `F12` | Repeat last macro replay |
+| `Alt+Z` | Toggle soft-wrap display |
 
 **Panes and windows (`Ctrl+W` prefix in NORMAL mode; see 8.1)**
 
@@ -851,6 +854,7 @@ inserted immediately); repeated `Tab`s cycle through every match.
 | `:set terminal_height=<n>` | Terminal panel height in rows (`3`–`40`), applied immediately |
 | `:set which_key=<bool>` | Master switch for the which-key panel; `false` hides it entirely (F9 pinned sheet included) |
 | `:set which_key_auto=<bool>` | Auto-trigger switch only: `false` stops the pending-chord / `ctrl+w` auto popups; the `F9` pinned sheet stays usable |
+| `:set wrap=on|off` | Toggle soft-wrap display; folding is display-only (buffer text, undo history and file bytes are never modified) |
 | `:set readonly=<bool>` | Set the current buffer's read-only flag (`true`/`false`, `on`/`off`, `1`/`0`, `yes`/`no`); a read-only buffer refuses edits and saves and shows a lock in the status bar |
 | `:set filetype=<type>` | Force the current buffer's syntax type (aliases `ft` / `language` / `lang`); see the FAQ in section 17 |
 | `:filetype [type]` | Same as above; without arguments shows the current type and all available types (aliases `:ft`, `:language`) |
@@ -970,6 +974,7 @@ Behavior details:
 | `shell` | `str` | platform default (see section 13) | non-empty string | Shell command for the integrated terminal, with optional arguments (e.g. `"pwsh -NoLogo"`); an existing file path may contain spaces |
 | `terminal_height` | `int` | `12` | integer 3–40 (booleans/floats rejected) | Integrated terminal panel height in rows |
 | `show_hidden` | `bool` | `False` | `True` / `False` | Show dot-prefixed hidden files in the explorer by default |
+| `wrap` | `bool` | `False` | `True` / `False` (`on`/`off`, `1`/`0`, `yes`/`no` accepted via `:set`) | Soft-wrap display: long lines fold at the viewport width using display cells (tabs expanded, wide chars kept whole); continuation rows show a blank line-number slot; diagnostics are shown per logical row. Display-only -- buffer text, undo history and file bytes are never modified; horizontal scrolling applies only when wrap is off. Toggle in-session with `:set wrap=on|off` or `Alt+Z` |
 | `language_servers` | `list[dict]` | none | see 16.2 | Declarative language server registrations; a server **auto-activates** when a file of a matching language is opened — no extension needed |
 
 - `keymap` / `theme` apply at startup; `theme` is process-global state (like
@@ -1655,6 +1660,7 @@ vsc keymap (default):
 | `Ctrl+Space` | Trigger autocomplete | palette `diagnostics` | List LSP diagnostics |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 | `F7` | Show API documentation | `F7` | Show API documentation |
+| `Alt+Z` | Toggle soft wrap (`:set wrap=on|off`) | | |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·
@@ -1678,10 +1684,11 @@ vim keymap:
 | `Ctrl+W` `s/v/q/o` | HSplit / vsplit / close pane / only | `Ctrl+W` `hjkl` | Move focus between panes |
 | `Ctrl+W` `+-<>` | Resize pane height / width | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | Equalize / cycle focus |
 | `Shift+PageUp/PageDown` | Terminal scrollback | `>` / `<` | Increase / decrease indent (a count is a line count, e.g. `3>` = 3 lines) |
+| `gj` / `gk` | Move by display row (soft wrap) | `Alt+Z` | Toggle soft wrap |
 
 Command line cheat sheet: `:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ## 19. Build & Release
 

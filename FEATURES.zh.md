@@ -34,6 +34,8 @@
   缩进操作符 `>/<`
 - `Ctrl+/` 运行中一键切换；vim 下 `Ctrl+W` 窗格和弦（14 键）+ 和弦实时提示；
   vim 保留键机制（不可被扩展覆盖）
+- 软换行：`Alt+Z`（两套键位通用）或 `:set wrap=on|off` 切换纯显示折行；
+  vim 独有 `gj`/`gk` 按显示行移动
 - `:check-keys` 键位绑定冲突报告
 
 ## 4. 查找与替换
@@ -65,14 +67,14 @@
   `:check-keys` `:game` 及扩展注册命令
 - `:!命令`（`F2`）后台线程执行 shell，输出到可滚动浮层并标注退出码
 - `:set` 运行时可设：`keymap`/`theme`/`shell`/`terminal_height`/`filetype`/`show_hidden`/
-  `readonly`/`support_mouse`/`which_key`/`which_key_auto`
+  `readonly`/`support_mouse`/`which_key`/`which_key_auto`/`wrap`
 
 ## 8. 配置系统（yaterc）
 
 - Python 语法配置文件（vimrc 风格），用户级 → 项目级逐级向上加载，`-u FILE` 指定、
   `-u NONE` 跳过
 - 全部选项：`keymap` `theme` `tab_width` `use_spaces` `shell` `terminal_height`(3–40)
-  `show_hidden` `support_mouse` `which_key` `which_key_auto` `key_protocol` `extensions`
+  `show_hidden` `support_mouse` `which_key` `which_key_auto` `key_protocol` `wrap` `extensions`
   `disabled_extensions` `theme_dirs` `yate_trace`/`yate_trace_level`（运行日志）
   + 字典 `screen_saver`（enable/interval/switch/距离区间/角色白名单）、
   `file_preview`（enable/position/size/max_lines/max_size）、

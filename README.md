@@ -39,6 +39,7 @@ regenerates all of them headlessly via Textual's pilot.
 
 - **VS Code-style layout**: active tab bar, EXPLORER file tree sidebar, breadcrumb path bar, flat status bar
 - **Two built-in keymaps**: `vsc` (VS Code style, modeless, default) and `vim` (NORMAL/INSERT/VISUAL/VISUAL-LINE modes + `:` ex command line); `Ctrl+/` toggles between them at runtime
+- **Soft wrap**: `Alt+Z` (both keymaps) or `:set wrap=on|off` toggles display-only line folding -- buffer text, undo history and file bytes are never modified; vim `gj`/`gk` move by display row and can land on a continuation row
 - **Syntax highlighting**: built-in engine colors keywords/strings/numbers/comments/functions by file type, with `:set filetype=` manual override; the regex backend covers 30 built-in languages out of the box (C#, Rust, Go, HTML, CSS, YAML, SQL, Lua, Perl, PHP, Ruby, PowerShell, Zig and more), and the optional tree-sitter backend (`pip install -e ".[ts]"`) upgrades 25 of them (all except JSONC, INI, Perl, SCSS and LESS) to real-parser highlighting; extensions can register custom grammars (`api.syntax`)
 - **Eight built-in themes**: four Catppuccin flavors (`mocha` default dark, `macchiato`, `frappe`, `latte` light) plus One Dark/Light and Gruvbox dark/light; Dracula and Ayu ship as copy-to-activate templates; register custom themes in yaterc, or bulk-load theme files via `theme_dirs` / `--theme-dir`
 - **Nerd Font icons**: file tree and file-type icons (`yate --install-font` installs the bundled font and configures Windows Terminal)
@@ -134,6 +135,7 @@ The same comparison is available in-session as
 | `Ctrl+E` / `Ctrl+Shift+E` | focus the file tree (the latter matches VS Code) |
 | `Ctrl+1` | focus the editor (matches VS Code; all terminals on Windows via the chord driver — kitty/CSI-u only elsewhere) |
 | `Ctrl+/` | toggle between the vsc and vim keymaps (or `:set keymap=…`) |
+| `Alt+Z` | toggle soft wrap (or `:set wrap=on|off`) |
 | `Ctrl+Space` | trigger completion (LSP when a server is running, otherwise words from open buffers; accept with `Tab`/`Enter`) |
 | `F1` / `F8` | help / all key bindings · open the bilingual user manual |
 
@@ -146,7 +148,8 @@ With the vim keymap: `i` enters insert mode, `Esc` returns to NORMAL, `:` opens
 the command line; `:split`/`:vsplit` create panes (`:sp`/`:vs` for short,
 `:only` keeps one), and after `Ctrl+W` press `s`/`v` to split, `q`/`o` to close
 or maximize a pane, `h`/`j`/`k`/`l` to move between panes and the file tree,
-`+`/`-`/`<`/`>` to resize, `=` to equalize, `Ctrl+W` to cycle. See F1 help for
+`+`/`-`/`<`/`>` to resize, `=` to equalize, `Ctrl+W` to cycle; `gj`/`gk` move
+by display row (soft-wrap aware) and `Alt+Z` toggles soft wrap. See F1 help for
 the full list.
 
 ## Configuration (yaterc)
@@ -163,6 +166,7 @@ tab_width = 4
 use_spaces = True
 shell = "pwsh -NoLogo"    # integrated terminal shell (default pwsh/PowerShell/cmd or $SHELL/bash)
 terminal_height = 12      # terminal panel height, 3-40 rows
+wrap = False              # soft-wrap display (default off); toggle with Alt+Z or :set wrap=on|off
 theme_dirs = ["~/.yate/themes"]  # custom theme directories (./themes is scanned too)
 extensions = [            # extra extension paths (dirs or .py files, accumulated/deduped across rc files)
     "~/.yate/extensions",

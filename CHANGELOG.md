@@ -5,6 +5,10 @@
 
 ## [Unreleased] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.18...HEAD)
 
+### Features
+
+- add soft wrap: `wrap` option, `alt+z` toggle and vim `gj`/`gk` display-line motions
+
 ### Bug Fixes
 
 - close pr-review gaps in hover staleness, empty docs and guards ([`a828414`](https://gitee.com/jermaine/yate/commit/a8284142642a9df477a027d7297de37db0f011ec))

@@ -37,6 +37,8 @@
 - **VS Code 风格布局**：活动标签栏、EXPLORER 文件树侧栏、面包屑路径栏、扁平化状态栏
 - **两套内置键位**：`vsc`（VS Code 风格、无模式，默认）与 `vim`（NORMAL/INSERT/VISUAL/VISUAL-LINE
   模式 + `:` ex 命令行），运行中可用 `Ctrl+/` 一键切换
+- **软换行**：`Alt+Z`（两套键位通用）或 `:set wrap=on|off` 切换纯显示折行——
+  不改 buffer 文本、撤销历史与文件字节；vim 独有 `gj`/`gk` 按显示行移动、可停在续行
 - **语法高亮**：内置高亮引擎，按文件类型着色关键字/字符串/数字/注释/函数等，
   可用 `:set filetype=` 手动指定语法类型；regex 后端开箱覆盖 30 种内置语言
   （C#、Rust、Go、HTML、CSS、YAML、SQL、Lua、Perl、PHP、Ruby、PowerShell、
@@ -160,6 +162,7 @@ yate --version              # 打印 yate / Python / 平台版本信息后退出
 | `Ctrl+E` / `Ctrl+Shift+E`       | 聚焦文件树（后者同 VS Code）                                   |
 | `Ctrl+1`                        | 聚焦编辑器（同 VS Code；Windows 上经和弦驱动在全部终端可用——其它平台仅 kitty/CSI-u 终端） |
 | `Ctrl+/`                        | 在 vsc / vim 两套键位间切换（也可用 `:set keymap=…`）             |
+| `Alt+Z`                         | 切换软换行（也可用 `:set wrap=on|off`）                           |
 | `Ctrl+Space`                    | 触发补全（有语言服务器走 LSP，否则取已打开 buffer 的单词；`Tab`/`Enter` 接受） |
 | `F1` / `F8`                     | 帮助 / 全部键位 · 打开中英双语用户手册                               |
 
@@ -171,6 +174,7 @@ vim 键位下：`i` 进入插入、`Esc` 回 NORMAL，`:` 打开命令行；
 `:split`/`:vsplit` 分割窗格（简写 `:sp`/`:vs`，`:only` 只留本窗格）；
 `Ctrl+W` 后接 `s`/`v` 分割、`q`/`o` 关闭或最大化窗格、`h`/`j`/`k`/`l`
 在窗格与文件树间移动、`+`/`-`/`<`/`>` 调整大小、`=` 等分、`Ctrl+W` 循环焦点；
+`gj`/`gk` 按显示行移动（跟随软换行），`Alt+Z` 切换软换行；
 完整绑定见 F1 帮助。
 
 ## 配置（yaterc）
@@ -185,6 +189,7 @@ tab_width = 4
 use_spaces = True
 shell = "pwsh -NoLogo"    # 集成终端 Shell（默认 pwsh/PowerShell/cmd 或 $SHELL/bash）
 terminal_height = 12      # 终端面板高度，3–40 行
+wrap = False              # 软换行显示（默认关闭）；用 Alt+Z 或 :set wrap=on|off 切换
 theme_dirs = ["~/.yate/themes"]  # 客制化主题目录（默认也扫描 ./themes）
 extensions = [            # 额外扩展路径（目录或 .py 文件，跨 yaterc 累加去重）
     "~/.yate/extensions",
