@@ -156,6 +156,102 @@ def test_extract_options_assigns_known_scalar_and_rejects_bad_value(
     assert config.tab_width == 8
 
 
+def test_extract_options_keeps_existing_scalar_behavior(
+    config: YateConfig,
+) -> None:
+    """All 13 native scalar options still write back with their old rules."""
+    namespace: dict[str, object] = {
+        "keymap": "vim",
+        "theme": "latte",
+        "tab_width": 8,
+        "use_spaces": False,
+        "shell": " pwsh ",
+        "terminal_height": 20,
+        "show_hidden": True,
+        "support_mouse": False,
+        "which_key": False,
+        "which_key_auto": False,
+        "key_protocol": "legacy",
+        "yate_trace": True,
+        "yate_trace_level": "info",
+    }
+    _extract_options(namespace, config)
+
+    assert config.keymap == "vim"
+    assert config.theme == "latte"
+    assert config.tab_width == 8
+    assert config.use_spaces is False
+    assert config.shell == "pwsh"
+    assert config.terminal_height == 20
+    assert config.show_hidden is True
+    assert config.support_mouse is False
+    assert config.which_key is False
+    assert config.which_key_auto is False
+    assert config.key_protocol == "legacy"
+    assert config.yate_trace is True
+    assert config.yate_trace_level == "INFO"
+    assert config.errors == []
+
+
+def test_extract_options_reports_invalid_scalars_and_keeps_defaults(
+    config: YateConfig,
+) -> None:
+    """Each bad native value reports the original message and keeps default."""
+    _extract_options(
+        {
+            "keymap": "emacs",
+            "tab_width": 0,
+            "terminal_height": 41,
+            "use_spaces": "yes",
+            "yate_trace_level": "NOPE",
+        },
+        config,
+    )
+
+    assert "keymap must be one of ('vsc', 'vim'), got 'emacs'" in config.errors
+    assert "tab_width must be an integer between 1 and 16, got 0" in config.errors
+    assert (
+        "terminal_height must be an integer between 3 and 40, got 41"
+        in config.errors
+    )
+    assert "use_spaces must be True or False, got 'yes'" in config.errors
+    assert "yate_trace_level must be one of" in config.errors[-1]
+    assert config.keymap == YateConfig().keymap
+    assert config.tab_width == YateConfig().tab_width
+    assert config.terminal_height == YateConfig().terminal_height
+    assert config.use_spaces is YateConfig().use_spaces
+
+
+def test_extract_options_ignores_unknown_variables(config: YateConfig) -> None:
+    """Variables that are not rc-visible specs stay ignored."""
+    _extract_options({"foobar": 42, "readonly": True}, config)
+
+    assert config.errors == []
+    assert config == YateConfig()
+
+
+def test_extract_options_still_calls_dict_extractors_at_its_tail(
+    config: YateConfig,
+) -> None:
+    """The scalar loop stays separate, but dict options still apply here."""
+    _extract_options(
+        {"screen_saver": {"interval": 30}, "large_file": {"threshold": 0}},
+        config,
+    )
+
+    assert config.screen_saver.interval == 30
+    assert config.large_file.threshold == 0
+    assert config.errors == []
+
+
+def test_extract_options_bool_rejects_native_string(config: YateConfig) -> None:
+    """yaterc booleans are native bools; the on/off spellings are :set-only."""
+    _extract_options({"support_mouse": "on"}, config)
+
+    assert "support_mouse must be True or False, got 'on'" in config.errors
+    assert config.support_mouse is True
+
+
 # --- dict options ------------------------------------------------------------
 
 
