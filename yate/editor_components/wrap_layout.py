@@ -95,7 +95,7 @@ class WrapLayout:
     def __init__(self) -> None:
         self.logical_rows: list[RowSpan] = []
         self.cumulative: list[int] = [0]
-        self.version_key: tuple[int, int, bool] | None = None
+        self.version_key: tuple[int, int, bool, object | None] | None = None
         #: Number of span-table rebuilds performed; test seam for the AC8
         #: "no rebuild while the cache key is unchanged" guarantee.
         self.rebuild_count: int = 0
@@ -107,18 +107,24 @@ class WrapLayout:
         lines: Sequence[str],
         tab_width: int,
         enabled: bool,
+        identity: object | None = None,
     ) -> None:
         """Refresh the mapping for *lines*; rebuild only when the key changed.
 
         Called once per render frame with the buffer's ``content_version``
         as *version*, the text-area width in cells as *text_w*, the logical
-        line list, the editor *tab_width*, and the soft-wrap switch
-        *enabled*.  The rebuild runs only when ``(version, text_w,
-        enabled)`` differs from the cached key: a stable version proves the
-        line contents are unchanged, so the cached spans stay valid and the
-        per-frame cost is a tuple comparison (AC8).
+        line list, the editor *tab_width*, the soft-wrap switch *enabled*,
+        and an optional *identity* of the owning document.  The rebuild runs
+        only when ``(version, text_w, enabled, identity)`` differs from the
+        cached key: a stable version proves the line contents are unchanged,
+        so the cached spans stay valid and the per-frame cost is a tuple
+        comparison (AC8).  *identity* must be passed by views that can
+        rebind to a different document: a freshly opened document also starts
+        at content version 0, so without the document identity a tab switch
+        between two unedited files would reuse the previous file's spans
+        (AC2/AC6).
         """
-        key = (version, text_w, enabled)
+        key = (version, text_w, enabled, identity)
         if key == self.version_key:
             return
         self.version_key = key

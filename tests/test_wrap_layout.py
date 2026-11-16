@@ -103,3 +103,20 @@ def test_rebuild_only_when_cache_key_changes() -> None:
     # toggling wrap changes enabled -> exactly one rebuild
     layout.update(2, 20, ["abcd"], 4, False)
     assert layout.rebuild_count == 4
+
+
+def test_document_identity_change_rebuilds_even_at_same_version() -> None:
+    layout = WrapLayout()
+    doc_a, doc_b = object(), object()
+    layout.update(0, 2, ["aaaa"], 4, True, doc_a)
+    assert layout.rebuild_count == 1
+    # a freshly opened document also starts at content version 0; rebinding
+    # to it must invalidate the cache despite the identical numeric key.
+    layout.update(0, 2, ["b"], 4, True, doc_b)
+    assert layout.rebuild_count == 2
+    assert layout.display_count() == 1
+    assert layout.display_to_logical(0) == RowSpan(0, 0, 1, 0)
+    # returning to the first document rebuilds again (no cross-file reuse)
+    layout.update(0, 2, ["aaaa"], 4, True, doc_a)
+    assert layout.rebuild_count == 3
+    assert layout.display_count() == 2

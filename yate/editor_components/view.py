@@ -250,7 +250,9 @@ class EditorView(ScrollView, HighlightMixin):
         """
         on = self._wrap_enabled()
         buf = self.buffer
-        self._wrap.update(buf.content_version, text_w, buf.lines, buf.tab_width, on)
+        self._wrap.update(
+            buf.content_version, text_w, buf.lines, buf.tab_width, on, self.doc
+        )
         return (on, text_w)
 
     def _update_virtual_size(self) -> None:
