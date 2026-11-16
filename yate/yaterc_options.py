@@ -470,9 +470,11 @@ def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
     and list options are handled by the dedicated extractors below.
     """
     for spec in OPTION_SPECS:
-        if not spec.rc_visible or spec.name not in namespace:
+        if not spec.rc_visible:
             continue
-        raw = namespace[spec.name]
+        raw = namespace.get(spec.name)
+        if raw is None:
+            continue
         value = spec.validate_native(raw)
         if value is None:
             config.errors.append(spec.native_error(raw))

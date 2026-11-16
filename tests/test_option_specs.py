@@ -10,16 +10,21 @@ from __future__ import annotations
 
 import pytest
 
+import dataclasses
+
 from yate.config import (
     KNOWN_OPTIONS,
     OPTION_SPECS,
     SET_OPTION_SPECS,
     VALID_KEYMAPS,
     VALID_TRACE_LEVELS,
+    YateConfig,
     set_option_names,
     set_option_value_candidates,
 )
 from yate.logs import LEVEL_NAMES
+
+_CONFIG_FIELDS = frozenset(f.name for f in dataclasses.fields(YateConfig))
 
 
 def test_option_specs_cover_all_known_scalar_options() -> None:
@@ -93,10 +98,44 @@ def test_trace_level_domain_uses_logs_level_names() -> None:
 
 
 def test_set_option_value_candidates_returns_static_enum_only() -> None:
-    """Only enum domains yield static candidates; dynamic options yield none."""
+    """Only settable enums yield candidates; other options yield none."""
     assert set_option_value_candidates("keymap") == VALID_KEYMAPS
     assert set_option_value_candidates("theme") == ()
+    assert set_option_value_candidates("key_protocol") == ()
+    assert set_option_value_candidates("yate_trace_level") == ()
     assert set_option_value_candidates("nope") == ()
+
+
+def test_rc_visible_spec_names_are_yateconfig_fields() -> None:
+    """setattr in the loader can never hit a non-existent config field."""
+    rc_names = {s.name for s in OPTION_SPECS if s.rc_visible}
+    assert rc_names <= _CONFIG_FIELDS
+    assert len(rc_names) == 13
+    assert "large_file" in _CONFIG_FIELDS
+    assert "filetype" not in rc_names
+    assert "readonly" not in rc_names
+
+
+def test_all_spec_names_are_unique() -> None:
+    """One canonical name per spec; aliases cannot shadow another option."""
+    names = tuple(s.name for s in OPTION_SPECS)
+    assert len(set(names)) == len(names)
+    spellings = set_option_names()
+    assert len(set(spellings)) == len(spellings)
+
+
+def test_option_specs_preserve_master_usage_and_error_order() -> None:
+    """The two derived subsequences keep their pre-unification row order."""
+    assert tuple(s.name for s in SET_OPTION_SPECS) == (
+        "keymap", "theme", "shell", "terminal_height", "filetype",
+        "show_hidden", "readonly", "support_mouse", "which_key",
+        "which_key_auto",
+    )
+    assert tuple(s.name for s in OPTION_SPECS if s.rc_visible) == (
+        "keymap", "key_protocol", "theme", "tab_width", "use_spaces",
+        "shell", "terminal_height", "show_hidden", "support_mouse",
+        "which_key", "which_key_auto", "yate_trace", "yate_trace_level",
+    )
 
 
 def test_keymap_and_protocol_messages_derive_from_domains() -> None:

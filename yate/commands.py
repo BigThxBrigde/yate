@@ -234,8 +234,7 @@ def _make_set_completer(editor: Editor) -> ArgCompleter:
                 vals = ("auto", *available_filetypes())
             elif key == "readonly":
                 vals = ("true", "false")
-            elif key in ("show_hidden", "support_mouse", "which_key",
-                         "which_key_auto"):
+            elif key == "show_hidden":
                 vals = ("on", "off")
             else:
                 return []

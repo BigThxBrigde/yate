@@ -64,7 +64,7 @@ def test_set_completer_static_candidate_comes_from_spec_domain() -> None:
 
 
 def test_set_completer_preserves_distinct_bool_spellings() -> None:
-    """readonly keeps true|false while the other switches use on|off."""
+    """readonly keeps true|false, show_hidden keeps on|off, others have none."""
     registry, _editor = _set_driver()
     entry = registry.get("set")
     assert entry is not None
@@ -72,9 +72,8 @@ def test_set_completer_preserves_distinct_bool_spellings() -> None:
     assert completer is not None
     assert completer("readonly=") == ["readonly=true", "readonly=false"]
     assert completer("show_hidden=") == ["show_hidden=on", "show_hidden=off"]
-    assert completer("which_key_auto=") == [
-        "which_key_auto=on", "which_key_auto=off",
-    ]
+    assert completer("support_mouse=") == []
+    assert completer("which_key_auto=") == []
 
 
 def test_set_completer_returns_nothing_for_unknown_key() -> None:

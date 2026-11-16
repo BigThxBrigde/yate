@@ -339,8 +339,10 @@ class OptionSpec:
 
 
 #: The single source of option truth: yaterc loading and ``:set`` both read
-#: their names, legal values and messages from these rows.  Order fixes the
-#: usage message and the rc-visible option list.
+#: their names, legal values and messages from these rows.  Row order is
+#: deliberate: the rc-visible subsequence reproduces the loader's historical
+#: validation order (and thus its error order); the settable subsequence
+#: reproduces the pre-unification ``:set`` usage-message order.
 OPTION_SPECS: tuple[OptionSpec, ...] = (
     OptionSpec(
         name="keymap",
@@ -352,6 +354,18 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         invalid_message="keymap must be vsc or vim",
         invalid_message_fmt="keymap must be one of ('vsc', 'vim'), got {value!r}",
         summary="keymap=vsc|vim",
+    ),
+    OptionSpec(
+        name="key_protocol",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="enum",
+        domain=VALID_KEY_PROTOCOLS,
+        invalid_message="key_protocol must be one of ('auto', 'legacy')",
+        invalid_message_fmt="key_protocol must be one of ('auto', 'legacy'), "
+        "got {value!r}",
+        summary="",
     ),
     OptionSpec(
         name="theme",
@@ -413,6 +427,17 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         summary="terminal_height=12",
     ),
     OptionSpec(
+        name="filetype",
+        aliases=("ft", "language", "lang"),
+        rc_visible=False,
+        settable=True,
+        kind="any_text",
+        domain=None,
+        invalid_message="filetype must be a filetype name",
+        invalid_message_fmt="",
+        summary="filetype=py (auto = detect)",
+    ),
+    OptionSpec(
         name="show_hidden",
         aliases=(),
         rc_visible=True,
@@ -422,6 +447,17 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         invalid_message="show_hidden must be on|off (true/false/1/0/yes/no accepted)",
         invalid_message_fmt="show_hidden must be True or False, got {value!r}",
         summary="show_hidden=on|off",
+    ),
+    OptionSpec(
+        name="readonly",
+        aliases=(),
+        rc_visible=False,
+        settable=True,
+        kind="bool",
+        domain=None,
+        invalid_message="readonly must be true|false (on/off/1/0/yes/no accepted)",
+        invalid_message_fmt="",
+        summary="readonly=true|false",
     ),
     OptionSpec(
         name="support_mouse",
@@ -457,18 +493,6 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         summary="which_key_auto=on|off",
     ),
     OptionSpec(
-        name="key_protocol",
-        aliases=(),
-        rc_visible=True,
-        settable=False,
-        kind="enum",
-        domain=VALID_KEY_PROTOCOLS,
-        invalid_message="key_protocol must be one of ('auto', 'legacy')",
-        invalid_message_fmt="key_protocol must be one of ('auto', 'legacy'), "
-        "got {value!r}",
-        summary="",
-    ),
-    OptionSpec(
         name="yate_trace",
         aliases=(),
         rc_visible=True,
@@ -492,28 +516,6 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         invalid_message_fmt_empty="yate_trace_level must be a non-empty string, "
         "got {value!r}",
         summary="",
-    ),
-    OptionSpec(
-        name="filetype",
-        aliases=("ft", "language", "lang"),
-        rc_visible=False,
-        settable=True,
-        kind="any_text",
-        domain=None,
-        invalid_message="filetype must be a filetype name",
-        invalid_message_fmt="",
-        summary="filetype=py (auto = detect)",
-    ),
-    OptionSpec(
-        name="readonly",
-        aliases=(),
-        rc_visible=False,
-        settable=True,
-        kind="bool",
-        domain=None,
-        invalid_message="readonly must be true|false (on/off/1/0/yes/no accepted)",
-        invalid_message_fmt="",
-        summary="readonly=true|false",
     ),
 )
 
@@ -550,6 +552,11 @@ def set_option_names() -> tuple[str, ...]:
 def set_option_value_candidates(name: str) -> tuple[str, ...]:
     """Static value candidates for a ``:set`` option, empty when dynamic."""
     spec = next((s for s in OPTION_SPECS if s.name == name), None)
-    if spec is None or spec.kind != "enum" or not isinstance(spec.domain, tuple):
+    if (
+        spec is None
+        or not spec.settable
+        or spec.kind != "enum"
+        or not isinstance(spec.domain, tuple)
+    ):
         return ()
     return cast(tuple[str, ...], spec.domain)
