@@ -32,6 +32,9 @@ from yate.editor_components.modals import OverlayScreen, OverlayScroll
 #: Column width of the document name in the overview header layout.
 _DOC_WIDTH: int = 24
 
+#: Message-line callback (text + severity kind, as ``Editor.message``).
+type MessageFn = Callable[[str, str], None]
+
 
 @dataclass(frozen=True)
 class MarkRow:
@@ -198,10 +201,12 @@ class JumpsScreen(_RowPaletteScreen):
         self,
         rows: list[JumpRow],
         on_jump: Callable[[JumpRow], None],
+        message: MessageFn,
     ) -> None:
         super().__init__()
         self._rows = list(rows)
         self._on_jump = on_jump
+        self._message = message
 
     @property
     def rows(self) -> list[JumpRow]:
@@ -250,13 +255,14 @@ class JumpsScreen(_RowPaletteScreen):
     def action_jump(self) -> None:
         """Hand the selected entry to the flow, then close the screen.
 
-        Jumping from the current row is a no-op: that is where the editor
-        already sits.
+        Enter on the current row stays put and hints instead: that is where
+        the editor already sits, so there is nothing to jump to.
         """
         if not self._rows:
             return
         row = self._rows[self._selected]
         if row.current:
+            self._message("already at latest jump", "info")
             return
         self._on_jump(row)
         self.dismiss()

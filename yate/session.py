@@ -113,7 +113,8 @@ class MarkBook:
         self._by_doc.pop(uid, None)
 
     def all_marks(self) -> list[tuple[int, str, Mark]]:
-        """Every mark as ``(uid, name, mark)`` rows, ordered by doc then name."""
+        """Every mark as ``(uid, name, mark)`` rows: docs in insertion
+        order, names sorted within each doc."""
         rows: list[tuple[int, str, Mark]] = []
         for uid in self._by_doc:
             for name in sorted(self._by_doc[uid]):
@@ -183,7 +184,7 @@ class JumpList:
         self._forward = [e for e in self._forward if e.uid not in uids]
 
     def stacks(self) -> tuple[list[JumpEntry], list[JumpEntry]]:
-        """ ``(back, forward)`` snapshots for the :jumps view (back is
+        """``(back, forward)`` snapshots for the :jumps view (back is
         oldest-to-newest; the current position sits between the stacks)."""
         return (list(self._back), list(self._forward))
 

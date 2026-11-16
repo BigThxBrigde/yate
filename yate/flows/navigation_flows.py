@@ -165,7 +165,11 @@ class NavigationFlows:
             JumpRow(entry=entry, side="forward", current=False)
             for entry in reversed(forward)
         )
-        self._push_overlay(JumpsScreen(rows, on_jump=self._on_jump_entry))
+        self._push_overlay(JumpsScreen(
+            rows,
+            on_jump=self._on_jump_entry,
+            message=self._message,
+        ))
 
     # -------------------------------------------------------------- helpers
 

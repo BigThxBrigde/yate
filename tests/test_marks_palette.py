@@ -24,7 +24,7 @@ from yate.editor_components.marks_palette import (
     MarksScreen,
 )
 
-from conftest import plain_text, wait_until
+from conftest import message_text, plain_text, wait_until
 
 
 def _body_text(screen: MarksScreen | JumpsScreen) -> str:
@@ -222,11 +222,14 @@ def test_jumps_screen_steps_selection_and_ignores_unconsumed_keys() -> None:
             await pilot.pause()
             assert isinstance(app.screen, JumpsScreen)
             assert session.doc.buffer.cursor == (2, 1)
-            # enter on the current row is a no-op (the editor is already there)
+            # enter on the current row only hints: the editor already sits
+            # there, so the screen stays open and the cursor never moves
             await pilot.press("down")
             await pilot.press("enter")
             await pilot.pause()
             assert isinstance(app.screen, JumpsScreen)
+            assert "already at latest jump" in message_text(app)
+            assert session.doc.buffer.cursor == (2, 1)
             # esc closes the screen; the cursor is untouched by the whole tour
             await pilot.press("escape")
             assert await wait_until(
@@ -243,6 +246,7 @@ def test_empty_screens_render_placeholders_and_ignore_actions() -> None:
     deleted: list[MarkRow] = []
     marks_jumped: list[MarkRow] = []
     jumped: list[JumpRow] = []
+    hints: list[tuple[str, str]] = []
 
     class _Host(App[None]):
         """Minimal host app that pushes the palette screen under test."""
@@ -269,14 +273,16 @@ def test_empty_screens_render_placeholders_and_ignore_actions() -> None:
             await pilot.press("escape")
             assert await wait_until(pilot, lambda: app.screen is not marks)
 
-        empty = JumpsScreen([], jumped.append)
+        empty = JumpsScreen(
+            [], jumped.append, lambda text, kind: hints.append((text, kind)),
+        )
         app = _Host(empty)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             assert "(no jumps)" in _body_text(empty)
             await pilot.press("enter")
             await pilot.pause()
-            assert jumped == []
+            assert jumped == [] and hints == []
             assert app.screen is empty
             await pilot.press("escape")
             assert await wait_until(pilot, lambda: app.screen is not empty)

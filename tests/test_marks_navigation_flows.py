@@ -245,6 +245,18 @@ def test_jump_back_boundary_is_info_not_loop() -> None:
     assert session.doc.buffer.cursor == (0, 0)
 
 
+def test_jump_forward_boundary_is_info_not_loop() -> None:
+    """An empty forward stack is an info hint; the cursor never moves (AC2)."""
+    flows, session, _panes, shell = _flows()
+
+    flows.jump_forward()
+
+    text, kind = _last_message(shell)
+    assert text == "no later jump"
+    assert kind == "info"
+    assert session.doc.buffer.cursor == (0, 0)
+
+
 def test_jump_back_moves_cursor_to_entry() -> None:
     """jump_back returns the cursor to the pushed origin position."""
     flows, session, panes, _shell = _flows()
