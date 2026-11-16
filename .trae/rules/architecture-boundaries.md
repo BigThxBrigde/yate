@@ -370,7 +370,9 @@ flowchart TD
 `editor.py`（2026-11-12 宏录制与回放 wave-3 接线登记：新增
 `MacroFlows` 类属性注解 / `_build_macro_flows` 工厂接线 / StatusBar
 `recording_label` 回调 / 组装顺序注释后，`splitlines()` 实测 807 行
-（基线 800 行），越过 800 行阈值；`Editor` 是 L3 单一职责薄委托
+（基线 800 行），越过 800 行阈值；2026-11-16 soft-wrap 波（issue IKVRXT）
+新增 `wrap_enabled` 注入 / `set_soft_wrap` / `toggle_soft_wrap` /
+`move_display_line` 后复测 837 行，维持豁免；`Editor` 是 L3 单一职责薄委托
 （组装 + 跨协作者操作），拆分无行为收益，故按本节「单一职责长文件可
 登记豁免」登记，并与 `tests/test_architecture.py` 的
 `SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填），
@@ -436,8 +438,9 @@ render_line / mouse / cursor 深度耦合且违反 issue「不重构分层与高
    （2026-11-12 宏录制与回放 wave-3 已按上述 6 条接入 `macro_flows.py`：
    `Editor.macro_flows` 类属性注解 + `_build_macro_flows` 工厂注入 `session`
    / `dispatch_raw` / `notify` + 组装顺序注释 + 不 import `editor_components`
-   故免登记 `UI_FROZEN_FILES` + §一 L3 清单已同步；`editor.py` 实测 807 行
-   按 §三.7 登记豁免，守卫集合 `SIZE_EXEMPT_FILES` 两处同步。）
+   故免登记 `UI_FROZEN_FILES` + §一 L3 清单已同步；`editor.py` wave-3 实测
+   807 行，2026-11-16 soft-wrap 波（IKVRXT）复测 837 行，按 §三.7 登记豁免，
+   守卫集合 `SIZE_EXEMPT_FILES` 两处同步。）
 
 ## 四、跨模块交互
 
