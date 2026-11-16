@@ -36,9 +36,10 @@ type ActionFunc = Callable[[ActionContext], None]
 #: the editor knew it, so a key handler can fall through when it did not.
 type ActionRunner = Callable[[str], bool]
 
-#: ``move_display_line(direction, count)`` -- move the cursor by *count*
-#: display rows (vim gj/gk); ``None`` = headless consumer (tests).
-type MoveDisplayLine = Callable[[int, int], None] | None
+#: ``move_display_line(direction, count, select)`` -- move the cursor by
+#: *count* display rows (vim gj/gk); *select* keeps the anchor for visual-mode
+#: motions.  ``None`` = headless consumer (tests).
+type MoveDisplayLine = Callable[[int, int, bool], None] | None
 
 
 @dataclass
@@ -71,10 +72,11 @@ class KeyUi:
     find_prompt: Callable[[bool], None]
     goto_prompt: Callable[[], None]
     toggle_keymap: Callable[[], None]
-    #: ``move_display_line(direction, count)`` -- move the cursor by *count*
-    #: display rows (vim gj/gk, direction ``+1`` down / ``-1`` up).  ``None``
-    #: marks a headless consumer (tests): the vim branch degenerates to a
-    #: logical-row motion.
+    #: ``move_display_line(direction, count, select)`` -- move the cursor by
+    #: *count* display rows (vim gj/gk, direction ``+1`` down / ``-1`` up);
+    #: *select* keeps the anchor for a visual-mode motion.  ``None`` marks a
+    #: headless consumer (tests): the vim branch degenerates to a logical-row
+    #: motion.
     move_display_line: MoveDisplayLine = None
 
 

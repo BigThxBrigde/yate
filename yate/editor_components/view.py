@@ -411,7 +411,9 @@ class EditorView(ScrollView, HighlightMixin):
         # content_changed or refresh_ui), so refreshing twice would be a
         # redundant dirty mark.
 
-    def move_display_line(self, direction: int, count: int = 1) -> None:
+    def move_display_line(
+        self, direction: int, count: int = 1, select: bool = False
+    ) -> None:
         """Move the cursor by *count* display rows in *direction* (vim gj/gk).
 
         With soft wrap on, the cursor's logical (row, cell) is mapped through
@@ -423,15 +425,17 @@ class EditorView(ScrollView, HighlightMixin):
         is exactly vim's fallback when there is nothing to wrap.
 
         The active pane's live buffer cursor is moved; selection is handled
-        by :meth:`TextBuffer.set_cursor`.  Inactive panes are left untouched
-        (a keymap motion always targets the focused view).
+        by :meth:`TextBuffer.set_cursor`.  *select* keeps the anchor for a
+        visual-mode motion (vim ``v`` followed by ``gj`` / ``gk``), matching
+        the headless logical-row fallback's ``select`` flag.  Inactive panes
+        are left untouched (a keymap motion always targets the focused view).
         """
         buf = self.buffer
         on, _ = self._sync_wrap(self._text_width())
         row, col = buf.cursor
         if not on:
             target = max(0, min(row + direction * count, buf.line_count - 1))
-            buf.set_cursor((target, min(col, len(buf.lines[target]))))
+            buf.set_cursor((target, min(col, len(buf.lines[target]))), select=select)
             return
         line = buf.lines[row]
         cell = theme.char_to_cell(line, col, buf.tab_width)
@@ -443,7 +447,9 @@ class EditorView(ScrollView, HighlightMixin):
             return
         target_line = buf.lines[span.logical_row]
         target_col = theme.cell_to_char(target_line, span.cell_start, buf.tab_width)
-        buf.set_cursor((span.logical_row, min(target_col, len(target_line))))
+        buf.set_cursor(
+            (span.logical_row, min(target_col, len(target_line))), select=select
+        )
 
     def page_delta(self, half: bool = False) -> int:
         """Rows per full page (or half page when *half* is set)."""

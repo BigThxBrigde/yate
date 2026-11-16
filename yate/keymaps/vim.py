@@ -564,7 +564,7 @@ class VimKeymap(Keymap):
             self.prefix = None
             self.count_str = ""
             if ui.move_display_line is not None:
-                ui.move_display_line(1 if key == "j" else -1, count)
+                ui.move_display_line(1 if key == "j" else -1, count, True)
             else:
                 self._motion(ctx, key, count, select=True)
             return True
@@ -819,7 +819,7 @@ class VimKeymap(Keymap):
             self.prefix = None
             self.count_str = ""
             if ui.move_display_line is not None:
-                ui.move_display_line(1 if key == "j" else -1, count)
+                ui.move_display_line(1 if key == "j" else -1, count, False)
             else:
                 self._motion(ctx, key, count, select=False)
             return True

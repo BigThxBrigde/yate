@@ -19,16 +19,16 @@ from yate.keymaps.vsc import VscKeymap
 from yate.session import EditorSession
 
 
-def _recorder(calls: list[tuple[int, int]]) -> Callable[[int, int], None]:
-    """A ``move_display_line`` stub recording ``(direction, count)`` calls."""
-    def move(direction: int, count: int) -> None:
-        calls.append((direction, count))
+def _recorder(calls: list[tuple[int, int, bool]]) -> Callable[[int, int, bool], None]:
+    """A ``move_display_line`` stub recording ``(direction, count, select)``."""
+    def move(direction: int, count: int, select: bool) -> None:
+        calls.append((direction, count, select))
     return move
 
 
 def _make_context(
     text: str,
-    move_display_line: Callable[[int, int], None] | None,
+    move_display_line: Callable[[int, int, bool], None] | None,
 ) -> ActionContext:
     """A real :class:`ActionContext` over a buffer seeded with *text*."""
     ui = KeyUi(
@@ -47,36 +47,36 @@ def _make_context(
 
 def test_counted_gj_moves_display_rows_down() -> None:
     """``3gj`` calls the display-line callback once with direction +1, count 3."""
-    calls: list[tuple[int, int]] = []
+    calls: list[tuple[int, int, bool]] = []
     ctx = _make_context("ab\ncd\nef", _recorder(calls))
     keymap = VimKeymap()
     for key in "3gj":
         keymap.handle_key(ctx, key)
-    assert calls == [(1, 3)]
+    assert calls == [(1, 3, False)]
     assert keymap.prefix is None
     assert keymap.count_str == ""
 
 
 def test_gk_moves_display_rows_up_with_default_count() -> None:
     """``gk`` calls the display-line callback with direction -1, count 1."""
-    calls: list[tuple[int, int]] = []
+    calls: list[tuple[int, int, bool]] = []
     ctx = _make_context("ab\ncd\nef", _recorder(calls))
     keymap = VimKeymap()
     keymap.handle_key(ctx, "g")
     keymap.handle_key(ctx, "k")
-    assert calls == [(-1, 1)]
+    assert calls == [(-1, 1, False)]
 
 
 def test_visual_gj_moves_display_rows_over_the_selection() -> None:
-    """Visual-mode ``gj`` reaches the same callback (selection moves as one)."""
-    calls: list[tuple[int, int]] = []
+    """Visual-mode ``gj`` passes ``select=True`` so the anchor is kept."""
+    calls: list[tuple[int, int, bool]] = []
     ctx = _make_context("ab\ncd\nef", _recorder(calls))
     keymap = VimKeymap()
     keymap.handle_key(ctx, "v")
     assert keymap.mode is VimMode.VISUAL
     keymap.handle_key(ctx, "g")
     keymap.handle_key(ctx, "j")
-    assert calls == [(1, 1)]
+    assert calls == [(1, 1, True)]
     assert keymap.mode is VimMode.VISUAL
     assert keymap.prefix is None
 
@@ -92,7 +92,7 @@ def test_gj_without_callback_degenerates_to_logical_motion() -> None:
 
 def test_gg_still_jumps_to_first_line_next_to_gj() -> None:
     """``gg`` keeps its jump semantics; a count still targets line N."""
-    calls: list[tuple[int, int]] = []
+    calls: list[tuple[int, int, bool]] = []
     ctx = _make_context("ab\ncd\nef", _recorder(calls))
     keymap = VimKeymap()
     for key in "2gg":
@@ -103,7 +103,7 @@ def test_gg_still_jumps_to_first_line_next_to_gj() -> None:
 
 def test_unknown_g_follower_is_still_dropped() -> None:
     """``gq`` claims nothing: the prefix drops and the key is swallowed."""
-    calls: list[tuple[int, int]] = []
+    calls: list[tuple[int, int, bool]] = []
     ctx = _make_context("ab\ncd", _recorder(calls))
     keymap = VimKeymap()
     keymap.handle_key(ctx, "g")
