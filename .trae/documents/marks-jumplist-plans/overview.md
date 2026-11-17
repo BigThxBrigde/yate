@@ -182,3 +182,5 @@ flowchart TD
 - T3：搜索命中推入 jump list 的接入点已预留（契约收敛为 `push_jump`），v1 定稿不推入。
 - T4（pr-review 终审 minor）：VISUAL 模式下导航键分发后模式停留 VISUAL（anchor 已清、无高亮）——与 F-key 全模式先例一致，可恢复不崩溃；v2 评估分发后回 NORMAL 的语义（勿在 v1 单独改，保持与 F-key 行为面一致）。
 - T5（pr-review 终审 minor）：JumpsScreen 光标可停在 current 行，Enter 静默 no-op。**已闭合**（迭代轮 3）：经注入 `MessageFn` 回调改发 "already at latest jump" info 提示，屏幕不关、光标不动；行过滤变体仍可选，归入 v2 打磨。
+- T6（pr-review 轮 4 minor）：navigation_flows.py 4 条防御分支未覆盖（closed-buffer warn、`_on_jump_entry` current 双保险、closed-target）——屏幕层已拦截双保险路径；v2 可删冗余守卫或补 flows 层用例。
+- T7（pr-review 轮 4 minor）：`JumpEntry.path` 为 push 时刻 display 快照，buffer save-as 后 `:jumps` 显示旧名（uid 解析不受影响）——v2 可在渲染/`_go_to` 时经 `doc_by_uid` 重解析。

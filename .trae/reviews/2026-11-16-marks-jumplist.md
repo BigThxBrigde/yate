@@ -54,3 +54,12 @@
   - [minor] JumpsScreen Enter on current row silent no-op (overlapped T5) -> Fixed: `MessageFn` injected callback (PEP 695 alias, find_replace precedent), current-row Enter reports "already at latest jump" info, screen stays open, cursor unmoved; pilot tests updated; marks_palette.py coverage stays 100% (145 stmts / 0 miss, 22 branches / 0 partial).
 - Convergence verification: injection chain complete (2 JumpsScreen construction sites, both wired), semantics consistent with boundary info hints, ASCII clean, architecture guards pass. Final gates: pytest marks+arch subset 75 passed (exit 0); pyright 0 diagnostics (exit 0).
 - T5 status: closed via info-hint approach (row-filtering variant remains optional, folded into v2 polish).
+
+## Round 4: full pr-review pass, pre-merge confirmation (2026-11-17)
+
+- Scope: `master...HEAD`, 7 commits, +3418/-5. Verdict: **APPROVE**.
+- Gates re-measured (exit 0): pyright 0 diagnostics; pytest full green; coverage 93.15% (marks_palette 100%, navigation_flows 95%); architecture tests 42 green.
+- Round-3 fixes verified in full-branch context (boundary test present and green, MessageFn injection chain complete, docstrings accurate, key-drift guard in place). No new issues introduced.
+- New minors, registered as v2 (non-blocking, per reviewer suggestion):
+  - [minor] navigation_flows.py 4 uncovered defensive branches (closed-buffer warn, `_on_jump_entry` current-row double guard, closed-target `_go_to`) — screen layer already intercepts the double-guarded path; optional v2 cleanup: drop the redundant guard or cover via flows-layer tests.
+  - [minor] `JumpEntry.path` is a display snapshot taken at push time; after buffer save-as, `:jumps` shows the stale name (uid resolution unaffected) — v2: re-resolve display path via `doc_by_uid` at render/`_go_to` time.
