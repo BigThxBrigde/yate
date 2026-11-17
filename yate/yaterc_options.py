@@ -30,10 +30,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from yate.config import (
-    KNOWN_OPTIONS,
-    VALID_KEYMAPS,
-    VALID_KEY_PROTOCOLS,
-    VALID_TRACE_LEVELS,
+    OPTION_SPECS,
     FilePreviewConfig,
     LanguageServerSpec,
     LargeFileConfig,
@@ -465,133 +462,24 @@ def _extract_large_file(  # noqa: Any - raw yaterc exec-namespace values, narrow
 
 
 def _extract_options(namespace: dict[str, Any], config: YateConfig) -> None:
-    """Pull recognized option variables out of the exec'd namespace."""
-    options = {name: namespace[name] for name in KNOWN_OPTIONS if name in namespace}
+    """Pull recognized scalar options out of the exec'd namespace.
 
-    keymap = options.get("keymap")
-    if keymap is not None:
-        if isinstance(keymap, str) and keymap in VALID_KEYMAPS:
-            config.keymap = keymap
-        else:
-            config.errors.append(
-                f"keymap must be one of {VALID_KEYMAPS}, got {keymap!r}"
-            )
-
-    key_protocol = options.get("key_protocol")
-    if key_protocol is not None:
-        if isinstance(key_protocol, str) and key_protocol in VALID_KEY_PROTOCOLS:
-            config.key_protocol = key_protocol
-        else:
-            config.errors.append(
-                f"key_protocol must be one of {VALID_KEY_PROTOCOLS}, got {key_protocol!r}"
-            )
-
-    theme_name = options.get("theme")
-    if theme_name is not None:
-        if isinstance(theme_name, str) and theme_name:
-            config.theme = theme_name
-        else:
-            config.errors.append(f"theme must be a non-empty string, got {theme_name!r}")
-
-    tab_width = options.get("tab_width")
-    if tab_width is not None:
-        # bool is a subclass of int -- reject it explicitly for this option.
-        if isinstance(tab_width, int) and not isinstance(tab_width, bool) and 1 <= tab_width <= 16:
-            config.tab_width = tab_width
-        else:
-            config.errors.append(
-                f"tab_width must be an integer between 1 and 16, got {tab_width!r}"
-            )
-
-    use_spaces = options.get("use_spaces")
-    if use_spaces is not None:
-        if isinstance(use_spaces, bool):
-            config.use_spaces = use_spaces
-        else:
-            config.errors.append(f"use_spaces must be True or False, got {use_spaces!r}")
-
-    shell = options.get("shell")
-    if shell is not None:
-        if isinstance(shell, str) and shell.strip():
-            config.shell = shell.strip()
-        else:
-            config.errors.append(f"shell must be a non-empty string, got {shell!r}")
-
-    terminal_height = options.get("terminal_height")
-    if terminal_height is not None:
-        if (
-            isinstance(terminal_height, int)
-            and not isinstance(terminal_height, bool)
-            and 3 <= terminal_height <= 40
-        ):
-            config.terminal_height = terminal_height
-        else:
-            config.errors.append(
-                f"terminal_height must be an integer between 3 and 40, "
-                f"got {terminal_height!r}"
-            )
-
-    show_hidden = options.get("show_hidden")
-    if show_hidden is not None:
-        if isinstance(show_hidden, bool):
-            config.show_hidden = show_hidden
-        else:
-            config.errors.append(
-                f"show_hidden must be True or False, got {show_hidden!r}"
-            )
-
-    support_mouse = options.get("support_mouse")
-    if support_mouse is not None:
-        if isinstance(support_mouse, bool):
-            config.support_mouse = support_mouse
-        else:
-            config.errors.append(
-                f"support_mouse must be True or False, got {support_mouse!r}"
-            )
-
-    which_key = options.get("which_key")
-    if which_key is not None:
-        if isinstance(which_key, bool):
-            config.which_key = which_key
-        else:
-            config.errors.append(
-                f"which_key must be True or False, got {which_key!r}"
-            )
-
-    which_key_auto = options.get("which_key_auto")
-    if which_key_auto is not None:
-        if isinstance(which_key_auto, bool):
-            config.which_key_auto = which_key_auto
-        else:
-            config.errors.append(
-                f"which_key_auto must be True or False, got {which_key_auto!r}"
-            )
-
-    trace = options.get("yate_trace")
-    if trace is not None:
-        if isinstance(trace, bool):
-            config.yate_trace = trace
-        else:
-            config.errors.append(
-                f"yate_trace must be True or False, got {trace!r}"
-            )
-
-    trace_level = options.get("yate_trace_level")
-    if trace_level is not None:
-        if isinstance(trace_level, str) and trace_level.strip():
-            level_name = trace_level.strip().upper()
-            if level_name in VALID_TRACE_LEVELS:
-                config.yate_trace_level = level_name
-            else:
-                config.errors.append(
-                    f"yate_trace_level must be one of {VALID_TRACE_LEVELS}, "
-                    f"got {trace_level!r}"
-                )
-        else:
-            config.errors.append(
-                f"yate_trace_level must be a non-empty string, "
-                f"got {trace_level!r}"
-            )
+    Legal values and error messages come from the shared
+    :data:`yate.config.OPTION_SPECS` table; this function only drives the
+    loop and writes accepted values to the matching config fields.  Dict
+    and list options are handled by the dedicated extractors below.
+    """
+    for spec in OPTION_SPECS:
+        if not spec.rc_visible:
+            continue
+        raw = namespace.get(spec.name)
+        if raw is None:
+            continue
+        value = spec.validate_native(raw)
+        if value is None:
+            config.errors.append(spec.native_error(raw))
+            continue
+        setattr(config, spec.name, value)
 
     _extract_language_servers(namespace, config)
     _extract_screen_saver(namespace, config)

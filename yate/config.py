@@ -1,16 +1,17 @@
-"""Configuration data model: resolved options and the ``:set`` option table.
+"""Configuration data model and the shared option definition table.
 
 The dataclasses here are the single shape of yate's resolved configuration:
 :class:`YateConfig` (scalar options and accumulated lists) plus the
 dict-backed :class:`ScreenSaverConfig` / :class:`FilePreviewConfig` and the
-declarative :class:`LanguageServerSpec`.  Loading, exec'ing and validating
-``yaterc`` files lives in :mod:`yate.yaterc`.
+declarative :class:`LanguageServerSpec`.  Loading and exec'ing ``yaterc``
+files lives in :mod:`yate.yaterc`.
 
-This module also owns the ``:set`` option table (:class:`SetOption` /
-:data:`SET_OPTION_SPECS`) so the ``:`` command layer
-(:mod:`yate.commands`) and the prompt completion
-(:mod:`yate.cmdline_completions`) derive from one definition instead
-of two hand-maintained copies (audit A8).
+:data:`OPTION_SPECS` is the one place where option names, legal values and
+messages are declared.  The ``:set`` view (:class:`SetOption` /
+:data:`SET_OPTION_SPECS`) and the rc-visible name list
+(:data:`KNOWN_OPTIONS`) are derived from it, so the command layer
+(:mod:`yate.commands`), prompt completion (:mod:`yate.cmdline_completions`)
+and the yaterc loader (:mod:`yate.yaterc_options`) all share one source.
 
 Usage in a yaterc file -- see :mod:`yate.yaterc` for the load order and
 the full option reference::
@@ -25,18 +26,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
-
-#: Recognized option variables in a yaterc file (public: the loader in
-#: :mod:`yate.yaterc` consumes it).
-KNOWN_OPTIONS: tuple[str, ...] = (
-    "keymap", "theme", "tab_width", "use_spaces",
-    "shell", "terminal_height", "show_hidden",
-    "yate_trace", "yate_trace_level", "key_protocol",
-    "support_mouse", "which_key", "which_key_auto", "large_file",
-)
 
 VALID_KEYMAPS: tuple[str, ...] = ("vsc", "vim")
 
@@ -243,6 +235,10 @@ def _parse_int_in_range(value: str, low: int, high: int) -> int | None:
 #: mapping receives, or ``None`` when the value is invalid.
 type OptionParser = Callable[[str], object | None]
 
+#: Legal-value domain of one option: enum spellings, an inclusive integer
+#: range, or ``None`` for a free string.
+type Domain = tuple[str, ...] | tuple[int, int] | None
+
 
 @dataclass(frozen=True)
 class SetOption:
@@ -262,111 +258,292 @@ class SetOption:
     summary: str                   # one-line hint for the usage message
 
 
-def _parse_filetype(value: str) -> object | None:
-    """Accept any filetype spelling; ``editor.set_filetype`` validates it."""
-    return value
+@dataclass(frozen=True)
+class OptionSpec:
+    """One option definition shared by yaterc loading and the ``:set`` command.
+
+    ``name`` is the canonical spelling and the yaterc variable name.
+    ``rc_visible`` marks options yaterc recognizes; ``settable`` marks options
+    exposed on ``:set``.  ``domain`` is the one place where legal values live.
+    ``kind`` selects the native/parse strategies; ``bool`` uses the shared
+    :func:`parse_bool` spellings.  ``invalid_message`` is the ``:set`` warning,
+    ``invalid_message_fmt`` the yaterc template, and ``summary`` the usage
+    fragment.
+    """
+
+    name: str
+    aliases: tuple[str, ...]
+    rc_visible: bool
+    settable: bool
+    kind: Literal["enum", "int", "bool", "text", "any_text"]
+    domain: Domain
+    invalid_message: str
+    invalid_message_fmt: str
+    summary: str
+    set_text_any: bool = False
+    native_strip: bool = False
+    invalid_message_fmt_empty: str = ""
+
+    def validate_native(self, value: object) -> object | None:
+        """Return *value* when legal for yaterc, else ``None``.
+
+        Enum matching and integer bounds read :attr:`domain`; booleans accept
+        only native ``bool`` values (the text spellings are a ``:set`` concern).
+        ``yate_trace_level`` upper-cases before the membership check and keeps
+        the canonical spelling for storage.  Text options keep their historical
+        distinctions: a plain non-empty string is enough unless
+        :attr:`native_strip` requires content after stripping.
+        """
+        if self.kind == "bool":
+            return value if isinstance(value, bool) else None
+        if self.kind == "int":
+            bounds = cast(tuple[int, int], self.domain)
+            if isinstance(value, int) and not isinstance(value, bool):
+                return value if bounds[0] <= value <= bounds[1] else None
+            return None
+        if self.kind == "enum":
+            if not isinstance(value, str):
+                return None
+            candidate = value.strip().upper() if self.name == "yate_trace_level" else value
+            values = cast(tuple[str, ...], self.domain)
+            return candidate if candidate in values else None
+        if not isinstance(value, str):
+            return None
+        if self.kind == "any_text":
+            # No rc-visible spec uses this kind; kept for a future native
+            # free-text option that must accept an empty string as-is.
+            return value
+        if not value:
+            return None
+        if self.native_strip:
+            return value.strip() if value.strip() else None
+        return value
+
+    def native_error(self, raw: object) -> str:
+        """Format the yaterc error line for a rejected native value."""
+        if self.invalid_message_fmt_empty and (
+            not isinstance(raw, str) or not raw.strip()
+        ):
+            return self.invalid_message_fmt_empty.format(value=raw)
+        return self.invalid_message_fmt.format(value=raw)
+
+    def parse_set_text(self, text: str) -> object | None:
+        """Parse a ``:set`` command-line string; ``None`` when invalid."""
+        if self.set_text_any:
+            return text
+        if self.kind == "bool":
+            return parse_bool(text)
+        if self.kind == "int":
+            bounds = cast(tuple[int, int], self.domain)
+            return _parse_int_in_range(text, bounds[0], bounds[1])
+        if self.kind == "enum":
+            return text if text in cast(tuple[str, ...], self.domain) else None
+        if self.kind == "any_text":
+            return text
+        return text if text.strip() else None
 
 
-def _parse_keymap(value: str) -> object | None:
-    """Accept only the registered keymap names."""
-    return value if value in VALID_KEYMAPS else None
-
-
-def _parse_theme(value: str) -> object | None:
-    """Accept any non-empty theme name; unknown names fail at apply time."""
-    return value if value.strip() else None
-
-
-def _parse_shell(value: str) -> object | None:
-    """Accept any shell string (empty resets to the platform default)."""
-    return value
-
-
-def _parse_terminal_height(value: str) -> object | None:
-    """Accept an integer in ``3..40`` (the config loader's same range)."""
-    return _parse_int_in_range(value, 3, 40)
-
-
-def _parse_bool_option(value: str) -> object | None:
-    """Accept the boolean spellings via :func:`parse_bool`."""
-    return parse_bool(value)
-
-
-#: The single source of ``:set`` truth: canonical names, aliases, value
-#: parsers and help text.  ``commands._set`` dispatches through this table
-#: and ``cmdline_completions`` derives its candidate list from it, so a
-#: new option is added exactly once, here.  Order fixes the usage message.
-SET_OPTION_SPECS: tuple[SetOption, ...] = (
-    SetOption(
+#: The single source of option truth: yaterc loading and ``:set`` both read
+#: their names, legal values and messages from these rows.  Row order is
+#: deliberate: the rc-visible subsequence reproduces the loader's historical
+#: validation order (and thus its error order); the settable subsequence
+#: reproduces the pre-unification ``:set`` usage-message order.
+OPTION_SPECS: tuple[OptionSpec, ...] = (
+    OptionSpec(
         name="keymap",
         aliases=(),
-        parse=_parse_keymap,
+        rc_visible=True,
+        settable=True,
+        kind="enum",
+        domain=VALID_KEYMAPS,
         invalid_message="keymap must be vsc or vim",
+        invalid_message_fmt="keymap must be one of ('vsc', 'vim'), got {value!r}",
         summary="keymap=vsc|vim",
     ),
-    SetOption(
+    OptionSpec(
+        name="key_protocol",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="enum",
+        domain=VALID_KEY_PROTOCOLS,
+        invalid_message="key_protocol must be one of ('auto', 'legacy')",
+        invalid_message_fmt="key_protocol must be one of ('auto', 'legacy'), "
+        "got {value!r}",
+        summary="",
+    ),
+    OptionSpec(
         name="theme",
         aliases=(),
-        parse=_parse_theme,
+        rc_visible=True,
+        settable=True,
+        kind="text",
+        domain=None,
         invalid_message="theme must be a non-empty name",
+        invalid_message_fmt="theme must be a non-empty string, got {value!r}",
         summary="theme=mocha",
     ),
-    SetOption(
+    OptionSpec(
+        name="tab_width",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="int",
+        domain=(1, 16),
+        invalid_message="tab_width must be an integer between 1 and 16",
+        invalid_message_fmt="tab_width must be an integer between 1 and 16, "
+        "got {value!r}",
+        summary="",
+    ),
+    OptionSpec(
+        name="use_spaces",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="bool",
+        domain=None,
+        invalid_message="use_spaces must be True or False",
+        invalid_message_fmt="use_spaces must be True or False, got {value!r}",
+        summary="",
+    ),
+    OptionSpec(
         name="shell",
         aliases=(),
-        parse=_parse_shell,
+        rc_visible=True,
+        settable=True,
+        kind="text",
+        domain=None,
         invalid_message="shell must be a command string",
+        invalid_message_fmt="shell must be a non-empty string, got {value!r}",
         summary="shell=powershell",
+        set_text_any=True,
+        native_strip=True,
     ),
-    SetOption(
+    OptionSpec(
         name="terminal_height",
         aliases=(),
-        parse=_parse_terminal_height,
+        rc_visible=True,
+        settable=True,
+        kind="int",
+        domain=(3, 40),
         invalid_message="terminal_height must be an integer between 3 and 40",
+        invalid_message_fmt="terminal_height must be an integer between 3 and "
+        "40, got {value!r}",
         summary="terminal_height=12",
     ),
-    SetOption(
+    OptionSpec(
         name="filetype",
         aliases=("ft", "language", "lang"),
-        parse=_parse_filetype,
+        rc_visible=False,
+        settable=True,
+        kind="any_text",
+        domain=None,
         invalid_message="filetype must be a filetype name",
+        invalid_message_fmt="",
         summary="filetype=py (auto = detect)",
     ),
-    SetOption(
+    OptionSpec(
         name="show_hidden",
         aliases=(),
-        parse=_parse_bool_option,
+        rc_visible=True,
+        settable=True,
+        kind="bool",
+        domain=None,
         invalid_message="show_hidden must be on|off (true/false/1/0/yes/no accepted)",
+        invalid_message_fmt="show_hidden must be True or False, got {value!r}",
         summary="show_hidden=on|off",
     ),
-    SetOption(
+    OptionSpec(
         name="readonly",
         aliases=(),
-        parse=_parse_bool_option,
+        rc_visible=False,
+        settable=True,
+        kind="bool",
+        domain=None,
         invalid_message="readonly must be true|false (on/off/1/0/yes/no accepted)",
+        invalid_message_fmt="",
         summary="readonly=true|false",
     ),
-    SetOption(
+    OptionSpec(
         name="support_mouse",
         aliases=(),
-        parse=_parse_bool_option,
+        rc_visible=True,
+        settable=True,
+        kind="bool",
+        domain=None,
         invalid_message="support_mouse must be on|off (true/false/1/0/yes/no accepted)",
+        invalid_message_fmt="support_mouse must be True or False, got {value!r}",
         summary="support_mouse=on|off",
     ),
-    SetOption(
+    OptionSpec(
         name="which_key",
         aliases=(),
-        parse=_parse_bool_option,
+        rc_visible=True,
+        settable=True,
+        kind="bool",
+        domain=None,
         invalid_message="which_key must be on|off (true/false/1/0/yes/no accepted)",
+        invalid_message_fmt="which_key must be True or False, got {value!r}",
         summary="which_key=on|off",
     ),
-    SetOption(
+    OptionSpec(
         name="which_key_auto",
         aliases=(),
-        parse=_parse_bool_option,
+        rc_visible=True,
+        settable=True,
+        kind="bool",
+        domain=None,
         invalid_message="which_key_auto must be on|off (true/false/1/0/yes/no accepted)",
+        invalid_message_fmt="which_key_auto must be True or False, got {value!r}",
         summary="which_key_auto=on|off",
     ),
+    OptionSpec(
+        name="yate_trace",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="bool",
+        domain=None,
+        invalid_message="yate_trace must be True or False",
+        invalid_message_fmt="yate_trace must be True or False, got {value!r}",
+        summary="",
+    ),
+    OptionSpec(
+        name="yate_trace_level",
+        aliases=(),
+        rc_visible=True,
+        settable=False,
+        kind="enum",
+        domain=VALID_TRACE_LEVELS,
+        invalid_message="yate_trace_level must be a valid level name",
+        invalid_message_fmt=f"yate_trace_level must be one of {VALID_TRACE_LEVELS}, "
+        "got {value!r}",
+        invalid_message_fmt_empty="yate_trace_level must be a non-empty string, "
+        "got {value!r}",
+        summary="",
+    ),
+)
+
+#: Recognized option variables in a yaterc file (public: the loader in
+#: :mod:`yate.yaterc` consumes it).  ``large_file`` is a dict option handled
+#: by a dedicated extractor; only its name is listed here.
+KNOWN_OPTIONS: tuple[str, ...] = tuple(
+    spec.name for spec in OPTION_SPECS if spec.rc_visible
+) + ("large_file",)
+
+#: The ``:set`` view of :data:`OPTION_SPECS`: commands._set dispatches through
+#: it and the arg completer derives its candidates from it.  Order fixes the
+#: usage message and matches the pre-unification table exactly.
+SET_OPTION_SPECS: tuple[SetOption, ...] = tuple(
+    SetOption(
+        name=spec.name,
+        aliases=spec.aliases,
+        parse=spec.parse_set_text,
+        invalid_message=spec.invalid_message,
+        summary=spec.summary,
+    )
+    for spec in OPTION_SPECS
+    if spec.settable
 )
 
 
@@ -375,3 +552,16 @@ def set_option_names() -> tuple[str, ...]:
     return tuple(
         spelling for spec in SET_OPTION_SPECS for spelling in (spec.name, *spec.aliases)
     )
+
+
+def set_option_value_candidates(name: str) -> tuple[str, ...]:
+    """Static value candidates for a ``:set`` option, empty when dynamic."""
+    spec = next((s for s in OPTION_SPECS if s.name == name), None)
+    if (
+        spec is None
+        or not spec.settable
+        or spec.kind != "enum"
+        or not isinstance(spec.domain, tuple)
+    ):
+        return ()
+    return cast(tuple[str, ...], spec.domain)
