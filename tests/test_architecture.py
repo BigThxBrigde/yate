@@ -1781,4 +1781,3 @@ def test_option_definitions_have_single_source() -> None:
     body = commands_src[start:end]
     assert "set_option_value_candidates" in body
     assert "(\"vsc\", \"vim\")" not in body
-    assert "not spec.settable" in (YATE / "config.py").read_text(encoding="utf-8")

@@ -1,16 +1,17 @@
-"""Configuration data model: resolved options and the ``:set`` option table.
+"""Configuration data model and the shared option definition table.
 
 The dataclasses here are the single shape of yate's resolved configuration:
 :class:`YateConfig` (scalar options and accumulated lists) plus the
 dict-backed :class:`ScreenSaverConfig` / :class:`FilePreviewConfig` and the
-declarative :class:`LanguageServerSpec`.  Loading, exec'ing and validating
-``yaterc`` files lives in :mod:`yate.yaterc`.
+declarative :class:`LanguageServerSpec`.  Loading and exec'ing ``yaterc``
+files lives in :mod:`yate.yaterc`.
 
-This module also owns the ``:set`` option table (:class:`SetOption` /
-:data:`SET_OPTION_SPECS`) so the ``:`` command layer
-(:mod:`yate.commands`) and the prompt completion
-(:mod:`yate.cmdline_completions`) derive from one definition instead
-of two hand-maintained copies (audit A8).
+:data:`OPTION_SPECS` is the one place where option names, legal values and
+messages are declared.  The ``:set`` view (:class:`SetOption` /
+:data:`SET_OPTION_SPECS`) and the rc-visible name list
+(:data:`KNOWN_OPTIONS`) are derived from it, so the command layer
+(:mod:`yate.commands`), prompt completion (:mod:`yate.cmdline_completions`)
+and the yaterc loader (:mod:`yate.yaterc_options`) all share one source.
 
 Usage in a yaterc file -- see :mod:`yate.yaterc` for the load order and
 the full option reference::
@@ -25,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from yate.logs import DEFAULT_LEVEL, LEVEL_NAMES
 
@@ -274,7 +275,7 @@ class OptionSpec:
     aliases: tuple[str, ...]
     rc_visible: bool
     settable: bool
-    kind: str  # "enum" | "int" | "bool" | "text" | "any_text"
+    kind: Literal["enum", "int", "bool", "text", "any_text"]
     domain: Domain
     invalid_message: str
     invalid_message_fmt: str
@@ -309,6 +310,8 @@ class OptionSpec:
         if not isinstance(value, str):
             return None
         if self.kind == "any_text":
+            # No rc-visible spec uses this kind; kept for a future native
+            # free-text option that must accept an empty string as-is.
             return value
         if not value:
             return None
@@ -335,6 +338,8 @@ class OptionSpec:
             return _parse_int_in_range(text, bounds[0], bounds[1])
         if self.kind == "enum":
             return text if text in cast(tuple[str, ...], self.domain) else None
+        if self.kind == "any_text":
+            return text
         return text if text.strip() else None
 
 

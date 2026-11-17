@@ -193,6 +193,26 @@ def test_extract_options_keeps_existing_scalar_behavior(
     assert config.errors == []
 
 
+def test_extract_options_treats_none_as_unset(config: YateConfig) -> None:
+    """An explicit ``None`` in yaterc is silently ignored, not an error."""
+    baseline = YateConfig()
+    _extract_options(
+        {
+            "keymap": None,
+            "terminal_height": None,
+            "yate_trace_level": None,
+            "support_mouse": None,
+        },
+        config,
+    )
+
+    assert config.errors == []
+    assert config.keymap == baseline.keymap
+    assert config.terminal_height == baseline.terminal_height
+    assert config.yate_trace_level == baseline.yate_trace_level
+    assert config.support_mouse == baseline.support_mouse
+
+
 def test_extract_options_reports_invalid_scalars_and_keeps_defaults(
     config: YateConfig,
 ) -> None:

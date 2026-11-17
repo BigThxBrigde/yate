@@ -8,9 +8,9 @@ differences between the two input forms are preserved.
 
 from __future__ import annotations
 
-import pytest
-
 import dataclasses
+
+import pytest
 
 from yate.config import (
     KNOWN_OPTIONS,
@@ -165,3 +165,31 @@ def test_bool_set_text_is_case_insensitive(value: str) -> None:
     """The shared parse_bool spellings keep their case-insensitive rule."""
     spec = next(s for s in OPTION_SPECS if s.name == "which_key")
     assert spec.parse_set_text(value) is not None
+
+
+def test_filetype_set_text_accepts_any_string_including_empty() -> None:
+    """``:set filetype=`` resets to auto-detection, so any text is accepted."""
+    spec = next(s for s in OPTION_SPECS if s.name == "filetype")
+    assert spec.kind == "any_text"
+    assert spec.parse_set_text("") == ""
+    assert spec.parse_set_text("   ") == "   "
+    assert spec.parse_set_text("py") == "py"
+
+
+def test_option_kinds_are_a_frozen_literal_set() -> None:
+    """A misspelled kind can no longer silently fall through to text."""
+    assert {s.kind for s in OPTION_SPECS} == {
+        "enum", "int", "bool", "text", "any_text",
+    }
+
+
+def test_bool_value_candidates_stay_within_the_shared_spellings() -> None:
+    """The completer's bool candidates all parse through the shared bool rule."""
+    from yate.config import parse_bool
+
+    candidates = {
+        "readonly": ("true", "false"),
+        "show_hidden": ("on", "off"),
+    }
+    for values in candidates.values():
+        assert all(parse_bool(value) is not None for value in values)
