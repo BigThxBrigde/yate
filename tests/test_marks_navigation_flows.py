@@ -9,17 +9,19 @@ L1 model; the screens are asserted by identity and their injected rows.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
 from typing import cast
 
 from textual.screen import Screen
 
 from yate.config import YateConfig
-from yate.editor_components.marks_palette import JumpsScreen, MarksScreen
+from yate.editor_components.marks_palette import JumpRow, JumpsScreen, MarksScreen
 from yate.editor_components.panes import PaneManager
 from yate.editor_core import Document
 from yate.editor_core.buffer import TextBuffer
 from yate.flows.navigation_flows import NavigationFlows
-from yate.session import EditorSession, Mark
+from yate.session import EditorSession, JumpEntry, Mark
 
 
 # ------------------------------------------------------------------- fakes
@@ -95,6 +97,16 @@ def _flows() -> tuple[NavigationFlows, EditorSession, _FakePanes, _Shell]:
 def _last_message(shell: _Shell) -> tuple[str, str]:
     assert shell.messages, "expected a message, got none"
     return shell.messages[-1]
+
+
+def _drive_jump_entry(flows: NavigationFlows, row: JumpRow) -> None:
+    """The jumps-panel enter verb (private attr, test seam via getattr)."""
+    cast(Callable[[JumpRow], None], getattr(flows, "_on_jump_entry"))(row)
+
+
+def _drive_go_to(flows: NavigationFlows, entry: JumpEntry) -> None:
+    """The jump landing helper (private attr, test seam via getattr)."""
+    cast(Callable[[JumpEntry], None], getattr(flows, "_go_to"))(entry)
 
 
 # ------------------------------------------------------------------ set
@@ -332,3 +344,84 @@ def test_show_jumps_rows_mark_current_side() -> None:
     rows = screen.rows
     assert [row.side for row in rows] == ["back", "current", "forward"]
     assert rows[2].entry == forward[-1]
+
+
+def test_jump_forward_moves_cursor_to_entry() -> None:
+    """jump_forward returns the cursor to the forward-reachable position."""
+    flows, session, panes, _shell = _flows()
+    session.doc.buffer.set_cursor((1, 0))
+    session.push_jump()
+    session.doc.buffer.set_cursor((3, 2))
+    flows.jump_back()
+
+    flows.jump_forward()
+
+    assert session.doc.buffer.cursor == (3, 2)
+    assert panes.view.reveals == 2
+
+
+def test_on_jump_entry_current_row_is_noop() -> None:
+    """The current-row guard: the screen already blocks it; nothing moves."""
+    flows, session, _panes, shell = _flows()
+    session.doc.buffer.set_cursor((1, 0))
+    session.push_jump()
+    row = JumpRow(
+        entry=session.current_jump_entry(), side="current", current=True
+    )
+
+    _drive_jump_entry(flows, row)
+
+    back, forward = session.jumps.stacks()
+    assert len(back) == 1
+    assert forward == []
+    assert session.doc.buffer.cursor == (1, 0)
+    assert shell.messages == []
+
+
+def test_go_to_closed_target_warns() -> None:
+    """A stacked entry whose buffer closed warns instead of landing."""
+    flows, session, _panes, shell = _flows()
+
+    _drive_go_to(flows, JumpEntry(999, "closed.md", 2, 1))
+
+    text, kind = _last_message(shell)
+    assert text == "jump target buffer not open"
+    assert kind == "warn"
+    assert session.doc.buffer.cursor == (0, 0)
+
+
+def test_show_jumps_reresolves_display_path_after_save_as(
+    tmp_path: Path,
+) -> None:
+    """A save-as after the push shows the new name; uid landing still works."""
+    flows, session, _panes, shell = _flows()
+    doc = session.doc
+    doc.path = tmp_path / "old.md"
+    session.doc.buffer.set_cursor((1, 0))
+    session.push_jump()
+    # Save-as equivalent state change: save() retargets through the same
+    # path setter after the write.
+    doc.path = tmp_path / "renamed.md"
+
+    flows.show_jumps()
+
+    screen = shell.pushed[0]
+    assert isinstance(screen, JumpsScreen)
+    back_row = screen.rows[0]
+    assert back_row.entry.path == str(tmp_path / "renamed.md")
+
+    # uid resolution is unaffected: the entry still lands on the buffer.
+    flows.jump_back()
+    assert session.doc.buffer.cursor == (1, 0)
+
+
+def test_show_jumps_keeps_snapshot_path_for_closed_buffer() -> None:
+    """A stacked entry whose buffer closed falls back to the pushed name."""
+    flows, session, _panes, shell = _flows()
+    session.jumps.push(JumpEntry(999, "closed.md", 0, 0))
+
+    flows.show_jumps()
+
+    screen = shell.pushed[0]
+    assert isinstance(screen, JumpsScreen)
+    assert screen.rows[0].entry.path == "closed.md"

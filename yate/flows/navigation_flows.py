@@ -11,6 +11,7 @@ injection, issue IKJB0Q).
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 from textual.screen import Screen
 
@@ -151,10 +152,16 @@ class NavigationFlows:
         ))
 
     def show_jumps(self) -> None:
-        """Push the jump overview: back stack, current pointer, forward stack."""
+        """Push the jump overview: back stack, current pointer, forward stack.
+
+        Stacked entries re-resolve their display path against the open
+        buffers (a save-as renames the document after the push snapshot);
+        the rows handed to the L2 screen carry the resolved name.
+        """
         back, forward = self._session.jumps.stacks()
         rows = [
-            JumpRow(entry=entry, side="back", current=False) for entry in back
+            JumpRow(entry=self._display_entry(entry), side="back", current=False)
+            for entry in back
         ]
         rows.append(JumpRow(
             entry=self._session.current_jump_entry(),
@@ -162,7 +169,7 @@ class NavigationFlows:
             current=True,
         ))
         rows.extend(
-            JumpRow(entry=entry, side="forward", current=False)
+            JumpRow(entry=self._display_entry(entry), side="forward", current=False)
             for entry in reversed(forward)
         )
         self._push_overlay(JumpsScreen(
@@ -172,6 +179,19 @@ class NavigationFlows:
         ))
 
     # -------------------------------------------------------------- helpers
+
+    def _display_entry(self, entry: JumpEntry) -> JumpEntry:
+        """Re-resolve *entry*'s display path against the open buffers.
+
+        A stacked entry carries the display snapshot taken at push time;
+        a save-as renames the document afterwards, so the overview resolves
+        the current name through ``doc_by_uid`` (L1) and falls back to the
+        snapshot when the buffer has closed.
+        """
+        doc = self._session.doc_by_uid(entry.uid)
+        if doc is None:
+            return entry
+        return replace(entry, path=doc.display_path)
 
     def _on_panel_jump(self, row: MarkRow) -> None:
         """Marks-panel enter: jump through the panel (uid-bound) path."""
