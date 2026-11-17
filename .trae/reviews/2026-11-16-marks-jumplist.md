@@ -63,3 +63,10 @@
 - New minors, registered as v2 (non-blocking, per reviewer suggestion):
   - [minor] navigation_flows.py 4 uncovered defensive branches (closed-buffer warn, `_on_jump_entry` current-row double guard, closed-target `_go_to`) — screen layer already intercepts the double-guarded path; optional v2 cleanup: drop the redundant guard or cover via flows-layer tests.
   - [minor] `JumpEntry.path` is a display snapshot taken at push time; after buffer save-as, `:jumps` shows the stale name (uid resolution unaffected) — v2: re-resolve display path via `doc_by_uid` at render/`_go_to` time.
+
+## Round 5: T6/T7 closure (2026-11-18, user-directed)
+
+- Commit 46805d1a: T6 closed by adding 4 flows-layer tests (jump_forward success path, `_on_jump_entry` current-row guard, `_go_to` closed-target warn; guards kept, not deleted). Verified actual uncovered set was 3 sites / 4 statements (closed-buffer warn already covered). navigation_flows.py coverage 95% -> 100% (117 stmts / 0 miss, 32 branches / 0 partial).
+- T7 closed: `show_jumps` rows built through `_display_entry` helper (re-resolves display path via `session.doc_by_uid`, falls back to snapshot for closed buffers); `_go_to` already uid-only. New tests: save-as equivalent state (doc.path setter) re-resolution + closed-buffer snapshot fallback; uid landing asserted unaffected.
+- Gates re-measured by fix agent (exit 0): marks test subset, full pytest `-n auto`, pyright strict, full-suite coverage run. One pre-existing unrelated flake observed once (test_diffview save-io thread join timeout) and re-verified green on rerun + full rerun.
+- Remaining open v2 TODOs: T1 (panel jump does not pop back-stack entry), T3 (search hits not pushed), T4 (VISUAL mode semantics after nav-key dispatch).
