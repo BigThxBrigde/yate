@@ -489,8 +489,10 @@ render_line / mouse / cursor 深度耦合且违反 issue「不重构分层与高
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **41 个用例**（2026-11-12 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `41 passed`；宏录制与回放
+`tests/test_architecture.py` 已落地 **42 个用例**（2026-11-16 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `42 passed`；option-spec-unify
+wave-3 新增 1 条守卫 `test_option_definitions_have_single_source`）；
+此前 2026-11-12 为 41（宏录制与回放
 wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 `test_editor_size_exemption_is_registered` /
 `test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one`；
@@ -613,9 +615,9 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**41 个用例逐条对照**（2026-11-12 实测 `41 passed`；2026-11-09 为 `38 passed`，
-2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，2026-10-18 为 `35 passed`，
-2026-10-17 为 `32 passed`）：
+**42 个用例逐条对照**（2026-11-16 实测 `42 passed`；2026-11-12 为 `41 passed`，
+2026-11-09 为 `38 passed`，2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，
+2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
 | # | 用例 | 守卫项 |
 |---|---|---|
@@ -660,6 +662,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 | 39 | `test_macro_keys_are_shared_and_identical` | AC3 宏键位漂移守卫（2026-11-12 宏录制与回放 wave-2 plan-d：AST 断言 vsc / vim 的 `build_bindings` 都引用 3 个 `MACRO_*_KEY` 共享常量且无 `<f10>` / `<f11>` / `<f12>` / `<f7>` 字面量；运行时断言两套表同一 raw 键解析到同一宏动作名） |
 | 40 | `test_editor_size_exemption_is_registered` | §三.7 体量豁免两处同步（2026-11-12 宏录制与回放 wave-2 plan-d 断言集合长度为 6；2026-11-16 soft-wrap 波 IKVRXT 为 `editor_components/view.py` 登记豁免后扩至 7，断言 `editor.py` / `view.py` 均在 `SIZE_EXEMPT_FILES` 且与规则 §三.7 名单一致） |
 | 41 | `test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one` | L1 count 口径守卫（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `Keymap` / `VimKeymap` 两侧均定义 `take_pending_count`、`VscKeymap` 继承缺省恒 1） |
+| 42 | `test_option_definitions_have_single_source` | 选项定义单一来源（2026-11-16 option-spec-unify wave-3：文本断言 `config.py` 持有 `OPTION_SPECS` 且 `terminal_height` 的 `(3, 40)` 只在此声明，`yaterc_options.py::_extract_options` 遍历该表且不再内联逐项校验，`commands.py::_make_set_completer` 走 `set_option_value_candidates` 且无 `("vsc", "vim")` 字面量；负向演练两处回归均令守卫失败后还原） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

@@ -52,6 +52,41 @@ def test_set_option_names_feed_cmdline_completions() -> None:
     assert completer("") == list(set_option_names())
 
 
+def test_set_completer_static_candidate_comes_from_spec_domain() -> None:
+    """The keymap value candidates come from the shared domain, not a copy."""
+    registry, _editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("keymap=") == ["keymap=vsc", "keymap=vim"]
+    assert completer("keymap=vs") == ["keymap=vsc"]
+
+
+def test_set_completer_preserves_distinct_bool_spellings() -> None:
+    """readonly keeps true|false, show_hidden keeps on|off, others have none."""
+    registry, _editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("readonly=") == ["readonly=true", "readonly=false"]
+    assert completer("show_hidden=") == ["show_hidden=on", "show_hidden=off"]
+    assert completer("support_mouse=") == []
+    assert completer("which_key_auto=") == []
+
+
+def test_set_completer_returns_nothing_for_unknown_key() -> None:
+    """An option with no static or dynamic candidates completes to nothing."""
+    registry, _editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+    completer = entry.arg_completer
+    assert completer is not None
+    assert completer("tab_width=") == []
+    assert completer("nope=") == []
+
+
 def test_set_dispatch_survives_a_missing_apply(
     monkeypatch: Any,
 ) -> None:
