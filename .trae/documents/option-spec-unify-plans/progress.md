@@ -38,3 +38,11 @@
 - wave-3：pyright 0 / 91 passed / 架构 42 passed；N1（keymap 硬编码候选）与 N2（tab_width 内联校验）负向演练均令守卫 exit 1，还原后 exit 0
 - 审核：code-review-expert 交付；5 MAJOR / 5 MINOR 全部闭合于 04432f95；复审 APPROVE；评审记录 `.trae/reviews/2026-11-16-option-spec-unify.md`
 - 收尾门禁（2026-11-16 主代理亲跑，六项全绿）：\n  1. pyright yate/ tests/ tools/ pack/ -> 0 errors / 0 warnings\n  2. pytest tests/ -q -n 1 -> exit 0\n  3. pytest tests/test_architecture.py -q -n 1 -> 42 passed, exit 0\n  4. pytest tests/ --cov=yate --cov-branch -q -n 1 --cov-fail-under=75 -> 93.02%, exit 0（首轮 test_palette_down_cursor_moves 一过性失败，单独复跑通过；二轮全绿）\n  5. python -m tools.smoke_test run --jobs 4 -> 124/124 scenarios, 1511/1511 checks, exit 0\n  6. python -m tools.changelog check -> exit 0\n  - 备注：并行 -n auto 全量首轮 exit 1 由本机 safe-delete 钩子收尾清理锁超时所致（非测试失败，见记忆）；串行 -n 1 为权威口径，exit 0。
+
+## pr-review（2026-11-17）
+
+- 评审：code-review-expert 子代理交付 REQUEST CHANGES（0 BLOCKER / 1 MAJOR / 5 MINOR），报告 `.trae/reviews/2026-11-17-pr-review-option-spec-unify.md`。
+- MAJOR-1：`:set filetype=` 空值由「重置自动检测」变为报错（`any_text` 在 parse_set_text 被当 text）；5 MINOR 为 kind 裸字符串、bool 候选硬编码、薄弱文本断言、docstring 缺口、None 语义无回归用例。
+- 修复：`ef17738f` 全部闭合（kind → Literal + 显式 any_text 分支 + 3 条新用例 + None 回归 + docstring）；`126553e1` 归档复审 APPROVE。
+- 修复后门禁（主代理亲跑）：pyright 0；pytest -n auto exit 0；架构 42 passed；覆盖率 93.03%（-n 1 权威口径，-n auto 首轮 safe-delete 收尾锁超时 exit 1 非测试失败）；冒烟首轮 123/124（1 个负载相关 flake），复跑 124/124·1511/1511 exit 0；双侧 filetype 探针与 master 逐字相等。
+- 分支总计 11 笔提交（ef1c7e7b → 126553e1），全部本地未推送，未合流。
