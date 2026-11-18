@@ -38,7 +38,14 @@ from yate.keymaps.base import (
     Keymap,
     parse_key,
 )
-from yate.keymaps.keys import MACRO_PLAY_KEY, MACRO_RECORD_KEY, MACRO_REPLAY_LAST_KEY
+from yate.keymaps.keys import (
+    JUMPLIST_BACK_KEY,
+    JUMPLIST_FORWARD_KEY,
+    MACRO_PLAY_KEY,
+    MACRO_RECORD_KEY,
+    MACRO_REPLAY_LAST_KEY,
+    MARKS_OVERLAY_KEY,
+)
 from yate.services.clipboard import copy_text, paste_text
 
 
@@ -80,6 +87,13 @@ _FIND_PREFIX_HINTS: dict[str, tuple[str, str]] = {
 }
 
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
+
+#: Raw alt keys consumed before mode dispatch so the jump-list / marks
+#: bindings answer in every vim mode and drop any half-finished chord
+#: (issue IKUOCI, same shape as the ctrl+/ and _FUNCTION_KEYS branches).
+_NAVIGATION_KEYS: frozenset[str] = frozenset(
+    {JUMPLIST_BACK_KEY, JUMPLIST_FORWARD_KEY, MARKS_OVERLAY_KEY}
+)
 
 #: Raw keys the hard-coded ``_handle_normal`` branches consume before the
 #: binding table is consulted, so a table entry on any of them would
@@ -240,6 +254,9 @@ class VimKeymap(Keymap):
                        "Play a recorded macro", CMD),
             KeyBinding(parse_key(MACRO_REPLAY_LAST_KEY), "macro_replay_last",
                        "Repeat last replay", CMD),
+            KeyBinding(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", NAV),
+            KeyBinding(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", NAV),
+            KeyBinding(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", NAV),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -269,6 +286,12 @@ class VimKeymap(Keymap):
                 # extension-bound normal key is absorbed the same way.
                 self.dispatch(binding, ctx)
             return True
+        if key in _NAVIGATION_KEYS:
+            self._clear_pending()
+            binding = self.lookup(key)
+            if binding is not None:
+                self.dispatch(binding, ctx)
+                return True
         if self.mode == VimMode.INSERT:
             return self._handle_insert(ctx, key)
         if self.mode in (VimMode.VISUAL, VimMode.VISUAL_LINE):

@@ -27,6 +27,7 @@ from yate.editor_syntax import (
 from yate.keymaps.keys import MACRO_REGISTER_CHARS
 from yate.logs import tracing
 from yate.registries import ArgCompleter, CommandRegistry
+from yate.session import MARK_NAME_CHARS
 from yate.services import yxp
 from yate.services.workspace import path_matches
 
@@ -712,5 +713,34 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         arg_completer=_complete_register)
     reg("macro-replay-last", _macro_replay_last, "repeat the last replay [count]",
         arg_completer=_complete_register)
+
+    def _marks(args: str) -> None:
+        editor.navigation_flows.show_marks()
+
+    def _jumps(args: str) -> None:
+        editor.navigation_flows.show_jumps()
+
+    def _mark(args: str) -> None:
+        name = args.strip()
+        if len(name) != 1 or name not in MARK_NAME_CHARS:
+            editor.message("usage: :mark <a-z> (jump if set, else set here)",
+                           kind="warn")
+            return
+        editor.navigation_flows.jump_to_mark(name)
+
+    def _delmark(args: str) -> None:
+        name = args.strip()
+        if not name:
+            editor.message("usage: :delmark <a-z>", kind="warn")
+            return
+        if len(name) != 1 or name not in MARK_NAME_CHARS:
+            editor.message("mark name must be a-z", kind="warn")
+            return
+        editor.navigation_flows.delete_mark(name)
+
+    reg("marks", _marks, "open the marks overview")
+    reg("mark", _mark, "jump to a mark, or set it here (a-z)")
+    reg("delmark", _delmark, "delete a mark (a-z)")
+    reg("jumps", _jumps, "open the jump list overview")
 
     log.info("builtin commands registered: %d", len(registry.names()))

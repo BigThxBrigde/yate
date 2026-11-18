@@ -24,7 +24,8 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          extension_flows.py / shell_flows.py / overlay_flows.py / whichkey_flows.py /
          lsp_sync.py / mouse_flows.py / hover_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移）/
-         macro_flows.py（2026-11-12 宏录制与回放 wave-3 接线补登））/
+         macro_flows.py（2026-11-12 宏录制与回放 wave-3 接线补登）/
+         navigation_flows.py（2026-11-16 marks-jumplist wave-2 接入））/
          diagnostics.py /
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
          见 R14）
@@ -143,7 +144,9 @@ flowchart TD
   命名统一波以新名首次补登，修复漏登漂移）/
   `hover_flows.py`（其 `editor_components` 导入已在 `tests/test_architecture.py`
   的 `UI_FROZEN_FILES` 登记）/ `macro_flows.py`（2026-11-12 宏录制与回放 wave-3
-  接线补登：**不** import `editor_components`，故不进 `UI_FROZEN_FILES`）；
+  接线补登：**不** import `editor_components`，故不进 `UI_FROZEN_FILES`）/
+  `navigation_flows.py`（2026-11-16 marks-jumplist wave-2 接入：import
+  `editor_components`（marks_palette / panes），键已登记 `UI_FROZEN_FILES`）；
   2026-10-07 自根目录迁入，`completion.py`、`overlays.py` 同步更名为 `*_flows.py`）
   **允许** import `editor_components`（存量耦合，冻结；其中 `extension_flows.py` 实测不
   import `editor_components`，故不在 `UI_FROZEN_FILES` 白名单——2026-10-16 审计核对；
@@ -160,6 +163,9 @@ flowchart TD
   `whichkey_flows.py` 于 which-key 任务
   （[which-key-docs-plan-f](../documents/which-key-plans/which-key-docs-plan-f.md)）
   登记 `editor_components` / `editor_components.whichkey`，键见 `UI_FROZEN_FILES`。
+  `navigation_flows.py` 于 marks-jumplist wave-2（issue IKUOCI，2026-11-16）以
+  同组面登记 `editor_components` / `editor_components.marks_palette` /
+  `editor_components.panes`（R11 先登记后 import）。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
@@ -373,7 +379,9 @@ flowchart TD
 （基线 800 行），越过 800 行阈值；`Editor` 是 L3 单一职责薄委托
 （组装 + 跨协作者操作），拆分无行为收益，故按本节「单一职责长文件可
 登记豁免」登记，并与 `tests/test_architecture.py` 的
-`SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填）。
+`SIZE_EXEMPT_FILES` 两处同步；行数由 wave-3 执行阶段实测回填；
+2026-11-16 marks-jumplist wave-2 增量（NavigationFlows 类属性注解 /
+import / 组装顺序注释，+4 行）后实测 811 行，维持豁免）。
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -430,6 +438,11 @@ flowchart TD
    / `dispatch_raw` / `notify` + 组装顺序注释 + 不 import `editor_components`
    故免登记 `UI_FROZEN_FILES` + §一 L3 清单已同步；`editor.py` 实测 807 行
    按 §三.7 登记豁免，守卫集合 `SIZE_EXEMPT_FILES` 两处同步。）
+   （2026-11-16 marks-jumplist wave-2 已按上述 6 条接入 `navigation_flows.py`：
+   `Editor.navigation_flows` 类属性注解 + `_build_pane_stack` 工厂注入 `session`
+   / `panes` / `activate_doc` / `push_overlay` / `message` / `refresh` +
+   组装顺序注释 + 先登记 `UI_FROZEN_FILES` 新键再加 import + §一 L3 清单与本
+   清单已同步；`editor.py` 增量后实测 811 行，§三.7 豁免维持。）
 
 ## 四、跨模块交互
 

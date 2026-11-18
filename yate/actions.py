@@ -248,4 +248,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
             editor.session.macro.pending_count),
         "Repeat the last macro replay")
 
+    reg("jump_back", lambda ctx: editor.navigation_flows.jump_back(),
+        "Jump back in jump history (alt+left)")
+    reg("jump_forward", lambda ctx: editor.navigation_flows.jump_forward(),
+        "Jump forward in jump history (alt+right)")
+    reg("marks_overlay", lambda ctx: editor.navigation_flows.show_marks(),
+        "Open the marks overview (alt+m)")
+
     log.info("builtin actions populated: %d", len(registry.names()))
