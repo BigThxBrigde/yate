@@ -333,7 +333,8 @@ flowchart TD
      VISUAL 前缀与整行操作符；pr-review 修复波 2026-10-23 复测 1528 行，
      新增 VISUAL count 累积与重复查找，
      motion/operator/text-object 单一键映射域；2026-11-05 multi-dim-review r2
-     复测 1531 行；2026-11-12 multi-dim-review r3 复测 1534 行，维持豁免）、
+     复测 1531 行；2026-11-12 multi-dim-review r3 复测 1534 行；2026-11-18
+    soft-wrap IKVRXT 合入 !140 后复测 1595 行，维持豁免）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
@@ -504,8 +505,10 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **42 个用例**（2026-11-16 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `42 passed`；option-spec-unify
+`tests/test_architecture.py` 已落地 **44 个用例**（2026-11-18 pr-review 实测复核：
+`python -m pytest tests/test_architecture.py -q` → `44 passed`；soft-wrap IKVRXT
+新增 `test_soft_wrap_key_is_shared_and_identical`、!140 marks/jumplist 新增
+`test_jumplist_keys_are_shared_and_identical`；2026-11-16 option-spec-unify
 wave-3 新增 1 条守卫 `test_option_definitions_have_single_source`）；
 此前 2026-11-12 为 41（宏录制与回放
 wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
@@ -630,7 +633,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**42 个用例逐条对照**（2026-11-16 实测 `42 passed`；2026-11-12 为 `41 passed`，
+**44 个用例逐条对照**（2026-11-18 实测 `44 passed`；2026-11-16 为 `42 passed`，2026-11-12 为 `41 passed`，
 2026-11-09 为 `38 passed`，2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，
 2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
@@ -678,6 +681,8 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 | 40 | `test_editor_size_exemption_is_registered` | §三.7 体量豁免两处同步（2026-11-12 宏录制与回放 wave-2 plan-d 断言集合长度为 6；2026-11-16 soft-wrap 波 IKVRXT 为 `editor_components/view.py` 登记豁免后扩至 7，断言 `editor.py` / `view.py` 均在 `SIZE_EXEMPT_FILES` 且与规则 §三.7 名单一致） |
 | 41 | `test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one` | L1 count 口径守卫（2026-11-12 宏录制与回放 wave-2 plan-d：断言 `Keymap` / `VimKeymap` 两侧均定义 `take_pending_count`、`VscKeymap` 继承缺省恒 1） |
 | 42 | `test_option_definitions_have_single_source` | 选项定义单一来源（2026-11-16 option-spec-unify wave-3：文本断言 `config.py` 持有 `OPTION_SPECS` 且 `terminal_height` 的 `(3, 40)` 只在此声明，`yaterc_options.py::_extract_options` 遍历该表且不再内联逐项校验，`commands.py::_make_set_completer` 走 `set_option_value_candidates` 且无 `("vsc", "vim")` 字面量；负向演练两处回归均令守卫失败后还原） |
+| 43 | `test_soft_wrap_key_is_shared_and_identical` | AC 统一键位漂移守卫（2026-11-16 soft-wrap IKVRXT：AST 断言 vsc / vim 的 `build_bindings` 都引用 `SOFT_WRAP_KEY` 且无 `<alt-z>` 字面量；运行时断言两套表同一 raw 键解析到 `toggle_soft_wrap`） |
+| 44 | `test_jumplist_keys_are_shared_and_identical` | AC 统一键位漂移守卫（!140 marks/jumplist：AST 断言 vsc / vim 的 `build_bindings` 都引用 `JUMPLIST_*_KEY` 共享常量；运行时断言两套表同一 raw 键解析到同一跳转动作名） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
