@@ -216,11 +216,17 @@ class PtyProcess:
 
     @property
     def is_closing(self) -> bool:
-        """True once termination started or the child already died."""
+        """True once termination started or the reader drained the child's output."""
         return self._closing
 
     def mark_closing(self) -> None:
-        """Stop the read loop once the child exited (watcher-thread bridge)."""
+        """Mark the process closing after the reader has drained its output.
+
+        Called by the reader thread once :meth:`_ConPty.read_loop` finishes,
+        and by :meth:`terminate` / the failed-spawn path in :meth:`start`.
+        The watcher thread must not call it: a fast-exiting child would then
+        short-circuit the reader before the rendered bytes are delivered.
+        """
         self._closing = True
 
     def detach(self) -> None:
@@ -608,7 +614,12 @@ class _ConPty:
 
         Runs on the reader thread: ``ReadFile`` chunks go to
         :meth:`PtyProcess.emit_output`; a watcher thread breaks the blocking
-        read when the child dies (ConPTY pipes never EOF).
+        read when the child dies (ConPTY pipes never EOF).  The loop never
+        checks ``is_closing``: a fast-exiting child can be gone while its
+        final repaint is still queued in the pipe, so short-circuiting on the
+        closing flag would drop that output.  The reader drains until the
+        handle is retired or ``ReadFile`` fails, then marks closing itself
+        before reporting the exit code.
         """
         k = self._kernel32
         info = self._proc_info
@@ -619,11 +630,14 @@ class _ConPty:
         buffer = ctypes.create_string_buffer(65536)
         read_bytes = wintypes.DWORD(0)
         try:
-            while not self._owner.is_closing:
+            while True:
                 # Snapshot the read handle under the lock: ReadFile blocks,
                 # so it must not run holding the lock -- a concurrent close
                 # can still retire the snapshotted handle (residual window,
-                # see the _handle_lock comment in __init__).
+                # see the _handle_lock comment in __init__).  The loop exits
+                # on a missing handle or a failed/empty ReadFile, never on
+                # is_closing: the child may be gone while its rendered output
+                # is still queued in the pipe.
                 with self._handle_lock:
                     out_read = self._out_read
                 if out_read is None:
@@ -644,18 +658,25 @@ class _ConPty:
             code = self._exit_code()
         if watcher is not None:
             watcher.join(timeout=3)
+        self._owner.mark_closing()
         self._owner.process_finished(code)
 
     def _watch_exit(self) -> None:
-        """ConPTY output pipes do not EOF when the child exits; break the
-        pending ReadFile by closing the pseudo console once the process dies."""
+        """Break the pending ReadFile once the child is gone.
+
+        ConPTY output pipes do not EOF when the child exits.  Closing the
+        pseudo console releases ConHost's end of the output pipe, which makes
+        the reader's blocking ``ReadFile`` return so it can drain the final
+        repaint.  The closing flag is owned by :meth:`read_loop` now: setting
+        it here lets a fast-exiting child short-circuit the reader before it
+        has read anything.
+        """
         k = self._kernel32
         info = self._proc_info
         if info is None:
             return
         k["WaitForSingleObject"](info.hProcess, 0xFFFFFFFF)
-        self._owner.mark_closing()
-        # Give the reader a moment to flush the final repaint.
+        # Give the reader a moment to drain the final repaint.
         threading.Event().wait(0.2)
         self._close_pty()
 
