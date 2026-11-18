@@ -266,6 +266,40 @@ def test_long_line_frames_do_not_rescan(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_wrapped_line_expansion_reused_across_display_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AC8 (pr-review): consecutive display rows of one wrapped logical line
+    reuse the expanded cells/offsets rather than re-expanding the whole line
+    per row; a distinct logical row invalidates the cache.
+    """
+    calls: list[str] = []
+    real_offsets = theme.cell_offsets
+
+    def counting_offsets(line: str, tab_width: int) -> list[int]:
+        calls.append(line)
+        return real_offsets(line, tab_width)
+
+    monkeypatch.setattr(theme, "cell_offsets", counting_offsets)
+    async def scenario() -> None:
+        path = _write(tmp_path / "doc.txt", "a" * 200 + "\nshort")
+        app = YateApp(target=path, config=_wrap_config())
+        async with app.run_test(size=(40, 10)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            view._line_expand_cache = None
+            calls.clear()
+            for row in range(6):  # first 6 display rows all map to logical row 0
+                view.render_line(row)
+            assert len(calls) == 1, f"expected one expansion, got {len(calls)}"
+            logical0_rows = view._wrap.logical_display_rows(0)
+            view.render_line(logical0_rows)  # first display row of logical row 1
+            assert len(calls) == 2
+
+    asyncio.run(scenario())
+
+
 # --- AC2: viewport / panes / keymap -------------------------------------------
 
 
@@ -349,9 +383,9 @@ def test_two_panes_keep_independent_wrap_caches(tmp_path: Path) -> None:
             assert wrap_a.rebuild_count >= ra + 1  # each cache rebuilt once
             assert wrap_b.rebuild_count >= rb + 1
             assert wrap_a.version_key is not None
-            assert wrap_a.version_key[2] is False
+            assert wrap_a.version_key[3] is False
             assert wrap_b.version_key is not None
-            assert wrap_b.version_key[2] is False
+            assert wrap_b.version_key[3] is False
 
             ra = wrap_a.rebuild_count
             rb = wrap_b.rebuild_count
@@ -361,8 +395,8 @@ def test_two_panes_keep_independent_wrap_caches(tmp_path: Path) -> None:
             view_b._sync_wrap(view_b._text_width())
             assert wrap_a.rebuild_count >= ra + 1
             assert wrap_b.rebuild_count >= rb + 1
-            assert wrap_a.version_key[2] is True
-            assert wrap_b.version_key[2] is True
+            assert wrap_a.version_key[3] is True
+            assert wrap_b.version_key[3] is True
             assert view_a.render_line(0) is not None
             assert view_b.render_line(0) is not None
 
@@ -495,16 +529,19 @@ def test_diagnostic_mark_follows_logical_row_across_wraps(
     asyncio.run(scenario())
 
 
-def test_wrap_eol_block_cursor_painted_with_wide_char(tmp_path: Path) -> None:
+@pytest.mark.parametrize("first_line", ["a\u65e5bc", "a\tbb"])
+def test_wrap_eol_block_cursor_painted_with_wide_char(
+    tmp_path: Path, first_line: str
+) -> None:
     """The end-of-line block cursor stays painted when a wrapped line contains
-    a wide glyph, whose cell width exceeds its character count (pr-review).
+    a wide glyph or tab, whose cell width exceeds its character count (pr-review).
 
     The padding cell appended for an EOL cursor must be identified by the
     line's total CELL width, not its character count; otherwise the block
     cursor silently disappears on wide/tab lines whenever soft wrap is on.
     """
     async def scenario() -> None:
-        lines = ["a\u65e5bc", "second"]  # 4 chars / 5 cells on row 0
+        lines = [first_line, "second"]
         path = _write(tmp_path / "doc.txt", "\n".join(lines))
         app = YateApp(target=path, config=_wrap_config())
         async with app.run_test(size=(80, 24)) as pilot:
@@ -518,5 +555,64 @@ def test_wrap_eol_block_cursor_painted_with_wide_char(tmp_path: Path) -> None:
                 if s.style is not None and getattr(s.style, "reverse", False)
             ]
             assert cursor_cells, "EOL block cursor cell must be painted"
+
+    asyncio.run(scenario())
+
+
+def test_screen_anchor_uses_display_row_when_wrapped(tmp_path: Path) -> None:
+    """Completion/hover anchors are viewport display rows, not logical rows
+    (pr-review): a logical row below a wrapped block maps to its display row.
+    """
+    async def scenario() -> None:
+        lines = ["x" * 200, "target line", "third"]
+        path = _write(tmp_path / "doc.txt", "\n".join(lines))
+        app = YateApp(target=path, config=_wrap_config())
+        async with app.run_test(size=(40, 10)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            view._sync_wrap(view._text_width())
+            display_row, span_cell = view._wrap.logical_to_display(2, 0)
+            cell, rel_row = view.screen_anchor(2, 0)
+            assert rel_row == display_row - view.scroll_offset.y
+            assert cell == span_cell
+            assert rel_row != 2 - view.scroll_offset.y  # not the logical row
+
+    asyncio.run(scenario())
+
+
+def test_move_display_line_lands_on_continuation(tmp_path: Path) -> None:
+    """Real gj/gk display-line mapping (pr-review coverage gap): with wrap on,
+    a motion lands on a continuation row and preserves the in-span cell offset
+    (vim screen column); wrap off degenerates to a logical-row move.
+    """
+    async def scenario() -> None:
+        line = "abcdefghij" * 6  # 60 chars, wraps into several spans
+        path = _write(tmp_path / "doc.txt", line + "\nsecond")
+        app = YateApp(target=path, config=_wrap_config())
+        async with app.run_test(size=(24, 10)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            view._sync_wrap(view._text_width())
+            buf = view.buffer
+            spans = [s for s in view._wrap.logical_rows if s.logical_row == 0]
+            assert len(spans) > 2
+            buf.set_cursor((0, 0))
+            view.move_display_line(direction=1, count=1)
+            target = buf.cursor
+            assert target[0] == spans[1].logical_row  # still logical row 0
+            assert target[1] == spans[1].cell_start  # offset 0 preserved
+
+            # a non-zero in-span offset is preserved on the next continuation
+            buf.set_cursor((0, 4))
+            view.move_display_line(direction=1, count=1)
+            assert buf.cursor[0] == 0
+            assert buf.cursor[1] == spans[1].cell_start + 4
+
+            # with wrap off the same motion moves a whole logical row down
+            app.editor.config.wrap = False
+            view.move_display_line(direction=1, count=1)
+            assert buf.cursor[0] == 1
 
     asyncio.run(scenario())

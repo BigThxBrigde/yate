@@ -16,7 +16,7 @@ expansions and wide glyphs are never split across rows (AC2).
 
 Caching contract (AC8): :meth:`WrapLayout.update` is called every render
 frame, but it rebuilds the span table only when the cache key
-``(content_version, text_w, wrap_enabled, document)`` changes.
+``(content_version, text_w, tab_width, wrap_enabled, document)`` changes.
 ``content_version`` is bumped by every buffer edit and by chunked
 ``fill_lines`` / ``extend_placeholders``, so a stable key guarantees the
 ``lines`` sequence is unchanged and the cached mapping stays valid; on a key
@@ -88,8 +88,8 @@ class WrapLayout:
     The layout keeps one :class:`RowSpan` per display row plus a prefix-sum
     array :attr:`cumulative`, where ``cumulative[i]`` is the number of
     display rows before logical line ``i``; :attr:`version_key` mirrors the
-    cache key ``(content_version, text_w, wrap_enabled, document)`` of the
-    last rebuild.
+    cache key ``(content_version, text_w, tab_width, wrap_enabled, document)``
+    of the last rebuild.
 
     When wrap is disabled the mapping is the identity: every logical line
     yields exactly one display row spanning its full expanded cell width,
@@ -101,12 +101,20 @@ class WrapLayout:
     def __init__(self) -> None:
         self.logical_rows: list[RowSpan] = []
         self.cumulative: list[int] = [0]
-        self.version_key: tuple[int, int, bool, object | None] | None = None
+        self.version_key: tuple[int, int, int, bool, object | None] | None = None
         #: Number of span-table rebuilds performed; test seam for the AC8
         #: "no rebuild while the cache key is unchanged" guarantee.
         self.rebuild_count: int = 0
         self._identity: bool = False
         self._identity_count: int = 0
+        #: Previous per-line span groups, parallel to ``_cached_lines``.  A
+        #: line's spans depend solely on its text, index, *text_w* and
+        #: *tab_width*, so unchanged lines are reused across an edit instead
+        #: of re-running :func:`cell_offsets` over the whole document (AC8).
+        self._cached_lines: list[str] = []
+        self._cached_spans: list[list[RowSpan]] = []
+        self._cached_text_w: int = -1
+        self._cached_tab_width: int = -1
 
     def update(
         self,
@@ -123,7 +131,7 @@ class WrapLayout:
         as *version*, the text-area width in cells as *text_w*, the logical
         line list, the editor *tab_width*, the soft-wrap switch *enabled*,
         and an optional *identity* of the owning document.  The rebuild runs
-        only when ``(version, text_w, enabled, identity)`` differs from the
+        only when ``(version, text_w, tab_width, enabled, identity)`` differs from the
         cached key: a stable version proves the line contents are unchanged,
         so the cached spans stay valid and the per-frame cost is a tuple
         comparison (AC8).  *identity* must be passed by views that can
@@ -132,7 +140,7 @@ class WrapLayout:
         between two unedited files would reuse the previous file's spans
         (AC2/AC6).
         """
-        key = (version, text_w, enabled, identity)
+        key = (version, text_w, tab_width, enabled, identity)
         if key == self.version_key:
             return
         self.version_key = key
@@ -148,11 +156,28 @@ class WrapLayout:
             return
         rows: list[RowSpan] = []
         cumulative: list[int] = [0]
+        reused = (
+            self._cached_text_w == text_w
+            and self._cached_tab_width == tab_width
+            and len(self._cached_lines) == len(lines)
+        )
+        cached_spans = self._cached_spans if reused else []
+        cached_lines = self._cached_lines if reused else []
+        new_spans: list[list[RowSpan]] = []
         for row, line in enumerate(lines):
-            rows.extend(_wrap_line(line, row, text_w, tab_width))
+            if row < len(cached_lines) and cached_lines[row] == line:
+                spans = cached_spans[row]
+            else:
+                spans = _wrap_line(line, row, text_w, tab_width)
+            new_spans.append(spans)
+            rows.extend(spans)
             cumulative.append(len(rows))
         self.logical_rows = rows
         self.cumulative = cumulative
+        self._cached_lines = list(lines)
+        self._cached_spans = new_spans
+        self._cached_text_w = text_w
+        self._cached_tab_width = tab_width
 
     def display_count(self) -> int:
         """Return the total number of display rows (virtual-size height)."""
@@ -201,11 +226,19 @@ class WrapLayout:
         last = self.cumulative[row + 1] - 1
         if cell_col < 0:
             cell_col = 0
-        for index in range(first, last):
-            span = self.logical_rows[index]
-            if cell_col < span.cell_end:
-                return (index, cell_col - span.cell_start)
-        return (last, cell_col - self.logical_rows[last].cell_start)
+        # Span cell_end values are strictly increasing within a logical row,
+        # so bisect for the first span whose window contains cell_col (O(log
+        # wraps) instead of a linear scan over a long line's spans).
+        lo, hi = first, last
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if cell_col < self.logical_rows[mid].cell_end:
+                hi = mid
+            else:
+                lo = mid + 1
+        index = lo
+        span = self.logical_rows[index]
+        return (index, cell_col - span.cell_start)
 
     def logical_display_rows(self, row: int) -> int:
         """Return how many display rows logical *row* occupies.

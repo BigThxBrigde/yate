@@ -18,7 +18,6 @@ from yate.editor_core import BufferReadOnlyError, Document
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.client import Completion
-from yate.editor_components import theme
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.completion import CompletionPopup, buffer_completions
 from yate.editor_components.panes import PaneManager
@@ -217,7 +216,7 @@ class CompletionFlows:
                 else:
                     log.debug("completion: no buffer candidates")
                 return
-            self._show_items(items, buf_prefix, editor, line, col, buf, row)
+            self._show_items(items, buf_prefix, editor, col, row)
             return
 
         if not manual and not prefix and trigger_ch not in (
@@ -256,7 +255,7 @@ class CompletionFlows:
             else:
                 log.debug("completion: no lsp candidates")
             return
-        self._show_items(items, prefix, editor, line, col, buf, row)
+        self._show_items(items, prefix, editor, col, row)
 
     def _stale(
         self,
@@ -285,13 +284,10 @@ class CompletionFlows:
         items: list[Completion],
         prefix: str,
         editor: EditorView,
-        line: str,
         col: int,
-        buf: TextBuffer,
         row: int,
     ) -> None:
-        cell = theme.char_to_cell(line, col, buf.tab_width) - editor.scroll_col
-        rel_row = row - editor.scroll_offset.y
+        cell, rel_row = editor.screen_anchor(row, col)
         self.popup.show(
             items,
             prefix,

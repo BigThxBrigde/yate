@@ -150,3 +150,29 @@ def test_disabled_wrap_identity_update_is_o1(monkeypatch: pytest.MonkeyPatch) ->
     layout.update(2, 40, lines, 4, False)
     assert layout.rebuild_count == 2
     assert calls == []
+
+
+def test_edit_reuses_spans_for_unchanged_lines(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A version bump re-wraps only changed lines, not the whole document
+    (pr-review AC8): 4 lines with one edit call ``cell_offsets`` twice total.
+    """
+    calls: list[str] = []
+    real_offsets = wrap_module.cell_offsets
+
+    def counting_offsets(line: str, tab_width: int) -> list[int]:
+        calls.append(line)
+        return real_offsets(line, tab_width)
+
+    monkeypatch.setattr(wrap_module, "cell_offsets", counting_offsets)
+    layout = WrapLayout()
+    lines = ["aaaa", "bbbb", "cccc", "dddd"]
+    layout.update(1, 3, lines, 4, True)
+    assert len(calls) == 4
+    calls.clear()
+    lines[2] = "cXcX"
+    layout.update(2, 3, lines, 4, True)
+    assert calls == ["cXcX"]  # only the edited line re-wrapped
+    # resize invalidates every line's span (cell widths change)
+    calls.clear()
+    layout.update(2, 2, lines, 4, True)
+    assert len(calls) == 4

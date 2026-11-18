@@ -119,6 +119,10 @@ class _FakeView:
     def gutter_width(self) -> int:
         return 3
 
+    def screen_anchor(self, row: int, col: int) -> tuple[int, int]:
+        """Wrap-off geometry matching :class:`EditorView.screen_anchor`."""
+        return (col - self.scroll_col, row - self.scroll_offset.y)
+
 
 class _FakePanes:
     def __init__(self, view: _FakeView | None) -> None:

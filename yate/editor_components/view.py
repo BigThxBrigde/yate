@@ -128,7 +128,7 @@ class EditorView(ScrollView, HighlightMixin):
         )
         #: Display-line geometry for soft wrap (:class:`WrapLayout`, plan A):
         #: identity mapping while off, refreshed per frame against its
-        #: ``(content_version, text_w, enabled)`` cache key.
+        #: ``(content_version, text_w, enabled, document)`` cache key.
         self._wrap = WrapLayout()
         self.scroll_col = 0
         self._init_highlight_state()
@@ -138,6 +138,17 @@ class EditorView(ScrollView, HighlightMixin):
         # re-renders every frame while visible, which used to rebuild the
         # rows each time.
         self._welcome_cache: dict[tuple[str, bool], list[_WelcomeRow]] = {}
+        # Expanded logical-line cells/offsets cached for the current frame's
+        # line.  With soft wrap one logical line paints many display rows in
+        # the same frame; cell_offsets/expand_char are pure functions of the
+        # line text and tab width, so rebuilding them per display row made a
+        # long line O(visible_rows x line_len) per frame (pr-review AC8).
+        # Keyed by (document, content_version, logical_row, tab_width) so an
+        # edit, a row switch, or a tab switch invalidates it; cells is copied
+        # before the EOL padding append so the cached base stays pristine.
+        self._line_expand_cache: tuple[
+            object, int, int, int, list[str], list[int]
+        ] | None = None
         # Repaint stamps: the document identity and buffer content version
         # last painted by :meth:`content_changed`.  :attr:`content_stale`
         # compares against them so the scheduler can skip unchanged panes.
@@ -419,10 +430,11 @@ class EditorView(ScrollView, HighlightMixin):
         With soft wrap on, the cursor's logical (row, cell) is mapped through
         :class:`WrapLayout` to a display row, shifted, then mapped back to a
         logical row plus a cell offset, so a motion can land on a continuation
-        row (AC4).  The landing column is the start cell of the target span,
-        mirroring vim's screen-column behavior across wrapped lines.  With
-        wrap off the motion degenerates to a plain logical-row move, which
-        is exactly vim's fallback when there is nothing to wrap.
+        row (AC4).  The landing column preserves the cell offset inside the
+        source span (clamped to the target span), mirroring vim's screen-column
+        behavior across wrapped lines.  With wrap off the motion degenerates
+        to a plain logical-row move, which is exactly vim's fallback when
+        there is nothing to wrap.
 
         The active pane's live buffer cursor is moved; selection is handled
         by :meth:`TextBuffer.set_cursor`.  *select* keeps the anchor for a
@@ -439,14 +451,17 @@ class EditorView(ScrollView, HighlightMixin):
             return
         line = buf.lines[row]
         cell = theme.char_to_cell(line, col, buf.tab_width)
-        display_row, _ = self._wrap.logical_to_display(row, cell)
+        display_row, cell_in_span = self._wrap.logical_to_display(row, cell)
         total = self._wrap.display_count()
         target = max(0, min(display_row + direction * count, max(0, total - 1)))
         span = self._wrap.display_to_logical(target)
         if span is None:
             return
         target_line = buf.lines[span.logical_row]
-        target_col = theme.cell_to_char(target_line, span.cell_start, buf.tab_width)
+        # Preserve the in-span cell offset (vim screen column), clamped to the
+        # target span's window so a shorter continuation row never overshoots.
+        target_cell = min(span.cell_start + cell_in_span, span.cell_end)
+        target_col = theme.cell_to_char(target_line, target_cell, buf.tab_width)
         buf.set_cursor(
             (span.logical_row, min(target_col, len(target_line))), select=select
         )
@@ -454,6 +469,26 @@ class EditorView(ScrollView, HighlightMixin):
     def page_delta(self, half: bool = False) -> int:
         """Rows per full page (or half page when *half* is set)."""
         return max(1, ((self.size.height or 20) // 2) if half else (self.size.height or 20))
+
+    def screen_anchor(self, row: int, col: int) -> tuple[int, int]:
+        """Return the viewport-relative ``(cell, display_row)`` of a logical
+        buffer position, for anchoring popups (completion / hover).
+
+        Both coordinates must be in the same units the renderer uses: with
+        soft wrap on, vertical scroll offsets are display rows and a logical
+        row may span many of them, so mapping must go through
+        :meth:`WrapLayout.logical_to_display` (the cell column becomes the
+        offset inside the owning span).  With wrap off this reduces to the
+        legacy ``char_to_cell - scroll_col`` / ``row - scroll_offset.y``.
+        """
+        buf = self.buffer
+        on, _ = self._sync_wrap(self._text_width())
+        line = buf.lines[row] if row < buf.line_count else ""
+        cell = theme.char_to_cell(line, col, buf.tab_width)
+        if on:
+            display_row, span_cell = self._wrap.logical_to_display(row, cell)
+            return (span_cell, display_row - self.scroll_offset.y)
+        return (cell - self.scroll_col, row - self.scroll_offset.y)
 
     def gutter_width(self) -> int:
         """Total gutter width: line number column + LSP diagnostic mark."""
@@ -556,12 +591,27 @@ class EditorView(ScrollView, HighlightMixin):
         # char->cell prefix table is built once for the same reason: the
         # token/selection/diagnostic passes used to rescan the line prefix
         # per token via char_to_cell (O(tokens x len) per row per frame).
-        offsets = theme.cell_offsets(line, buf.tab_width)
+        cached = self._line_expand_cache
+        if (
+            cached is not None
+            and cached[0] is self.doc
+            and cached[1] == buf.content_version
+            and cached[2] == logical_y
+            and cached[3] == buf.tab_width
+        ):
+            cells_base, offsets = cached[4], cached[5]
+        else:
+            offsets = theme.cell_offsets(line, buf.tab_width)
+            cells_base: list[str] = []
+            for ch in line:
+                theme.expand_char(ch, cells_base, buf.tab_width)
+            self._line_expand_cache = (
+                self.doc, buf.content_version, logical_y, buf.tab_width,
+                cells_base, offsets,
+            )
         cursor, anchor = self._cursor_anchor()
         cursor_row, cursor_col = cursor
-        cells: list[str] = []
-        for ch in line:
-            theme.expand_char(ch, cells, buf.tab_width)
+        cells = list(cells_base)
         if logical_y == cursor_row and cursor_col == len(line):
             cells.append(" ")  # block cursor at end of line
         # extra multi-cursor points need the same padding: a point resting

@@ -15,7 +15,6 @@ import asyncio
 from collections.abc import Callable
 from functools import partial
 
-from yate.editor_components import theme
 from yate.editor_components.hover_popup import HoverPopup
 from yate.editor_components.panes import PaneManager
 from yate.editor_core import Document
@@ -179,10 +178,7 @@ class HoverFlows:
         view = self._panes.active_view
         if view is None:
             return
-        buf = doc.buffer
-        line = buf.lines[pos[0]] if pos[0] < buf.line_count else ""
-        cell = theme.char_to_cell(line, pos[1], buf.tab_width) - view.scroll_col
-        rel_row = pos[0] - view.scroll_offset.y
+        cell, rel_row = view.screen_anchor(pos[0], pos[1])
         self._popup.show(
             text,
             (cell, rel_row),
