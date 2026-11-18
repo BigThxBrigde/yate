@@ -286,6 +286,13 @@ def test_palette_down_cursor_moves(tmp_path: Path) -> None:
                 and app.focused.id == "palette-input",
                 timeout=5.0,
             )
+            # files mode fills _filtered in a background worker; down is a
+            # no-op until at least two rows are indexed (palette.on_key).
+            # Focus is granted synchronously in on_mount, so under xdist load
+            # the keypress can otherwise arrive before the worker finishes.
+            assert await wait_until(
+                pilot, lambda: screen.filtered_count >= 2, timeout=5.0
+            )
             await pilot.press("down")
             # poll instead of asserting after one pause: under full-suite
             # load the key event can land one pump cycle late
