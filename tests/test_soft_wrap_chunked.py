@@ -493,3 +493,30 @@ def test_diagnostic_mark_follows_logical_row_across_wraps(
             assert mark not in other
 
     asyncio.run(scenario())
+
+
+def test_wrap_eol_block_cursor_painted_with_wide_char(tmp_path: Path) -> None:
+    """The end-of-line block cursor stays painted when a wrapped line contains
+    a wide glyph, whose cell width exceeds its character count (pr-review).
+
+    The padding cell appended for an EOL cursor must be identified by the
+    line's total CELL width, not its character count; otherwise the block
+    cursor silently disappears on wide/tab lines whenever soft wrap is on.
+    """
+    async def scenario() -> None:
+        lines = ["a\u65e5bc", "second"]  # 4 chars / 5 cells on row 0
+        path = _write(tmp_path / "doc.txt", "\n".join(lines))
+        app = YateApp(target=path, config=_wrap_config())
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            view = app.editor.panes.active_view
+            assert view is not None
+            view.buffer.set_cursor((0, len(view.buffer.lines[0])))
+            strip = view.render_line(0)
+            cursor_cells = [
+                s for s in strip._segments
+                if s.style is not None and getattr(s.style, "reverse", False)
+            ]
+            assert cursor_cells, "EOL block cursor cell must be painted"
+
+    asyncio.run(scenario())

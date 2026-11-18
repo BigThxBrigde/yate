@@ -88,8 +88,8 @@ class WrapLayout:
     The layout keeps one :class:`RowSpan` per display row plus a prefix-sum
     array :attr:`cumulative`, where ``cumulative[i]`` is the number of
     display rows before logical line ``i``; :attr:`version_key` mirrors the
-    cache key ``(content_version, text_w, wrap_enabled)`` of the last
-    rebuild.
+    cache key ``(content_version, text_w, wrap_enabled, document)`` of the
+    last rebuild.
 
     When wrap is disabled the mapping is the identity: every logical line
     yields exactly one display row spanning its full expanded cell width,

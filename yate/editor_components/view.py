@@ -622,9 +622,13 @@ class EditorView(ScrollView, HighlightMixin):
         if on:
             start = span.cell_start
             end = span.cell_end
-            if end == len(offsets) - 1 and n_cells > end:
+            if end == offsets[-1] and n_cells > end:
                 # a block cursor resting on the line end appends one
-                # padding cell; it rides the line's last display row
+                # padding cell; it rides the line's last display row.
+                # Compare against the line's total CELL width (offsets[-1]),
+                # not len(offsets)-1 (the character count): the two differ
+                # for tabs and wide glyphs, and using the latter drops the
+                # EOL block cursor whenever the line contains either.
                 end = min(start + text_w, n_cells)
         else:
             start = self.scroll_col
