@@ -416,6 +416,9 @@ replay can never append its own keys to the open recording buffer.
 | `Ctrl+Home` / `Ctrl+End` | Document start / end |
 | `PageUp` / `PageDown` | Page up / down |
 | `Ctrl+G` | Go to line: type a line number and press Enter (or just run `:42`; `:+5` is relative) |
+| `<alt-left>` | Jump back in jump history (`jump_back`) |
+| `<alt-right>` | Jump forward in jump history (`jump_forward`) |
+| `<alt-m>` | Open the marks overview (`marks_overlay`) |
 
 **Selection**
 
@@ -522,6 +525,12 @@ There, use the command palette (`Alt+Shift+P`) or `:1`-style ex commands instead
 `Ctrl+P`, `Ctrl+/`, `Ctrl+Q`, `Ctrl+W`, `Ctrl+Shift+E` and the function keys
 work on all terminals.
 
+The jump-list keys `<alt-left>` / `<alt-right>` are the xterm Alt+arrow
+sequences `\x1b[1;3D` / `\x1b[1;3C`: the Windows chord driver normalizes
+Alt+Left / Alt+Right to exactly these, and terminals that send the xterm
+Alt+arrow encoding reach them directly. Where the sequences do not arrive,
+use the `:marks` / `:jumps` commands (section 8) instead.
+
 **Help**
 
 | Key | Action |
@@ -553,6 +562,9 @@ e.g. `3j`, `2dd`, `5w`.
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Page down / up |
 | `gj` / `gk` | Move down / up by display row (can land on a continuation row when soft wrap is on; degenerates to logical-row motion when wrap is off; a count repeats by display rows) |
+| `<alt-left>` | Jump back in jump history (`jump_back`) |
+| `<alt-right>` | Jump forward in jump history (`jump_forward`) |
+| `<alt-m>` | Open the marks overview (`marks_overlay`) |
 
 **Entering insert mode**
 
@@ -759,6 +771,23 @@ history. Unknown commands report
 Registers are single characters in `a-z0-9`. After `F10` / `F11` the editor
 waits for one register character; an invalid register or a syntax error shows
 a warning in the message bar.
+
+**Marks and jump list** -- key equivalents `<alt-m>` / `<alt-left>` /
+`<alt-right>` live in section 5:
+
+| Command | Description |
+|---|---|
+| `:marks` | Open the marks overview (same as `<alt-m>`); `Enter` jumps to the mark under the cursor, `d` deletes it, `Esc` / `q` closes |
+| `:mark <name>` | When mark *name* (`a-z`) is set in any open buffer, jump there (the active tab wins; the jump may switch tabs); when no open buffer holds it, set the mark at the cursor here |
+| `:delmark <name>` | Delete mark *name*; deleting a mark that is not set reports `no such mark: <name>` |
+| `:jumps` | Open the jump list overview (back stack, current position, forward stack); `Enter` jumps to the selected entry, which clears the forward branch |
+
+Mark names are single letters `a-z`; an invalid or missing name answers with
+a usage warning (`usage: :mark <a-z> (jump if set, else set here)`). The
+jump list keeps up to 100 entries per direction on two stacks, and stepping
+past either end reports `no earlier jump` / `no later jump` instead of
+wrapping around. Hits from in-buffer search (`/`, `?`, `n`, `N`) do not push
+jump entries.
 
 ### 8.1 Split panes (`:split` / `:vsplit`)
 

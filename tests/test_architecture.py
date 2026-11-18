@@ -248,6 +248,11 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.palette",
         "yate.editor_components.screensaver",
     },
+    "flows/navigation_flows.py": {
+        "yate.editor_components",
+        "yate.editor_components.marks_palette",
+        "yate.editor_components.panes",
+    },
     "flows/prompt_flows.py": {
         "yate.editor_components",
         "yate.editor_components.commandline",
@@ -1743,6 +1748,81 @@ def test_soft_wrap_key_is_shared_and_identical() -> None:
     vim_binding = VimKeymap().lookup(parse_key(SOFT_WRAP_KEY))
     assert vim_binding is not None
     assert vim_binding.action == "toggle_soft_wrap"
+
+
+def test_jumplist_keys_are_shared_and_identical() -> None:
+    """The jump-list / marks keys come from shared L0 constants (AC4).
+
+    AST part: ``vsc.py`` / ``vim.py`` reference the three constants inside
+    ``build_bindings`` and never spell the notation or the raw CSI/meta
+    bytes literally, so a one-sided hardcoded key edit -- or a raw-byte
+    bypass around the constants -- fails here.  Runtime part: both keymaps
+    resolve each key to the same action name and render the ``<alt-...>``
+    label; ``keys.py`` still owns the three constants at module level.
+    """
+    from yate.keymaps.keys import (
+        JUMPLIST_BACK_KEY,
+        JUMPLIST_FORWARD_KEY,
+        MARKS_OVERLAY_KEY,
+    )
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    constants = (
+        ("JUMPLIST_BACK_KEY", JUMPLIST_BACK_KEY, "jump_back", "<alt-left>"),
+        ("JUMPLIST_FORWARD_KEY", JUMPLIST_FORWARD_KEY, "jump_forward", "<alt-right>"),
+        ("MARKS_OVERLAY_KEY", MARKS_OVERLAY_KEY, "marks_overlay", "<alt-m>"),
+    )
+    forbidden = {
+        "<alt-left>",
+        "<alt-right>",
+        "<alt-m>",
+        "\x1b[1;3D",
+        "\x1b[1;3C",
+        "\x1bm",
+    }
+    for name in ("vsc.py", "vim.py"):
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        for const_name, _raw, _action, _label in constants:
+            assert const_name in source_names, (name, const_name)
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        for literal in forbidden:
+            assert literal not in literals, (name, literal)
+
+    keys_tree = ast.parse(
+        (YATE / "keymaps" / "keys.py").read_text(encoding="utf-8")
+    )
+    module_names = {
+        node.target.id
+        for node in keys_tree.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    for const_name, _raw, _action, _label in constants:
+        assert const_name in module_names, const_name
+
+    vsc = VscKeymap()
+    vim = VimKeymap()
+    for _const_name, raw, action, label in constants:
+        vsc_binding = vsc.lookup(raw)
+        assert vsc_binding is not None, (raw, "vsc")
+        assert vsc_binding.action == action, (raw, "vsc", vsc_binding.action)
+        assert vsc_binding.key_label == label, (raw, "vsc", vsc_binding.key_label)
+        vim_binding = vim.lookup(raw)
+        assert vim_binding is not None, (raw, "vim")
+        assert vim_binding.action == action, (raw, "vim", vim_binding.action)
+        assert vim_binding.key_label == label, (raw, "vim", vim_binding.key_label)
 
 
 def test_editor_size_exemption_is_registered() -> None:

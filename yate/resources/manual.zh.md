@@ -381,6 +381,9 @@ yate 内置两套键位：
 | `Ctrl+Home` / `Ctrl+End` | 文档开头 / 文档结尾 |
 | `PageUp` / `PageDown` | 翻页 |
 | `Ctrl+G` | 跳转到行：输入行号回车（也可在命令行直接输 `:42`，`:+5` 相对跳转） |
+| `<alt-left>` | 在跳转历史中回退（`jump_back`） |
+| `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
+| `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
 
 **选择（Selection）**
 
@@ -482,6 +485,11 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 （`Alt+Shift+P`）或 `:` 命令行。
 `Ctrl+P`、`Ctrl+/`、`Ctrl+Q`、`Ctrl+W`、`Ctrl+Shift+E` 与各功能键在所有终端均可用。
 
+跳转历史键位 `<alt-left>` / `<alt-right>` 对应 xterm 风格的 Alt+方向键序列
+`\x1b[1;3D` / `\x1b[1;3C`：Windows 和弦驱动会把 Alt+左 / Alt+右 归一化为
+这两个序列，发送 xterm Alt+方向键编码的终端也可直接到达。若序列不可达，
+请改用 `:marks` / `:jumps` 命令（见第 8 节）。
+
 **帮助（Help）**
 
 | 按键 | 功能 |
@@ -512,6 +520,9 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 | `Ctrl+D` / `Ctrl+U` | 下移 / 上移半页 |
 | `Ctrl+F` / `Ctrl+B` | 下翻 / 上翻一页 |
 | `gj` / `gk` | 按显示行下移 / 上移（软换行开启时可停在续行；关闭时退化为逻辑行移动；计数按显示行生效） |
+| `<alt-left>` | 在跳转历史中回退（`jump_back`） |
+| `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
+| `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
 
 **进入插入模式（Vim: insert）**
 
@@ -696,6 +707,21 @@ vim NORMAL 模式按 `:` 进入命令行。vsc 模式下 `:` 是可编辑的普�
 
 寄存器名为 `a-z0-9` 中的单个字符。按 `F10` / `F11` 后编辑器等待一个
 寄存器字符；非法寄存器或语法错误会在消息栏给出警告提示。
+
+**marks 与跳转列表**——等价按键 `<alt-m>` / `<alt-left>` / `<alt-right>`
+见第 5 节：
+
+| 命令 | 说明 |
+|---|---|
+| `:marks` | 打开 marks 一览浮层（同 `<alt-m>`）；`Enter` 跳到光标处的 mark，`d` 删除该 mark，`Esc` / `q` 关闭 |
+| `:mark <name>` | mark *name*（`a-z`）已在任一打开 buffer 中设置时跳转过去（活动标签优先，可能切换标签）；没有任何打开 buffer 持有它时，在当前光标处设置该 mark |
+| `:delmark <name>` | 删除 mark *name*；删除未设置的 mark 提示 `no such mark: <name>` |
+| `:jumps` | 打开跳转列表一览（back 栈、当前位置、forward 栈）；`Enter` 跳到所选条目，同时清空 forward 分支 |
+
+mark 名为单个字母 `a-z`；非法或缺失的名字会得到 usage 警告
+（`usage: :mark <a-z> (jump if set, else set here)`）。跳转列表为双栈结构，
+每个方向最多保留 100 条；越过任一端时提示 `no earlier jump` / `no later jump`
+而不循环。文件内查找命中（`/`、`?`、`n`、`N`）不推入跳转条目。
 
 ### 8.1 窗格分割（`:split` / `:vsplit`）
 

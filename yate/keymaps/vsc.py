@@ -11,9 +11,12 @@ from yate.keymaps.base import (
     parse_key,
 )
 from yate.keymaps.keys import (
+    JUMPLIST_BACK_KEY,
+    JUMPLIST_FORWARD_KEY,
     MACRO_PLAY_KEY,
     MACRO_RECORD_KEY,
     MACRO_REPLAY_LAST_KEY,
+    MARKS_OVERLAY_KEY,
     SOFT_WRAP_KEY,
 )
 
@@ -135,4 +138,7 @@ class VscKeymap(Keymap):
             _k(MACRO_PLAY_KEY, "macro_play", "Play a recorded macro", VIEW),
             _k(MACRO_REPLAY_LAST_KEY, "macro_replay_last", "Repeat last replay", VIEW),
             _k(SOFT_WRAP_KEY, "toggle_soft_wrap", "Toggle soft-wrap display", VIEW),
+            _raw(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", "NAV"),
+            _raw(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", "NAV"),
+            _raw(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", "NAV"),
         ]

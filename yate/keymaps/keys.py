@@ -178,6 +178,19 @@ MACRO_CONTROL_KEYS: frozenset[str] = frozenset(
     for key in (MACRO_RECORD_KEY, MACRO_PLAY_KEY, MACRO_REPLAY_LAST_KEY)
 )
 
+#: Shared jump-list / marks keys for both built-in keymaps (issue IKUOCI).
+#: alt+arrow reaches the keymap as modified-CSI bytes -- keyproto.key_codec
+#: maps Textual's "alt+left"/"alt+right" event names to exactly these
+#: sequences (vsc move_line_up precedent) -- so the constants hold the raw
+#: CSI form; parse_key would produce the meta-prefix form ("\x1b\x1b[D")
+#: which no terminal sends.  key_name() renders both via KEY_ALIASES as
+#: "<alt-left>" / "<alt-right>" in help and which-key surfaces.
+JUMPLIST_BACK_KEY: str = "\x1b[1;3D"
+JUMPLIST_FORWARD_KEY: str = "\x1b[1;3C"
+#: Marks overlay key (alt+m); parse_key's meta-prefix form IS the bytes a
+#: terminal sends for alt plus a letter (MACRO_CONTROL_KEYS precedent).
+MARKS_OVERLAY_KEY: str = parse_key("<alt-m>")
+
 
 def key_name(key: str) -> str:
     """Inverse of :func:`parse_key`, used by the help overlay."""
