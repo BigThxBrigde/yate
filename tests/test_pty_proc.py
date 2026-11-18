@@ -1038,6 +1038,93 @@ def test_conpty_second_create_pipe_failure_closes_the_first_pair(
     assert closed == [0x111, 0x222]
 
 
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_watcher_closes_console_without_marking_closing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The watcher closes the console but never flips the closing flag.
+
+    Regression guard for the fast-exit race: marking closing from the watcher
+    let the reader skip its very first read, dropping a just-exited child's
+    rendered output.
+    """
+    proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+    impl = cast(Any, proc)._impl
+    impl._proc_info = SimpleNamespace(hProcess=0x1234)
+    impl._hpc = 0x1002
+    impl._kernel32 = _FakeKernel32(ClosePseudoConsole=True)
+    marked: list[bool] = []
+    monkeypatch.setattr(proc, "mark_closing", lambda: marked.append(True))
+    impl._watch_exit()
+    assert marked == []
+    assert "ClosePseudoConsole" in impl._kernel32.calls
+    assert proc.is_closing is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_real_pty_immediate_exit_delivers_output_when_closing_is_preset() -> None:
+    """A just-exited child still streams output when closing is preset.
+
+    Injects the pre-fix race deterministically (``mark_closing`` before the
+    reader starts) instead of relying on scheduling luck.  The fixed read
+    loop ignores ``is_closing`` and drains the pipe, so the output arrives
+    and the exit code is still reported.
+    """
+
+    async def _scenario() -> None:
+        chunks: list[bytes] = []
+        exits: list[int | None] = []
+        proc = PtyProcess(_child("print('pty-ping')"), Path.cwd(), 80, 24)
+        impl = cast(Any, proc)._impl
+        original = impl.read_loop
+
+        def _preset_closing_then_read() -> None:
+            proc.mark_closing()
+            original()
+
+        impl.read_loop = _preset_closing_then_read
+        with _no_inherited_std_handles():
+            await proc.start(chunks.append, exits.append)
+        got = await _wait_for(lambda: b"pty-ping" in b"".join(chunks))
+        code = await asyncio.wait_for(proc.wait_closed(), REAL_PTY_TIMEOUT)
+        assert got is True
+        assert b"pty-ping" in b"".join(chunks)
+        assert code == 0
+        assert exits == [0]
+        assert proc.is_closing is True
+
+    asyncio.run(_scenario())
+
+
+@pytest.mark.skipif(os.name != "nt", reason="ConPTY backend")
+def test_conpty_read_loop_marks_closing_after_draining(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reader flips closing itself, after draining, before the exit report.
+
+    With no handles the read loop has nothing to emit: the only observable
+    events must be ``mark`` then ``finished``, both from the reader thread.
+    """
+    proc = PtyProcess(["cmd"], Path.cwd(), 80, 24)
+    impl = cast(Any, proc)._impl
+    impl._proc_info = None
+    impl._out_read = None
+    events: list[str] = []
+
+    def _record_emit(_d: bytes) -> None:
+        events.append("emit")
+
+    def _record_finished(_c: int | None) -> None:
+        events.append("finished")
+
+    impl._owner.emit_output = _record_emit
+    monkeypatch.setattr(proc, "mark_closing", lambda: events.append("mark"))
+    monkeypatch.setattr(proc, "process_finished", _record_finished)
+    impl.read_loop()
+    assert events == ["mark", "finished"]
+    assert "emit" not in events
+
+
 # --- POSIX backend internals -----------------------------------------------
 
 
