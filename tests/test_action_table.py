@@ -55,6 +55,7 @@ FORWARDED_HOOKS: frozenset[str] = frozenset(
         "navigation_flows.show_marks",
         "toggle_explorer",
         "toggle_keymap",
+        "toggle_soft_wrap",
         "whichkey.toggle",
     }
 )

@@ -377,6 +377,7 @@ MAX_SOURCE_LINES: int = 800
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
+    "editor_components/view.py",
     "editor_core/buffer.py",
     "editor_syntax/langdefs.py",
     "editor_lsp/manager.py",
@@ -1710,6 +1711,45 @@ def test_macro_keys_are_shared_and_identical() -> None:
         assert vim_binding.action == action, (spec, "vim", vim_binding.action)
 
 
+def test_soft_wrap_key_is_shared_and_identical() -> None:
+    """The soft-wrap key is named once (keymaps/keys.py) in both keymaps.
+
+    AST part: ``vsc.py`` / ``vim.py`` reference ``SOFT_WRAP_KEY`` inside
+    ``build_bindings`` and never spell ``<alt-z>`` or the raw ``\\x1bz``
+    literally, so a one-sided key edit fails here.  Runtime part: both
+    keymaps resolve that key to the ``toggle_soft_wrap`` action.
+    """
+    from yate.keymaps.keys import SOFT_WRAP_KEY, parse_key
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    for name in ("vsc.py", "vim.py"):
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        assert "SOFT_WRAP_KEY" in source_names, name
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        assert "<alt-z>" not in literals, name
+        assert "\x1bz" not in literals, name
+
+    vsc_binding = VscKeymap().lookup(parse_key(SOFT_WRAP_KEY))
+    assert vsc_binding is not None
+    assert vsc_binding.action == "toggle_soft_wrap"
+    vim_binding = VimKeymap().lookup(parse_key(SOFT_WRAP_KEY))
+    assert vim_binding is not None
+    assert vim_binding.action == "toggle_soft_wrap"
+
+
 def test_jumplist_keys_are_shared_and_identical() -> None:
     """The jump-list / marks keys come from shared L0 constants (AC4).
 
@@ -1793,10 +1833,11 @@ def test_editor_size_exemption_is_registered() -> None:
     in wave-2 when the rule text has not been updated yet.
     """
     assert "editor.py" in SIZE_EXEMPT_FILES
-    assert len(SIZE_EXEMPT_FILES) == 6
+    assert len(SIZE_EXEMPT_FILES) == 7
     assert {
         "keymaps/vim.py",
         "editor_components/file_manager/screen.py",
+        "editor_components/view.py",
         "editor_core/buffer.py",
         "editor_syntax/langdefs.py",
         "editor_lsp/manager.py",

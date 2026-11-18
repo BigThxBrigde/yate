@@ -5,6 +5,10 @@
 
 ## [未发布] · [compare](https://gitee.com/jermaine/yate/compare/v0.2.18...HEAD)
 
+### 新功能
+
+- 新增软换行：`wrap` 选项、`alt+z` 开关与 vim `gj`/`gk` 显示行移动
+
 ### 问题修复
 
 - close pr-review gaps in hover staleness, empty docs and guards [缺中文] ([`a828414`](https://gitee.com/jermaine/yate/commit/a8284142642a9df477a027d7297de37db0f011ec))

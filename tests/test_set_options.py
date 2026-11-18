@@ -138,6 +138,7 @@ class _ConfigEditor:
         self.mouse_state_canceled = 0
         self.whichkey = _WhichKeyStub()
         self.refresh_calls = 0
+        self.soft_wrap_calls: list[bool] = []
 
     def message(self, text: str, kind: str = "") -> None:
         """Record one message-line output."""
@@ -150,6 +151,17 @@ class _ConfigEditor:
     def refresh_ui(self) -> None:
         """Record one repaint (fired on every which_key apply)."""
         self.refresh_calls += 1
+
+    def set_soft_wrap(self, enabled: bool) -> None:
+        """Record one soft-wrap flip (fired on wrap apply).
+
+        Mirrors the real editor duty: the flip owns the confirmation
+        message, so the note is recorded here rather than by the apply
+        mapping.
+        """
+        self.config.wrap = enabled
+        self.soft_wrap_calls.append(enabled)
+        self.notes.append((f"soft wrap {'on' if enabled else 'off'}", "ok"))
 
 
 def _set_driver() -> tuple[CommandRegistry, _ConfigEditor]:
@@ -258,3 +270,34 @@ def test_set_which_key_auto_invalid_value_reports() -> None:
     assert editor.config.which_key_auto is True
     assert editor.refresh_calls == 0
     assert editor.whichkey.clears == 0
+
+
+# --- wrap dispatch ------------------------------------------------------------
+
+
+def test_set_wrap_on_off_roundtrip() -> None:
+    """``:set wrap=on/off`` flips the soft-wrap switch via the editor."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry.func("wrap=on")
+    assert editor.config.wrap is True
+    assert editor.soft_wrap_calls == [True]
+    assert any("soft wrap on" in text for text, _ in editor.notes)
+
+    entry.func("wrap=off")
+    assert editor.config.wrap is False
+    assert editor.soft_wrap_calls == [True, False]
+
+
+def test_set_wrap_invalid_value_reports() -> None:
+    """An unrecognised value warns on the message line, value unchanged."""
+    registry, editor = _set_driver()
+    entry = registry.get("set")
+    assert entry is not None
+
+    entry.func("wrap=maybe")
+    assert any("wrap must be on|off" in text for text, _ in editor.notes)
+    assert editor.config.wrap is False
+    assert editor.soft_wrap_calls == []

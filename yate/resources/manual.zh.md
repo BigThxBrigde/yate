@@ -460,6 +460,7 @@ yate 内置两套键位：
 | `Ctrl+B` | 显示 / 隐藏文件树（`:explorer` 同效） |
 | `` Ctrl+` `` | 显示 / 隐藏集成终端（见第 13 节） |
 | `F2` | 运行 Shell 命令 |
+| `Alt+Z` | 切换软换行显示（长行按视口宽度折行） |
 
 **标签（Tabs）**
 
@@ -518,6 +519,7 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 | `Ctrl+G` | 打开行跳转输入行，输入行号回车（等价 `:42`） |
 | `Ctrl+D` / `Ctrl+U` | 下移 / 上移半页 |
 | `Ctrl+F` / `Ctrl+B` | 下翻 / 上翻一页 |
+| `gj` / `gk` | 按显示行下移 / 上移（软换行开启时可停在续行；关闭时退化为逻辑行移动；计数按显示行生效） |
 | `<alt-left>` | 在跳转历史中回退（`jump_back`） |
 | `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
 | `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
@@ -580,6 +582,7 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 | `F10` | 切换宏录制 |
 | `F11` | 回放已录制的宏 |
 | `F12` | 重复上次宏回放 |
+| `Alt+Z` | 切换软换行显示 |
 
 **窗格与窗口（NORMAL 模式 `Ctrl+W` 前缀，详见 8.1 节）**
 
@@ -806,6 +809,7 @@ mark 名为单个字母 `a-z`；非法或缺失的名字会得到 usage 警告
 | `:set terminal_height=<n>` | 终端面板高度（行数，`3`–`40`），立即生效 |
 | `:set which_key=<布尔>` | which-key 面板的总开关；`false` 时面板彻底隐藏（含 F9 钉住式速查页） |
 | `:set which_key_auto=<布尔>` | 仅控制自动触发：`false` 时挂起弦 / `ctrl+w` 的自动弹出停止，`F9` 钉住式速查页仍可用 |
+| `:set wrap=on|off` | 切换软换行显示；折行仅影响显示（不改 buffer 文本、撤销历史与文件字节） |
 | `:set readonly=<布尔>` | 设置当前缓冲区只读标志（`true`/`false`、`on`/`off`、`1`/`0`、`yes`/`no`）；只读缓冲区拒绝编辑与保存，状态栏显示锁形标记 |
 | `:set filetype=<类型>` | 手动指定当前缓冲区的语法类型（别名 `ft` / `language` / `lang`），见第 17 节 FAQ |
 | `:filetype [类型]` | 同上；不带参数时显示当前类型及全部可用类型（别名 `:ft`、`:language`） |
@@ -910,6 +914,7 @@ yate --setup-defaults
 | `shell` | `str` | 平台默认（见第 13 节） | 非空字符串 | 集成终端使用的 Shell，可带参数（如 `"pwsh -NoLogo"`）；若值是已存在的文件路径，含空格也可直接使用 |
 | `terminal_height` | `int` | `12` | 3–40 的整数（布尔/浮点被拒绝） | 集成终端面板高度（行数） |
 | `show_hidden` | `bool` | `False` | `True` / `False` | 文件树默认是否显示 dot 开头的隐藏文件 |
+| `wrap` | `bool` | `False` | `True` / `False`（经 `:set` 时也接受 `on`/`off`、`1`/`0`、`yes`/`no`） | 软换行显示：长行按视口宽度以显示单元格折行（tab 展开、宽字符整字不拆）；续行行号槽留空；诊断仍按逻辑行显示。只影响显示——不改 buffer 文本、撤销历史与文件字节；横向滚动仅在 wrap off 时生效。会话内用 `:set wrap=on|off` 或 `Alt+Z` 切换 |
 | `language_servers` | `list[dict]` | 无 | 见 16.2 节 | 声明式注册语言服务器；打开匹配语言的文件时**自动激活**，无需手写扩展 |
 
 - `keymap` / `theme` 在启动时生效；`theme` 是进程级全局状态（同 vim 的
@@ -1500,6 +1505,7 @@ vsc 键位（默认）：
 | `Ctrl+Space` | 触发自动补全 | 面板 `diagnostics` | 列出 LSP 诊断 |
 | `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 | `F7` | 显示光标处 API 文档 | `F7` | 显示光标处 API 文档 |
+| `Alt+Z` | 切换软换行（`:set wrap=on|off`） | | |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·
 `a` 新建文件 · `A` 新建文件夹 · `r` 重命名 · `d`/`Del` 删除（`y` 确认） ·
@@ -1523,10 +1529,11 @@ vim 键位：
 | `Ctrl+W` `s/v/q/o` | 横切 / 竖切 / 关窗 / 只留本窗 | `Ctrl+W` `hjkl` | 窗格间移动焦点 |
 | `Ctrl+W` `+-<>` | 调整窗格高 / 宽 | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | 等分 / 循环焦点 |
 | `Shift+PageUp/PageDown` | 终端回滚 | `>` / `<` | 增 / 减缩进（计数按行数，如 `3>` = 缩进 3 行） |
+| `gj` / `gk` | 按显示行移动（软换行） | `Alt+Z` | 切换软换行 |
 
 命令行速查：`:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ## 19. 构建与发布
 

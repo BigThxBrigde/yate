@@ -110,7 +110,7 @@ def test_rc_visible_spec_names_are_yateconfig_fields() -> None:
     """setattr in the loader can never hit a non-existent config field."""
     rc_names = {s.name for s in OPTION_SPECS if s.rc_visible}
     assert rc_names <= _CONFIG_FIELDS
-    assert len(rc_names) == 13
+    assert len(rc_names) == 14
     assert "large_file" in _CONFIG_FIELDS
     assert "filetype" not in rc_names
     assert "readonly" not in rc_names
@@ -129,12 +129,13 @@ def test_option_specs_preserve_master_usage_and_error_order() -> None:
     assert tuple(s.name for s in SET_OPTION_SPECS) == (
         "keymap", "theme", "shell", "terminal_height", "filetype",
         "show_hidden", "readonly", "support_mouse", "which_key",
-        "which_key_auto",
+        "which_key_auto", "wrap",
     )
     assert tuple(s.name for s in OPTION_SPECS if s.rc_visible) == (
         "keymap", "key_protocol", "theme", "tab_width", "use_spaces",
         "shell", "terminal_height", "show_hidden", "support_mouse",
-        "which_key", "which_key_auto", "yate_trace", "yate_trace_level",
+        "which_key", "which_key_auto", "wrap", "yate_trace",
+        "yate_trace_level",
     )
 
 

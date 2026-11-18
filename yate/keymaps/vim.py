@@ -45,6 +45,7 @@ from yate.keymaps.keys import (
     MACRO_RECORD_KEY,
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
+    SOFT_WRAP_KEY,
 )
 from yate.services.clipboard import copy_text, paste_text
 
@@ -254,6 +255,8 @@ class VimKeymap(Keymap):
                        "Play a recorded macro", CMD),
             KeyBinding(parse_key(MACRO_REPLAY_LAST_KEY), "macro_replay_last",
                        "Repeat last replay", CMD),
+            KeyBinding(parse_key(SOFT_WRAP_KEY), "toggle_soft_wrap",
+                       "Toggle soft-wrap display", CMD),
             KeyBinding(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", NAV),
             KeyBinding(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", NAV),
             KeyBinding(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", NAV),
@@ -398,7 +401,7 @@ class VimKeymap(Keymap):
                 ("< >", f"{inner} angle block"),
             )
         if self.prefix == "g":
-            return (("g", "go to line N / first line (gg)"),)
+            return (("g", "go to line N / first line (gg) / display line (gj gk)"),)
         if self.prefix in _FIND_PREFIX_HINTS:
             return (_FIND_PREFIX_HINTS[self.prefix],)
         if self.prefix == "r":
@@ -571,6 +574,18 @@ class VimKeymap(Keymap):
             return True
         if self.prefix == "g" and key == "g":
             self._resolve_visual_gg(ctx)
+            return True
+        if self.prefix == "g" and key in ("j", "k"):
+            # visual gj/gk: the injected display-line motion keeps operating
+            # on the active selection via the view/buffer; headless falls
+            # back to the logical-row motion with select=True
+            count = self._typed_count() or 1
+            self.prefix = None
+            self.count_str = ""
+            if ui.move_display_line is not None:
+                ui.move_display_line(1 if key == "j" else -1, count, True)
+            else:
+                self._motion(ctx, key, count, select=True)
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
             # _resolve_find clears the prefix, so the direction is captured
@@ -815,6 +830,17 @@ class VimKeymap(Keymap):
         # find-char prefixes complete on their printable argument key
         if self.prefix == "g" and key == "g":
             self._resolve_gg(ctx)
+            return True
+        if self.prefix == "g" and key in ("j", "k"):
+            # display-line motion (gj/gk); a headless KeyUi falls back to the
+            # logical-row motion so legacy consumers keep their semantics
+            count = self._typed_count() or 1
+            self.prefix = None
+            self.count_str = ""
+            if ui.move_display_line is not None:
+                ui.move_display_line(1 if key == "j" else -1, count, False)
+            else:
+                self._motion(ctx, key, count, select=False)
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
             # no None guard needed here: the tuple test above already

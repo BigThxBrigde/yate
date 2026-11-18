@@ -231,6 +231,8 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("toggle_whichkey", lambda ctx: editor.whichkey.toggle(),
         "Toggle the which-key panel")
     reg("toggle_keymap", lambda ctx: editor.toggle_keymap(), "Toggle vsc/vim keymap")
+    reg("toggle_soft_wrap", lambda ctx: editor.toggle_soft_wrap(),
+        "Toggle soft wrap")
     reg(
         "toggle_screensaver",
         lambda ctx: editor.overlays.toggle_screensaver(),

@@ -173,6 +173,12 @@ class YateConfig:
     #: takes priority: when it is off nothing shows regardless of this
     #: option.  On by default -- keeps the existing behavior.
     which_key_auto: bool = True
+    #: Soft-wrap display switch (``wrap = True`` in yaterc, ``:set wrap=on``
+    #: or the ``toggle_soft_wrap`` action).  Off by default: long lines keep
+    #: their one-logical-row-per-display-row rendering; on, the view folds
+    #: them at the viewport width.  New key -- existing yaterc files need no
+    #: migration.
+    wrap: bool = False
     #: Runtime trace log switch (``yate_trace = True`` in yaterc). Off by
     #: default: nothing is written until it is turned on. ``YATE_TRACE``
     #: overrides it per session.
@@ -496,6 +502,17 @@ OPTION_SPECS: tuple[OptionSpec, ...] = (
         invalid_message="which_key_auto must be on|off (true/false/1/0/yes/no accepted)",
         invalid_message_fmt="which_key_auto must be True or False, got {value!r}",
         summary="which_key_auto=on|off",
+    ),
+    OptionSpec(
+        name="wrap",
+        aliases=(),
+        rc_visible=True,
+        settable=True,
+        kind="bool",
+        domain=None,
+        invalid_message="wrap must be on|off (true/false/1/0/yes/no accepted)",
+        invalid_message_fmt="wrap must be True or False, got {value!r}",
+        summary="wrap=on|off",
     ),
     OptionSpec(
         name="yate_trace",

@@ -301,6 +301,7 @@ class Editor:
             handle_key=self.handle_key,
             handle_mouse=partial(self._on_view_mouse, leaf_id),
             ensure_row=partial(self._ensure_chunked_row, leaf_id),
+            wrap_enabled=lambda: self.config.wrap,
         )
 
     def _ensure_chunked_row(self, leaf_id: int, row: int) -> None:
@@ -742,6 +743,38 @@ class Editor:
             _rebind, group="lsp-sync", exclusive=False, exit_on_error=False,
         )
         self.refresh_ui()
+
+    # ============================================================= soft wrap
+
+    def set_soft_wrap(self, enabled: bool) -> None:
+        """Set the soft-wrap display mode (``:set wrap=`` / the toggle).
+
+        The switch lives on ``self.config.wrap``; the views read it through
+        the injected ``wrap_enabled`` predicate, so one :meth:`refresh_ui`
+        repaint propagates the mode to every open pane.
+        """
+        self.config.wrap = enabled
+        self.message(f"soft wrap {'on' if enabled else 'off'}", kind="ok")
+        self.refresh_ui()
+
+    def toggle_soft_wrap(self) -> None:
+        """Flip the soft-wrap display mode (``toggle_soft_wrap`` action)."""
+        self.set_soft_wrap(not self.config.wrap)
+
+    def move_display_line(
+        self, direction: int, count: int = 1, select: bool = False
+    ) -> None:
+        """Move the active cursor by *count* display rows (vim gj/gk).
+
+        Thin delegation to the focused :class:`EditorView`, which owns the
+        wrap layout and maps display rows back to logical positions.  Injected
+        into :class:`KeyUi` so the vim keymap (L1) reaches the display geometry
+        without importing an L2 component (architecture R4).  *select* is
+        forwarded so visual-mode motions keep the anchor.
+        """
+        view = self.panes.active_view
+        if view is not None:
+            view.move_display_line(direction, count, select)
 
     # ================================================================= shell
 

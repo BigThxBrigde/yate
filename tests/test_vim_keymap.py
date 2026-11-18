@@ -1963,13 +1963,15 @@ def test_chord_hints_list_text_object_targets() -> None:
 
 
 def test_chord_hints_list_prefix_followers() -> None:
-    """An argument prefix shows its placeholder, ``g`` its gg completion."""
+    """An argument prefix shows its placeholder, ``g`` its gg/gj/gk completions."""
     _editor, keymap, ctx = _setup()
     keymap.handle_key(ctx, "f")
     assert keymap.chord_hints() == (("{char}", "find char forward"),)
     keymap.handle_key(ctx, "\x1b")  # esc clears the prefix
     keymap.handle_key(ctx, "g")
-    assert keymap.chord_hints() == (("g", "go to line N / first line (gg)"),)
+    assert keymap.chord_hints() == (
+        ("g", "go to line N / first line (gg) / display line (gj gk)"),
+    )
 
 
 def test_chord_hints_show_register_wait_and_count_state() -> None:

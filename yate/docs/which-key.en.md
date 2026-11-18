@@ -74,6 +74,12 @@ registers), so the auto popup never fires; there are no pseudo prefixes
 to trigger it. Its way to browse bindings is the pinned sheet via
 `<f9>`, where the full table is grouped by category.
 
+Soft wrap: `alt+z` toggles soft-wrap display in both keymaps (a plain
+table row in each, so it never appears in a pending-chord popup). The
+vim-only `gj` / `gk` motions move by display row; they complete the `g`
+prefix, and after `g` is pressed the pending-chord hint row reads
+"go to line N / first line (gg) / display line (gj gk)".
+
 Macro recording / replay adds three shared function-key bindings (`F10`
 record toggle, `F11` play, `F12` repeat last replay).  Pressing `F10` or
 `F11` waits for one register name in `a-z0-9`; the pinned sheet lists all
