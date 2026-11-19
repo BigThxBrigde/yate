@@ -238,11 +238,40 @@ the offending wave; branch never merges to `master` automatically.
 
 ## 5. Execution record
 
-_Filled in during implementation._
+Executed 2026-11-19. Every wave was committed separately on
+`feature/feat-toggle-comment` (parent `master` at `50702ec7`); no push.
 
-- Wave a: pending
-- Wave b: pending
-- Wave c: pending
-- Wave d: pending
-- Review: pending
-- Gates: pending
+- Wave a: done — `96e8a087` design doc, `7e4095db` constants + pure engine;
+  `55 passed` (commenting + key notation), pyright 0.
+- Wave b: done — `a8689884` action/command/dispatch/keymaps/help;
+  `89 passed` on wave acceptance suite, pyright 0. Selection endpoints are
+  remapped after `replace_range` so a second press sees the same row span.
+- Wave c: done — `335cd6c1` `gc{motion}` / `gcc` / visual `gc` and hints;
+  `238 passed` on vim-related suite, pyright 0. `gg`/`gj`/`gk` and macro
+  replay regressions verified.
+- Wave d: done — `70e2eaf8` guard #45 (with negative drill confirmed red on a
+  one-sided literal), architecture count 44 -> 45, bilingual manual /
+  which-key docs, 4 Chinese changelog overrides registered via `zh-commit`.
+  Root CHANGELOG left untouched by design: `generate` rewrites the whole
+  Unreleased section (155 pre-existing lagging commits), out of scope here;
+  `python -m tools.changelog check` exits 0.
+- Review: main agent played the reviewer role (no compliant subagent model
+  was available per §0.2). Findings: 1 gate failure (7 `reportUnknownLambdaType`
+  in the dispatch test stub) fixed in `07fb3c47`; 13存量 tests + 3 smoke
+  scenarios pinned the old `ctrl+/` keymap-toggle contract — migrated to the
+  shared `toggle_keymap` action in `d82a3d73`. Self-criticism: 0 blocker,
+  0 major, 2 minor kept (cursor lands on the comment marker after `gcc`,
+  matching vim's first-non-blank convention; `gc` hint documented in both
+  which-key pages).
+- Gates (main agent, real measurements):
+  - pyright `yate/ tests/ tools/`: 0 errors / 0 warnings (`PYRIGHT_EXIT=0`)
+  - `pytest tests/ -q -n auto`: exit 0 (all green, 10 skipped)
+  - `pytest tests/test_architecture.py -q`: `45 passed`, exit 0
+  - coverage: `3959 passed, 10 skipped`, TOTAL `93%`, `93.09%` >= 75, exit 0
+  - smoke `run --jobs 4`: first run 123/124 (known sidebar `toggles_back`
+    load flake, unrelated to this change); serial scenario 12/12 pass and
+    full rerun `124/124 scenarios, 1511/1511 checks`, exit 0
+  - `python -m tools.changelog check`: exit 0
+- Deviation: no subagent dispatch (model-consistency requirement + no agent
+  file edits); main agent executed planner/executor/reviewer roles, as
+  recorded in §0.2.
