@@ -82,15 +82,18 @@
 **回归用例**：`tests/test_commenting.py::test_block_content_with_extra_inner_spaces_round_trips`
 （含 5 形态）。边界矩阵复验 `BROKEN: []`。
 
-### MINOR（登记，本轮不修）
+### MINOR（1-2 已闭环于后续修复波，3 非缺陷）
 
 1. `yate/editor_dispatch.py:45-47`：`"ctrl+shift+slash"` 作为 kitty/CSI-u 别名硬编码在
    dispatch 层，与 `TOGGLE_KEYMAP_KEY` 常量分离；未来改常量名有漂移风险。
-   影响面仅一处，且架构守卫 45 已锁定两套 keymap 的共享常量，暂不提取。
+   **已修**（`47b12c09`）：别名提升为 `yate/keymaps/keys.py::TOGGLE_KEYMAP_ALIAS`
+   共享常量，dispatch 引用该常量；派发用例同步改引常量，焦点测试 + 架构守卫 + pyright 全绿。
 2. `yate/commands.py:536`：`_toggle_comment(args: str)` 静默忽略参数；
-   `:toggle-comment extra` 不会报错。与其它忽略参数的 alias 命令行为一致，暂不改。
+   `:toggle-comment extra` 不会报错。
+   **已修**（`fa1fdd37`）：非空参数时写 `warn` usage 并拒绝执行，与 `:enew` /
+   `:macro-stop` 的无参命令惯例一致；补负向用例 `test_toggle_comment_command_rejects_arguments`。
 3. `gcc` 后光标落在注释符所在行的首个非空白（即 marker 本身），与 vim 惯例一致；
-   已由 `test_gcc_toggles_current_line_and_restores` 钉住，非缺陷。
+   已由 `test_gcc_toggles_current_line_and_restores` 钉住，非缺陷，不修。
 
 ## 四、六维度结论
 
@@ -115,3 +118,20 @@
 - `680c3780` `fix(comment): keep toggling an involution on ambiguous marker rows`
   （引擎修复 + 2 个回归用例，TDD 先红后绿）
 - 本评审记录与索引登记单独一笔提交（不 amend 上一笔，保留其原作者）
+
+## 七、后续 MINOR 修复波（2026-11-19 无人值守闭环）
+
+用户要求闭环修复发现的问题，本轮把上文两项真实 MINOR 一并处理，方案见
+`.trae/documents/toggle-comment-review-fixes-plan.md`：
+
+- `47b12c09` `refactor(keys): share the kitty keymap-toggle alias constant`
+  —— 别名提升为 `TOGGLE_KEYMAP_ALIAS`（L0 keys），dispatch 引用；焦点测试 56 passed、pyright 0。
+- `fa1fdd37` `fix(commands): reject arguments for :toggle-comment`
+  —— 非空参数写 warn usage 并返回；初版 lambda 替身触发 3 处 `reportUnknownLambdaType`，
+  改显式注解函数后 pyright 0、焦点测试 16 passed。
+- 第 3 项（gcc 光标落 marker）复核为非缺陷，不修。
+
+修复波实测（主代理亲跑，exit code 权威）：pyright 0 / pytest -n auto 全绿（10 skipped，exit 0）/
+架构 45 passed exit 0 / 覆盖率 93.15%（3962 passed·10 skipped）exit 0 / changelog check 0 /
+冒烟首轮 123/124（同一 sidebar flake，单跑 12/12）、复跑 124/124·1511/1511 exit 0。
+自审 0 blocker / 0 major；全部遗留项闭环。
