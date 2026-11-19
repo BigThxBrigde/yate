@@ -364,8 +364,15 @@ Ways to switch (any one of):
 
 | Method | Action |
 |---|---|
-| In-session | `Ctrl+/` (some terminals send `Ctrl+_`) toggles between the two keymaps |
+| In-session | `Ctrl+Shift+/` toggles between the two keymaps (both bindings share this one chord) |
 | Command | `:set keymap=vsc` / `:set keymap=vim`; quick aliases `:vsc`, `:vim`, `:normal` (`:normal` aliases `:vsc`) |
+
+> **Breaking change (IKWNOG)**: `Ctrl+/` (some terminals send `Ctrl+_`) now
+> toggles **line / block comments** in both keymaps, and no longer switches
+> the keymap. `Ctrl+Shift+/` is the new keymap toggle. Legacy terminals that
+> cannot distinguish the shifted chord still send `Ctrl+/` for both; there,
+> keep using `:set keymap=vsc|vim` (or `:vsc` / `:vim`) to switch, and `Ctrl+/`
+> always toggles comments.
 | Config | `keymap = "vsc"` or `"vim"` in yaterc |
 | Command line | `yate --keymap vim` (beats yaterc) |
 
@@ -492,7 +499,9 @@ no bracket auto-completion while multi-cursor is active.
 | `Alt+Shift+P` | Command palette (run any `:` command) |
 | `Alt+Shift+F` | Open the file manager (same as `:file-manager`) |
 | `F5` | Command line (ex commands: `:w` `:q` `:e` …; `Esc` closes) |
-| `Ctrl+/` | Toggle vsc / vim keymap |
+| `Ctrl+/` | Toggle comment on current line / selection (`Ctrl+_` on legacy terminals) |
+| `Ctrl+Shift+/` | Toggle vsc / vim keymap |
+| `:toggle-comment` | Same comment toggle as `Ctrl+/` |
 | `Ctrl+E` / `Ctrl+Shift+E` | Focus the file tree (`Ctrl+Shift+E` same as VS Code) |
 | `Ctrl+1` | Focus the editor (same as VS Code) |
 | `Ctrl+B` | Show / hide the file tree (same as `:explorer`) |
@@ -523,7 +532,9 @@ Without the chord driver (non-Windows, or `legacy`), `Ctrl+1` only reaches
 yate in terminals that send kitty-protocol (CSI-u) sequences (kitty, WezTerm).
 There, use the command palette (`Alt+Shift+P`) or `:1`-style ex commands instead.
 `Ctrl+P`, `Ctrl+/`, `Ctrl+Q`, `Ctrl+W`, `Ctrl+Shift+E` and the function keys
-work on all terminals.
+work on all terminals. `Ctrl+Shift+/` needs a driver/terminal that reports the
+shifted chord (`ctrl+shift+/` or `ctrl+shift+slash`); on legacy terminals use
+`:set keymap=vsc|vim` instead.
 
 The jump-list keys `<alt-left>` / `<alt-right>` are the xterm Alt+arrow
 sequences `\x1b[1;3D` / `\x1b[1;3C`: the Windows chord driver normalizes
@@ -562,6 +573,7 @@ e.g. `3j`, `2dd`, `5w`.
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Page down / up |
 | `gj` / `gk` | Move down / up by display row (can land on a continuation row when soft wrap is on; degenerates to logical-row motion when wrap is off; a count repeats by display rows) |
+| `gcc` / `gc{motion}` | Toggle comment on the current line / over a motion (e.g. `gcj`, `2gck`); in VISUAL mode `gc` toggles the selection; markers come from the file type |
 | `<alt-left>` | Jump back in jump history (`jump_back`) |
 | `<alt-right>` | Jump forward in jump history (`jump_forward`) |
 | `<alt-m>` | Open the marks overview (`marks_overlay`) |
@@ -1681,7 +1693,8 @@ vsc keymap (default):
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / copy / paste | `Ctrl+B` | Toggle file tree |
 | `Ctrl+A` | Select all | `Ctrl+E` | Focus file tree |
 | `Ctrl+D` | Duplicate line/selection | `F2` / `F5` | Shell command / command line |
-| `Ctrl+Shift+K` | Delete line | `Ctrl+/` | Toggle keymap |
+| `Ctrl+Shift+K` | Delete line | `Ctrl+/` | Toggle comment |
+| `Ctrl+Shift+/` | Toggle keymap | | |
 | `Alt+↑` / `Alt+↓` | Move line | `Ctrl+PageUp`/`PageDown` | Switch tab |
 | `Ctrl+]` / `Shift+Tab` | Indent / dedent | `F1` | Key help |
 | `Ctrl+J` | Join lines | `F8` | User manual |

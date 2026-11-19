@@ -1844,6 +1844,62 @@ def test_editor_size_exemption_is_registered() -> None:
     } <= SIZE_EXEMPT_FILES
 
 
+def test_toggle_comment_keys_are_shared_and_identical() -> None:
+    """Ctrl+/ and ctrl+shift+/ each have one L0 source in both keymaps.
+
+    AST part: both ``build_bindings`` tables reference
+    :data:`~yate.keymaps.keys.TOGGLE_COMMENT_KEY` and
+    :data:`~yate.keymaps.keys.TOGGLE_KEYMAP_KEY` and never spell the raw
+    ``\\x1f`` byte or the two key specs literally.  ``keys.py`` declares
+    both module-level constants.  Runtime part: both tables resolve the raw
+    key to ``toggle_comment`` and the name-only chord to ``toggle_keymap``.
+    """
+    from yate.keymaps.keys import TOGGLE_COMMENT_KEY, TOGGLE_KEYMAP_KEY, parse_key
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    keys_tree = ast.parse(
+        (YATE / "keymaps" / "keys.py").read_text(encoding="utf-8")
+    )
+    module_names = {
+        node.target.id
+        for node in keys_tree.body
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+    }
+    for name in ("TOGGLE_COMMENT_KEY", "TOGGLE_KEYMAP_KEY"):
+        assert name in module_names, name
+
+    forbidden = {"\x1f", "<ctrl-/>", "ctrl+shift+/", "ctrl+shift+slash"}
+    for name in ("vsc.py", "vim.py"):
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        assert "TOGGLE_COMMENT_KEY" in source_names, name
+        assert "TOGGLE_KEYMAP_KEY" in source_names, name
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        for literal in forbidden:
+            assert literal not in literals, (name, literal)
+
+    raw = parse_key(TOGGLE_COMMENT_KEY)
+    for keymap in (VscKeymap(), VimKeymap()):
+        comment = keymap.lookup(raw)
+        assert comment is not None
+        assert comment.action == "toggle_comment"
+        toggle = keymap.lookup(TOGGLE_KEYMAP_KEY)
+        assert toggle is not None
+        assert toggle.action == "toggle_keymap"
+
+
 def test_macro_take_pending_count_is_defined_on_both_keymaps_and_vsc_is_one() -> None:
     """``take_pending_count`` lives on the base and vim keymaps, not vsc.
 

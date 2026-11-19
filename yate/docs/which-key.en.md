@@ -78,7 +78,11 @@ Soft wrap: `alt+z` toggles soft-wrap display in both keymaps (a plain
 table row in each, so it never appears in a pending-chord popup). The
 vim-only `gj` / `gk` motions move by display row; they complete the `g`
 prefix, and after `g` is pressed the pending-chord hint row reads
-"go to line N / first line (gg) / display line (gj gk)".
+"go to line N / first line (gg) / display line (gj gk)" plus a `c` row for
+the comment operator. Pressing `gc` arms comment mode: `gcc` toggles the
+current line, `gc{motion}` toggles the rows the motion crosses, and the
+header reads `c` while a motion list is shown. VISUAL mode `gc` toggles the
+selection directly.
 
 Macro recording / replay adds three shared function-key bindings (`F10`
 record toggle, `F11` play, `F12` repeat last replay).  Pressing `F10` or
