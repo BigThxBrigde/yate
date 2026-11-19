@@ -534,9 +534,14 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _changelog(args: str) -> None:
         editor.overlays.show_changelog(args or "en")
 
+    def _toggle_comment(args: str) -> None:
+        editor.execute_action("toggle_comment")
+
     reg("vim", _vim, "switch to vim key map")
     reg("vsc", _vsc, "switch to the vsc key map")
     reg("normal", _vsc, "alias for :vsc")
+    reg("toggle-comment", _toggle_comment,
+        "toggle comment on the current line or selection (ctrl+/)")
     reg("help", _help, "show key map help")
     reg("manual", _manual,
         "open the user manual (:manual zh|en, default en)",

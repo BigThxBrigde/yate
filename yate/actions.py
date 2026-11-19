@@ -13,6 +13,8 @@ call the editor's operations.
 from __future__ import annotations
 
 from yate.editor import Editor
+from yate.editor_core.commenting import comment_range
+from yate.editor_syntax import lang_for
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing
 from yate.registries import Action, ActionRegistry
@@ -69,6 +71,59 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("indent", lambda ctx: ctx.buffer.indent_selection(), "Indent")
     reg("outdent", lambda ctx: ctx.buffer.outdent_selection(), "Outdent")
     reg("join_lines", lambda ctx: ctx.buffer.join_lines(), "Join lines")
+
+    def _toggle_comment(ctx: ActionContext) -> None:
+        """Toggle comment markers from the current file type's LangSpec.
+
+        The row span is the active selection or the cursor row.  One
+        :meth:`TextBuffer.replace_range` commits the whole span as a single
+        undo step; the cursor is restored to its original row and shifted by
+        the length delta on that row so repeated presses stay in place.
+        """
+        buf = ctx.buffer
+        spec = lang_for(ctx.doc.filetype)
+        if spec is None or (spec.line_comment is None and spec.block_comment is None):
+            ctx.ui.message(f"no comment syntax for filetype {ctx.doc.filetype}")
+            return
+        rows = buf.selected_rows()
+        first, last = rows if rows is not None else (buf.row, buf.row)
+        before = list(buf.lines)
+        after = comment_range(
+            before,
+            first,
+            last,
+            line_comment=spec.line_comment,
+            block_comment=spec.block_comment,
+        )
+        if after == before:
+            return
+        anchor = buf.anchor
+        cursor = buf.cursor
+
+        def remap(pos: tuple[int, int]) -> tuple[int, int]:
+            row, col = pos
+            old_line = before[row]
+            new_line = after[row]
+            prefix = 0
+            while prefix < min(len(old_line), len(new_line)) and (
+                old_line[prefix] == new_line[prefix]
+            ):
+                prefix += 1
+            delta = len(new_line) - len(old_line)
+            mapped = col + delta if col > prefix else col
+            return row, max(prefix, min(mapped, len(new_line)))
+
+        buf.replace_range(
+            (first, 0),
+            (last, len(before[last])),
+            "\n".join(after[first : last + 1]),
+        )
+        # replace_range clears the anchor; restore both ends so a second
+        # press sees the same row span and removes exactly one layer.
+        buf.anchor = remap(anchor) if anchor is not None else None
+        buf.cursor = remap(cursor)
+
+    reg("toggle_comment", _toggle_comment, "Toggle comment on line / selection")
 
     # ---------------------------------------------------------- navigation
 

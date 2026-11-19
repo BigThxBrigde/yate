@@ -25,6 +25,7 @@ from yate.keymaps.keys import (
     MACRO_PLAY_KEY,
     MACRO_REGISTER_CHARS,
     MACRO_REPLAY_LAST_KEY,
+    TOGGLE_KEYMAP_KEY,
     parse_key,
 )
 from yate.keyproto.key_codec import event_to_raw
@@ -36,6 +37,14 @@ _MACRO_COUNT_KEYS: frozenset[str] = frozenset({
     parse_key(MACRO_PLAY_KEY),
     parse_key(MACRO_REPLAY_LAST_KEY),
 })
+
+#: Textual event.key names of the keymap-toggle chord.  ``\x1f`` (Ctrl+/)
+#: cannot distinguish Ctrl+Shift+/ on legacy terminals, so both keymaps share
+#: this name-level interception instead of a second raw row (issue IKWNOG).
+#: The second spelling is the kitty/CSI-u form; both never reach event_to_raw.
+_KEYMAP_TOGGLE_NAMES: frozenset[str] = frozenset(
+    {TOGGLE_KEYMAP_KEY, "ctrl+shift+slash"}
+)
 
 #: Trace logger ("yate.editor_dispatch"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -136,6 +145,13 @@ def _handle_key(ed: yate.editor.Editor, event: Key) -> bool:
         # command line is editing; enter must bubble so the Input's own
         # enter->submit binding can fire
         return False
+    # Ctrl+Shift+/ is indistinguishable from Ctrl+/ at the raw byte layer
+    # (\x1f); the chord driver names it distinctly, so intercept by name
+    # before event_to_raw. Both keymaps enter through this one action (R10):
+    # a legacy terminal only ever produces \x1f, which stays a comment.
+    if event.key in _KEYMAP_TOGGLE_NAMES:
+        ed.execute_action("toggle_keymap")
+        return True
     # alt+shift+s toggles the screensaver: alt+shift combos have no raw
     # byte form (keyproto.key_codec maps only single-modifier alt chords),
     # so like alt+shift+p this must be intercepted by key name.  Kept

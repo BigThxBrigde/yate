@@ -18,6 +18,8 @@ from yate.keymaps.keys import (
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
     SOFT_WRAP_KEY,
+    TOGGLE_COMMENT_KEY,
+    TOGGLE_KEYMAP_KEY,
 )
 
 # help categories (module level: uppercase constants)
@@ -118,7 +120,11 @@ class VscKeymap(Keymap):
             _k("<alt-shift-p>", "command_palette", "Command palette (alt+shift+p)", VIEW),
             _k("<alt-shift-f>", "file_manager", "Open file manager", VIEW),
             _k("<alt-shift-s>", "toggle_screensaver", "Toggle the idle screensaver", VIEW),
-            _raw("\x1f", "toggle_keymap", "Toggle vsc/vim keymap (ctrl+/)", VIEW),
+            _k(TOGGLE_COMMENT_KEY, "toggle_comment", "Toggle comment", EDIT),
+            # Help-only: the real dispatch of ctrl+shift+/ is the name-based
+            # branch in editor_dispatch (raw bytes cannot distinguish it).
+            KeyBinding(TOGGLE_KEYMAP_KEY, "toggle_keymap",
+                       "Toggle vsc/vim keymap (ctrl+shift+/)", VIEW),
             # ctrl+shift+e is the vscode spelling of the same explorer focus:
             # legacy terminals send the identical \x05 byte for both chords,
             # and the chord driver names it distinctly (intercepted by the

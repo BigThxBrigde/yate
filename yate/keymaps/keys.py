@@ -203,6 +203,9 @@ MARKS_OVERLAY_KEY: str = parse_key("<alt-m>")
 
 def key_name(key: str) -> str:
     """Inverse of :func:`parse_key`, used by the help overlay."""
+    if key == TOGGLE_KEYMAP_KEY:
+        # Help-only name-level chord; not a raw byte, so render it literally.
+        return "<ctrl-shift-/>"
     if key in KEY_ALIASES:
         return "<" + KEY_ALIASES[key] + ">"
     for name, raw in SPECIAL_KEYS.items():

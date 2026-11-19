@@ -46,6 +46,8 @@ from yate.keymaps.keys import (
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
     SOFT_WRAP_KEY,
+    TOGGLE_COMMENT_KEY,
+    TOGGLE_KEYMAP_KEY,
 )
 from yate.services.clipboard import copy_text, paste_text
 
@@ -244,7 +246,12 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<alt-shift-f>"), "file_manager",
                        "Open file manager", EDT,
             ),
-            KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
+            KeyBinding(parse_key(TOGGLE_COMMENT_KEY), "toggle_comment",
+                       "Toggle comment", EDT),
+            # Help-only: real ctrl+shift+/ dispatch is the name-based branch
+            # in editor_dispatch; the shared raw key stays the comment action.
+            KeyBinding(TOGGLE_KEYMAP_KEY, "toggle_keymap",
+                       "Toggle vim/vsc keymap (ctrl+shift+/)", HLP),
             KeyBinding(parse_key("<f9>"), "toggle_whichkey",
                        "Toggle the which-key panel", HLP),
             KeyBinding(parse_key(HOVER_DOC_KEY), "show_hover_docs",
@@ -268,16 +275,14 @@ class VimKeymap(Keymap):
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
         """Dispatch one key according to the current vim mode.
 
-        The ctrl+/ keymap toggle and the function keys are handled before
-        mode dispatch (see the comment below); everything else routes to
-        the insert, visual or normal handler.
+        Function keys, navigation chords and the shared comment raw key are
+        handled before mode dispatch: Ctrl+/ runs ``toggle_comment`` in every
+        mode and drops half-finished state, and never flips the keymap (that
+        chord is intercepted by event.key name in editor_dispatch).
         """
-        # ctrl+/ is a raw (non-printable) key that never reaches mode dispatch;
-        # handle it first so the toggle works in every vim mode and drops any
-        # half-finished operator/count state.
-        if key == "\x1f":
+        if key == parse_key(TOGGLE_COMMENT_KEY):
             self._clear_pending()
-            ctx.ui.toggle_keymap()
+            ctx.ui.execute_action("toggle_comment")
             return True
         if key in _FUNCTION_KEYS:
             self._clear_pending()
