@@ -76,6 +76,10 @@ TOGGLE_COMMENT_KEY: str = "<ctrl-/>"
 #: ``parse_key("<ctrl-shift-/>")`` collapses to ``"\x1f"`` just like
 #: :data:`TOGGLE_COMMENT_KEY`, so a second raw row could never distinguish it.
 TOGGLE_KEYMAP_KEY: str = "ctrl+shift+/"
+#: Alternate spelling of the keymap toggle chord reported by kitty / CSI-u
+#: terminals.  Shared with the global dispatch interception so the alias
+#: cannot drift from :data:`TOGGLE_KEYMAP_KEY`.
+TOGGLE_KEYMAP_ALIAS: str = "ctrl+shift+slash"
 #: Legal single-character macro register names (a-z0-9), shared by the
 #: dispatch register guard, the L3 flows layer and the ``:macro-*`` commands
 #: (pure L0 data; keeping it here avoids an L3 -> L3 cross-module import).

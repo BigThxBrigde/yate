@@ -11,7 +11,12 @@ from yate.actions import populate
 from yate.commands import register_commands
 from yate.editor_dispatch import _handle_key
 from yate.editor_syntax import lang_for
-from yate.keymaps.keys import TOGGLE_COMMENT_KEY, TOGGLE_KEYMAP_KEY, parse_key
+from yate.keymaps.keys import (
+    TOGGLE_COMMENT_KEY,
+    TOGGLE_KEYMAP_ALIAS,
+    TOGGLE_KEYMAP_KEY,
+    parse_key,
+)
 from yate.keymaps.vim import VimKeymap, VimMode
 from yate.keymaps.vsc import VscKeymap
 from yate.registries import ActionRegistry, CommandRegistry
@@ -161,7 +166,7 @@ def test_ctrl_shift_slash_switches_keymap_only() -> None:
 def test_kitty_ctrl_shift_slash_alias_switches_keymap() -> None:
     ed = _dispatch_stub()
 
-    _dispatch_key(ed, "ctrl+shift+slash")
+    _dispatch_key(ed, TOGGLE_KEYMAP_ALIAS)
 
     assert ed.calls == ["action:toggle_keymap"]
 

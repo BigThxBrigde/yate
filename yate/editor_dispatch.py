@@ -25,6 +25,7 @@ from yate.keymaps.keys import (
     MACRO_PLAY_KEY,
     MACRO_REGISTER_CHARS,
     MACRO_REPLAY_LAST_KEY,
+    TOGGLE_KEYMAP_ALIAS,
     TOGGLE_KEYMAP_KEY,
     parse_key,
 )
@@ -43,7 +44,7 @@ _MACRO_COUNT_KEYS: frozenset[str] = frozenset({
 #: this name-level interception instead of a second raw row (issue IKWNOG).
 #: The second spelling is the kitty/CSI-u form; both never reach event_to_raw.
 _KEYMAP_TOGGLE_NAMES: frozenset[str] = frozenset(
-    {TOGGLE_KEYMAP_KEY, "ctrl+shift+slash"}
+    {TOGGLE_KEYMAP_KEY, TOGGLE_KEYMAP_ALIAS}
 )
 
 #: Trace logger ("yate.editor_dispatch"); silent unless yate_trace is on.
