@@ -67,6 +67,15 @@ MACRO_REPLAY_LAST_KEY: str = "<f12>"
 #: Shared key for toggling soft-wrap display in both built-in keymaps
 #: (IKVRXT); alt+z parses to ESC+z and collides with no existing binding.
 SOFT_WRAP_KEY: str = "<alt-z>"
+#: Shared key for toggling comments in both built-in keymaps (IKWNOG).
+#: Ctrl+/ and Ctrl+Shift+/ both parse to raw ``\x1f``, so the comment action
+#: owns that raw key; the keymap toggle is intercepted by event.key name in
+#: :mod:`yate.editor_dispatch` before raw conversion.
+TOGGLE_COMMENT_KEY: str = "<ctrl-/>"
+#: Textual event.key name of the keymap toggle chord, NOT a keymap spec:
+#: ``parse_key("<ctrl-shift-/>")`` collapses to ``"\x1f"`` just like
+#: :data:`TOGGLE_COMMENT_KEY`, so a second raw row could never distinguish it.
+TOGGLE_KEYMAP_KEY: str = "ctrl+shift+/"
 #: Legal single-character macro register names (a-z0-9), shared by the
 #: dispatch register guard, the L3 flows layer and the ``:macro-*`` commands
 #: (pure L0 data; keeping it here avoids an L3 -> L3 cross-module import).
