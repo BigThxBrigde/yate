@@ -76,6 +76,25 @@ def test_css_style_block_comment_round_trips() -> None:
     assert twice == lines
 
 
+def test_marker_plus_space_only_line_round_trips() -> None:
+    """A bare ``# `` must not collapse to a blank row on the first toggle."""
+    for text, marker in (("# ", "#"), ("  // ", "//"), ("  #  ", "#")):
+        once = comment_range([text], 0, 0, line_comment=marker, block_comment=None)
+        twice = comment_range(once, 0, 0, line_comment=marker, block_comment=None)
+        assert twice == [text], text
+
+
+def test_block_content_with_extra_inner_spaces_round_trips() -> None:
+    """Ambiguous block rows must be wrapped, not stripped of one space."""
+    bc = ("/*", "*/")
+    for text in (
+        "/*  x */", "/* x  */", "/*   x   */", "/*  */", "  /* x */  ",
+    ):
+        once = comment_range([text], 0, 0, line_comment=None, block_comment=bc)
+        twice = comment_range(once, 0, 0, line_comment=None, block_comment=bc)
+        assert twice == [text], text
+
+
 def test_no_markers_leaves_rows_unchanged() -> None:
     lines = ["plain text", "  other"]
 

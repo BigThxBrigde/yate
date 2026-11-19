@@ -26,20 +26,35 @@ def _indent_of(line: str) -> str:
 
 
 def _line_is_commented(line: str, marker: str) -> bool:
-    """Whether *line* carries a strict ``marker + space`` prefix."""
-    return line.lstrip().startswith(marker + " ")
+    """Whether *line* carries a strict ``marker + space`` prefix with content.
+
+    A bare ``marker + " "`` row (e.g. ``"# "``) is deliberately NOT treated
+    as commented: stripping it would yield an empty row, which the next
+    toggle skips, breaking the involution.  Requiring content after the
+    space makes every recognised row restorable.
+    """
+    stripped = line.lstrip()
+    prefix = marker + " "
+    return stripped.startswith(prefix) and bool(stripped[len(prefix):].strip())
 
 
 def _block_is_commented(line: str, opening: str, closing: str) -> bool:
-    """Whether *line* is strictly wrapped by the block marker pair."""
+    """Whether *line* is strictly wrapped by the block marker pair.
+
+    The layer this engine adds is exactly ``opening + " " + content + " " +
+    closing``.  Recognising a row as commented only when it matches that
+    shape byte-for-byte keeps toggling an involution: a hand-written row
+    with extra inner spaces (e.g. ``"/*  x */"``) gets its own extra layer
+    instead of being stripped into a different, unrecoverable string.
+    """
     stripped = line.lstrip()
     prefix = opening + " "
     suffix = " " + closing
-    return (
-        stripped.startswith(prefix)
-        and stripped.endswith(suffix)
-        and len(stripped) > len(prefix) + len(suffix)
-    )
+    core = stripped.rstrip()
+    if not (core.startswith(prefix) and core.endswith(suffix)):
+        return False
+    content = core[len(prefix) : len(core) - len(suffix)]
+    return bool(content) and not content[0].isspace() and not content[-1].isspace()
 
 
 def comment_range(
@@ -84,8 +99,16 @@ def comment_range(
             indent = _indent_of(lines[row])
             content = lines[row][len(indent):]
             if commented:
-                inner = content[len(opening) + 1 : -(len(closing) + 1)]
-                result[row] = indent + inner
+                stripped = content.rstrip()
+                trailing = content[len(stripped):]
+                inner = stripped[len(opening) + 1 : -(len(closing) + 1)]
+                result[row] = indent + inner + trailing
             else:
-                result[row] = indent + opening + " " + content + " " + closing
+                # Keep trailing whitespace outside the wrapper so the added
+                # layer always has the strict ``... + " " + closing`` shape.
+                stripped = content.rstrip()
+                trailing = content[len(stripped):]
+                result[row] = (
+                    indent + opening + " " + stripped + " " + closing + trailing
+                )
     return result
