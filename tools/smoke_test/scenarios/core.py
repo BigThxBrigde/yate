@@ -63,16 +63,21 @@ async def _file_palette(tmp: Path) -> ScenarioResult:
 
 
 async def _keymap_toggle(tmp: Path) -> ScenarioResult:
-    """Toggle the keymap between vsc and vim via ctrl+/."""
+    """Toggle the keymap between vsc and vim via the shared action.
+
+    Textual cannot synthesize the name-level ``ctrl+shift+/`` chord, so the
+    scenario exercises the same ``toggle_keymap`` action that the dispatch
+    branch invokes (IKWNOG). ``ctrl+/`` now toggles comments instead.
+    """
     app = new_app(target=tmp / "scratch.txt")
     checks: list[Check] = []
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
         checks.append(Check("default_keymap", "vsc", app.editor.keymaps.name))
-        await pilot.press("ctrl+/")
+        app.editor.execute_action("toggle_keymap")
         await pilot.pause()
         checks.append(Check("toggled_keymap", "vim", app.editor.keymaps.name))
-        await pilot.press("ctrl+/")
+        app.editor.execute_action("toggle_keymap")
         await pilot.pause()
         checks.append(Check("back_to_vsc", "vsc", app.editor.keymaps.name))
         rows = snapshot_svg(app, tmp)

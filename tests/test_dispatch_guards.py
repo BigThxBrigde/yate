@@ -55,8 +55,9 @@ def test_vim_mode_keeps_global_chords_reachable(tmp_path: Path) -> None:
         app = YateApp(target=target)
         async with app.run_test(size=(100, 30)) as pilot:
             assert isinstance(app.focused, EditorView)
-            # --- toggle to vim (vsc consumes \x1f -> toggle_keymap)
-            app.editor.handle_raw_key("\x1f")
+            # --- toggle to vim through the shared keymap action
+            # (\x1f is now the comment key; the keymap chord is name-level)
+            app.editor.execute_action("toggle_keymap")
             assert app.editor.keymaps.active.name == "vim"
 
             # --- ctrl+p opens the palette although vim has no binding
@@ -67,10 +68,10 @@ def test_vim_mode_keeps_global_chords_reachable(tmp_path: Path) -> None:
             await pilot.pause()
             assert len(app.screen_stack) == 1
 
-            # --- ctrl+/ toggles back to vsc by either spelling
-            await pilot.press("ctrl+/")
+            # --- the shared keymap action toggles back to vsc and forward
+            app.editor.execute_action("toggle_keymap")
             assert app.editor.keymaps.active.name == "vsc"
-            app.editor.handle_raw_key("\x1f")
+            app.editor.execute_action("toggle_keymap")
             assert app.editor.keymaps.active.name == "vim"
 
             # --- ctrl+1 focuses the editor even from the explorer

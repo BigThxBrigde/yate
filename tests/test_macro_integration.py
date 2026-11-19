@@ -30,7 +30,7 @@ _RECORD = "f10"
 _PLAY = "f11"
 _REPLAY_LAST = "f12"
 _COMMAND = "f5"
-_TOGGLE_KEYMAP = "ctrl+/"
+_TOGGLE_KEYMAP = "toggle_keymap_action"
 _ESC = "escape"
 _USAGE = (
     "usage: :macro-record [reg] | :macro-stop | "
@@ -53,7 +53,14 @@ def _snapshot(app: YateApp) -> tuple[list[str], tuple[int, int]]:
 async def _press(pilot: Pilot[None], *keys: str) -> None:
     """Press *keys* in order, then let the app settle."""
     for key in keys:
-        await pilot.press(key)
+        if key == _TOGGLE_KEYMAP:
+            # Textual cannot synthesize ctrl+shift+/; invoke the same shared
+            # action the name-level dispatch branch calls (IKWNOG).
+            app = pilot.app
+            assert isinstance(app, YateApp)
+            app.editor.execute_action("toggle_keymap")
+        else:
+            await pilot.press(key)
     await pilot.pause()
 
 

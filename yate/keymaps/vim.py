@@ -46,6 +46,8 @@ from yate.keymaps.keys import (
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
     SOFT_WRAP_KEY,
+    TOGGLE_COMMENT_KEY,
+    TOGGLE_KEYMAP_KEY,
 )
 from yate.services.clipboard import copy_text, paste_text
 
@@ -155,6 +157,10 @@ class VimKeymap(Keymap):
         # Target named register of the armed operator (``"add``), consumed
         # when the operator resolves.
         self.op_register: str | None = None
+        # ``gc`` comment operator armed by the ``g`` prefix.  Deliberately
+        # separate from ``op``: comments run the shared action on a row span
+        # and must never enter the delete/yank/change text-object pipeline.
+        self.comment_pending = False
 
     # ------------------------------------------------------------------ help
 
@@ -203,6 +209,9 @@ class VimKeymap(Keymap):
             KeyBinding("d{motion}", "delete motion", "Delete over motion", EDT),
             KeyBinding("y{motion}", "yank motion", "Yank over motion", EDT),
             KeyBinding("c{motion}", "change motion", "Change over motion", EDT),
+            KeyBinding("gcc", "toggle comment", "Toggle comment on current line", EDT),
+            KeyBinding("gc{motion}", "toggle comment motion",
+                       "Toggle comment over motion", EDT),
             KeyBinding("{op}{i|a}{object}", "text object",
                 "Operate on a text object (iw aw i( i\" it ...)", EDT,
             ),
@@ -244,7 +253,12 @@ class VimKeymap(Keymap):
             KeyBinding(parse_key("<alt-shift-f>"), "file_manager",
                        "Open file manager", EDT,
             ),
-            KeyBinding("\x1f", "toggle_keymap", "Toggle vim/vsc keymap (ctrl+/)", HLP),
+            KeyBinding(parse_key(TOGGLE_COMMENT_KEY), "toggle_comment",
+                       "Toggle comment", EDT),
+            # Help-only: real ctrl+shift+/ dispatch is the name-based branch
+            # in editor_dispatch; the shared raw key stays the comment action.
+            KeyBinding(TOGGLE_KEYMAP_KEY, "toggle_keymap",
+                       "Toggle vim/vsc keymap (ctrl+shift+/)", HLP),
             KeyBinding(parse_key("<f9>"), "toggle_whichkey",
                        "Toggle the which-key panel", HLP),
             KeyBinding(parse_key(HOVER_DOC_KEY), "show_hover_docs",
@@ -268,16 +282,14 @@ class VimKeymap(Keymap):
     def handle_key(self, ctx: ActionContext, key: str) -> bool:
         """Dispatch one key according to the current vim mode.
 
-        The ctrl+/ keymap toggle and the function keys are handled before
-        mode dispatch (see the comment below); everything else routes to
-        the insert, visual or normal handler.
+        Function keys, navigation chords and the shared comment raw key are
+        handled before mode dispatch: Ctrl+/ runs ``toggle_comment`` in every
+        mode and drops half-finished state, and never flips the keymap (that
+        chord is intercepted by event.key name in editor_dispatch).
         """
-        # ctrl+/ is a raw (non-printable) key that never reaches mode dispatch;
-        # handle it first so the toggle works in every vim mode and drops any
-        # half-finished operator/count state.
-        if key == "\x1f":
+        if key == parse_key(TOGGLE_COMMENT_KEY):
             self._clear_pending()
-            ctx.ui.toggle_keymap()
+            ctx.ui.execute_action("toggle_comment")
             return True
         if key in _FUNCTION_KEYS:
             self._clear_pending()
@@ -357,6 +369,8 @@ class VimKeymap(Keymap):
             parts.append(self.obj_scope)
         if self.prefix is not None:
             parts.append(self.prefix)
+        if self.comment_pending:
+            parts.append("c")
         return "".join(parts)
 
     @override
@@ -400,8 +414,17 @@ class VimKeymap(Keymap):
                 ("{ B", f"{inner} braced block"),
                 ("< >", f"{inner} angle block"),
             )
+        if self.comment_pending:
+            return (
+                ("c", "toggle comment on this line (gcc)"),
+                *self._motion_hints(),
+                ("g", "go-to prefix (line 1)"),
+            )
         if self.prefix == "g":
-            return (("g", "go to line N / first line (gg) / display line (gj gk)"),)
+            return (
+                ("g", "go to line N / first line (gg) / display line (gj gk)"),
+                ("c", "toggle comment (gc{motion}, gcc)"),
+            )
         if self.prefix in _FIND_PREFIX_HINTS:
             return (_FIND_PREFIX_HINTS[self.prefix],)
         if self.prefix == "r":
@@ -478,6 +501,7 @@ class VimKeymap(Keymap):
         self.obj_scope = None
         self.op_count = None
         self.op_register = None
+        self.comment_pending = False
 
     # ------------------------------------------------------------- insert mode
 
@@ -574,6 +598,14 @@ class VimKeymap(Keymap):
             return True
         if self.prefix == "g" and key == "g":
             self._resolve_visual_gg(ctx)
+            return True
+        if self.prefix == "g" and key == "c":
+            self.prefix = None
+            self.count_str = ""
+            ui.execute_action("toggle_comment")
+            self.mode = VimMode.NORMAL
+            buf.clear_selection()
+            ui.message("-- NORMAL --")
             return True
         if self.prefix == "g" and key in ("j", "k"):
             # visual gj/gk: the injected display-line motion keeps operating
@@ -828,6 +860,8 @@ class VimKeymap(Keymap):
 
         # resolve an armed prefix: "g" completes on a second "g", the
         # find-char prefixes complete on their printable argument key
+        if self.comment_pending and self._resolve_comment_motion(ctx, key):
+            return True
         if self.prefix == "g" and key == "g":
             self._resolve_gg(ctx)
             return True
@@ -841,6 +875,10 @@ class VimKeymap(Keymap):
                 ui.move_display_line(1 if key == "j" else -1, count, False)
             else:
                 self._motion(ctx, key, count, select=False)
+            return True
+        if self.prefix == "g" and key == "c":
+            self.prefix = None
+            self.comment_pending = True
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
             # no None guard needed here: the tuple test above already
@@ -1185,6 +1223,51 @@ class VimKeymap(Keymap):
             # change: the merged remains collapse into one empty line
             self._store_deleted(buf, buf.delete_selection(), reg)
             self._enter_insert(ui)
+
+    def _resolve_comment_motion(self, ctx: ActionContext, key: str) -> bool:
+        """Complete ``gc{motion}`` / ``gcc`` with the shared comment action.
+
+        ``gcc`` (including a count) selects whole rows from the cursor and
+        runs ``toggle_comment``.  A motion key is replayed with ``select=True``
+        so the buffer carries a real row span; ``j`` / ``k`` / ``G`` are
+        linewise, while word motions keep whatever rows they touch.  Unknown
+        followers cancel ``gc`` and fall through as fresh NORMAL keys, never
+        leaking into the operator pipeline.
+        """
+        buf = ctx.buffer
+        if key == "c":
+            count = self._take_count()
+            row = buf.row
+            last = min(row + count - 1, len(buf.lines) - 1)
+            self._clear_pending()
+            self._exit_multi(buf)
+            buf.set_cursor((row, 0))
+            buf.set_cursor((last, len(buf.lines[last])), select=True)
+            ctx.ui.execute_action("toggle_comment")
+            buf.clear_selection()
+            buf.set_cursor((row, 0))
+            buf.move_line_start(toggle=False)
+            return True
+        if key in _ARROW:
+            code = _ARROW[key]
+        elif key in _MOTION_CODES:
+            code = key
+        else:
+            self._clear_pending()
+            return False
+        count = self._typed_count() or 1
+        self._clear_pending()
+        self._exit_multi(buf)
+        start = buf.cursor
+        buf.anchor = start
+        self._motion(ctx, code, count, select=True)
+        if start == buf.cursor:
+            buf.clear_selection()
+            return True
+        ctx.ui.execute_action("toggle_comment")
+        buf.clear_selection()
+        buf.set_cursor(start)
+        return True
 
     def _resolve_gg(self, ctx: ActionContext) -> None:
         """Complete ``gg``: a jump, or a linewise span for a pending operator."""

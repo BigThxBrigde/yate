@@ -89,7 +89,7 @@ class HelpScreen(_OverlayScreen):
         text.append(f"{KEYBOARD}  YATE — KEYBOARD REFERENCE\n",
                     style=f"bold {t.accent}")
         text.append(f"keymap: {self.keymaps.name}    "
-                    f"(toggle with ctrl+/ or :set keymap=vsc|vim)\n\n",
+                    f"(toggle with ctrl+shift+/ or :set keymap=vsc|vim)\n\n",
                     style=t.fg_muted)
 
         km = self.keymaps.active

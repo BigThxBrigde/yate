@@ -63,7 +63,10 @@ which-key 面板是 yate 的键位表速查窗口。当一个按键组合（chor
 软换行（soft wrap）：`alt+z` 在两套键位中都可切换软换行显示（各自键位表中的普通
 表行，因此永远不会出现在挂起弦候选里）。vim 独有的 `gj` / `gk` 按
 显示行移动；它们是 `g` 前缀的补全，按下 `g` 后挂起弦提示行显示
-"go to line N / first line (gg) / display line (gj gk)"。
+"go to line N / first line (gg) / display line (gj gk)"，并多出一行 `c`
+注释操作提示。按下 `gc` 进入注释挂起态：`gcc` 切换当前行、`gc{motion}`
+切换 motion 覆盖的行，表头显示 `c` 并列出可续接的 motion；VISUAL 模式下
+`gc` 直接切换选区。
 
 宏录制与回放新增三条共享功能键绑定（`F10` 录制开关、`F11` 回放、
 `F12` 重复上次回放）。按下 `F10` 或 `F11` 后等待一个 `a-z0-9` 范围内的

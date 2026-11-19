@@ -191,7 +191,7 @@ def test_f7_shows_hover_docs_in_vsc_keymap(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_f7_shows_hover_docs_in_vim_keymap_after_ctrl_slash_toggle(
+def test_f7_shows_hover_docs_in_vim_keymap_after_keymap_toggle(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
@@ -199,7 +199,7 @@ def test_f7_shows_hover_docs_in_vim_keymap_after_ctrl_slash_toggle(
         holder: list[_HoverFakeClient] = []
         async with app.run_test(size=(100, 30)) as pilot:
             client = await _make_ready(pilot, app, holder)
-            await pilot.press("ctrl+/")
+            app.editor.execute_action("toggle_keymap")
             assert app.editor.keymaps.active.name == "vim"
             await pilot.press("f7")
             shown = await wait_until(

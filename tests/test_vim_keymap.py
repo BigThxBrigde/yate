@@ -742,13 +742,16 @@ def test_escape_clears_a_pending_operator_and_count() -> None:
     assert editor.buffer.get_text() == "bc"
 
 
-def test_ctrl_slash_toggles_the_keymap_and_clears_state() -> None:
-    """ctrl+/ works in every mode and drops pending state."""
+def test_ctrl_slash_toggles_comment_and_clears_state() -> None:
+    """ctrl+/ comments in every mode, drops pending state, never flips keymap."""
     editor, keymap, ctx = _setup("abc")
+    editor.doc.filetype_override = "py"
     _press(keymap, ctx, "3", "d", CTRL_SLASH)
-    assert editor.prompts[-1] == ("toggle", True)
+    assert editor.buffer.get_text() == "# abc"
+    assert not any(prompt == ("toggle", True) for prompt in editor.prompts)
+    assert editor.buffer.cursor == (0, 0)  # original column, no pending count
     _press(keymap, ctx, "x")
-    assert editor.buffer.get_text() == "bc"
+    assert editor.buffer.get_text() == " abc"
 
 
 def test_function_keys_run_their_actions() -> None:
@@ -1971,6 +1974,7 @@ def test_chord_hints_list_prefix_followers() -> None:
     keymap.handle_key(ctx, "g")
     assert keymap.chord_hints() == (
         ("g", "go to line N / first line (gg) / display line (gj gk)"),
+        ("c", "toggle comment (gc{motion}, gcc)"),
     )
 
 

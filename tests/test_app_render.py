@@ -120,7 +120,7 @@ def test_welcome_rows_cached_per_theme_and_keymap() -> None:
             assert editor._welcome_lines(theme.active(), vim_keys=False) is first
 
             # keymap switch changes the cache key -> rows rebuilt
-            await pilot.press("ctrl+/")
+            app.editor.execute_action("toggle_keymap")
             assert editor.keymaps.name == "vim"
             vim_rows = editor._welcome_lines(theme.active(), vim_keys=True)
             assert vim_rows is not first

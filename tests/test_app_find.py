@@ -114,10 +114,12 @@ def test_command_line_closes_without_a_message() -> None:
     asyncio.run(scenario())
 
 
-def test_ctrl_slash_toggles_back_from_vim_keymap() -> None:
-    """``ctrl+/`` is bidirectional: the vim keymap must return to vsc.
+def test_ctrl_slash_comments_in_vim_and_keymap_toggle_is_separate() -> None:
+    """``ctrl+/`` only toggles comments; the keymap chord is a distinct action.
 
-    The manual promises a two-way toggle, so the binding is not vsc-only.
+    Both keymaps resolve the shared raw byte to ``toggle_comment``; switching
+    keymaps goes through the dedicated ``toggle_keymap`` action (driven by the
+    name-level chord at dispatch time).
     """
 
     async def scenario() -> None:
@@ -127,12 +129,14 @@ def test_ctrl_slash_toggles_back_from_vim_keymap() -> None:
             assert app.editor.keymaps.name == "vim"
             binding = app.editor.keymaps.active.lookup("\x1f")
             assert binding is not None
-            assert binding.action == "toggle_keymap"
+            assert binding.action == "toggle_comment"
             await pilot.press("ctrl+/")
             await pilot.pause()
+            assert app.editor.keymaps.name == "vim"  # never flips the keymap
+            app.editor.execute_action("toggle_keymap")
+            await pilot.pause()
             assert app.editor.keymaps.name == "vsc"
-            # and back the other way, now through the vsc keymap
-            await pilot.press("ctrl+/")
+            app.editor.execute_action("toggle_keymap")
             await pilot.pause()
             assert app.editor.keymaps.name == "vim"
 
@@ -140,7 +144,7 @@ def test_ctrl_slash_toggles_back_from_vim_keymap() -> None:
 
 
 def test_ctrl_slash_drops_pending_vim_state() -> None:
-    """Toggling from vim must not leave a half-finished operator behind."""
+    """Commenting from vim must not leave a half-finished operator behind."""
 
     async def scenario() -> None:
         app = YateApp(keymap="vim")
@@ -152,7 +156,7 @@ def test_ctrl_slash_drops_pending_vim_state() -> None:
             assert vim.op == "d"
             await pilot.press("ctrl+/")
             await pilot.pause()
-            assert app.editor.keymaps.name == "vsc"
+            assert app.editor.keymaps.name == "vim"
             assert vim.op is None
             assert vim.count_str == ""
 

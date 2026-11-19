@@ -332,8 +332,13 @@ yate 内置两套键位：
 
 | 方式 | 操作 |
 |---|---|
-| 会话内切换 | `Ctrl+/`（部分终端发送 `Ctrl+_`）在两套键位间切换 |
+| 会话内切换 | `Ctrl+Shift+/` 在两套键位间切换（两套键位共用这一个 chord） |
 | 命令 | `:set keymap=vsc` / `:set keymap=vim`；快捷别名 `:vsc`、`:vim`、`:normal`（`:normal` 是 `:vsc` 的别名） |
+
+> **不兼容变更（IKWNOG）**：`Ctrl+/`（部分终端发送 `Ctrl+_`）现在在两套键位下
+> 都是**切换行/块注释**，不再切换键位；`Ctrl+Shift+/` 是新的键位切换键。
+> 无法区分 shift chord 的传统终端仍会把两者都发成 `Ctrl+/`；此类终端请用
+> `:set keymap=vsc|vim`（或 `:vsc` / `:vim`）切换，`Ctrl+/` 始终只切换注释。
 | 配置 | yaterc 中 `keymap = "vsc"` 或 `"vim"` |
 | 命令行 | `yate --keymap vim`（优先级高于 yaterc） |
 
@@ -454,7 +459,9 @@ yate 内置两套键位：
 | `Alt+Shift+P` | 命令面板（执行任意 `:` 命令） |
 | `Alt+Shift+F` | 打开文件管理器（同 `:file-manager`） |
 | `F5` | 命令行（ex 命令：`:w` `:q` `:e` 等，`Esc` 退出） |
-| `Ctrl+/` | 切换 vsc / vim 键位 |
+| `Ctrl+/` | 切换当前行 / 选区的注释（传统终端为 `Ctrl+_`） |
+| `Ctrl+Shift+/` | 切换 vsc / vim 键位 |
+| `:toggle-comment` | 与 `Ctrl+/` 相同的注释切换入口 |
 | `Ctrl+E` / `Ctrl+Shift+E` | 聚焦文件树（`Ctrl+Shift+E` 同 VS Code） |
 | `Ctrl+1` | 聚焦编辑器（同 VS Code） |
 | `Ctrl+B` | 显示 / 隐藏文件树（`:explorer` 同效） |
@@ -484,6 +491,8 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 （CSI-u 序列）的终端（kitty、WezTerm 等）可达；其它终端请改用命令面板
 （`Alt+Shift+P`）或 `:` 命令行。
 `Ctrl+P`、`Ctrl+/`、`Ctrl+Q`、`Ctrl+W`、`Ctrl+Shift+E` 与各功能键在所有终端均可用。
+`Ctrl+Shift+/` 需要驱动/终端能上报 shift 组合（`ctrl+shift+/` 或 `ctrl+shift+slash`）；
+传统终端请改用 `:set keymap=vsc|vim` 切换键位。
 
 跳转历史键位 `<alt-left>` / `<alt-right>` 对应 xterm 风格的 Alt+方向键序列
 `\x1b[1;3D` / `\x1b[1;3C`：Windows 和弦驱动会把 Alt+左 / Alt+右 归一化为
@@ -520,6 +529,7 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 | `Ctrl+D` / `Ctrl+U` | 下移 / 上移半页 |
 | `Ctrl+F` / `Ctrl+B` | 下翻 / 上翻一页 |
 | `gj` / `gk` | 按显示行下移 / 上移（软换行开启时可停在续行；关闭时退化为逻辑行移动；计数按显示行生效） |
+| `gcc` / `gc{motion}` | 切换当前行 / motion 覆盖行的注释（如 `gcj`、`2gck`）；VISUAL 模式 `gc` 切换选区；注释符取自文件类型 |
 | `<alt-left>` | 在跳转历史中回退（`jump_back`） |
 | `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
 | `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
@@ -1497,7 +1507,8 @@ vsc 键位（默认）：
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | 剪切 / 复制 / 粘贴 | `Ctrl+B` | 显隐文件树 |
 | `Ctrl+A` | 全选 | `Ctrl+E` | 聚焦文件树 |
 | `Ctrl+D` | 复制行/选区 | `F2` / `F5` | Shell 命令 / 命令行 |
-| `Ctrl+Shift+K` | 删除行 | `Ctrl+/` | 切换键位 |
+| `Ctrl+Shift+K` | 删除行 | `Ctrl+/` | 切换注释 |
+| `Ctrl+Shift+/` | 切换键位 | | |
 | `Alt+↑` / `Alt+↓` | 移动行 | `Ctrl+PageUp`/`PageDown` | 切换标签 |
 | `Ctrl+]` / `Shift+Tab` | 缩进 / 反缩进 | `F1` | 键位帮助 |
 | `Ctrl+J` | 合并行 | `F8` | 用户手册 |

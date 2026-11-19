@@ -505,8 +505,12 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **44 个用例**（2026-11-18 pr-review 实测复核：
-`python -m pytest tests/test_architecture.py -q` → `44 passed`；soft-wrap IKVRXT
+`tests/test_architecture.py` 已落地 **45 个用例**（2026-11-19 toggle-comment IKWNOG
+实测 `45 passed`；新增 `test_toggle_comment_keys_are_shared_and_identical`：
+vsc / vim 的 `build_bindings` 都引用 `TOGGLE_COMMENT_KEY` / `TOGGLE_KEYMAP_KEY`
+且不写字面量，两套表同一 raw 键解析到 `toggle_comment`、同一 chord 名解析到
+`toggle_keymap`；已做单侧字面量负向演练确认失败后还原）。此前 2026-11-18 pr-review
+实测复核为 `44 passed`；soft-wrap IKVRXT
 新增 `test_soft_wrap_key_is_shared_and_identical`、!140 marks/jumplist 新增
 `test_jumplist_keys_are_shared_and_identical`；2026-11-16 option-spec-unify
 wave-3 新增 1 条守卫 `test_option_definitions_have_single_source`）；
@@ -633,7 +637,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**44 个用例逐条对照**（2026-11-18 实测 `44 passed`；2026-11-16 为 `42 passed`，2026-11-12 为 `41 passed`，
+**45 个用例逐条对照**（2026-11-19 实测 `45 passed`；2026-11-18 为 `44 passed`，2026-11-16 为 `42 passed`，2026-11-12 为 `41 passed`，
 2026-11-09 为 `38 passed`，2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，
 2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
@@ -683,6 +687,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 | 42 | `test_option_definitions_have_single_source` | 选项定义单一来源（2026-11-16 option-spec-unify wave-3：文本断言 `config.py` 持有 `OPTION_SPECS` 且 `terminal_height` 的 `(3, 40)` 只在此声明，`yaterc_options.py::_extract_options` 遍历该表且不再内联逐项校验，`commands.py::_make_set_completer` 走 `set_option_value_candidates` 且无 `("vsc", "vim")` 字面量；负向演练两处回归均令守卫失败后还原） |
 | 43 | `test_soft_wrap_key_is_shared_and_identical` | AC 统一键位漂移守卫（2026-11-16 soft-wrap IKVRXT：AST 断言 vsc / vim 的 `build_bindings` 都引用 `SOFT_WRAP_KEY` 且无 `<alt-z>` 字面量；运行时断言两套表同一 raw 键解析到 `toggle_soft_wrap`） |
 | 44 | `test_jumplist_keys_are_shared_and_identical` | AC 统一键位漂移守卫（!140 marks/jumplist：AST 断言 vsc / vim 的 `build_bindings` 都引用 `JUMPLIST_*_KEY` 共享常量；运行时断言两套表同一 raw 键解析到同一跳转动作名） |
+| 45 | `test_toggle_comment_keys_are_shared_and_identical` | IKWNOG 注释/切键位漂移守卫（AST 断言两套表 `build_bindings` 共引 `TOGGLE_COMMENT_KEY` / `TOGGLE_KEYMAP_KEY` 且不写 `\x1f` 等字面量；运行时断言 raw 键统一为 `toggle_comment`、chord 名统一为 `toggle_keymap`） |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 
