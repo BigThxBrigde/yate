@@ -351,7 +351,14 @@ def test_two_panes_keep_independent_wrap_caches(tmp_path: Path) -> None:
             await pilot.pause()
             editor = app.editor
             editor.run_command("vsplit")
-            assert await wait_until(pilot, lambda: editor.panes.leaf_count == 2)
+            # leaf_count flips before the host reconciles the widget subtree:
+            # all_views() can still be empty while the old views are removed
+            # and the rebuilt tree is mounted.
+            assert await wait_until(
+                pilot,
+                lambda: editor.panes.leaf_count == 2
+                and len(editor.panes.all_views()) == 2,
+            )
             views = editor.panes.all_views()
             assert len(views) == 2
             view_a = editor.panes.active_view
