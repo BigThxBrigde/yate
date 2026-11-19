@@ -116,9 +116,9 @@ def test_type_save_find_help_keymap(tmp_path: Path) -> None:
             assert len(app.editor.session.search.matches) >= 1
             assert app.focused == app.editor.panes.active_view
 
-            # --- switch keymap to vim via the vsc toggle (the ":" ex
-            # command line is vim-only; vsc mode types ":" literally)
-            await pilot.press("ctrl+/")
+            # --- switch keymap to vim through the shared toggle action
+            # (the ":" ex command line is vim-only; vsc types ":" literally)
+            app.editor.execute_action("toggle_keymap")
             assert app.editor.keymaps.name == "vim"
 
             # --- vim append-at-line-end then escape (clear the search

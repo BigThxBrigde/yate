@@ -79,8 +79,9 @@ async def _hover_docs_key_is_silent_without_a_server_in_both_keymaps(
             )
         )
 
-        # Phase 2: switch to vim, press the same key again.
-        await pilot.press("ctrl+/")
+        # Phase 2: switch to vim through the shared keymap action, then
+        # press the hover key again (ctrl+/ now toggles comments, IKWNOG).
+        app.editor.execute_action("toggle_keymap")
         await pilot.pause()
         checks.append(Check("keymap", "vim", app.editor.keymaps.name))
         # The toggle itself reports "keymap: Vim (modal)" on the message

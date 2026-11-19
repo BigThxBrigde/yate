@@ -105,7 +105,7 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
         checks.append(Check("theme_back", "mocha", theme.active().name))
         checks.append(Check("textual_theme_back", start_theme, str(app.theme)))
         for _ in range(10):
-            await pilot.press("ctrl+/")
+            app.editor.execute_action("toggle_keymap")
         await pilot.pause()
         checks.append(Check("keymap_back", start_keymap, app.editor.keymaps.name))
         # Rapid toggling must never wedge the sidebar: after the storm the
