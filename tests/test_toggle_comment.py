@@ -22,26 +22,44 @@ from conftest import make_action_context, make_key_ui
 def _dispatch_stub() -> SimpleNamespace:
     """A tiny editor stand-in exposing only the fields _handle_key reads."""
     calls: list[str] = []
+
+    def try_window_prefix(event: Key) -> bool:
+        return False
+
+    def request_completion(manual: bool) -> None:
+        return None
+
+    def execute_action(name: str) -> bool:
+        calls.append(f"action:{name}")
+        return True
+
+    def handle_raw_key(raw: str) -> bool:
+        calls.append(f"raw:{raw!r}")
+        return True
+
+    def record_message(text: str, kind: str = "info") -> None:
+        calls.append(f"message:{text}")
+
     return SimpleNamespace(
         calls=calls,
         app=SimpleNamespace(focused=None),
         hover=SimpleNamespace(dismiss=lambda: None),
         completion_popup=SimpleNamespace(is_open=False),
-        window_flows=SimpleNamespace(try_window_prefix=lambda event: False),
+        window_flows=SimpleNamespace(try_window_prefix=try_window_prefix),
         prompt_bar=SimpleNamespace(active_mode=""),
-        completion=SimpleNamespace(request=lambda manual: None),
+        completion=SimpleNamespace(request=request_completion),
         overlays=SimpleNamespace(
             open_command_palette=lambda: None,
             open_file_palette=lambda: None,
         ),
         completion_popup_actions=None,
         has_modal_screen=lambda: False,
-        execute_action=lambda name: calls.append(f"action:{name}") or True,
+        execute_action=execute_action,
         focus_explorer=lambda: calls.append("focus_explorer"),
         focus_editor=lambda: calls.append("focus_editor"),
         explorer_focused=lambda: False,
-        handle_raw_key=lambda raw: calls.append(f"raw:{raw!r}") or True,
-        message=lambda text, kind="info": calls.append(f"message:{text}"),
+        handle_raw_key=handle_raw_key,
+        message=record_message,
         refresh_ui=lambda: None,
         terminal_panel=SimpleNamespace(toggle=lambda: None),
     )
@@ -117,7 +135,11 @@ def test_action_is_one_undo_step() -> None:
 
 def test_toggle_comment_command_forwards_to_action() -> None:
     calls: list[str] = []
-    editor = SimpleNamespace(execute_action=lambda name: calls.append(name))
+
+    def record_action(name: str) -> None:
+        calls.append(name)
+
+    editor = SimpleNamespace(execute_action=record_action)
     commands = CommandRegistry()
     register_commands(commands, cast(Any, editor))
 
