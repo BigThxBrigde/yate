@@ -535,6 +535,13 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
         editor.overlays.show_changelog(args or "en")
 
     def _toggle_comment(args: str) -> None:
+        if args.strip():
+            editor.message(
+                "usage: :toggle-comment takes no arguments; "
+                "select rows or move the cursor first",
+                kind="warn",
+            )
+            return
         editor.execute_action("toggle_comment")
 
     reg("vim", _vim, "switch to vim key map")

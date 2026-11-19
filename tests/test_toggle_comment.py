@@ -138,20 +138,45 @@ def test_action_is_one_undo_step() -> None:
     assert ctx.buffer.lines == ["a", "b", ""]
 
 
-def test_toggle_comment_command_forwards_to_action() -> None:
-    calls: list[str] = []
+def _command_editor(calls: list[str]) -> SimpleNamespace:
+    """A minimal editor stub recording actions and message kinds."""
 
     def record_action(name: str) -> None:
-        calls.append(name)
+        calls.append(f"action:{name}")
 
-    editor = SimpleNamespace(execute_action=record_action)
+    def record_message(text: str, kind: str = "info") -> None:
+        calls.append(f"{kind}:{text}")
+
+    return SimpleNamespace(
+        execute_action=record_action,
+        message=record_message,
+    )
+
+
+def test_toggle_comment_command_forwards_to_action() -> None:
+    calls: list[str] = []
     commands = CommandRegistry()
-    register_commands(commands, cast(Any, editor))
+    register_commands(commands, cast(Any, _command_editor(calls)))
 
     command = commands.get("toggle-comment")
     assert command is not None
     command.func("")
-    assert calls == ["toggle_comment"]
+    assert calls == ["action:toggle_comment"]
+
+
+def test_toggle_comment_command_rejects_arguments() -> None:
+    calls: list[str] = []
+    commands = CommandRegistry()
+    register_commands(commands, cast(Any, _command_editor(calls)))
+
+    command = commands.get("toggle-comment")
+    assert command is not None
+    command.func("extra")
+
+    assert calls == [
+        "warn:usage: :toggle-comment takes no arguments; "
+        "select rows or move the cursor first"
+    ]
 
 
 def test_ctrl_shift_slash_switches_keymap_only() -> None:
