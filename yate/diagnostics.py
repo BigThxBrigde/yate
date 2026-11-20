@@ -16,6 +16,7 @@ import os
 import platform
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from pathlib import Path
@@ -52,7 +53,7 @@ class DiagnosticsInput:
     ext_files: tuple[Path, ...]
     loaded_extensions: tuple[LoadedExtension, ...]
     lsp_configs: tuple[ServerConfig, ...]
-    lsp_states: dict[str, ServerState]
+    lsp_states: Mapping[str, ServerState]
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.

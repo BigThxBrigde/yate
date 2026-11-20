@@ -12,7 +12,8 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, override
+from types import MappingProxyType
+from typing import Any, cast, override
 from unittest.mock import patch
 
 import pytest
@@ -55,7 +56,7 @@ def _snapshot(editor: Editor) -> diagnostics.DiagnosticsInput:
         ext_files=tuple(editor.ext_files),
         loaded_extensions=tuple(editor.extension_loader.loaded),
         lsp_configs=tuple(editor.lsp.configs()),
-        lsp_states=editor.lsp.states(),
+        lsp_states=MappingProxyType(dict(editor.lsp.states())),
     )
 
 
@@ -614,6 +615,8 @@ def test_diagnostics_input_snapshot_is_read_only() -> None:
     # Frozen dataclass: mutating a tuple field must raise.
     with pytest.raises(AttributeError):
         setattr(snapshot, "ext_files", ())
+    with pytest.raises(TypeError):
+        cast(dict[str, object], snapshot.lsp_states)["extra"] = None
     # Mutating unrelated live-editor state leaves the report byte-identical.
     app.editor.startup_readonly = not app.editor.startup_readonly
     assert diagnostics.format_report(snapshot) == before

@@ -14,6 +14,7 @@ import platform
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from types import MappingProxyType
 
 from yate import __description__, __version__
 from yate.logs import tracing
@@ -523,7 +524,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ext_files=tuple(editor.ext_files),
                 loaded_extensions=tuple(editor.extension_loader.loaded),
                 lsp_configs=tuple(editor.lsp.configs()),
-                lsp_states=editor.lsp.states(),
+                lsp_states=MappingProxyType(dict(editor.lsp.states())),
             )
 
         app = YateApp(
