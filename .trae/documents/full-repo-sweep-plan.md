@@ -111,3 +111,17 @@ flowchart TD
 - P3 suspects: all four registered with profiler/real-load reasons in `full-repo-sweep-plans/overview.md`; no product change.
 - Late executor handoff: R3's executor had asked the main agent to correct the architecture Mermaid edge `ED --> DIAG`; done in the final docs commit by replacing it with the L4 snapshot-injection edge, and the 46 architecture guards were re-run.
 - All acceptance checkboxes of the issue are closed; no blocker/major remains after wave 5.
+
+## 8. Retry of the two zero-output roles (2026-11-21)
+
+User asked to continue the failed subtasks. Per `task-orchestration.md` §一.3.5 and
+`subagent-workflow.md` §五.4, each role gets **one** changed-config retry:
+
+| Role | Failure | Changed config | Exclusive output | Success criterion |
+|---|---|---|---|---|
+| `plan-architect-designer` | spawn error `Model "qwen-3.8-plus" not found` | `[model: Hy4 preview]` stated in the task book; `bypassPermissions` | append §9 validation to this file only | confirms all 14 findings + acceptance have plan coverage, or reports a concrete gap |
+| `code-review-expert` | >30 min, no reply, no report | narrower scope (final 3 commits only), `acceptEdits` | new `.trae/reviews/2026-11-21-full-repo-sweep-independent-review.md` only | structured blocker/major/minor list with file:line evidence plus re-run gate numbers |
+
+Both are read-only with respect to product code. Dead-judgement window: 30 minutes
+with zero reply **and** zero file changes. On failure, main agent records "subagent
+zero-output" and does the fallback itself; no same-config respawn.
