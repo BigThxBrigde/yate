@@ -8,6 +8,7 @@ cross-directory copy / move with explicit existing-target rejection.
 
 from __future__ import annotations
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -184,3 +185,66 @@ def test_copy_move_reject_escape_via_existing_target(tmp_path: Path) -> None:
     with pytest.raises(FileExistsError):
         ws.move_entry(source, dest_dir)
     assert (dest_dir / "file.txt").read_text() == "keep me"
+
+
+def test_move_entry_rejects_moving_dir_into_own_subtree(tmp_path: Path) -> None:
+    """Moving a directory into its own subtree is refused via OSError.
+
+    ``shutil.move`` would otherwise recursively copy the source into
+    itself while consuming it; the guard must raise before touching
+    anything, leaving the source tree intact.
+    """
+    ws = Workspace()
+    src_dir = tmp_path / "src"
+    (src_dir / "child").mkdir(parents=True)
+    make_source_file(src_dir)
+
+    with pytest.raises(OSError, match="cannot move src into itself"):
+        ws.move_entry(src_dir, src_dir / "child")
+    assert src_dir.exists()
+    assert (src_dir / "child").exists()
+
+
+def test_move_entry_rejects_self_nesting_across_mocked_volume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The self-nesting guard fires before ``shutil.move`` is reached.
+
+    A mocked ``shutil.move`` that raises ``AssertionError`` if called
+    covers the cross-volume recursion branch without real volumes: the
+    guard must reject the move before the cross-volume copy path runs.
+    """
+    ws = Workspace()
+    src_dir = tmp_path / "src"
+    (src_dir / "child").mkdir(parents=True)
+    make_source_file(src_dir)
+
+    def fake_move(src: str, dst: str) -> str:
+        raise AssertionError("shutil.move must not be called")
+
+    monkeypatch.setattr(shutil, "move", fake_move)
+    with pytest.raises(OSError):
+        ws.move_entry(src_dir, src_dir / "child")
+
+
+def test_move_entry_same_dir_target_still_raises_file_exists_error(
+    tmp_path: Path,
+) -> None:
+    """The existing-target rejection keeps its ``FileExistsError`` type
+    and a regular unrelated move still returns the expected path."""
+    ws = Workspace()
+    source = make_source_file(tmp_path)
+    dest_dir = tmp_path / "dir_b"
+    dest_dir.mkdir()
+    (dest_dir / "file.txt").write_text("occupied")
+
+    with pytest.raises(FileExistsError):
+        ws.move_entry(source, dest_dir)
+    assert source.exists()  # the source is untouched on rejection
+
+    other_dir = tmp_path / "dir_c"
+    other_dir.mkdir()
+    moved = ws.move_entry(source, other_dir)
+    assert moved == other_dir / "file.txt"
+    assert moved.read_text() == "hello"

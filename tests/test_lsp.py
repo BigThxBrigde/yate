@@ -946,6 +946,176 @@ def test_diagnostics_delivery_and_queries(session: ManagerSession) -> None:
     asyncio.run(scenario())
 
 
+def _diag_payload(
+    start_row: int, start_col: int, end_row: int, end_col: int,
+    severity: int, message: str,
+) -> dict[str, Any]:
+    """Build one textDocument/publishDiagnostics entry."""
+    return {
+        "range": {
+            "start": {"line": start_row, "character": start_col},
+            "end": {"line": end_row, "character": end_col},
+        },
+        "severity": severity, "message": message,
+    }
+
+
+def _diagnostic_at_reference(
+    diags: list[Diagnostic], row: int, col: int
+) -> Diagnostic | None:
+    """The exact pre-index ``diagnostic_at`` loop over the full table."""
+    best: Diagnostic | None = None
+    for d in diags:
+        if d.start_row <= row <= d.end_row:
+            if d.start_row == d.end_row:
+                covers = d.start_col <= col < max(d.end_col, d.start_col + 1)
+            elif row == d.start_row:
+                covers = col >= d.start_col
+            elif row == d.end_row:
+                covers = col <= d.end_col
+            else:
+                covers = True
+            if covers and (best is None or d.severity < best.severity):
+                best = d
+    return best
+
+
+def _manager_with_fakes() -> tuple[LspManager, list[FakeClient]]:
+    """A manager wired so fake notifications reach ``handle_notification``."""
+    fakes: list[FakeClient] = []
+    mgr = LspManager()
+
+    def factory(config: ServerConfig, path: Path) -> FakeClient:
+        def on_notification(method: str, params: dict[str, Any]) -> None:
+            mgr.handle_notification(method, params)
+
+        fake = FakeClient(config, path, on_notification=on_notification)
+        fakes.append(fake)
+        return fake
+
+    mgr.set_client_factory(cast(Any, factory))
+    mgr.register_server(PY_CONFIG)
+    return mgr, fakes
+
+
+def test_diagnostic_at_matches_linear_reference_for_multirow_matrix(
+    tmp_path: Path,
+) -> None:
+    """P1: per-row-index ``diagnostic_at`` equals the old full-table scan
+    over a matrix of single-line, multi-line and zero-width diagnostics
+    (plus the pathless-document case)."""
+
+    async def scenario() -> None:
+        mgr, fakes = _manager_with_fakes()
+        doc = make_python_doc(str(tmp_path), "a\nb\nc\nd\ne\nf\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({"uri": uri, "diagnostics": [
+            _diag_payload(0, 0, 0, 1, 1, "single-0"),
+            _diag_payload(2, 2, 2, 6, 2, "single-2"),
+            _diag_payload(1, 1, 3, 3, 3, "multi-1-3"),
+            _diag_payload(4, 0, 4, 0, 2, "zero-width-4"),
+            _diag_payload(0, 3, 5, 0, 4, "multi-0-5"),
+            _diag_payload(3, 0, 3, 0, 1, "zero-width-3"),
+        ]})
+
+        none_doc = Document()
+        for row in range(7):
+            for col in range(7):
+                got = mgr.diagnostic_at(doc, row, col)
+                want = _diagnostic_at_reference(
+                    mgr.diagnostics_for(doc), row, col
+                )
+                assert (got is None) == (want is None)
+                if got is not None and want is not None:
+                    assert got.severity == want.severity
+                    assert got.start_row == want.start_row
+                    assert got.start_col == want.start_col
+                # A pathless document has no table and no hits, matching
+                # ``diagnostics_for``.
+                assert mgr.diagnostic_at(none_doc, row, col) is None
+                assert mgr.diagnostics_for(none_doc) == []
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_diagnostic_at_prefers_most_severe_on_same_row(tmp_path: Path) -> None:
+    """P1: among same-row candidates the smallest severity wins and a
+    severity tie keeps the earlier-published diagnostic."""
+
+    async def scenario() -> None:
+        mgr, fakes = _manager_with_fakes()
+        doc = make_python_doc(str(tmp_path), "abcdef\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({"uri": uri, "diagnostics": [
+            _diag_payload(0, 0, 0, 6, 3, "hint"),
+            _diag_payload(0, 0, 0, 6, 1, "error"),
+            _diag_payload(0, 0, 0, 6, 2, "warn"),
+        ]})
+        got = mgr.diagnostic_at(doc, 0, 3)
+        assert got is not None
+        assert (got.severity, got.message) == (1, "error")
+
+        # Severity tie: the earlier-published one wins.
+        client.publish({"uri": uri, "diagnostics": [
+            _diag_payload(0, 0, 0, 6, 1, "first"),
+            _diag_payload(0, 0, 0, 6, 1, "second"),
+        ]})
+        got = mgr.diagnostic_at(doc, 0, 3)
+        assert got is not None
+        assert got.message == "first"
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_diagnostic_at_large_d_uses_row_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1: ``diagnostic_at`` answers from the per-row index without
+    copying the full diagnostics table."""
+
+    async def scenario() -> None:
+        mgr, fakes = _manager_with_fakes()
+        doc = make_python_doc(str(tmp_path), "\n" * 50)
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        raw = [
+            _diag_payload(0, 0, 0, 1, 4, f"noise-{i}") for i in range(2000)
+        ]
+        raw.append(_diag_payload(40, 0, 40, 1, 2, "row-40"))
+        raw.append(_diag_payload(38, 0, 42, 0, 1, "span-38-42"))
+        client.publish({"uri": uri, "diagnostics": raw})
+
+        got = mgr.diagnostic_at(doc, 40, 0)
+        assert got is not None
+        assert got.message == "span-38-42"
+
+        def boom(doc: Document) -> list[Diagnostic]:
+            raise AssertionError("full table copy used")
+
+        # The hot path must not touch the full-table copy at all.
+        monkeypatch.setattr(mgr, "diagnostics_for", boom)
+        got = mgr.diagnostic_at(doc, 40, 0)
+        monkeypatch.undo()
+        assert got is not None
+        assert got.message == "span-38-42"
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_diagnostics_row_index_multi_row_and_rebuild(tmp_path: Path) -> None:
     """P11: multi-row diagnostics are indexed on every covered row and a
     republish rebuilds the index so queries match the full-table filter."""

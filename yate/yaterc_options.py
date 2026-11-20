@@ -187,12 +187,15 @@ def _parse_journey_fraction(  # noqa: Any - raw yaterc value, parsed and validat
         numerator, slash, denominator = value.partition("/")
         if (
             slash
-            and numerator.strip().lstrip("-").isdigit()
-            and denominator.strip().lstrip("-").isdigit()
+            and numerator.strip().lstrip("-").isdecimal()
+            and denominator.strip().lstrip("-").isdecimal()
         ):
             bottom = int(denominator)
             if bottom != 0:
-                parsed = int(numerator) / bottom
+                try:
+                    parsed = int(numerator) / bottom
+                except ValueError:  # pragma: no cover - isdecimal() guards this
+                    parsed = None
     if parsed is None or not 0.0 < parsed < 1.0:
         config.errors.append(
             f"screen_saver {key} must be a float in (0, 1) or a fraction "

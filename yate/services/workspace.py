@@ -551,9 +551,22 @@ class Workspace:
         delete path).  Raises ``FileExistsError`` before touching anything
         when the target name is taken: ``shutil.move`` would otherwise
         overwrite a file target silently or merge into an existing
-        directory.
+        directory.  Moving a directory into its own subtree raises
+        ``OSError`` instead -- the same ancestor test as ``copy_entry``
+        -- so the rejection happens here, with a consistent message,
+        before ``shutil.move`` (or its cross-volume copy path) is
+        reached.
         """
         target = dest_dir / src.name
+        if src.is_dir():
+            try:
+                target.resolve().relative_to(src.resolve())
+            except ValueError:
+                pass
+            else:
+                # OSError, not ValueError: the screen's paste handler catches
+                # (FileExistsError, OSError) and reports on the input line.
+                raise OSError(f"cannot move {src.name} into itself")
         if target.exists():
             raise FileExistsError(f"{target.name} already exists")
         return Path(shutil.move(str(src), str(target)))
