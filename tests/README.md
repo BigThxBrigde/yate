@@ -11,9 +11,11 @@ same-named test files.
 ## Indirect coverage map (spot checks)
 
 This is a **spot-check map, not an exhaustive registry**: tests are organised
-by behaviour domain, so most modules have no same-named test file (2026-10-29
-measurement: 98 of the 134 `yate/` modules, counting `*.py` excluding
-`__init__.py`; `yate/` holds 150 `.py` files in total). Listed below are the
+by behaviour domain, so most modules have no same-named test file. No module
+counts are given here on purpose -- the authoritative inventory of `yate/`
+source files is guarded by `test_source_files_within_size_threshold` in
+`test_architecture.py` and the module-level constants defined there, so any
+count taken from those sources is current by construction. Listed below are the
 root modules whose indirect coverage is worth documenting explicitly, and the
 test files that cover them:
 

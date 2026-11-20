@@ -319,6 +319,9 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
+> **口径说明**：本表按 master 主线顺序编号；分支局部编号保留在各散文条目中，
+> 合并回 master 时按日期重排（见上方「编号分歧登记」）。
+
 | # | 日期 | 未闭环项 | 标记 | 出处 |
 |---|---|---|---|---|
 | 1 | 2026-09-16 | `ctrl+digit` 绑定使用 kitty 协议，多数终端不支持 | ✅ 已修（2026-10-01 回填：keybinding-fix-wt Phase B win32-input-mode 落地覆盖 WT（PB6 探针实证 ctrl+1 帧）；legacy 终端限制由 PB4 双语 manual 标注；conhost / VS Code 残留并入 #10 PB5 人工矩阵） | [2026-09-16-full-review.md](2026-09-16-full-review.md) |
