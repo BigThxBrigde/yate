@@ -1,6 +1,6 @@
 # D2: unify status blocks and remove a local path (plan i)
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`e6723300`，四份文档状态块统一）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
 

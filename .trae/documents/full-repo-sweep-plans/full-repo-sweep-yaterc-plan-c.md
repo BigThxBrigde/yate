@@ -1,6 +1,6 @@
 # B2: Unicode digit in screen-saver fraction (plan c)
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`ac4eda02`，负向用例先红后绿）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
 

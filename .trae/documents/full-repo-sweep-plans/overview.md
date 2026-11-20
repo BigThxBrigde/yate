@@ -1,6 +1,6 @@
 # Full-repo sweep fixes: sub-plan overview
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（波次 1-4 全闭环，全量门禁 exit 0）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md). Requirement source: [../full-repo-sweep-issue-brief.md](../full-repo-sweep-issue-brief.md).
 

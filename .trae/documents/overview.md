@@ -25,13 +25,13 @@
 实测口径与命令见文末「六、计数核验注记」；四态归类按各文档状态块正文的
 状态词（`已完成` 归入 `已实施`，图标 `📌` 归入 `已被取代`）：
 
-- `.trae/documents/` 递归 `*.md` 共 **581** 篇
-- 含 `**实施状态**` 字面状态块的文件 **170** 篇
-- ✅ **已实施**：140 篇
+- `.trae/documents/` 递归 `*.md` 共 **582** 篇
+- 含 `**实施状态**` 字面状态块的文件 **171** 篇
+- ✅ **已实施**：141 篇
 - 🟡 **部分实施**：5 篇
 - ❌ **未实施**：15 篇
 - ↩️ **已被取代**：7 篇
-- 四态可归类合计 **167** 篇；其余 3 处字面量为本文件与
+- 四态可归类合计 **168** 篇；其余 3 处字面量为本文件与
   `doc-review-sweep-plan.md` 的格式示例围栏、`full-repo-sweep-issue-brief.md`
   的行文引用，非状态块
 
@@ -227,6 +227,7 @@
 | 156 | [`soft-wrap-plans/overview.md`](soft-wrap-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
 | 157 | [`toggle-comment-plan.md`](toggle-comment-plan.md) | ✅ 已实施（核对 2026-11-20） |
 | 158 | [`which-key-auto-trigger-plan.md`](which-key-auto-trigger-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 159 | [`full-repo-sweep-review-fixes-plan.md`](full-repo-sweep-review-fixes-plan.md) | ✅ 已实施（门禁回归修复，2026-11-20） |
 
 ---
 
@@ -276,10 +277,10 @@
   print(len(files), len(status))"
   ```
 
-- 2026-11-20 实测结果：`*.md` 共 **581** 篇，含 `**实施状态**` 字面量 **170** 篇；
-  按状态词四态归类可归 **167** 篇（✅ 140 / 🟡 5 / ❌ 15 / ↩️ 7，`已完成` 归入
+- 2026-11-20 实测结果：`*.md` 共 **582** 篇，含 `**实施状态**` 字面量 **171** 篇；
+  按状态词四态归类可归 **168** 篇（✅ 141 / 🟡 5 / ❌ 15 / ↩️ 7，`已完成` 归入
   `已实施`、`📌` 归入 `已被取代`），其余 3 处字面量为格式示例围栏或行文引用。
-  并行的 D2 状态块补登已计入上述数字；2026-11-20 收尾复核重测仍为
-  581 / 170。
+  并行的 D2 状态块补登与 `full-repo-sweep-review-fixes-plan.md` 已计入上述数字；
+  2026-11-20 收尾复核重测仍为 582 / 171。
 - 本轮（2026-11-20 full-repo-sweep）新增的本文件改动即出自子计划
   [`full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md`](full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md)。

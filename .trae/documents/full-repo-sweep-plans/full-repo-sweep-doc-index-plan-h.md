@@ -1,6 +1,6 @@
 # D1: repair the document index (plan h)
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`e6723300`，计数 582/171 收尾复核）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
 

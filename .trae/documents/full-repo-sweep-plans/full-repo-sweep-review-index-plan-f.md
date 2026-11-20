@@ -1,6 +1,6 @@
 # D4: adjudicate the review index numbering gap (plan f)
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`19ecb116`，速览表补口径说明）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
 

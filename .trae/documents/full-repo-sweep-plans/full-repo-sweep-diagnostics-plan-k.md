@@ -1,6 +1,6 @@
 # R3: remove diagnostics' reverse dependency on Editor (plan k)
 
-> **实施状态**：❌ 未实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`dd61c63f` + `8a247d98`，headless import 无 editor）
 
 Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
 

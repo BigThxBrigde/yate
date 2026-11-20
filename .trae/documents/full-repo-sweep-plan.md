@@ -101,4 +101,12 @@ flowchart TD
 ## 7. Deviation / execution log
 
 - 2026-11-20: planner spawn failed (`Model "qwen-3.8-plus" not found`), main agent fallback; no plan-scope deviation.
-- Execution results, gate numbers, review rounds and any plan deviations must be appended here with measured evidence before final commit.
+- Batch commits: `8163fbe7` issue brief, `ff5d095f` plans, `ac4eda02` wave 1 (P1/B1/B2), `19ecb116` + `78168722` wave 2 (D3/D4, then P2), `e6723300` wave 3 (B3/R2/D1/D2), `dd61c63f` wave 4 (R1/R3/R4), `7b59eccd` + `8a247d98` wave 5 review fixes. No push or merge.
+- Gate results (main agent, real exit codes): pyright `yate/ tests/ tools/ pack/` = 0 errors / exit 0; `pytest tests/ -q -n auto` = exit 0; architecture tests = 46 tests / exit 0; coverage `--cov-fail-under=75 -n auto` = 3981 passed / 10 skipped / 93.15% / exit 0; same with `-n 1` = 3981 passed / 10 skipped / 93.15% / exit 0; smoke `--jobs 4` = 124/124 scenarios / 1511/1511 checks / 82.09 s / exit 0; `tools.changelog check` = exit 0 (unreleased lag 174 commits is the generator's release-refresh mechanism, not a failure).
+- Deviation: wave 2's P2 executor introduced private-symbol imports and a `pyright: ignore`; main agent replaced them with documented public test seams plus `getattr`/`cast` spies, keeping pyright strict at zero diagnostics with no suppression.
+- Deviation: wave 4's R1 executor landed the package but stopped before deleting the legacy file and adding the compatibility test; after a >10-minute zero-output window the main agent completed those two steps and re-ran all extension/architecture tests.
+- Deviation: `code-review-expert` spawn produced no report and no file for >30 minutes (multiple progress probes unanswered); per `subagent-workflow.md` §五 it was judged zero-output and shut down, and the main agent performed the self-review. That self-review found two items, both fixed in wave 5: CLI `--diag` fake editor did not model the snapshot contract (real regression, full gate failed), and `DiagnosticsInput.lsp_states` was mutable despite the frozen dataclass.
+- Environment artifact (not a product failure): two intermediate coverage `-n 1` runs exited 1 solely because the safe-delete hook intercepted pytest's bulk cleanup of `%TEMP%` and `.coverage.*` (`SAFE_DELETE_BULK_CONFIRM_REQUIRED`, count 19950). Re-runs with a unique `COVERAGE_FILE` exited 0; final dual-mode coverage above is clean.
+- D4 adjudication: table-header note added instead of nine rows, consistent with the existing branch-numbering disagreement register.
+- P3 suspects: all four registered with profiler/real-load reasons in `full-repo-sweep-plans/overview.md`; no product change.
+- All acceptance checkboxes of the issue are closed; no blocker/major remains after wave 5.
