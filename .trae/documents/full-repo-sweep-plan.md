@@ -109,4 +109,5 @@ flowchart TD
 - Environment artifact (not a product failure): two intermediate coverage `-n 1` runs exited 1 solely because the safe-delete hook intercepted pytest's bulk cleanup of `%TEMP%` and `.coverage.*` (`SAFE_DELETE_BULK_CONFIRM_REQUIRED`, count 19950). Re-runs with a unique `COVERAGE_FILE` exited 0; final dual-mode coverage above is clean.
 - D4 adjudication: table-header note added instead of nine rows, consistent with the existing branch-numbering disagreement register.
 - P3 suspects: all four registered with profiler/real-load reasons in `full-repo-sweep-plans/overview.md`; no product change.
+- Late executor handoff: R3's executor had asked the main agent to correct the architecture Mermaid edge `ED --> DIAG`; done in the final docs commit by replacing it with the L4 snapshot-injection edge, and the 46 architecture guards were re-run.
 - All acceptance checkboxes of the issue are closed; no blocker/major remains after wave 5.

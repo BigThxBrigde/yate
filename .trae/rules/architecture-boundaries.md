@@ -104,7 +104,7 @@ flowchart TD
     TABLES -->|"R5：表 → editor，反向禁止"| ED
     ED -->|"组合组件（R9 传 id）"| EV
     ED -->|"流程模块（§三.8 接入清单）"| FLOWS
-    ED --> DIAG
+    CLI -.->|"R3：L4 注入 DiagnosticsInput 快照；diagnostics 不 import editor"| DIAG
     ED -->|"扩展门面（R14，14 名冻结）"| EXTF
     ED --> SES
     FLOWS -->|"R11：editor_components 耦合冻结登记"| EV
