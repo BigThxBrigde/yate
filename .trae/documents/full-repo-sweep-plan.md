@@ -125,3 +125,32 @@ User asked to continue the failed subtasks. Per `task-orchestration.md` §一.3.
 Both are read-only with respect to product code. Dead-judgement window: 30 minutes
 with zero reply **and** zero file changes. On failure, main agent records "subagent
 zero-output" and does the fallback itself; no same-config respawn.
+
+## 9. Independent plan validation (retry)
+
+Planner retry again failed at spawn with `Model "qwen-3.8-plus" not found`; the
+runtime has no spawn-parameter model override, so per `task-orchestration.md` §一.3.5
+and §三 the main agent executed this validation. No same-config respawn was attempted.
+
+| Finding | Sub-plan | Evidence of closure |
+|---|---|---|
+| P1 | a | `ac4eda02`; per-row index + old-vs-new equivalence and large-D test in `../../tests/test_lsp.py` |
+| B1 | b | `ac4eda02`; negative-first cases in `../../tests/test_workspace_file_manager.py`, guard before `target.exists()` |
+| B2 | c | `ac4eda02`; Unicode fraction negative cases in `../../tests/test_yaterc_options.py`, tail extractors still run |
+| P2 | d | `78168722`; monotonic cursors + generated-input oracle in `../../tests/test_editor_core_diff.py` |
+| D3 | e | `19ecb116`; `tests/README.md` now points to the architecture guard instead of stale counts |
+| D4 | f | `19ecb116`; quick-table header carries the numbering口径 note; prose disagreement register untouched |
+| B3 | g | `e6723300`; nested pytest replaced with in-process guard; dual-mode coverage both exit 0 |
+| R2 | g | `e6723300`; 7-row rule table at `../rules/architecture-boundaries.md:405-413`, guarded item by item |
+| D1 | h | `e6723300`; generator claim removed, measured counts and §6 verification note present |
+| D2 | i | `e6723300`; four documents carry the unified status block, local path/repo-root wording removed |
+| R1 | j | `dd61c63f`; `bridges/` package re-exports all legacy names; facade still 14 names |
+| R3 | k | `dd61c63f` + `8a247d98`; L4 builds a deeply read-only `DiagnosticsInput`, headless import guard |
+| R4 | l | `dd61c63f`; ignore subsystem moved to L0 module with thin delegation and cache semantics intact |
+| P3 | overview | all four suspects registered with profiler/real-load reasons in `full-repo-sweep-plans/overview.md` |
+
+Mechanical re-check (2026-11-21): `*.md` 582 / status blocks 171 / architecture guards 46 /
+rule table 7 rows / D4 note present / `_gen_index.py` claim absent / P3 register present;
+12 commits on the branch. Acceptance mapping §6 and deviation log §7 contain measured
+numbers for all seven criteria. **Gaps: none.** The reviewer retry outcome is tracked
+separately in §8 and the independent review record.
