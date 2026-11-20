@@ -113,6 +113,7 @@ import pytest
 
 PROJECT: Path = Path(__file__).resolve().parent.parent
 YATE: Path = PROJECT / "yate"
+RULES: Path = PROJECT / ".trae" / "rules" / "architecture-boundaries.md"
 
 _SELF: Path = Path(__file__).resolve()
 
@@ -383,6 +384,19 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "editor_lsp/manager.py",
     "editor.py",
 })
+
+#: Measured ``splitlines()`` counts mirrored from architecture-boundaries.md
+#: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
+#: source; this map is the executable half of the two-way sync guard.
+SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
+    "keymaps/vim.py": 1678,
+    "editor_components/file_manager/screen.py": 1017,
+    "editor_components/view.py": 878,
+    "editor_core/buffer.py": 1565,
+    "editor_syntax/langdefs.py": 841,
+    "editor_lsp/manager.py": 893,
+    "editor.py": 844,
+}
 
 #: Code points a code comment or docstring must not carry (misc-rules
 #: section 4: every comment and in-code doc is English).  The ranges are
@@ -916,6 +930,25 @@ def _source_files() -> list[Path]:
     return out
 
 
+def size_exemption_violations() -> list[str]:
+    """Return the unregistered oversized source files, as ``key: lines``.
+
+    Shared with the macro-wiring sync test so that test can call the guard
+    in-process instead of nesting a pytest subprocess (which broke under
+    parallel coverage collection).
+    """
+    violations: list[str] = []
+    for path in _source_files():
+        base = YATE if YATE in path.parents else PROJECT
+        key = path.relative_to(base).as_posix()
+        if key in SIZE_EXEMPT_FILES:
+            continue
+        lines = len(path.read_text(encoding="utf-8").splitlines())
+        if lines > MAX_SOURCE_LINES:
+            violations.append(f"{key}: {lines}")
+    return violations
+
+
 def test_source_files_within_size_threshold() -> None:
     """``yate/`` + ``tools/`` sources stay within the A11 size threshold.
 
@@ -929,16 +962,28 @@ def test_source_files_within_size_threshold() -> None:
     for ``tools/`` files (2026-10-09 closure sweep: the guard used to
     cover ``yate/`` only, leaving ``tools/pack/wiki.py`` unguarded).
     """
-    offenders: list[tuple[str, int]] = []
-    for path in _source_files():
-        base = YATE if YATE in path.parents else PROJECT
-        key = path.relative_to(base).as_posix()
-        if key in SIZE_EXEMPT_FILES:
-            continue
-        lines = len(path.read_text(encoding="utf-8").splitlines())
-        if lines > MAX_SOURCE_LINES:
-            offenders.append((key, lines))
-    assert not offenders, offenders
+    violations = size_exemption_violations()
+    assert not violations, violations
+
+
+def test_size_exemption_line_counts_match_rule() -> None:
+    """Every exempt file's measured line count is pinned in the rule table.
+
+    The previous guard only checked ``editor.py``, so ``vim.py`` and
+    ``view.py`` drifted unnoticed.  This test reads the 2026-11-20 table in
+    architecture-boundaries.md section 3.7 and compares each row with both
+    the executable map and the actual ``splitlines()`` count.
+    """
+    text = RULES.read_text(encoding="utf-8")
+    start = text.index("Current measured line counts (2026-11-20")
+    end = text.index("2026-10-09 复核口径修正", start)
+    rows = re.findall(r"\|\s*`([^`]+)`\s*\|\s*(\d+)\s*\|", text[start:end])
+    parsed = {key: int(count) for key, count in rows}
+    assert parsed == SIZE_EXEMPT_LINE_COUNTS
+    assert set(parsed) == SIZE_EXEMPT_FILES
+    for key, count in parsed.items():
+        path = YATE / key
+        assert len(path.read_text(encoding="utf-8").splitlines()) == count, key
 
 
 def test_pane_model_lives_in_l1_session() -> None:

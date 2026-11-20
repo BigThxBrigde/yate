@@ -4,7 +4,7 @@
 - 需求原文（唯一需求来源）：[which-key-auto-trigger-issue.md](which-key-auto-trigger-issue.md)
 - 子计划总纲：[which-key-auto-trigger-plans/overview.md](which-key-auto-trigger-plans/overview.md)
 - 基线：`master` = `origin/master` = `18e96d2a`；worktree `yate-which-key-auto-trigger`；分支 `feature/enh-which-key-auto-trigger`；独立 `.venv` 已自证生效
-- 流程状态：【领会】完成并提交 `525f8bfb`；【方案】2026-11-10 落盘；【批准】无人值守自动批准（依据本次用户指令「所有问题无须过问」与总纲 §二.5，未向用户询问）；后续【执行】【审核】【迭代】【收尾】按闭环推进
+> **实施状态**：✅ 已实施 —— 2026-11-10（第二轮评审 APPROVE、2026-11-11 pr-review APPROVE，详见 §十二 / §十三。原流程状态：【领会】完成并提交 `525f8bfb`；【方案】2026-11-10 落盘；【批准】无人值守自动批准（依据本次用户指令「所有问题无须过问」与总纲 §二.5，未向用户询问）；后续【执行】【审核】【迭代】【收尾】均已按闭环推进）
 
 ## 一、目标
 

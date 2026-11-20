@@ -1,11 +1,12 @@
 # Toggle comment (IKWNOG) implementation plan
 
+> **实施状态**：✅ 已实施 —— 2026-11-20（merged as !143 / ebe8fee6）
+
 Source: https://gitee.com/jermaine/yate/issues/IKWNOG
 
 ## 0. Context and verified facts
 
-Worktree: `D:/Programming/yate-toggle-comment`, branch
-`feature/feat-toggle-comment`, parent `master` at `50702ec7` (synced with
+Branch `feature/feat-toggle-comment`, parent `master` at `50702ec7` (synced with
 `origin/master`). Independent `.venv` created and self-verified
 (`yate.__file__` resolves inside the worktree).
 

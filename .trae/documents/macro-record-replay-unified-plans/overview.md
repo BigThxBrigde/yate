@@ -1,9 +1,10 @@
 # 宏录制与回放（统一键位）子计划总纲
 
-> 主计划：`../macro-record-replay-unified-plan.md`（相对本目录；仓库内引用一律相对
-> 仓库根，如 `yate/session.py`）。本目录文件命名遵循 `doc-conventions.md` §一：
+> **实施状态**：✅ 已实施 —— 2026-11-12（主计划批准后 wave-1..5 共 11 波全部执行、评审 APPROVE、收尾门禁全绿；未推送、未合入 master，见主计划与进度文档回填）
+
+> 主计划：`../macro-record-replay-unified-plan.md`（相对本目录）。本目录文件命名遵循 `doc-conventions.md` §一：
 > 总纲固定 `overview.md`，子计划 `<task>-<subtask>-plan-<a|b|...>.md`。
-> 状态：**待批准**；本轮【方案】环节只写方案文档，不改 `yate/**`、`tests/**`、
+> 本轮【方案】环节只写方案文档，不改 `yate/**`、`tests/**`、
 > `.trae/rules/**`、进度文档，不 commit / push / 合流。
 
 ---

@@ -10,10 +10,12 @@ same shape ``tests/test_macro_statusbar.py`` uses.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from types import MethodType
+from types import MethodType, ModuleType
 from typing import cast
 
 import pytest
@@ -92,37 +94,39 @@ def test_editor_compose_all_exports_macro_flows_factory() -> None:
     assert callable(compose._build_macro_flows)
 
 
+def _load_architecture_guard() -> ModuleType:
+    """Load the architecture guard module in-process for shared assertions."""
+    spec = importlib.util.spec_from_file_location("yate_architecture_guard", ARCH_SRC)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_size_exemption_rule_and_guard_are_in_sync() -> None:
-    """Rule text and SIZE_EXEMPT_FILES both list editor.py; measured > 800."""
+    """All seven exempt files are mirrored in rule text and pass the guard."""
     arch = ARCH_SRC.read_text(encoding="utf-8")
     start = arch.index("SIZE_EXEMPT_FILES: frozenset[str] = frozenset({")
     end = arch.index("})", start)
-    assert '"editor.py"' in arch[start:end]
 
     rules = RULES.read_text(encoding="utf-8")
     section = rules[
         rules.index("7. **文件体量阈值处置") : rules.index("8. **新增 L3 流程模块接入清单")
     ]
-    assert "editor.py" in section
+
+    guard = _load_architecture_guard()
+    keys = cast(frozenset[str], getattr(guard, "SIZE_EXEMPT_FILES"))
+    assert len(keys) == 7
+    for key in keys:
+        assert f'"{key}"' in arch[start:end], key
+        assert key in section, key
+
     lines = len(EDITOR_SRC.read_text(encoding="utf-8").splitlines())
     assert lines > 800
     assert str(lines) in section
 
-    proc = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pytest",
-            "tests/test_architecture.py::test_source_files_within_size_threshold",
-            "-q",
-            "--tb=no",
-        ],
-        cwd=PROJECT,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stdout + proc.stderr
+    violations_fn = cast(Callable[[], list[str]], getattr(guard, "size_exemption_violations"))
+    assert violations_fn() == []
 
 
 def test_rule_l3_and_r11_lists_include_macro_flows() -> None:
