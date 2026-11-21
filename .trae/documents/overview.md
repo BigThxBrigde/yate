@@ -27,9 +27,9 @@
 
 - `.trae/documents/` 递归 `*.md` 共 **582** 篇
 - 含 `**实施状态**` 字面状态块的文件 **171** 篇
-- ✅ **已实施**：141 篇
-- 🟡 **部分实施**：5 篇
-- ❌ **未实施**：15 篇
+- ✅ **已实施**：155 篇
+- 🟡 **部分实施**：4 篇
+- ❌ **未实施**：2 篇
 - ↩️ **已被取代**：7 篇
 - 四态可归类合计 **168** 篇；其余 3 处字面量为本文件与
   `doc-review-sweep-plan.md` 的格式示例围栏、`full-repo-sweep-issue-brief.md`
@@ -218,8 +218,8 @@
 | 147 | [`yaterc-pyright-plan.md`](yaterc-pyright-plan.md) | ✅ 已实施 |
 | 148 | [`extension-trust-hardening-plan.md`](extension-trust-hardening-plan.md) | ✅ 已实施（核对 2026-11-20） |
 | 149 | [`filemgr-wrapup-plans/overview.md`](filemgr-wrapup-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
-| 150 | [`full-repo-sweep-plan.md`](full-repo-sweep-plan.md) | 🟡 部分实施 |
-| 151 | [`full-repo-sweep-plans/overview.md`](full-repo-sweep-plans/overview.md) | ❌ 未实施（子计划经本总纲索引） |
+| 150 | [`full-repo-sweep-plan.md`](full-repo-sweep-plan.md) | ✅ 已实施（核对 2026-11-21） |
+| 151 | [`full-repo-sweep-plans/overview.md`](full-repo-sweep-plans/overview.md) | ✅ 已实施（核对 2026-11-21，子计划经本总纲索引） |
 | 152 | [`lsp-hover-docs-plan.md`](lsp-hover-docs-plan.md) | ✅ 已实施（核对 2026-11-20） |
 | 153 | [`macro-record-replay-unified-plans/overview.md`](macro-record-replay-unified-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
 | 154 | [`pack-dist-zip-plan.md`](pack-dist-zip-plan.md) | ✅ 已实施（核对 2026-11-20） |
@@ -277,10 +277,10 @@
   print(len(files), len(status))"
   ```
 
-- 2026-11-20 实测结果：`*.md` 共 **582** 篇，含 `**实施状态**` 字面量 **171** 篇；
-  按状态词四态归类可归 **168** 篇（✅ 141 / 🟡 5 / ❌ 15 / ↩️ 7，`已完成` 归入
+- 2026-11-21 实测结果：`*.md` 共 **582** 篇，含 `**实施状态**` 字面量 **171** 篇；
+  按状态词四态归类可归 **168** 篇（✅ 155 / 🟡 4 / ❌ 2 / ↩️ 7，`已完成` 归入
   `已实施`、`📌` 归入 `已被取代`），其余 3 处字面量为格式示例围栏或行文引用。
-  并行的 D2 状态块补登与 `full-repo-sweep-review-fixes-plan.md` 已计入上述数字；
-  2026-11-20 收尾复核重测仍为 582 / 171。
+  D1 初填的 141 / 5 / 15 / 7 未把 `已完成` 归入已实施、也把本轮主计划与子计划总纲
+  记作部分/未实施；2026-11-21 收尾按文件实况重测并校正为上述数字。
 - 本轮（2026-11-20 full-repo-sweep）新增的本文件改动即出自子计划
   [`full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md`](full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md)。

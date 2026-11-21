@@ -1,6 +1,6 @@
 # Full-repo sweep fixes: master plan
 
-> **实施状态**：🟡 部分实施 —— 方案已落盘（2026-11-20）
+> **实施状态**：✅ 已实施 —— 2026-11-21（14 项 finding 全闭环、失败子任务重试与兜底完成、双轮七道门禁 exit 0、HEAD `a4a6a082`）
 
 - Issue: <https://gitee.com/jermaine/yate/issues/IKWXU4>
 - Requirement source: [full-repo-sweep-issue-brief.md](full-repo-sweep-issue-brief.md) (sole source; no requirement is inferred from memory).
@@ -101,7 +101,7 @@ flowchart TD
 ## 7. Deviation / execution log
 
 - 2026-11-20: planner spawn failed (`Model "qwen-3.8-plus" not found`), main agent fallback; no plan-scope deviation.
-- Batch commits: `8163fbe7` issue brief, `ff5d095f` plans, `ac4eda02` wave 1 (P1/B1/B2), `19ecb116` + `78168722` wave 2 (D3/D4, then P2), `e6723300` wave 3 (B3/R2/D1/D2), `dd61c63f` wave 4 (R1/R3/R4), `7b59eccd` + `8a247d98` wave 5 review fixes. No push or merge.
+- Batch commits: `8163fbe7` issue brief, `ff5d095f` plans, `ac4eda02` wave 1 (P1/B1/B2), `19ecb116` + `78168722` wave 2 (D3/D4, then P2), `e6723300` wave 3 (B3/R2/D1/D2), `dd61c63f` wave 4 (R1/R3/R4), `7b59eccd` + `8a247d98` wave 5 review fixes, `3c36359e` + `1d463896` review closure and diagram correction, `6a9fefb9` + `ad505bf0` role-retry plan and fallback validation, `a4a6a082` reviewer-retry fallback report. No push or merge.
 - Gate results (main agent, real exit codes): pyright `yate/ tests/ tools/ pack/` = 0 errors / exit 0; `pytest tests/ -q -n auto` = exit 0; architecture tests = 46 tests / exit 0; coverage `--cov-fail-under=75 -n auto` = 3981 passed / 10 skipped / 93.15% / exit 0; same with `-n 1` = 3981 passed / 10 skipped / 93.15% / exit 0; smoke `--jobs 4` = 124/124 scenarios / 1511/1511 checks / 82.09 s / exit 0; `tools.changelog check` = exit 0 (unreleased lag 174 commits is the generator's release-refresh mechanism, not a failure).
 - Deviation: wave 2's P2 executor introduced private-symbol imports and a `pyright: ignore`; main agent replaced them with documented public test seams plus `getattr`/`cast` spies, keeping pyright strict at zero diagnostics with no suppression.
 - Deviation: wave 4's R1 executor landed the package but stopped before deleting the legacy file and adding the compatibility test; after a >10-minute zero-output window the main agent completed those two steps and re-ran all extension/architecture tests.
@@ -131,7 +131,7 @@ the reviewer retry spawned but the first probe returned `Recipient "reviewer-ret
 found. Known members: none`, an immediate dead-judgement condition. No same-config
 respawn was attempted. Main agent executed both fallbacks; final commits in this
 iteration are `6a9fefb9` (retry plan), `ad505bf0` (plan validation), and the final
-review-record commit. The review fallback is recorded at
+review-record commit `a4a6a082`. The review fallback is recorded at
 `../reviews/2026-11-21-full-repo-sweep-independent-review.md`; all gates were re-run
 on 2026-11-21 with clean basetemps.
 
