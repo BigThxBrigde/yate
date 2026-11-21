@@ -126,6 +126,15 @@ Both are read-only with respect to product code. Dead-judgement window: 30 minut
 with zero reply **and** zero file changes. On failure, main agent records "subagent
 zero-output" and does the fallback itself; no same-config respawn.
 
+Retry outcomes: the planner retry again failed at spawn with `Model "qwen-3.8-plus" not found`;
+the reviewer retry spawned but the first probe returned `Recipient "reviewer-retry" not
+found. Known members: none`, an immediate dead-judgement condition. No same-config
+respawn was attempted. Main agent executed both fallbacks; final commits in this
+iteration are `6a9fefb9` (retry plan), `ad505bf0` (plan validation), and the final
+review-record commit. The review fallback is recorded at
+`../reviews/2026-11-21-full-repo-sweep-independent-review.md`; all gates were re-run
+on 2026-11-21 with clean basetemps.
+
 ## 9. Independent plan validation (retry)
 
 Planner retry again failed at spawn with `Model "qwen-3.8-plus" not found`; the
