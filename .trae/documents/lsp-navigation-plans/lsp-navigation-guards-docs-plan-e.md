@@ -109,3 +109,13 @@ with `unknown tag(s)`. The main agent added exactly that one tag to the tuple
 (outside the original exclusive list) after the executor reported the blocker,
 then re-ran the command successfully. All four scenarios already passed when
 run by name, so no scenario assertion was changed.
+
+Deviation (R11 sequencing, recorded 2026-11-23 at pr-review): the flow module
+first imported `editor_components.commandline` / `hover_popup` / `lsp_chooser`
+/ `panes` before `tests/test_architecture.py::UI_FROZEN_FILES` was updated for
+the `flows/lsp_navigation_flows.py` key (R11 asks for registration *before*
+import). At wave-4 close the guard key and the four-module surface were
+registered and verified consistent (declared set == imported set, 0 missing /
+0 extra); `.trae/rules/architecture-boundaries.md` R11 and §一 L3 were
+synchronized in the same wave. No architecture behavior regressed; this is a
+sequencing-only process deviation, logged here rather than silently dropped.

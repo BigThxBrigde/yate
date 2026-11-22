@@ -26,8 +26,8 @@ yate 内置一个精简的 [LSP](https://microsoft.github.io/language-server-pro
 - **跳转到定义**：vim 键位 `gd`、vsc 键位 `<alt-g>`（`goto_definition`）。
 - **查找引用**：vim 键位 `gr`、vsc 键位 `<alt-r>`（`find_references`）；多个
   结果弹出选择器，Enter 跳到选中位置。
-- **悬停文档（K）**：vim 键位 `K` 与 `F7` 触发同一 `show_hover_docs` 动作
-  （`<f7>` 键保留）。
+- **悬停文档（K）**：vim 与 vsc 两套键位的 `K`（vsc 记法为 `Shift+K`）均与
+  `F7` 触发同一 `show_hover_docs` 动作（`<f7>` 键保留）。
 - **文档大纲**：通过命令面板触发 `show_outline` 动作，列出当前文档符号，
   Enter 跳转。
 - **重命名**（`rename_symbol`）、**代码操作**（`show_code_actions`）、

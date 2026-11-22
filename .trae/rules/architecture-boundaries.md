@@ -25,7 +25,9 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          lsp_sync.py / mouse_flows.py / hover_flows.py / chunked_flows.py /
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移）/
          macro_flows.py（2026-11-12 宏录制与回放 wave-3 接线补登）/
-         navigation_flows.py（2026-11-16 marks-jumplist wave-2 接入））/
+         navigation_flows.py（2026-11-16 marks-jumplist wave-2 接入）/
+         lsp_navigation_flows.py（2026-11-22 lsp-navigation wave-4 接入，
+         import editor_components，已登记 UI_FROZEN_FILES））/
          diagnostics.py（2026-11-20 full-repo sweep：改消费 L4 cli.py 注入的只读
          `DiagnosticsInput` 快照，不再反向 import `yate.editor`）/
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块；

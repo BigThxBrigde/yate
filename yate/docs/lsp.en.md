@@ -35,8 +35,8 @@ Client capabilities:
 - **Find references**: `gr` under the vim keymap, `<alt-r>` under vsc
   (`find_references`); with multiple results a chooser opens and `Enter`
   jumps to the selected location.
-- **Hover documentation (K)**: `K` under the vim keymap triggers the same
-  `show_hover_docs` action as `F7` (the `<f7>` key stays).
+- **Hover documentation (K)**: `K` under both keymaps (vim `K` / vsc `Shift+K`)
+  triggers the same `show_hover_docs` action as `F7` (the `<f7>` key stays).
 - **Document outline**: the `show_outline` action (command palette) lists the
   symbols of the current document; `Enter` jumps to one.
 - **Rename** (`rename_symbol`), **code actions** (`show_code_actions`) and

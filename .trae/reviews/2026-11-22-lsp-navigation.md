@@ -1,7 +1,9 @@
 # 2026-11-22 LSP navigation review (IKX5EP)
 
-Scope: worktree `d:/Programming/yate-lsp-navigation`, branch
-`feature/enh-lsp-navigation`, base `master c6d6e89a`; 33 files / +4375 -19.
+Scope: worktree `<repo-parent>/yate-lsp-navigation`, branch
+`feature/enh-lsp-navigation`, base `master c6d6e89a`; review-time 33 files /
++4375 -19; post-fix terminal state 38 files / +5011 -21 (stat re-measured
+2026-11-23 at `9b6f6471`).
 Reviewer: code-review-expert (DeepSeek-V4.1-Flash). Skill `python-code-review`
 was unavailable in this environment; the agent fell back to its role-file
 checklist as its instructions permit.

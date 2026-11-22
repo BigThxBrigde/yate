@@ -106,7 +106,7 @@ Use the `_FakeClient` / `_Harness` pattern from `tests/test_lsp_hover.py:36-121`
 - `test_manager_request_references_timeout_sends_cancel`: fake future never settles, monkeypatch `navigation.NAV_TIMEOUT_S=0.001` -> `LspFeatureFailed`, `send_cancel` called, `settle_request` called.
 - `test_manager_notification_uses_canonical_diagnostic_uri`: publish diagnostics with drive-escaped URI -> `manager` diagnostic key equals `canonical_uri` form.
 
-## Acceptance commands (run from `d:/Programming/yate-lsp-navigation`)
+## Acceptance commands (run from the task worktree root)
 
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/test_lsp_navigation.py -q

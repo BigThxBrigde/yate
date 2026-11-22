@@ -1477,7 +1477,7 @@ stdio, speaks JSON-RPC itself, and provides:
   |---|---|---|---|
   | Go to definition | `gd` | `<alt-g>` | `goto_definition` |
   | Find references | `gr` | `<alt-r>` | `find_references` |
-  | Hover documentation | `K` / `F7` | `F7` | `show_hover_docs` |
+  | Hover documentation | `K` / `F7` | `K` / `F7` | `show_hover_docs` |
 
 Documents are synchronized whole-text on open / save / after a short idle
 debounce while typing. Servers start lazily when the first matching file is

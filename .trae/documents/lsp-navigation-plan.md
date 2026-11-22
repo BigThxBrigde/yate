@@ -1,8 +1,9 @@
 # LSP navigation and interaction implementation plan (IKX5EP)
 
 Source brief: [lsp-navigation-issue-brief.md](lsp-navigation-issue-brief.md).
-Worktree: `d:/Programming/yate-lsp-navigation`; branch `feature/enh-lsp-navigation`;
-parent `master` at `c6d6e89a` (synced with `origin/master`).
+Worktree: `<repo-parent>/yate-lsp-navigation` (relative to the main checkout);
+branch `feature/enh-lsp-navigation`; parent `master` at `c6d6e89a`
+(synced with `origin/master`).
 
 ## 1. Goal and non-goals
 
