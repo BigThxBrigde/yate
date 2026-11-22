@@ -100,6 +100,7 @@ TAGS: tuple[str, ...] = (
     "explorer",
     "command",
     "hover",
+    "lsp-navigation",
     "view",
     "integration",
     "regression",

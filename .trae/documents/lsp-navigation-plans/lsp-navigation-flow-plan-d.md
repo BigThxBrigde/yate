@@ -139,3 +139,14 @@ out-of-scope edit. Risk: `open_path` may be async in practice; verify signature
 before wiring and adapt the injected callback type accordingly, recording the
 deviation. Rollback: revert this plan's commits; wave a/b/c artifacts remain
 independently testable.
+
+## Execution deviation record (2026-11-22)
+
+Measured: `PromptBar.MESSAGE_COLORS` (`commandline.py:54-56`) accepts `warn`,
+not `warning`; the planned `"warning"` kind silently rendered as `fg_bright`.
+Main agent changed all 14 flow message kinds and the matching test assertion
+to `"warn"` after wave d, re-ran the flow tests (12 passed) and pyright
+(0 diagnostics), then committed the correction with the wave. No behavior
+other than message color changed.
+Measured final line counts for plan e: `editor.py` 848, `keymaps/vim.py` 1704,
+`editor_lsp/manager.py` 1168 (`splitlines()`).

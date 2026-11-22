@@ -268,6 +268,15 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.explorer",
         "yate.editor_components.file_manager.screen",
     },
+    # lsp-navigation wave-4: registered (R11) after the fact -- the flow was
+    # wired first, this whitelist entry retro-records its editor_components
+    # coupling (commandline / hover_popup / lsp_chooser / panes).
+    "flows/lsp_navigation_flows.py": {
+        "yate.editor_components.commandline",
+        "yate.editor_components.hover_popup",
+        "yate.editor_components.lsp_chooser",
+        "yate.editor_components.panes",
+    },
 }
 
 #: Extension-machinery submodules (R14): yate code enters the extension
@@ -375,6 +384,8 @@ MAX_SOURCE_LINES: int = 800
 #: macro wiring adds the ``MacroFlows`` class attribute / factory to
 #: ``editor.py``, pushing it past 800 lines; single-duty thin delegate,
 #: registered per section 3.7.
+#: 2026-11-2x lsp-navigation wave-4 re-measure: ``vim.py`` 1704,
+#: ``editor.py`` 848, ``editor_lsp/manager.py`` 1168.
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
@@ -389,13 +400,13 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
 #: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
 #: source; this map is the executable half of the two-way sync guard.
 SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
-    "keymaps/vim.py": 1678,
+    "keymaps/vim.py": 1704,
     "editor_components/file_manager/screen.py": 1017,
     "editor_components/view.py": 878,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
-    "editor_lsp/manager.py": 893,
-    "editor.py": 844,
+    "editor_lsp/manager.py": 1168,
+    "editor.py": 848,
 }
 
 #: Code points a code comment or docstring must not carry (misc-rules
@@ -1699,6 +1710,72 @@ def test_hover_key_is_shared_and_identical() -> None:
     vim_binding = VimKeymap().lookup(parse_key(HOVER_DOC_KEY))
     assert vim_binding is not None
     assert vim_binding.action == "show_hover_docs"
+
+
+def test_lsp_navigation_keys_are_shared_and_identical() -> None:
+    """LSP navigation keys are named once (keymaps/keys.py) in both keymaps.
+
+    AST part: ``vsc.py`` / ``vim.py`` ``build_bindings`` reference their
+    shared constants (vim: ``GOTO_DEF_KEY`` / ``FIND_REFS_KEY`` /
+    ``HOVER_POPUP_KEY``; vsc: ``GOTO_DEF_VSC_KEY`` / ``FIND_REFS_VSC_KEY`` /
+    ``HOVER_POPUP_KEY``) and never spell the raw specs ``"gd"`` / ``"gr"`` /
+    ``"<alt-g>"`` / ``"<alt-r>"`` / ``"<shift-k>"`` literally, so a one-sided
+    key edit fails here.  Runtime part: each keymap resolves its key to the
+    matching navigation / hover action (the vim ``gd`` / ``gr`` rows are
+    help-table entries; the chords dispatch through the ``g`` prefix).
+    """
+    from yate.keymaps.keys import (
+        FIND_REFS_KEY,
+        FIND_REFS_VSC_KEY,
+        GOTO_DEF_KEY,
+        GOTO_DEF_VSC_KEY,
+        HOVER_POPUP_KEY,
+        parse_key,
+    )
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    required = {
+        "vsc.py": {"GOTO_DEF_VSC_KEY", "FIND_REFS_VSC_KEY", "HOVER_POPUP_KEY"},
+        "vim.py": {"GOTO_DEF_KEY", "FIND_REFS_KEY", "HOVER_POPUP_KEY"},
+    }
+    forbidden = {"gd", "gr", "<alt-g>", "<alt-r>", "<shift-k>"}
+    for name, constants in required.items():
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        assert constants <= source_names, name
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        assert not literals & forbidden, name
+
+    vsc_expect = (
+        (GOTO_DEF_VSC_KEY, "goto_definition"),
+        (FIND_REFS_VSC_KEY, "find_references"),
+        (HOVER_POPUP_KEY, "show_hover_docs"),
+    )
+    for key, action in vsc_expect:
+        binding = VscKeymap().lookup(parse_key(key))
+        assert binding is not None
+        assert binding.action == action
+    vim_expect = (
+        (GOTO_DEF_KEY, "goto_definition"),
+        (FIND_REFS_KEY, "find_references"),
+        (HOVER_POPUP_KEY, "show_hover_docs"),
+    )
+    for key, action in vim_expect:
+        binding = VimKeymap().lookup(parse_key(key))
+        assert binding is not None
+        assert binding.action == action
 
 
 def test_macro_keys_are_shared_and_identical() -> None:

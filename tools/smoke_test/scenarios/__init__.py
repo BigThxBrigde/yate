@@ -23,6 +23,7 @@ from tools.smoke_test.scenarios.guards import SCENARIOS as _GUARDS
 from tools.smoke_test.scenarios.hexview import SCENARIOS as _HEXVIEW
 from tools.smoke_test.scenarios.hover import SCENARIOS as _HOVER
 from tools.smoke_test.scenarios.integration import SCENARIOS as _INTEGRATION
+from tools.smoke_test.scenarios.lsp_navigation import SCENARIOS as _LSP_NAVIGATION
 from tools.smoke_test.scenarios.modules import SCENARIOS as _MODULES
 from tools.smoke_test.scenarios.multi_cursor import SCENARIOS as _MULTI_CURSOR
 from tools.smoke_test.scenarios.palette_preview import SCENARIOS as _PALETTE_PREVIEW
@@ -66,6 +67,7 @@ SCENARIOS: list[Scenario] = [
     *_WHICHKEY,
     *_COMPLETION,
     *_HOVER,
+    *_LSP_NAVIGATION,
     *_CHUNKEDVIEW,
     *_DIFFVIEW,
     *_HEXVIEW,

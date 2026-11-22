@@ -96,3 +96,16 @@ never guess. Risk: smoke key events may be swallowed by vim prefix handling;
 use the scenario's keymap-switch hook to test both keymaps. Risk: real pyright
 may be unavailable on the runner; keep skipif and report honestly. Rollback:
 revert this plan's commits; product code from waves a-d stays intact.
+
+## Execution record (2026-11-22)
+
+Measured by the main agent: architecture `47 passed` exit 0; real pyright
+`2 passed` (not skipped) exit 0; tagged smoke `4/4 scenarios, 43/43 checks`
+exit 0 after the tag registration below.
+
+Deviation: `tools/smoke_test/harness.py::TAGS` did not contain
+`"lsp-navigation"`, so the planned `--tag lsp-navigation` command exited 1
+with `unknown tag(s)`. The main agent added exactly that one tag to the tuple
+(outside the original exclusive list) after the executor reported the blocker,
+then re-ran the command successfully. All four scenarios already passed when
+run by name, so no scenario assertion was changed.

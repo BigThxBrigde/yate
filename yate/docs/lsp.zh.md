@@ -23,8 +23,39 @@ yate 内置一个精简的 [LSP](https://microsoft.github.io/language-server-pro
   不闪烁。卡片内容是服务器返回的签名与 docstring；它从不改变焦点、从不吞掉
   其它按键、从不启动服务器、也不改变同步。扩展可用
   `bind_key(..., keymap="both")` 一次改掉两套键位中的这个键。
+- **跳转到定义**：vim 键位 `gd`、vsc 键位 `<alt-g>`（`goto_definition`）。
+- **查找引用**：vim 键位 `gr`、vsc 键位 `<alt-r>`（`find_references`）；多个
+  结果弹出选择器，Enter 跳到选中位置。
+- **悬停文档（K）**：vim 键位 `K` 与 `F7` 触发同一 `show_hover_docs` 动作
+  （`<f7>` 键保留）。
+- **文档大纲**：`:lsp outline`（即 `show_outline` 动作）列出当前文档符号，
+  Enter 跳转。
+- **重命名**（`rename_symbol`）、**代码操作**（`show_code_actions`）、
+  **签名帮助**（`show_signature_help`）同样经命令面板/动作可用。
+- 以上导航与编辑能力全部**以服务器能力为门**：服务器未声明对应 capability
+  或未就绪时给出明确消息、不动 buffer；所有请求**异步**发出，结果或失败
+  都以显式消息回显，不阻塞输入。
 - **buffer 补全回退**：当前文件没有可用语言服务器时，补全回退为从所有已
   打开缓冲区收集单词（前缀含 `/` 或 `~` 时还会补全文件路径）。
+
+双文件 pyright 项目示例——`mathutil.py` 定义函数，`app.py` 导入并调用它：
+
+```python
+# mathutil.py
+def greet(name: int) -> str:
+    return f"Hi {name}"
+
+# app.py
+from mathutil import greet
+
+greet(7)   # 光标停在 greet 上：vim `gd` 跳到 mathutil.py 的 def 行，
+           # `gr` 列出两处引用（选择器含两个文件名，Enter 跳转），
+           # `K`（或 F7）显示签名与文档卡片
+```
+
+（配套扩展注册 `command="pyright-langserver"`、`filetypes=["py"]`、
+`root_markers=["pyrightconfig.json", ".git"]`，见 §1；能力均由服务器声明，
+未声明的项目在按键时收到明确提示。）
 
 文档采用全文同步：打开时、保存时、输入停顿去抖（0.25s）后发送整个缓冲区。
 服务器在首次打开匹配文件时**惰性启动**，每个（服务器 × 项目根目录）一个
