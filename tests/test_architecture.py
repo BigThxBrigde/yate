@@ -394,7 +394,7 @@ SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
     "editor_components/view.py": 878,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
-    "editor_lsp/manager.py": 893,
+    "editor_lsp/manager.py": 945,
     "editor.py": 844,
 }
 

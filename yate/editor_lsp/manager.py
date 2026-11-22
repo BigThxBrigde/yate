@@ -58,6 +58,13 @@ HOVER_TIMEOUT_S: float = 2.0
 TRIGGER_INVOKED: int = 1
 TRIGGER_CHARACTER: int = 2
 
+#: Row-span cap for the per-row diagnostic index.  Diagnostics covering
+#: more rows than this (whole-file findings such as "file not formatted")
+#: stay out of the per-row lists -- expanding them would make every
+#: publish rebuild O(document rows) in time and memory -- and are kept in
+#: a small per-uri overflow list that the queries scan as a fallback.
+_ROW_INDEX_SPAN_MAX: int = 1000
+
 ClientKey = tuple[str, str]
 
 #: Trace logger ("yate.editor_lsp.manager"); silent unless yate_trace is on.
@@ -97,13 +104,23 @@ class LspManager:
         self._starting: dict[ClientKey, asyncio.Task[LspClient | None]] = {}
         self._open: dict[str, OpenDocState] = {}
         self._diagnostics: dict[str, list[Diagnostic]] = {}
-        #: Per-row diagnostic index: ``uri -> row -> [Diagnostic]``.  Rebuilt
-        # from scratch at every publish point (the single writer of
-        # ``_diagnostics``) so the two can never drift apart.  Multi-row
-        # diagnostics are registered on every row they cover, which makes
-        # :meth:`diagnostics_on_line` an O(1) lookup per rendered line
-        # instead of a full-table copy + filter per call.
-        self._diagnostics_by_row: dict[str, dict[int, list[Diagnostic]]] = {}
+        #: Per-row diagnostic index: ``uri -> row -> [(seq, Diagnostic)]``.
+        #: Rebuilt from scratch at every publish point (the single writer
+        #: of ``_diagnostics``) so the two can never drift apart.  Multi-row
+        #: diagnostics within the span cap are registered on every row they
+        #: cover, which makes :meth:`diagnostics_on_line` an O(1) lookup per
+        #: rendered line instead of a full-table copy + filter per call.
+        #: The ``seq`` stamp is the diagnostic's position in the publish
+        #: order, so (severity, seq) tuple comparison reproduces the
+        #: pre-index full-table scan's tie-breaking exactly.
+        self._diagnostics_by_row: dict[
+            str, dict[int, list[tuple[int, Diagnostic]]]
+        ] = {}
+        #: Diagnostics whose row span exceeds ``_ROW_INDEX_SPAN_MAX``: kept
+        #: as ``uri -> [(seq, Diagnostic)]`` in publish order instead of
+        #: being expanded row by row; the queries scan this small list as a
+        #: fallback so coverage and tie-breaking stay identical.
+        self._diagnostics_overflow: dict[str, list[tuple[int, Diagnostic]]] = {}
         self._change_timers: dict[str, asyncio.TimerHandle] = {}
         #: Per-uri didChange serialization locks (get-or-create).  A
         #: concurrent flush path (the request_completion fallback) waits on
@@ -765,17 +782,30 @@ class LspManager:
 
         The single source of truth stays ``_diagnostics``; this index is
         rebuilt from scratch on every publish so it can never go stale.
+        Diagnostics within the span cap are expanded per row; anything
+        wider (whole-file findings) goes to the overflow list so a huge
+        span cannot multiply the publish cost by the document height.
+        Entries carry their publish-order ``seq`` so the queries can
+        reproduce the full-table scan's severity tie-breaking.
         """
-        by_row: dict[int, list[Diagnostic]] = {}
-        for d in diags:
+        by_row: dict[int, list[tuple[int, Diagnostic]]] = {}
+        overflow: list[tuple[int, Diagnostic]] = []
+        for seq, d in enumerate(diags):
+            entry = (seq, d)
+            if d.end_row - d.start_row >= _ROW_INDEX_SPAN_MAX:
+                overflow.append(entry)
+                continue
             for row in range(d.start_row, d.end_row + 1):
-                by_row.setdefault(row, []).append(d)
+                by_row.setdefault(row, []).append(entry)
         self._diagnostics_by_row[uri] = by_row
+        self._diagnostics_overflow[uri] = overflow
 
     def _forget_diagnostics(self, uri: str) -> None:
-        """Drop the stored diagnostics and the per-row index for *uri*."""
+        """Drop the stored diagnostics, the per-row index and the overflow
+        list for *uri*."""
         self._diagnostics.pop(uri, None)
         self._diagnostics_by_row.pop(uri, None)
+        self._diagnostics_overflow.pop(uri, None)
 
     def diagnostics_for(self, doc: Document) -> list[Diagnostic]:
         """The stored diagnostics for *doc* (a copy, sorted by position)."""
@@ -794,17 +824,27 @@ class LspManager:
         """The most severe diagnostic whose range covers (row, col).
 
         Answers from the per-row index (rebuilt at each publish point),
-        so the hot path never copies the whole table.  Tie-breaking
-        keeps the first indexed diagnostic, i.e. the publish order --
+        so the hot path never copies the whole table.  Over-spanning
+        diagnostics (the overflow list) are range-checked as a fallback,
+        which stays exact because that list is small.  Tie-breaking
+        compares ``(severity, seq)`` with ``seq`` the publish order, i.e.
         identical to the pre-index full-table scan.
         """
         if doc.path is None:
             return None
-        by_row = self._diagnostics_by_row.get(self._uri(doc))
-        if not by_row:
+        uri = self._uri(doc)
+        by_row = self._diagnostics_by_row.get(uri)
+        candidates: list[tuple[int, Diagnostic]] = (
+            list(by_row.get(row, ())) if by_row else []
+        )
+        for entry in self._diagnostics_overflow.get(uri, ()):
+            if entry[1].start_row <= row <= entry[1].end_row:
+                candidates.append(entry)
+        if not candidates:
             return None
         best: Diagnostic | None = None
-        for d in by_row.get(row, ()):
+        best_key: tuple[int, int] | None = None
+        for seq, d in candidates:
             if d.start_row == d.end_row:
                 covers = d.start_col <= col < max(d.end_col, d.start_col + 1)
             elif row == d.start_row:
@@ -813,22 +853,34 @@ class LspManager:
                 covers = col <= d.end_col
             else:
                 covers = True
-            if covers and (best is None or d.severity < best.severity):
-                best = d
+            if covers:
+                key = (d.severity, seq)
+                if best_key is None or key < best_key:
+                    best_key, best = key, d
         return best
 
     def diagnostics_on_line(self, doc: Document, row: int) -> list[Diagnostic]:
         """The stored diagnostics whose vertical range covers *row*.
 
-        O(1) via the per-row index (rebuilt at each publish point); a copy
-        is returned so callers cannot mutate the index.
+        O(1) via the per-row index (rebuilt at each publish point); the
+        overflow list is range-checked as a fallback, and the merged
+        result is ordered by publish order.  A copy is returned so
+        callers cannot mutate the index.
         """
         if doc.path is None:
             return []
-        by_row = self._diagnostics_by_row.get(self._uri(doc))
-        if not by_row:
+        uri = self._uri(doc)
+        by_row = self._diagnostics_by_row.get(uri)
+        entries: list[tuple[int, Diagnostic]] = (
+            list(by_row.get(row, ())) if by_row else []
+        )
+        for entry in self._diagnostics_overflow.get(uri, ()):
+            if entry[1].start_row <= row <= entry[1].end_row:
+                entries.append(entry)
+        if not entries:
             return []
-        return list(by_row.get(row, ()))
+        entries.sort(key=lambda entry: entry[0])
+        return [d for _seq, d in entries]
 
     # ------------------------------------------------------------- teardown
 

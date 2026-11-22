@@ -409,7 +409,7 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
    | `editor_components/view.py` | 878 |
    | `editor_core/buffer.py` | 1565 |
    | `editor_syntax/langdefs.py` | 841 |
-   | `editor_lsp/manager.py` | 893 |
+   | `editor_lsp/manager.py` | 945 |
    | `editor.py` | 844 |
 
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，

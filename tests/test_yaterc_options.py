@@ -405,6 +405,17 @@ def test_parse_journey_fraction_rejects_superscript_digit_with_friendly_error(
     assert "'²/8'" in config.errors[0]
 
 
+def test_parse_journey_fraction_rejects_doubled_sign_with_friendly_error(
+    config: YateConfig,
+) -> None:
+    """A doubled sign (``"--5"`` strips to decimal ``"5"`` but ``int()``
+    rejects it) takes the friendly error path instead of raising."""
+    assert _parse_journey_fraction("--5/8", "dist", config) is None
+    assert len(config.errors) == 1
+    assert "must be a float in (0, 1)" in config.errors[0]
+    assert "'--5/8'" in config.errors[0]
+
+
 def test_extract_options_keeps_tail_extractors_after_unicode_fraction_error(
     config: YateConfig,
 ) -> None:
