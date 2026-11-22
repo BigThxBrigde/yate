@@ -23,6 +23,7 @@ import pytest
 import yate
 from conftest import make_yxp
 from yate.cli import build_parser, main, version_lines
+from yate.diagnostics import DiagnosticsInput
 
 _CUSTOM_THEME_SRC: str = """\
 from dataclasses import replace
@@ -52,11 +53,34 @@ class _FakeFlows:
         self.servers_registered = True
 
 
+class _FakeLoader:
+    """Minimal extension-loader slice frozen by the diagnostics snapshot."""
+
+    loaded: tuple[object, ...] = ()
+
+
+class _FakeLsp:
+    """Minimal LSP slice frozen by the diagnostics snapshot."""
+
+    def configs(self) -> tuple[object, ...]:
+        """Return an empty server-configuration tuple."""
+        return ()
+
+    def states(self) -> dict[str, object]:
+        """Return an empty server-state mapping."""
+        return {}
+
+
 class _FakeEditor:
     """The slice of Editor that main() touches on the --diag path."""
 
     def __init__(self) -> None:
         self.extension_flows = _FakeFlows()
+        self.config = object()
+        self.ext_dirs: tuple[Path, ...] = ()
+        self.ext_files: tuple[Path, ...] = ()
+        self.extension_loader = _FakeLoader()
+        self.lsp = _FakeLsp()
 
 
 class _FakeApp:
@@ -390,13 +414,22 @@ def test_diag_prints_report_without_running_tui(
         rc = main(["-u", "NONE", "--diag"])
     assert rc == 0
     assert sentinel in capsys.readouterr().out
-    # format_report was called once with the constructed app's editor
+    # format_report was called once with an immutable snapshot of the editor
     assert fmt.call_count == 1
-    editor_arg = fmt.call_args.args[0]
-    assert isinstance(editor_arg, _FakeEditor)
+    snapshot_arg = fmt.call_args.args[0]
+    assert isinstance(snapshot_arg, DiagnosticsInput)
+    app = _FakeApp.last_instance
+    assert app is not None
+    editor = app.editor
+    assert snapshot_arg.config is editor.config
+    assert snapshot_arg.ext_dirs == ()
+    assert snapshot_arg.ext_files == ()
+    assert snapshot_arg.loaded_extensions == ()
+    assert snapshot_arg.lsp_configs == ()
+    assert snapshot_arg.lsp_states == {}
     # extension startup ran so the report reflects real state
-    assert editor_arg.extension_flows.extensions_loaded
-    assert editor_arg.extension_flows.servers_registered
+    assert editor.extension_flows.extensions_loaded
+    assert editor.extension_flows.servers_registered
 
 
 def test_diag_with_none_yaterc_reports_no_rc_loaded(

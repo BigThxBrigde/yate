@@ -11,16 +11,34 @@ Run with:  python -m pytest tests/test_editor_core_diff.py -q
 
 from __future__ import annotations
 
+import difflib
+import random
+from collections.abc import Callable, Sequence
+from typing import cast
+
 import pytest
 
+import yate.editor_core.diff as diff_module
 from yate.editor_core.buffer import TextBuffer
 from yate.editor_core.diff import (
     DiffHunk,
+    MergeRegion,
     diff3_regions,
     diff_lines,
     diff_words,
     hunk_replacement,
+    merge_spans_reference,
+    side_span_reference,
 )
+
+type SideSpanCursor = Callable[
+    [Sequence[tuple[str, int, int, int, int]], int, int, int],
+    tuple[tuple[int, int], int],
+]
+type TouchedCursor = Callable[
+    [list[tuple[int, int]], int, int, int],
+    tuple[bool, int],
+]
 
 
 # --- diff_lines -------------------------------------------------------------
@@ -164,6 +182,197 @@ def test_diff3_regions_reports_an_insertion_at_end_of_file() -> None:
     region = local[0]
     assert region.base_start == region.base_end == 3
     assert (region.local_start, region.local_end) == (3, 4)
+
+
+def test_diff3_regions_keeps_zero_length_insertion_semantics() -> None:
+    """Zero-length base spans keep their exact region shape (the six
+    insertion/conflict/disjoint/identical tests above stay unchanged)."""
+    regions = diff3_regions(["1", "2", "3"], ["1", "2", "3", "L"], ["1", "2", "3"])
+    assert regions == [
+        MergeRegion("same", 0, 3, 0, 3, 0, 3),
+        MergeRegion("local", 3, 3, 3, 4, 3, 3),
+    ]
+
+
+# --- diff3_regions: cursor implementation vs reference -----------------------
+
+
+def _reference_diff3_regions(
+    base: Sequence[str],
+    local: Sequence[str],
+    remote: Sequence[str],
+) -> list[MergeRegion]:
+    """Verbatim copy of the pre-cursor ``diff3_regions`` classification.
+
+    The side-span mapping goes through the preserved reference helper
+    (byte-for-byte the old implementation), so the oracle reproduces the
+    old behavior exactly.
+    """
+    local_ops = difflib.SequenceMatcher(a=base, b=local, autojunk=False).get_opcodes()
+    remote_ops = difflib.SequenceMatcher(a=base, b=remote, autojunk=False).get_opcodes()
+    local_changed = [(i1, i2) for tag, i1, i2, _j1, _j2 in local_ops if tag != "equal"]
+    remote_changed = [(i1, i2) for tag, i1, i2, _j1, _j2 in remote_ops if tag != "equal"]
+
+    def classify(base_start: int, base_end: int) -> MergeRegion:
+        local_start, local_end = side_span_reference(local_ops, base_start, base_end)
+        remote_start, remote_end = side_span_reference(remote_ops, base_start, base_end)
+        # Zero-length base spans (pure insertions) use point containment:
+        # an insertion point inside a changed span means the side touched
+        # the region, so a one-sided insertion classifies as local/remote
+        # instead of "same" (diffview needs the span to tint the line).
+        if base_start == base_end:
+            local_touched = any(
+                s <= base_start < e for s, e in local_changed
+            ) or any(s == base_start for s, _end in local_changed)
+            remote_touched = any(
+                s <= base_start < e for s, e in remote_changed
+            ) or any(s == base_start for s, _end in remote_changed)
+        else:
+            local_touched = any(s < base_end and e > base_start for s, e in local_changed)
+            remote_touched = any(s < base_end and e > base_start for s, e in remote_changed)
+        if local_touched and remote_touched:
+            identical = list(local[local_start:local_end]) == list(
+                remote[remote_start:remote_end]
+            )
+            kind = "both" if identical else "conflict"
+        elif local_touched:
+            kind = "local"
+        elif remote_touched:
+            kind = "remote"
+        else:
+            kind = "same"
+        return MergeRegion(
+            kind=kind,
+            base_start=base_start,
+            base_end=base_end,
+            local_start=local_start,
+            local_end=local_end,
+            remote_start=remote_start,
+            remote_end=remote_end,
+        )
+
+    regions: list[MergeRegion] = []
+    cursor = 0
+    for merged_start, merged_end in merge_spans_reference(
+        [*local_changed, *remote_changed]
+    ):
+        if cursor < merged_start:
+            regions.append(classify(cursor, merged_start))
+        regions.append(classify(merged_start, merged_end))
+        cursor = merged_end
+    if cursor < len(base):
+        regions.append(classify(cursor, len(base)))
+    return regions
+
+
+def _generated_triples() -> list[tuple[list[str], list[str], list[str]]]:
+    """Build 100 deterministic base/local/remote line-sequence triples.
+
+    A handcrafted prefix pins the corner cases (empty sequences, pure
+    insertions at 0 / middle / end, deletions, overlapping edits,
+    identical edits); the seeded remainder adds broad random coverage
+    including empty bases and both-sides edits.
+    """
+    rng = random.Random(20261120)
+    triples: list[tuple[list[str], list[str], list[str]]] = [
+        ([], [], []),
+        ([], ["x"], []),
+        ([], ["x"], ["y"]),
+        (["a", "b", "c"], [], []),
+        (["a", "b", "c"], ["a", "b", "c"], ["a", "b", "c"]),
+        (["1", "2", "3"], ["L", "1", "2", "3"], ["1", "2", "3"]),
+        (["1", "2", "3"], ["1", "2", "3"], ["1", "R", "2", "3"]),
+        (["1", "2", "3"], ["1", "2", "3", "L"], ["1", "2", "3"]),
+        (["1", "2", "3"], ["1", "3"], ["1", "2", "3"]),
+        (["1", "2", "3", "4"], ["1", "2L", "3", "4"], ["1", "2R", "3X", "4"]),
+        (["1", "2", "3"], ["1", "2X", "3"], ["1", "2X", "3"]),
+    ]
+
+    def mutate(seq: list[str]) -> list[str]:
+        out = list(seq)
+        for _ in range(rng.randrange(0, 4)):
+            op = rng.randrange(0, 3)
+            if op == 0 or not out:
+                out.insert(rng.randrange(0, len(out) + 1), "n%d" % rng.randrange(10))
+            elif op == 1:
+                del out[rng.randrange(len(out))]
+            else:
+                out[rng.randrange(len(out))] = "r%d" % rng.randrange(10)
+        return out
+
+    while len(triples) < 100:
+        base = ["b%d" % rng.randrange(6) for _ in range(rng.randrange(0, 9))]
+        local = mutate(base)
+        if rng.random() < 0.2:
+            remote = list(local)  # identical edits classify as "both"
+        elif rng.random() < 0.3:
+            remote = list(base)
+        else:
+            remote = mutate(base)
+        triples.append((base, local, remote))
+    return triples
+
+
+def test_diff3_cursor_classification_matches_reference_for_generated_inputs() -> None:
+    """Cursor-based classification is field-by-field identical to the
+    old classify + _side_span logic across 100 generated triples (the
+    call itself completing doubles as the absence-of-exceptions assert)."""
+    for index, (base, local, remote) in enumerate(_generated_triples()):
+        assert diff3_regions(base, local, remote) == _reference_diff3_regions(
+            base, local, remote
+        ), f"triple #{index} diverged: {base=} {local=} {remote=}"
+
+
+def test_diff3_regions_classify_is_linear_in_region_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Structural linearity: each side's cursor helper runs exactly once
+    per region and the quadratic ``_side_span`` rescan path is never
+    taken by ``diff3_regions``."""
+    base = ["b%d" % i for i in range(800)]
+    local = [line if index % 2 else "l%d" % index for index, line in enumerate(base)]
+    remote = list(base)  # untouched side: regions split into local + same gaps
+
+    span_cursor_calls = 0
+    touched_cursor_calls = 0
+    real_span_cursor = cast(
+        SideSpanCursor, getattr(diff_module, "_side_span_cursor")
+    )
+    real_touched_cursor = cast(TouchedCursor, getattr(diff_module, "_touched_cursor"))
+
+    def spy_side_span_cursor(
+        ops: Sequence[tuple[str, int, int, int, int]],
+        index: int,
+        start: int,
+        end: int,
+    ) -> tuple[tuple[int, int], int]:
+        nonlocal span_cursor_calls
+        span_cursor_calls += 1
+        return real_span_cursor(ops, index, start, end)
+
+    def spy_touched_cursor(
+        spans: list[tuple[int, int]],
+        index: int,
+        start: int,
+        end: int,
+    ) -> tuple[bool, int]:
+        nonlocal touched_cursor_calls
+        touched_cursor_calls += 1
+        return real_touched_cursor(spans, index, start, end)
+
+    def forbidden_rescan(*_args: object) -> object:
+        raise AssertionError("_side_span rescan path must not run inside classify")
+
+    monkeypatch.setattr(diff_module, "_side_span_cursor", spy_side_span_cursor)
+    monkeypatch.setattr(diff_module, "_touched_cursor", spy_touched_cursor)
+    monkeypatch.setattr(diff_module, "_side_span", forbidden_rescan)
+    regions = diff_module.diff3_regions(base, local, remote)
+    monkeypatch.undo()
+
+    assert len(regions) == 800  # 400 changed spans + 399 gaps + 1 tail
+    assert regions == _reference_diff3_regions(base, local, remote)
+    assert span_cursor_calls == 2 * len(regions)
+    assert touched_cursor_calls == 2 * len(regions)
 
 
 # --- hunk_replacement -------------------------------------------------------

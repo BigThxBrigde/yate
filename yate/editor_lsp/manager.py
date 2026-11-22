@@ -791,20 +791,30 @@ class LspManager:
         return errors, warnings
 
     def diagnostic_at(self, doc: Document, row: int, col: int) -> Diagnostic | None:
-        """The most severe diagnostic whose range covers (row, col)."""
+        """The most severe diagnostic whose range covers (row, col).
+
+        Answers from the per-row index (rebuilt at each publish point),
+        so the hot path never copies the whole table.  Tie-breaking
+        keeps the first indexed diagnostic, i.e. the publish order --
+        identical to the pre-index full-table scan.
+        """
+        if doc.path is None:
+            return None
+        by_row = self._diagnostics_by_row.get(self._uri(doc))
+        if not by_row:
+            return None
         best: Diagnostic | None = None
-        for d in self.diagnostics_for(doc):
-            if d.start_row <= row <= d.end_row:
-                if d.start_row == d.end_row:
-                    covers = d.start_col <= col < max(d.end_col, d.start_col + 1)
-                elif row == d.start_row:
-                    covers = col >= d.start_col
-                elif row == d.end_row:
-                    covers = col <= d.end_col
-                else:
-                    covers = True
-                if covers and (best is None or d.severity < best.severity):
-                    best = d
+        for d in by_row.get(row, ()):
+            if d.start_row == d.end_row:
+                covers = d.start_col <= col < max(d.end_col, d.start_col + 1)
+            elif row == d.start_row:
+                covers = col >= d.start_col
+            elif row == d.end_row:
+                covers = col <= d.end_col
+            else:
+                covers = True
+            if covers and (best is None or d.severity < best.severity):
+                best = d
         return best
 
     def diagnostics_on_line(self, doc: Document, row: int) -> list[Diagnostic]:

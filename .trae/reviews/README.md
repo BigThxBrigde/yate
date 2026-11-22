@@ -212,6 +212,17 @@ yxp 恶意包双封顶缺口、buffer commit 标脏契约漂移、didOpen 静默
 评审记录 [2026-11-12-multi-dim-review-r3.md](2026-11-12-multi-dim-review-r3.md)。
 > 两个 2026-11-12 评审同号 #76（两侧各自顺序口径），按上方 #75 先例保留双方
 > 事实、合并时按日期统一重排；本轮合并不互相覆盖。
+**2026-11-20 全仓扫描增量**：新增 #77（本地 `master` `f7e34c34` 只读全仓扫描，
+`multi-dim-review` 13 维度、5 只读分区审查员两波 fan-out + 主代理逐条回读与机械取证 +
+主代理亲跑门禁）。基线 **0 BLOCKER / 1 MAJOR / 6 MINOR**（MAJOR = LSP 诊断热路径
+`diagnostic_at` 弃用现成 per-row 索引做 O(D) 全表扫描；MINOR 含 `move_entry` 自嵌套
+守卫缺失、yaterc 分数 Unicode 数字裸 `ValueError`、规则行数/守卫数漂移、
+嵌套 pytest 并行覆盖率 flake、文档索引失真）+ 4 Suspects / 5 Suggestions；
+审查员 2 条候选经实测反证撤回（行宽恰好 100、caplog propagate）。
+并行覆盖率 `1 failed / 3961 passed`，`-n 1` 全量 `3962 passed / 10 skipped` exit 0；
+其余门禁 pyright 0 / 全量 pytest 0 / 架构 45 / 冒烟 124/124·1511 / changelog 0。
+issue 文本 [full-repo-sweep-issue-brief.md](../documents/full-repo-sweep-issue-brief.md)，
+评审记录 [2026-11-20-full-repo-review.md](2026-11-20-full-repo-review.md)。
 **2026-11-08 IKTR5Q 增量**：新增 #67（`feature/enh-unused-symbols-cleanup` 首轮
 `code-review-expert` 评审，范围 `fb3c398..4b38989` / 4 提交；0 BLOCKER / 1 MAJOR /
 1 MINOR，裁决 REQUEST_CHANGES；产品侧 8 项重点审查全 PASS，12 条删除项 14 处
@@ -319,6 +330,9 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 整改方案与提交号见 [reviews-open-issues-fixes-plan.md](../documents/reviews-open-issues-fixes-plan.md)
 与 [reviews-plans-full-sweep-plan.md](../documents/reviews-plans-full-sweep-plan.md)（2026-10-01 全量清查轮）。
 
+> **口径说明**：本表按 master 主线顺序编号；分支局部编号保留在各散文条目中，
+> 合并回 master 时按日期重排（见上方「编号分歧登记」）。
+
 | # | 日期 | 未闭环项 | 标记 | 出处 |
 |---|---|---|---|---|
 | 1 | 2026-09-16 | `ctrl+digit` 绑定使用 kitty 协议，多数终端不支持 | ✅ 已修（2026-10-01 回填：keybinding-fix-wt Phase B win32-input-mode 落地覆盖 WT（PB6 探针实证 ctrl+1 帧）；legacy 终端限制由 PB4 双语 manual 标注；conhost / VS Code 残留并入 #10 PB5 人工矩阵） | [2026-09-16-full-review.md](2026-09-16-full-review.md) |
@@ -387,6 +401,10 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 | 73 | 2026-11-10 | IKU55P which-key 自动触发开关分支首轮 `code-review-expert` 评审（`feature/enh-which-key-auto-trigger`，范围 `master..HEAD` / 基线 `18e96d2a` / 首轮时点 7 笔提交）：**REQUEST_CHANGES**，0 BLOCKER / **1 MAJOR**（M-1 计划文档回填区与偏离记录为空，流程硬性要求）+ 3 MINOR（双语分支计数失准 / `EnabledPredicate` 注释语义错误 / 两条 `>=` 恒真断言）；行为核对全 PASS（四行矩阵、钉住态、`ctrl+w` 链、`:set` 即时生效、非 bool rc、vsc、总开关优先），六道门禁全绿：pyright 0 / 全量 pytest 0 / 架构 38 / 覆盖率 93.03%（TOTAL 19838 1091 6326 582 93%）/ 冒烟 124/124·1511 checks / changelog 0 | ✅ 已闭环（M-1 由修复波 F1 回填、3 MINOR 由 F2 修复；第二轮复审 #74 APPROVE 确认 blocker/major 归零） | [2026-11-10-which-key-auto-trigger-code-review.md](2026-11-10-which-key-auto-trigger-code-review.md)，方案见 [which-key-auto-trigger-review-fixes-plan.md](../documents/which-key-auto-trigger-review-fixes-plan.md) |
 | 74 | 2026-11-10 | **IKU55P 迭代后第二轮复审**（`feature/enh-which-key-auto-trigger`，范围 `master..HEAD` / 复审时点 10 笔提交；分支终态 13 笔，见主计划 §12.3；1 名 `code-review-expert` + 强制自我批判）：**APPROVE：0 BLOCKER / 0 MAJOR / 2 MINOR**。七项强制核验逐条 PASS（M-1 回填 / 3 MINOR 闭环 / 负向演练把 master-off `toggle()` 改为错误清面板后 3 用例判红 / 四行矩阵零回归 / 双语配对 / CHANGELOG 未手改 / 未推送）；七道验证命令全 exit 0：pyright 0 / 全量 pytest 0 / 架构 38 / 覆盖率 93.07%（3610 passed·10 skipped）/ 冒烟 124/124·1511 / changelog 0 / diffcheck 0。2 MINOR = 双语导语重复段（F2 引入）/ 残留 `panel.clears > clears_before` 弱断言 | ✅ **APPROVE**（2 MINOR 由主代理当轮修复：删除 en/zh 前置重复段 + 收紧等值断言；修复后主代理亲跑六道全量门禁全绿：pyright 0 / 3610 passed·10 skipped / 架构 38 / 覆盖率 92.96%（TOTAL 19838 1103 6326 580 93%）/ 冒烟 124/124·1511 / changelog 0 / diffcheck 双 0；工作树干净、未推送、未合并） | [2026-11-10-which-key-auto-trigger-iteration-verification.md](2026-11-10-which-key-auto-trigger-iteration-verification.md) |
 | 75 | 2026-11-11 | **IKU55P 合并前 pr-review**（`feature/enh-which-key-auto-trigger`，范围 `master...HEAD` / merge-base `18e96d2a` / 13 笔提交 / 30 文件 +1529−34；3 只读分域审查员并行（A 功能/安全/性能 / B 架构/可维护性/纪律 / C 测试/双语文档/记录/合并就绪；B 首次返回被截断，按 `subagent-workflow.md` §五.4 变更任务粒度重试一次后交付完整报告）+ 主代理逐条回读复核 + 八条硬门禁亲跑）：**`Overall: APPROVE`**：0 BLOCKER / 0 MAJOR / 5 MINOR 报告（1 项「双语裸 `which_key=False`」经字符级复核撤回为误报；4 项有效 = docstring 分支枚举漏 auto 闸门 / 矩阵 else 分支缺 `panel.last == "clear"` 断言 / #73·#74 提交数未标时点 / #73 状态双源） | ✅ **APPROVE**（4 项有效 MINOR 当轮修复闭环、1 项误报撤回；八条门禁全 exit 0：pyright 0 / 全量 pytest `-n auto` 0 / 架构 38 / 覆盖率 92.99%（`3610 passed, 10 skipped`，`TOTAL 19838 1099 6326 577 93%`）/ 冒烟 124/124·1511 checks / changelog released 段最新（`[Unreleased]` 滞后 14 commits 属生成器机制）/ diffcheck 双 0） | [2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md](2026-11-11-pr-review-feature-enh-which-key-auto-trigger.md)，方案见 [which-key-auto-trigger-pr-review-plan.md](../documents/which-key-auto-trigger-pr-review-plan.md) |
+| 78（分支局部） | 2026-11-20 | **全仓扫描修复闭环自审**（`feature/fix-full-repo-sweep`，基线 `master` `ebe8fee6`；14 项 finding 全闭环，`code-review-expert` 零产出由主代理论自审） | ✅ **APPROVE**（0 blocker / 0 major；自审 2 项 = CLI `--diag` 测试替身未建模快照契约 [major] + `DiagnosticsInput.lsp_states` 可变 [minor]，两轮修复全闭合；七道门禁全 exit 0：pyright 0 / pytest `-n auto` 0 / 架构 46 / 覆盖率双口径 3981 passed·10 skipped·93.15% / 冒烟 124/124·1511 checks / changelog 0） | [2026-11-20-full-repo-sweep-fixes.md](2026-11-20-full-repo-sweep-fixes.md)，方案见 [full-repo-sweep-plan.md](../documents/full-repo-sweep-plan.md) |
+
+| 79（分支局部） | 2026-11-21 | **全仓扫描修复闭环评审重试兜底**（`feature/fix-full-repo-sweep` 收尾提交 `8a247d98..ad505bf0`；`code-review-expert` 变更配置重试后首个探活即 `Recipient not found`，主代理按纪律兜底） | ✅ **APPROVE**（0 blocker / 0 major / 0 minor；七道门禁全 exit 0：pyright 0 / pytest `-n auto` 0 / 架构 46 / 覆盖率双口径 3981 passed·10 skipped·93.14%·93.12% / 冒烟 124/124·1511 checks / changelog 0） | [2026-11-21-full-repo-sweep-independent-review.md](2026-11-21-full-repo-sweep-independent-review.md)，方案见 [full-repo-sweep-plan.md](../documents/full-repo-sweep-plan.md) |
+
 ---
 
 ### 2026-10-09 closure-sweep 批注（维持登记项）
@@ -484,6 +502,8 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 | 2026-11-17 | **pr-review · `feature/feat-soft-wrap` 合并前评审**（18 笔 / 42 文件 +2787−50；pr-review 技能 review 模式六维度 + 6 项硬门禁；2 名分维度评审员零交付，主代理按 §三 兜底实测；并发门禁两处环境伪影串行重跑转绿） | ✅ APPROVE（0 blocker / 0 major；复查上轮 3 MAJOR 修复全部保留、identity 哨兵在 wrap-off 全消费点安全） | 0 blocker / 0 major / 3 minor（CHANGELOG 链接待合流补齐 / 评审员零产出兜底 / 精确行数守卫脆弱） | ➖ 建议处理 3 minor 后合流；门禁 pyright 0 + pytest 全绿（10 skipped）+ 架构 42 + 覆盖率 92.90% + 冒烟 124/124·1511 checks（83s）+ diffcheck 0 + changelog 0，全 exit 0；分支未推送未合入 master | [2026-11-17-pr-review-feature-feat-soft-wrap.md](2026-11-17-pr-review-feature-feat-soft-wrap.md) |
 | 2026-11-18 | **pr-review · `feature/feat-soft-wrap` 第二轮合并前评审**（评审起点 `b1e56325`，ahead 23 / 43 文件 +2919−51；含 !139/!140 合流交互；2 名分维度评审员报告投递延迟——主代理约 55 分钟判死零产出属误判、先兜底自审并宣告完成后报告送达，遂逐条复核重写本轮） | ✅ APPROVE（REQUEST_CHANGES → 两轮累计 6 MAJOR + 1 语义偏差 + 7 minor 全闭环后转绿；复查上轮 3 MAJOR + 3 minor 处置仍成立、!139/!140 交互无回归） | 主代理自审 1 MAJOR（wrap-on 宽字符/tab 行尾 block cursor 消失）+ 评审员送达 4 MAJOR（弹窗锚点逻辑/显示行混用、wrap-on 每次编辑全量重建、render_line 每行重扫、gj/gk 真实映射零覆盖）/ 1 语义偏差（gj 落点未保留续行 cell 偏移）/ 0 blocker / 7 minor | ✅ 全修（`end == offsets[-1]` + 新增 `screen_anchor`（两弹窗改调）+ span 按行复用（50k 编辑 528→14 ms）+ `_line_expand_cache` 跨续行复用 + gj/gk 偏移保留 + 二分 `logical_to_display` + `tab_width` 入缓存键 + 架构文档 42→44/vim.py→1595；多项回归用例含负向 red→绿；六门禁 pyright 0 + pytest 全绿（10 skipped）+ 架构 44 + 覆盖率 93.14%（3920 passed） + 冒烟 124/124·1511·exit0（stress_rapid_toggles 时序伪影复核转绿）+ diffcheck 0 + changelog 0，全 exit 0；分支未推送未合入 master） | [2026-11-18-pr-review-feature-feat-soft-wrap.md](2026-11-18-pr-review-feature-feat-soft-wrap.md) |
 | 2026-11-19 | **pr-review · `feature/feat-toggle-comment` 合并前评审 + 遗留 MINOR 闭环修复**（IKWNOG；`50702ec7..431ab4f3` 8 笔 / 34 文件 +1338−55；`Ctrl+/` 改注释、`Ctrl+Shift+/` 走 name-level 切键位；子代理模型一致性约束无法在 spawn 参数满足，主代理亲自评审） | ✅ APPROVE（REQUEST_CHANGES → 2 MAJOR 当轮修复转绿；遗留 2 MINOR 后续无人值守波次全闭环） | 2 MAJOR（`# `/`// ` 仅 marker 行首次 toggle 塌成空行不可逆；`/*  x */` 内侧多余空格剥层丢空白不可逆）/ 0 blocker / 2 minor（别名硬编码、命令忽略参数）+ 1 非缺陷（gcc 光标落点） | ✅ 全修（`680c3780` 严格形态判定 + 尾随空白外置，TDD 先红后绿 + 18 组边界矩阵 `BROKEN: []`；`47b12c09` 别名提升共享常量、`fa1fdd37` `:toggle-comment` 拒绝参数；门禁 pyright 0 + pytest 全绿 + 架构 45 + 覆盖率 93.15% + 冒烟复跑 124/124·1511·exit0（前几轮 sidebar flake）+ changelog 0，全 exit 0；分支未推送未合入 master） | [2026-11-19-pr-review-toggle-comment.md](2026-11-19-pr-review-toggle-comment.md) |
+
+| 2026-11-20 | **全仓库多维扫描（只出 issue 文本，不改产品代码）**（本地 `master` `f7e34c34`；`multi-dim-review` 13 维度 / 5 只读分区审查员两波 fan-out + 主代理逐条回读与门禁亲跑） | ⚠️ REQUEST_CHANGES（0 BLOCKER / 1 MAJOR / 6 MINOR；4 Suspects / 5 Suggestions） | MAJOR = LSP 诊断热路径 `diagnostic_at` 全表扫描；MINOR = `move_entry` 自嵌套守卫、yaterc Unicode 分数、规则行数/守卫数漂移、嵌套 pytest 并行覆盖率 flake、文档索引/状态块失真 | 👀 仅生成 [issue 文本](../documents/full-repo-sweep-issue-brief.md)，修复另立计划；门禁 pyright 0 / 全量 pytest 0 / 架构 45 / 覆盖率 `-n 1` 93.09%·3962 passed（`-n auto` 1 flake）/ 冒烟 124/124·1511 / changelog 0 | [2026-11-20-full-repo-review.md](2026-11-20-full-repo-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

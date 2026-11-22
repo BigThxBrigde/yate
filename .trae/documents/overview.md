@@ -10,21 +10,30 @@
 > **实施状态**：<图标> <状态> —— <核对日期与依据>
 ```
 
-状态取四值：**已实施 / 部分实施 / 未实施 / 已被取代**。本索引由
-`tools/_gen_index.py` 从同一份数据生成，与文档头部不会漂移。
+状态取四值：**已实施 / 部分实施 / 未实施 / 已被取代**。本索引为**人工维护的
+精选索引**：第三节表格逐行登记计划文档，由人手工增补，不存在任何自动生成
+脚本；第四节以下的计数则是对 `.trae/documents/` 下全部 markdown 文件及其
+状态块的**机械实测**（带核对日期），两者口径不同，数值可以合法地不同。
 2026-10-05 全量核对：逐篇比对文档自述与代码产物是否一致。
 
 > **评审记录不在本目录**，见 [`.trae/reviews/`](../reviews/README.md)。
 
 ---
 
-## 一、状态速览
+## 一、状态速览（2026-11-20 机械实测）
 
-- ✅ **已实施**：134 篇
+实测口径与命令见文末「六、计数核验注记」；四态归类按各文档状态块正文的
+状态词（`已完成` 归入 `已实施`，图标 `📌` 归入 `已被取代`）：
+
+- `.trae/documents/` 递归 `*.md` 共 **582** 篇
+- 含 `**实施状态**` 字面状态块的文件 **171** 篇
+- ✅ **已实施**：155 篇
 - 🟡 **部分实施**：4 篇
 - ❌ **未实施**：2 篇
 - ↩️ **已被取代**：7 篇
-- **合计**：147 篇
+- 四态可归类合计 **168** 篇；其余 3 处字面量为本文件与
+  `doc-review-sweep-plan.md` 的格式示例围栏、`full-repo-sweep-issue-brief.md`
+  的行文引用，非状态块
 
 ---
 
@@ -207,6 +216,18 @@
 | 145 | [`wq-safety-plan.md`](wq-safety-plan.md) | ✅ 已实施 |
 | 146 | [`wt-keybinding-fix-plan.md`](wt-keybinding-fix-plan.md) | 🟡 部分实施 |
 | 147 | [`yaterc-pyright-plan.md`](yaterc-pyright-plan.md) | ✅ 已实施 |
+| 148 | [`extension-trust-hardening-plan.md`](extension-trust-hardening-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 149 | [`filemgr-wrapup-plans/overview.md`](filemgr-wrapup-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
+| 150 | [`full-repo-sweep-plan.md`](full-repo-sweep-plan.md) | ✅ 已实施（核对 2026-11-21） |
+| 151 | [`full-repo-sweep-plans/overview.md`](full-repo-sweep-plans/overview.md) | ✅ 已实施（核对 2026-11-21，子计划经本总纲索引） |
+| 152 | [`lsp-hover-docs-plan.md`](lsp-hover-docs-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 153 | [`macro-record-replay-unified-plans/overview.md`](macro-record-replay-unified-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
+| 154 | [`pack-dist-zip-plan.md`](pack-dist-zip-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 155 | [`readme-screenshots-plans/overview.md`](readme-screenshots-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
+| 156 | [`soft-wrap-plans/overview.md`](soft-wrap-plans/overview.md) | ✅ 已实施（核对 2026-11-20） |
+| 157 | [`toggle-comment-plan.md`](toggle-comment-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 158 | [`which-key-auto-trigger-plan.md`](which-key-auto-trigger-plan.md) | ✅ 已实施（核对 2026-11-20） |
+| 159 | [`full-repo-sweep-review-fixes-plan.md`](full-repo-sweep-review-fixes-plan.md) | ✅ 已实施（门禁回归修复，2026-11-20） |
 
 ---
 
@@ -240,3 +261,26 @@
 - **登记未处理项**：`keybinding-fix-wt-plans/` 内 3 个一次性脚本
   （`win32im_probe.py`、`pb6_real_input_harness.py`、`verify_matrix.ps1`）是计划
   证据附件而非文档，规范无对应形态，保留在原位。
+
+---
+
+## 六、计数核验注记（2026-11-20）
+
+- 本节以下的计数不是表格行数：表格是人工精选索引，计数是对目录全量的机械实测，
+  因此两列数字可以合法地不同。
+- 实测命令（在仓库根执行）：
+
+  ```text
+  python -c "import pathlib; root=pathlib.Path('.trae/documents'); \
+  files=list(root.rglob('*.md')); \
+  status=[f for f in files if '**实施状态**' in f.read_text(encoding='utf-8', errors='replace')]; \
+  print(len(files), len(status))"
+  ```
+
+- 2026-11-21 实测结果：`*.md` 共 **582** 篇，含 `**实施状态**` 字面量 **171** 篇；
+  按状态词四态归类可归 **168** 篇（✅ 155 / 🟡 4 / ❌ 2 / ↩️ 7，`已完成` 归入
+  `已实施`、`📌` 归入 `已被取代`），其余 3 处字面量为格式示例围栏或行文引用。
+  D1 初填的 141 / 5 / 15 / 7 未把 `已完成` 归入已实施、也把本轮主计划与子计划总纲
+  记作部分/未实施；2026-11-21 收尾按文件实况重测并校正为上述数字。
+- 本轮（2026-11-20 full-repo-sweep）新增的本文件改动即出自子计划
+  [`full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md`](full-repo-sweep-plans/full-repo-sweep-doc-index-plan-h.md)。

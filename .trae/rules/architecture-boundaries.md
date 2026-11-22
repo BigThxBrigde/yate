@@ -26,9 +26,10 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          file_manager_flows.py（2026-11-02 命名统一波以新名首次补登，修复漏登漂移）/
          macro_flows.py（2026-11-12 宏录制与回放 wave-3 接线补登）/
          navigation_flows.py（2026-11-16 marks-jumplist wave-2 接入））/
-         diagnostics.py /
-         services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块，
-         见 R14）
+         diagnostics.py（2026-11-20 full-repo sweep：改消费 L4 cli.py 注入的只读
+         `DiagnosticsInput` 快照，不再反向 import `yate.editor`）/
+         services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块；
+         bridges 于 2026-11-20 再拆为 3 个域内模块的同名子包，见 R14）
 L2 组件：editor_components/*
 L1 会话与模型：session.py（EditorSession + 窗格树模型：Leaf / Split / ViewState / 树操作）/
          registries.py（依赖 keymaps.base 的 ActionContext，层级位于 keymaps 之上、
@@ -64,7 +65,7 @@ L0 叶子：editor_core / editor_lsp / editor_syntax / editor_term / keyproto /
   **严格向下**；L2→L3 的最后一条例外（statusbar 读取扩展门面）已于 2026-10-20 随
   statusbar 解耦清除（见 R14 条目），`UPWARD_EDGES_FROZEN` 现为**空集**；
   图中**未画出的连线一律禁止**（含反向箭头与跨层跳跃），R1 / R3 / R4 / R5 / R11 / R14
-  的禁线条款与 §六 37 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
+  的禁线条款与 §六 46 个架构守卫用例共同构成本图的执法面。新增任何 import 连线前，
   先对照本图与 §一 各 R 条款；需要新增合法连线时必须先修订本图并补守卫用例。
 
 ```mermaid
@@ -103,7 +104,7 @@ flowchart TD
     TABLES -->|"R5：表 → editor，反向禁止"| ED
     ED -->|"组合组件（R9 传 id）"| EV
     ED -->|"流程模块（§三.8 接入清单）"| FLOWS
-    ED --> DIAG
+    CLI -.->|"R3：L4 注入 DiagnosticsInput 快照；diagnostics 不 import editor"| DIAG
     ED -->|"扩展门面（R14，14 名冻结）"| EXTF
     ED --> SES
     FLOWS -->|"R11：editor_components 耦合冻结登记"| EV
@@ -334,7 +335,8 @@ flowchart TD
      新增 VISUAL count 累积与重复查找，
      motion/operator/text-object 单一键映射域；2026-11-05 multi-dim-review r2
      复测 1531 行；2026-11-12 multi-dim-review r3 复测 1534 行；2026-11-18
-    soft-wrap IKVRXT 合入 !140 后复测 1595 行，维持豁免）、
+    soft-wrap IKVRXT 合入 !140 后复测 1595 行；2026-11-20 full-repo sweep
+    复测 1678 行，维持豁免）、
      `editor_components/file_manager/screen.py`（LF 风格文件管理器三栏屏单一职责
      （FileManagerScreen 一个类及其私有辅助：布局/_reload 管线/预览接线/
      键位/prompt/盘符状态机均围绕同一屏状态，无互不引用职责块），
@@ -373,7 +375,8 @@ flowchart TD
      `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处同步。该模块曾于
 2026-10-08 big-module-split f 波拆分后出名单，见下方「已出名单」；
 2026-11-12 multi-dim-review r3 复测 879 行（本轮 m5 didOpen 日志修复后
-883 行），维持豁免）、
+883 行）；2026-11-20 full-repo sweep 复测 893 行（诊断热路径改用 per-row
+索引），维持豁免）、
 `editor.py`（2026-11-12 宏录制与回放 wave-3 接线登记：新增
 `MacroFlows` 类属性注解 / `_build_macro_flows` 工厂接线 / StatusBar
 `recording_label` 回调 / 组装顺序注释后，`splitlines()` 实测 807 行
@@ -388,12 +391,27 @@ import / 组装顺序注释，+4 行）后实测 811 行；2026-11-18 两波合�
 844 行（soft-wrap 840 + marks +4），维持豁免），
 `editor_components/view.py`（2026-11-16 soft-wrap 波（issue IKVRXT）接线
 WrapLayout 后 `splitlines()` 实测 816 行（基线 668 行）；2026-11-18 marks-jumplist
-合流后复测 824 行：`EditorView` 单一职责渲染器（render_line span-window /
+合流后复测 824 行；2026-11-20 full-repo sweep 复测 878 行：`EditorView` 单一职责渲染器（render_line span-window /
 虚拟尺寸 / 鼠标映射 / 光标曝光 / gj-gk 显示行移动均围绕同一视图渲染状态），
 wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor 深度耦合
 且违反 issue「不重构分层与高亮缓存架构」约束，故按本节「单一职责长文件可
 登记豁免」登记，并与 `tests/test_architecture.py` 的 `SIZE_EXEMPT_FILES` 两处
 同步（守卫集合扩至 7 项，`test_editor_size_exemption_is_registered` 断言同步为 7））。
+
+   **Current measured line counts (2026-11-20, `splitlines()` guard口径)**:
+   此表由 `tests/test_architecture.py::test_size_exemption_line_counts_match_rule`
+   逐项比对；任何豁免文件改动后必须同步本表与 `SIZE_EXEMPT_LINE_COUNTS`。
+
+   | Exempt file | Lines |
+   |---|---|
+   | `keymaps/vim.py` | 1678 |
+   | `editor_components/file_manager/screen.py` | 1017 |
+   | `editor_components/view.py` | 878 |
+   | `editor_core/buffer.py` | 1565 |
+   | `editor_syntax/langdefs.py` | 841 |
+   | `editor_lsp/manager.py` | 893 |
+   | `editor.py` | 844 |
+
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
      820 行维持豁免（2026-10-10 多光标 wave-3 复测 994 行、评审修复后
@@ -505,7 +523,9 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
 
 ## 六、防回归
 
-`tests/test_architecture.py` 已落地 **45 个用例**（2026-11-19 toggle-comment IKWNOG
+`tests/test_architecture.py` 已落地 **46 个用例**（2026-11-20 full-repo sweep
+新增 `test_size_exemption_line_counts_match_rule`：7 个豁免文件的实测行数与
+§三.7 表、可执行映射三方一致；此前 2026-11-19 toggle-comment IKWNOG
 实测 `45 passed`；新增 `test_toggle_comment_keys_are_shared_and_identical`：
 vsc / vim 的 `build_bindings` 都引用 `TOGGLE_COMMENT_KEY` / `TOGGLE_KEYMAP_KEY`
 且不写字面量，两套表同一 raw 键解析到 `toggle_comment`、同一 chord 名解析到
@@ -637,7 +657,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 > `test_no_machine_local_home_paths_in_sources`（见上一条目）。Markdown 中的真实
 > 路径按「随下次修改逐步迁移」处理，登记为待办而非门禁。
 
-**45 个用例逐条对照**（2026-11-19 实测 `45 passed`；2026-11-18 为 `44 passed`，2026-11-16 为 `42 passed`，2026-11-12 为 `41 passed`，
+**46 个用例逐条对照**（2026-11-20 实测 `46 passed`；2026-11-19 为 `45 passed`；2026-11-18 为 `44 passed`，2026-11-16 为 `42 passed`，2026-11-12 为 `41 passed`，
 2026-11-09 为 `38 passed`，2026-10-24 为 `37 passed`，2026-10-21 为 `36 passed`，
 2026-10-18 为 `35 passed`，2026-10-17 为 `32 passed`）：
 
@@ -688,6 +708,7 @@ wave-2 plan-d 新增 3 条守卫：`test_macro_keys_are_shared_and_identical` /
 | 43 | `test_soft_wrap_key_is_shared_and_identical` | AC 统一键位漂移守卫（2026-11-16 soft-wrap IKVRXT：AST 断言 vsc / vim 的 `build_bindings` 都引用 `SOFT_WRAP_KEY` 且无 `<alt-z>` 字面量；运行时断言两套表同一 raw 键解析到 `toggle_soft_wrap`） |
 | 44 | `test_jumplist_keys_are_shared_and_identical` | AC 统一键位漂移守卫（!140 marks/jumplist：AST 断言 vsc / vim 的 `build_bindings` 都引用 `JUMPLIST_*_KEY` 共享常量；运行时断言两套表同一 raw 键解析到同一跳转动作名） |
 | 45 | `test_toggle_comment_keys_are_shared_and_identical` | IKWNOG 注释/切键位漂移守卫（AST 断言两套表 `build_bindings` 共引 `TOGGLE_COMMENT_KEY` / `TOGGLE_KEYMAP_KEY` 且不写 `\x1f` 等字面量；运行时断言 raw 键统一为 `toggle_comment`、chord 名统一为 `toggle_keymap`） |
+| 46 | `test_size_exemption_line_counts_match_rule` | 2026-11-20 full-repo sweep：§三.7 的 7 个豁免文件行数表、`SIZE_EXEMPT_LINE_COUNTS` 与 `splitlines()` 实测三方逐项一致；键集等于 `SIZE_EXEMPT_FILES` |
 
 架构测试失败 = 阻塞合并，不得用豁免注释绕过。
 

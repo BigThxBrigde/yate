@@ -144,29 +144,37 @@ def diff3_regions(
     spans are reported as ``"same"`` and kept in the output -- callers
     filter by ``kind`` as needed.  Region order follows the base line
     order.
+
+    Both sides are classified through the monotone cursors
+    :func:`_touched_cursor` and :func:`_side_span_cursor`, advanced in
+    step with the regions' increasing base order, so classification is
+    linear in the number of regions instead of rescanning each side's
+    opcodes from the start per region.
     """
     local_ops = difflib.SequenceMatcher(a=base, b=local, autojunk=False).get_opcodes()
     remote_ops = difflib.SequenceMatcher(a=base, b=remote, autojunk=False).get_opcodes()
     local_changed = [(i1, i2) for tag, i1, i2, _j1, _j2 in local_ops if tag != "equal"]
     remote_changed = [(i1, i2) for tag, i1, i2, _j1, _j2 in remote_ops if tag != "equal"]
 
+    local_span_idx = 0
+    remote_span_idx = 0
+    local_op_idx = 0
+    remote_op_idx = 0
+
     def classify(base_start: int, base_end: int) -> MergeRegion:
-        local_start, local_end = _side_span(local_ops, base_start, base_end)
-        remote_start, remote_end = _side_span(remote_ops, base_start, base_end)
-        # Zero-length base spans (pure insertions) use point containment:
-        # an insertion point inside a changed span means the side touched
-        # the region, so a one-sided insertion classifies as local/remote
-        # instead of "same" (diffview needs the span to tint the line).
-        if base_start == base_end:
-            local_touched = any(
-                s <= base_start < e for s, e in local_changed
-            ) or any(s == base_start for s, _end in local_changed)
-            remote_touched = any(
-                s <= base_start < e for s, e in remote_changed
-            ) or any(s == base_start for s, _end in remote_changed)
-        else:
-            local_touched = any(s < base_end and e > base_start for s, e in local_changed)
-            remote_touched = any(s < base_end and e > base_start for s, e in remote_changed)
+        nonlocal local_span_idx, remote_span_idx, local_op_idx, remote_op_idx
+        local_touched, local_span_idx = _touched_cursor(
+            local_changed, local_span_idx, base_start, base_end
+        )
+        remote_touched, remote_span_idx = _touched_cursor(
+            remote_changed, remote_span_idx, base_start, base_end
+        )
+        (local_start, local_end), local_op_idx = _side_span_cursor(
+            local_ops, local_op_idx, base_start, base_end
+        )
+        (remote_start, remote_end), remote_op_idx = _side_span_cursor(
+            remote_ops, remote_op_idx, base_start, base_end
+        )
         if local_touched and remote_touched:
             identical = list(local[local_start:local_end]) == list(
                 remote[remote_start:remote_end]
@@ -273,6 +281,9 @@ def _side_span(
     A zero-length base span (``start == end``, e.g. from an ``insert``
     opcode) has no base-side lines to walk: it resolves through the first
     opcode containing the insertion point instead.
+
+    Exposed through :func:`side_span_reference` for the generated-input
+    equivalence test; ``classify`` uses :func:`_side_span_cursor`.
     """
     if start == end:
         for tag, i1, i2, j1, j2 in ops:
@@ -295,3 +306,139 @@ def _side_span(
     if not pieces:
         raise ValueError(f"base span [{start}, {end}) is not covered by opcodes")
     return pieces[0][0], pieces[-1][1]
+
+
+def side_span_reference(
+    ops: Sequence[tuple[str, int, int, int, int]],
+    start: int,
+    end: int,
+) -> tuple[int, int]:
+    """Map a base span onto one side with the pre-cursor reference logic.
+
+    This is a public test seam for :func:`diff3_regions`' generated-input
+    equivalence test; production classification uses the monotone cursor.
+    """
+    return _side_span(ops, start, end)
+
+
+def merge_spans_reference(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Coalesce spans with the shared helper used by production classification.
+
+    Public test seam so the reference oracle need not import a private name.
+    """
+    return _merge_spans(spans)
+
+
+def _consume_ops(
+    ops: Sequence[tuple[str, int, int, int, int]],
+    index: int,
+    end: int,
+) -> int:
+    """Advance an opcode cursor past opcodes ending before *end*.
+
+    Later regions start at or after *end*, so an opcode whose base run
+    ends strictly before *end* can never be needed again; opcodes ending
+    exactly at *end* are kept because a zero-length region (pure
+    insertion) may still resolve through them.
+    """
+    idx = index
+    while idx < len(ops) and ops[idx][2] < end:
+        idx += 1
+    return idx
+
+
+def _touched_cursor(
+    spans: list[tuple[int, int]],
+    index: int,
+    start: int,
+    end: int,
+) -> tuple[bool, int]:
+    """Monotone-cursor twin of the per-region touched tests.
+
+    *spans* is one side's non-equal base spans in base order (ordered,
+    non-overlapping, as produced by ``difflib`` opcodes).  Returns
+    whether that side touched the region ``[start, end)`` together with
+    the updated cursor.  Spans ending before *end* are permanently
+    consumed -- later regions start at or after *end*, so they can no
+    longer see them; spans reaching past *end* stay so later regions can
+    still match.
+
+    A zero-length region (``start == end``, pure insertion) keeps the
+    point rule verbatim: ``s <= start < e or s == start``.  A non-empty
+    region uses ``s < end and e > start``.
+    """
+    idx = index
+    touched = False
+    if start == end:
+        while idx < len(spans) and spans[idx][0] <= start:
+            s, e = spans[idx]
+            if s <= start < e or s == start:
+                touched = True
+            if e <= start:
+                idx += 1
+            else:
+                break
+        return touched, idx
+    while idx < len(spans) and spans[idx][0] < end:
+        s, e = spans[idx]
+        if s < end and e > start:
+            touched = True
+        if e < end:
+            idx += 1
+        else:
+            break
+    return touched, idx
+
+
+def _side_span_cursor(
+    ops: Sequence[tuple[str, int, int, int, int]],
+    index: int,
+    start: int,
+    end: int,
+) -> tuple[tuple[int, int], int]:
+    """Monotone-cursor twin of :func:`_side_span`.
+
+    Maps the base region ``[start, end)`` onto one side through that
+    side's opcodes exactly like :func:`_side_span`, but resumes from
+    *index* instead of rescanning from the first opcode.  Returns the
+    ``(j_start, j_end)`` span together with the updated cursor advanced
+    via :func:`_consume_ops`.
+
+    A zero-length base span (``start == end``) resolves through the
+    opcodes containing the insertion point: the first non-equal one
+    contributes its whole target interval, otherwise the first equal one
+    maps the point by offset, otherwise ``(0, 0)``.
+    """
+    idx = index
+    if start == end:
+        first_equal: tuple[int, int] | None = None
+        while idx < len(ops) and ops[idx][1] <= start:
+            tag, i1, i2, j1, j2 = ops[idx]
+            if i2 < start:
+                idx += 1  # ends before the insertion point: never contains it
+                continue
+            if tag != "equal":
+                return (j1, j2), _consume_ops(ops, idx + 1, end)
+            if first_equal is None:
+                first_equal = (j1 + start - i1, j1 + start - i1)
+            if i2 > end:
+                break  # spans past the insertion point: the next region needs it
+            idx += 1
+        if first_equal is not None:
+            return first_equal, _consume_ops(ops, idx, end)
+        return (0, 0), _consume_ops(ops, idx, end)
+    pieces: list[tuple[int, int]] = []
+    while idx < len(ops) and ops[idx][1] < end:
+        tag, i1, i2, j1, j2 = ops[idx]
+        if i2 > start:
+            if tag == "equal":
+                pieces.append((j1 + max(i1, start) - i1, j1 + min(i2, end) - i1))
+            else:
+                pieces.append((j1, j2))
+            if i2 >= end:
+                break  # reaches the region end: a zero-length region at
+                # end may still resolve through this opcode
+        idx += 1
+    if not pieces:
+        raise ValueError(f"base span [{start}, {end}) is not covered by opcodes")
+    return (pieces[0][0], pieces[-1][1]), _consume_ops(ops, idx, end)

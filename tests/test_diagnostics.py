@@ -12,16 +12,18 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Any, override
+from types import MappingProxyType
+from typing import Any, cast, override
 from unittest.mock import patch
 
 import pytest
 
 from yate import diagnostics
 from yate.app import YateApp
-from yate.yaterc import load_config
+from yate.editor import Editor
 from yate.editor_lsp.client import ServerConfig
 from yate.editor_lsp.parsing import _parse_diagnostics
+from yate.yaterc import load_config
 
 _ALL_SECTIONS: tuple[str, ...] = (
     "system", "terminal", "shell", "paths", "yaterc", "config",
@@ -41,17 +43,34 @@ def _build_app(*, yaterc: str | None = None, ext_files: list[str | Path] | None 
     return app
 
 
+def _snapshot(editor: Editor) -> diagnostics.DiagnosticsInput:
+    """Freeze the editor state the diagnostics report reads (call-site shim).
+
+    Mirrors the production snapshot helper in ``yate.cli``: the report
+    consumes a frozen :class:`diagnostics.DiagnosticsInput`, never a live
+    editor.
+    """
+    return diagnostics.DiagnosticsInput(
+        config=editor.config,
+        ext_dirs=tuple(editor.ext_dirs),
+        ext_files=tuple(editor.ext_files),
+        loaded_extensions=tuple(editor.extension_loader.loaded),
+        lsp_configs=tuple(editor.lsp.configs()),
+        lsp_states=MappingProxyType(dict(editor.lsp.states())),
+    )
+
+
 # --- report structure -------------------------------------------------------
 
 
 def test_report_contains_all_twelve_sections() -> None:
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
     for title in _ALL_SECTIONS:
         assert f"[{title}]" in report, f"missing section [{title}]"
 
 
 def test_report_has_header_and_divider() -> None:
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
     assert report.startswith("yate ")
     assert "diagnostics" in report.splitlines()[0]
 
@@ -61,7 +80,7 @@ def test_report_has_header_and_divider() -> None:
 
 def test_report_warns_about_machine_details_before_sections() -> None:
     """The privacy note leads the report, ahead of the first section."""
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
     note: str = _private("_PRIVACY_NOTE")
     assert note in report
     assert report.index(note) < report.index("[system]")
@@ -70,14 +89,14 @@ def test_report_warns_about_machine_details_before_sections() -> None:
 
 def test_privacy_note_is_plain_text_in_colored_report() -> None:
     """ANSI coloring must not split or restyle the privacy note line."""
-    report = diagnostics.format_report(_build_app().editor, color=True)
+    report = diagnostics.format_report(_snapshot(_build_app().editor), color=True)
     note: str = _private("_PRIVACY_NOTE")
     assert note in report
 
 def test_yaterc_option_appears_in_config_section(tmp_path: Path) -> None:
     rc = tmp_path / "yaterc"
     rc.write_text("tab_width = 2\nkeymap = 'vim'\n", encoding="utf-8")
-    report = diagnostics.format_report(_build_app(yaterc=str(rc)).editor)
+    report = diagnostics.format_report(_snapshot(_build_app(yaterc=str(rc)).editor))
     assert "tab_width          : 2" in report
     assert "keymap             : vim" in report
 
@@ -85,7 +104,7 @@ def test_yaterc_option_appears_in_config_section(tmp_path: Path) -> None:
 def test_kv_separator_is_colon_everywhere() -> None:
     """Old ``key = value`` / ``key : value`` styles are gone: every
     key-value line uses the single ``key: value`` shape."""
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
     for line in report.splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith(("[", "-", "==")):
@@ -104,7 +123,7 @@ def test_broken_extension_shows_error_reason(tmp_path: Path) -> None:
     bad = tmp_path / "broken_ext.py"
     # A script with no setup(api) function fails to load.
     bad.write_text("# no setup function here\n", encoding="utf-8")
-    report = diagnostics.format_report(_build_app(ext_files=[bad]).editor)
+    report = diagnostics.format_report(_snapshot(_build_app(ext_files=[bad]).editor))
     assert "[error]" in report
     assert "broken_ext" in report
     assert "no setup" in report
@@ -121,7 +140,7 @@ def test_lsp_env_keys_are_shown_but_values_are_masked() -> None:
         filetypes=["py"],
         env={"API_TOKEN": "secret123", "API_KEY": "hunter2"},
     ))
-    report = diagnostics.format_report(app.editor)
+    report = diagnostics.format_report(_snapshot(app.editor))
     # env key names appear
     assert "API_TOKEN" in report
     assert "API_KEY" in report
@@ -138,7 +157,7 @@ def test_failing_section_does_not_abort_report() -> None:
     # Force the fonts section to blow up; every other section must still
     # render and the failing one must show a downgrade notice.
     with patch("yate.diagnostics._section_fonts", side_effect=RuntimeError("boom")):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     # other sections are intact
     assert "[system]" in report
     assert "[config]" in report
@@ -153,7 +172,7 @@ def test_failing_section_does_not_abort_report() -> None:
 
 
 def test_plain_report_has_no_ansi_escapes() -> None:
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
     assert "\x1b[" not in report
 
 
@@ -165,7 +184,7 @@ def test_colored_report_keeps_text_and_masks_secrets() -> None:
         filetypes=["py"],
         env={"API_TOKEN": "secret123"},
     ))
-    colored = diagnostics.format_report(app.editor, color=True)
+    colored = diagnostics.format_report(_snapshot(app.editor), color=True)
     # ANSI styling present
     assert "\x1b[" in colored
     # text content survives (only styles were added)
@@ -179,7 +198,7 @@ def test_print_report_writes_plain_text_to_stdout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     # capsys's stream isatty() is False -> plain text, like a redirected run.
-    diagnostics.print_report(_build_app().editor)
+    diagnostics.print_report(_snapshot(_build_app().editor))
     out = capsys.readouterr().out
     assert "[system]" in out
     assert "\x1b[" not in out
@@ -199,7 +218,7 @@ def test_print_report_colors_on_a_terminal(monkeypatch: pytest.MonkeyPatch) -> N
     stream = _TtyStream()
     monkeypatch.setattr(sys, "stdout", stream)
 
-    diagnostics.print_report(_build_app().editor)
+    diagnostics.print_report(_snapshot(_build_app().editor))
 
     written = stream.getvalue()
     assert "[system]" in written
@@ -212,7 +231,7 @@ def test_colored_report_styles_the_error_lines(tmp_path: Path) -> None:
     bad.write_text("# no setup function here\n", encoding="utf-8")
 
     report = diagnostics.format_report(
-        _build_app(ext_files=[bad]).editor, color=True
+        _snapshot(_build_app(ext_files=[bad]).editor), color=True
     )
 
     assert "[error]" in report
@@ -226,7 +245,7 @@ def test_empty_section_body_renders_none() -> None:
     """A section that produces no lines is still shown, with a marker."""
     app = _build_app()
     with patch("yate.diagnostics._section_fonts", return_value=[]):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "[fonts]" in report
     assert "  (none)" in report
 
@@ -240,7 +259,7 @@ def test_recent_crash_reports_are_listed() -> None:
     crash_file = data / "crash-20240101-000000.err"
     crash_file.write_text("boom\n", encoding="utf-8")
 
-    report = diagnostics.format_report(_build_app().editor)
+    report = diagnostics.format_report(_snapshot(_build_app().editor))
 
     assert "recent crash reports:" in report
     assert crash_file.name in report
@@ -251,7 +270,7 @@ def test_yaterc_load_errors_are_listed(tmp_path: Path) -> None:
     rc = tmp_path / "yaterc"
     rc.write_text('tab_width = "wide"\n', encoding="utf-8")
 
-    report = diagnostics.format_report(_build_app(yaterc=str(rc)).editor)
+    report = diagnostics.format_report(_snapshot(_build_app(yaterc=str(rc)).editor))
 
     assert "load errors:" in report
     assert "tab_width" in report
@@ -261,7 +280,7 @@ def test_missing_extension_file_is_flagged(tmp_path: Path) -> None:
     """A ``--ext`` path that does not exist is reported as missing."""
     missing = tmp_path / "nope.py"
 
-    report = diagnostics.format_report(_build_app(ext_files=[missing]).editor)
+    report = diagnostics.format_report(_snapshot(_build_app(ext_files=[missing]).editor))
 
     assert f"ext-file: {missing} (missing)" in report
 
@@ -279,7 +298,7 @@ def test_rc_and_ext_dir_candidates_are_listed(tmp_path: Path) -> None:
     app.editor.extension_flows.load_extensions()
     app.editor.extension_flows.register_configured_servers()
 
-    report = diagnostics.format_report(app.editor)
+    report = diagnostics.format_report(_snapshot(app.editor))
 
     assert f"rc      : {rc_dir} (1 script(s))" in report
     assert f"ext-dir : {ext_dir} (0 script(s))" in report
@@ -289,7 +308,7 @@ def test_no_loaded_extensions_renders_a_placeholder() -> None:
     """An empty extension list shows the placeholder instead of a blank."""
     app = _build_app()
     with patch.object(app.editor.extension_loader, "loaded", []):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "  loaded:" in report
     assert "    (none)" in report
 
@@ -298,7 +317,7 @@ def test_no_lsp_servers_registered() -> None:
     """The LSP section explains itself when nothing was registered."""
     app = _build_app()
     with patch.object(app.editor.lsp, "configs", return_value=[]):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "(no LSP servers registered)" in report
 
 
@@ -306,7 +325,7 @@ def test_syntax_section_without_tree_sitter() -> None:
     """Without the optional backend the syntax section says so."""
     app = _build_app()
     with patch("yate.editor_syntax.ts_backend.ts_available", return_value=False):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "not available (tree_sitter not installed)" in report
 
 
@@ -318,7 +337,7 @@ def test_syntax_section_handles_missing_grammars_and_short_lists() -> None:
         patch("yate.editor_syntax.resolve_filetype", return_value=None),
         patch("yate.editor_syntax.available_filetypes", return_value=["py"]),
     ):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "regex languages" in report
     assert "py" in report
 
@@ -330,7 +349,7 @@ def test_missing_packages_are_reported_as_not_installed() -> None:
         "yate.diagnostics.importlib_metadata.version",
         side_effect=importlib.metadata.PackageNotFoundError("nope"),
     ):
-        report = diagnostics.format_report(app.editor)
+        report = diagnostics.format_report(_snapshot(app.editor))
     assert "not installed" in report
 
 
@@ -582,3 +601,42 @@ def test_diagnostics_warn_resets_for_each_batch() -> None:
     finally:
         logger.removeHandler(capture)
     assert len(capture.messages) == 2
+
+
+# --- snapshot input contract -------------------------------------------------
+
+
+def test_diagnostics_input_snapshot_is_read_only() -> None:
+    """The frozen snapshot cannot be mutated and decouples the report
+    from later changes to the originating editor's state."""
+    app = _build_app()
+    snapshot = _snapshot(app.editor)
+    before = diagnostics.format_report(snapshot)
+    # Frozen dataclass: mutating a tuple field must raise.
+    with pytest.raises(AttributeError):
+        setattr(snapshot, "ext_files", ())
+    with pytest.raises(TypeError):
+        cast(dict[str, object], snapshot.lsp_states)["extra"] = None
+    # Mutating unrelated live-editor state leaves the report byte-identical.
+    app.editor.startup_readonly = not app.editor.startup_readonly
+    assert diagnostics.format_report(snapshot) == before
+
+
+def test_diagnostics_module_does_not_import_editor() -> None:
+    """``yate.diagnostics`` must stay importable without ``yate.editor``.
+
+    Regression guard for the diagnostics decoupling: the report consumes a
+    frozen :class:`diagnostics.DiagnosticsInput` snapshot, never a live
+    editor.  Scans the module's import lines so a re-added edge fails here
+    even if the architecture-level guard has not landed yet.
+    """
+    source = Path(diagnostics.__file__).read_text(encoding="utf-8")
+    import_lines = [
+        line for line in source.splitlines()
+        if line.strip().startswith(("import ", "from "))
+    ]
+    assert import_lines, "source scan found no import lines"
+    # Word boundary keeps ``yate.editor_lsp`` / ``yate.editor_core`` imports
+    # from triggering the guard.
+    editor_edge_re = re.compile(r"\byate\.editor\b")
+    assert not any(editor_edge_re.search(line) for line in import_lines)

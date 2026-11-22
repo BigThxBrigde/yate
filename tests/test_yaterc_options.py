@@ -392,3 +392,37 @@ def test_parse_journey_fraction_accepts_fraction_rejects_rest(
 
     assert _parse_journey_fraction(1.5, "dist_lower_bound", config) is None
     assert config.errors, "an out-of-range bound must be reported"
+
+
+def test_parse_journey_fraction_rejects_superscript_digit_with_friendly_error(
+    config: YateConfig,
+) -> None:
+    """A non-decimal Unicode digit (``'²'.isdigit()`` is True) fails
+    validation with the friendly message instead of crashing on int()."""
+    assert _parse_journey_fraction("²/8", "dist", config) is None
+    assert len(config.errors) == 1
+    assert "must be a float in (0, 1)" in config.errors[0]
+    assert "'²/8'" in config.errors[0]
+
+
+def test_extract_options_keeps_tail_extractors_after_unicode_fraction_error(
+    config: YateConfig,
+) -> None:
+    """A bad fraction in screen_saver is reported, not raised: the tail
+    dict extractors (file_preview, large_file) still run."""
+    _extract_options(
+        {
+            "screen_saver": {"dist_lower_bound": "²/8"},
+            "file_preview": {"enable": False, "size": 40},
+            "large_file": {"threshold": 1048576},
+        },
+        config,
+    )
+
+    assert any(
+        "must be a float in (0, 1)" in error and "'²/8'" in error
+        for error in config.errors
+    )
+    assert config.file_preview.enable is False
+    assert config.file_preview.size == 40
+    assert config.large_file.threshold == 1048576

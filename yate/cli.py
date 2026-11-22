@@ -14,6 +14,7 @@ import platform
 import sys
 from collections.abc import Sequence
 from pathlib import Path
+from types import MappingProxyType
 
 from yate import __description__, __version__
 from yate.logs import tracing
@@ -29,8 +30,10 @@ def version_lines() -> str:
     """yate / description / Python / platform information (``--version``).
 
     Lives here instead of :mod:`yate.diagnostics` so ``--version`` only pays
-    for this leaf module: diagnostics needs ``yate.editor`` for its report
-    signatures, which would drag in the whole TUI stack.
+    for this leaf module: since the snapshot decoupling, diagnostics no
+    longer imports ``yate.editor`` (the report consumes a frozen
+    DiagnosticsInput snapshot), but rendering it still needs a fully built
+    app, which drags in the TUI stack.
     """
     impl = platform.python_implementation()
     return (
@@ -506,6 +509,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     # register_configured_servers() are headless-safe.
     if args.diag:
         from yate import diagnostics
+        from yate.editor import Editor
+
+        def _diagnostics_input(editor: Editor) -> diagnostics.DiagnosticsInput:
+            """Freeze the editor state the diagnostics report reads.
+
+            Defined here (not at module level) so the ``yate.editor`` /
+            TUI-side imports stay inside the ``--diag`` branch and
+            ``--help`` / ``--version`` keep paying only for leaf modules.
+            """
+            return diagnostics.DiagnosticsInput(
+                config=editor.config,
+                ext_dirs=tuple(editor.ext_dirs),
+                ext_files=tuple(editor.ext_files),
+                loaded_extensions=tuple(editor.extension_loader.loaded),
+                lsp_configs=tuple(editor.lsp.configs()),
+                lsp_states=MappingProxyType(dict(editor.lsp.states())),
+            )
 
         app = YateApp(
             target=target,
@@ -521,7 +541,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         app.editor.extension_flows.load_extensions()
         app.editor.extension_flows.register_configured_servers()
-        diagnostics.print_report(app.editor)
+        diagnostics.print_report(_diagnostics_input(app.editor))
         return 0
 
     app = YateApp(

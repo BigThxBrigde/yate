@@ -16,16 +16,44 @@ import os
 import platform
 import re
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any, Callable
 
 from yate import __version__
+from yate.config import YateConfig
 from yate.dist_meta import requirement_groups
-from yate.editor import Editor
+from yate.editor_lsp.client import ServerConfig, ServerState
 from yate.logs import tracing
+from yate.services.extensions import LoadedExtension
 
 log = tracing.get_logger(__name__)
+
+
+# ------------------------------------------------------------- report input
+
+@dataclass(frozen=True)
+class DiagnosticsInput:
+    """Frozen snapshot of everything the ``--diag`` report reads.
+
+    The report never touches a live editor: the caller (L4, :mod:`yate.cli`)
+    builds this snapshot right after extensions and LSP servers are loaded,
+    and every section renders from these fields alone.  Field types are the
+    concrete leaf types (:class:`YateConfig`, :class:`LoadedExtension`,
+    :class:`ServerConfig`, :class:`ServerState`) instead of a narrow
+    Protocol -- their owning modules are lower layers, so the imports are
+    cycle-free and stay at module top level (R6: no deferred typing
+    imports, no narrow Protocol, no ``Any``).
+    """
+
+    config: YateConfig
+    ext_dirs: tuple[Path, ...]
+    ext_files: tuple[Path, ...]
+    loaded_extensions: tuple[LoadedExtension, ...]
+    lsp_configs: tuple[ServerConfig, ...]
+    lsp_states: Mapping[str, ServerState]
 
 # Terminal environment variables worth surfacing.  Values are shown for the
 # descriptive ones; opaque session ids are reported as ``<set>`` / ``<unset>``.
@@ -73,13 +101,13 @@ _SECTION_TITLE_RE: re.Pattern[str] = re.compile(r"^\[[a-z]+\]$")
 
 
 #: One diagnostics section: collect its lines on demand (at report time, not
-#: import time -- several sections need the live editor).
+#: import time -- several sections read the snapshot fields).
 type SectionFn = Callable[[], list[str]]
 
 
 # ------------------------------------------------------------------ report
 
-def format_report(editor: Editor, *, color: bool = False) -> str:
+def format_report(snapshot: DiagnosticsInput, *, color: bool = False) -> str:
     """Collect every diagnostic section and return the report text.
 
     With ``color=True`` the lines carry ANSI styling (section titles, keys,
@@ -94,12 +122,12 @@ def format_report(editor: Editor, *, color: bool = False) -> str:
         ("terminal", _section_terminal),
         ("shell", _section_shell),
         ("paths", _section_paths),
-        ("yaterc", lambda: _section_yaterc(editor)),
-        ("config", lambda: _section_config(editor)),
+        ("yaterc", lambda: _section_yaterc(snapshot)),
+        ("config", lambda: _section_config(snapshot)),
         ("themes", _section_themes),
         ("syntax", _section_syntax),
-        ("extensions", lambda: _section_extensions(editor)),
-        ("lsp", lambda: _section_lsp(editor)),
+        ("extensions", lambda: _section_extensions(snapshot)),
+        ("lsp", lambda: _section_lsp(snapshot)),
         ("fonts", _section_fonts),
         ("packages", _section_packages),
     ]
@@ -128,12 +156,12 @@ def format_report(editor: Editor, *, color: bool = False) -> str:
     return text + "\n"
 
 
-def print_report(editor: Editor) -> None:
+def print_report(snapshot: DiagnosticsInput) -> None:
     """Print the report to stdout, colored when stdout is a terminal."""
     color = sys.stdout.isatty()
     if color:
         _enable_windows_ansi()
-    print(format_report(editor, color=color))
+    print(format_report(snapshot, color=color))
 
 
 def _enable_windows_ansi() -> None:
@@ -265,10 +293,10 @@ def _section_paths() -> list[str]:
 
 # ------------------------------------------------------------------ yaterc
 
-def _section_yaterc(editor: Editor) -> list[str]:
+def _section_yaterc(snapshot: DiagnosticsInput) -> list[str]:
     from yate.yaterc import find_project_config, user_config_path
 
-    config = editor.config
+    config = snapshot.config
     user_rc = user_config_path()
     user_note = "exists" if user_rc.is_file() else "missing"
     project_rc = find_project_config()
@@ -295,8 +323,8 @@ def _section_yaterc(editor: Editor) -> list[str]:
 
 # ------------------------------------------------------------------ config
 
-def _section_config(editor: Editor) -> list[str]:
-    c = editor.config
+def _section_config(snapshot: DiagnosticsInput) -> list[str]:
+    c = snapshot.config
     shell_value = c.shell if c.shell else "(default)"
     return [
         _kv("keymap", c.keymap, width=19),
@@ -352,7 +380,7 @@ def _section_syntax() -> list[str]:
 
 # -------------------------------------------------------------- extensions
 
-def _section_extensions(editor: Editor) -> list[str]:
+def _section_extensions(snapshot: DiagnosticsInput) -> list[str]:
     from yate.paths import bundled_extensions_dir, yate_home
 
     lines: list[str] = ["  candidate dirs:"]
@@ -365,21 +393,21 @@ def _section_extensions(editor: Editor) -> list[str]:
             lines.append(f"    {label:8}: {path} (missing)")
 
     # rc-declared extension paths
-    for p in editor.config.extension_paths:
+    for p in snapshot.config.extension_paths:
         _dir_line("rc", p)
     _dir_line("bundled", bundled_extensions_dir())
-    for d in editor.ext_dirs:
+    for d in snapshot.ext_dirs:
         _dir_line("ext-dir", d)
     _dir_line("project", Path.cwd() / "extensions")
     _dir_line("user", yate_home() / "extensions")
-    for f in editor.ext_files:
+    for f in snapshot.ext_files:
         if f.is_file():
             lines.append(f"    ext-file: {f}")
         else:
             lines.append(f"    ext-file: {f} (missing)")
 
     lines.append("  loaded:")
-    loaded = editor.extension_loader.loaded
+    loaded = snapshot.loaded_extensions
     if not loaded:
         lines.append("    (none)")
         return lines
@@ -396,9 +424,9 @@ def _section_extensions(editor: Editor) -> list[str]:
 
 # --------------------------------------------------------------------- lsp
 
-def _section_lsp(editor: Editor) -> list[str]:
-    configs = editor.lsp.configs()
-    states = editor.lsp.states()
+def _section_lsp(snapshot: DiagnosticsInput) -> list[str]:
+    configs = snapshot.lsp_configs
+    states = snapshot.lsp_states
     if not configs:
         return ["  (no LSP servers registered)"]
 
