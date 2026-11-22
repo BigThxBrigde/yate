@@ -11,6 +11,9 @@ from yate.keymaps.base import (
     parse_key,
 )
 from yate.keymaps.keys import (
+    FIND_REFS_VSC_KEY,
+    GOTO_DEF_VSC_KEY,
+    HOVER_POPUP_KEY,
     JUMPLIST_BACK_KEY,
     JUMPLIST_FORWARD_KEY,
     MACRO_PLAY_KEY,
@@ -140,6 +143,9 @@ class VscKeymap(Keymap):
             _k("<f8>", "manual", "Open user manual (read-only)", HELP),
             _k("<f9>", "toggle_whichkey", "Toggle the which-key panel", VIEW),
             _k(HOVER_DOC_KEY, "show_hover_docs", "Show API documentation at cursor", VIEW),
+            _k(GOTO_DEF_VSC_KEY, "goto_definition", "Go to definition", NAV),
+            _k(FIND_REFS_VSC_KEY, "find_references", "Find references", NAV),
+            _k(HOVER_POPUP_KEY, "show_hover_docs", "Show hover documentation", VIEW),
             _k(MACRO_RECORD_KEY, "macro_record", "Toggle macro recording", VIEW),
             _k(MACRO_PLAY_KEY, "macro_play", "Play a recorded macro", VIEW),
             _k(MACRO_REPLAY_LAST_KEY, "macro_replay_last", "Repeat last replay", VIEW),

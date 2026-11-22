@@ -58,6 +58,19 @@ SPECIAL_KEYS: dict[str, str] = {
 #: keymaps import this single L0 constant (AC2); <ctrl-k> is NOT usable
 #: because it aliases <ctrl-shift-k> (delete_line) at raw byte \x0b.
 HOVER_DOC_KEY: str = "<f7>"
+#: Vim ``gd`` chord (go to definition); the ``g`` prefix owns the key, the
+#: follower is dispatched in the vim keymap's normal-mode handler (AC1).
+GOTO_DEF_KEY: str = "gd"
+#: Vim ``gr`` chord (find references), dispatched like :data:`GOTO_DEF_KEY`.
+FIND_REFS_KEY: str = "gr"
+#: Vsc single key for go to definition; free in both keymap tables and not
+#: one of the reserved function keys (``<f12>`` is macro replay).
+GOTO_DEF_VSC_KEY: str = "<alt-g>"
+#: Vsc single key for find references (see :data:`GOTO_DEF_VSC_KEY`).
+FIND_REFS_VSC_KEY: str = "<alt-r>"
+#: Shared hover-popup key for both built-in keymaps; ``parse_key`` normalizes
+#: the shift spelling to the plain ``K`` the vim normal-mode dispatch sees.
+HOVER_POPUP_KEY: str = "<shift-k>"
 #: Shared key for toggling macro recording in both built-in keymaps (AC3).
 MACRO_RECORD_KEY: str = "<f10>"
 #: Shared key for playing a recorded macro in both built-in keymaps (AC3).

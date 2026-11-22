@@ -39,6 +39,9 @@ from yate.keymaps.base import (
     parse_key,
 )
 from yate.keymaps.keys import (
+    FIND_REFS_KEY,
+    GOTO_DEF_KEY,
+    HOVER_POPUP_KEY,
     JUMPLIST_BACK_KEY,
     JUMPLIST_FORWARD_KEY,
     MACRO_PLAY_KEY,
@@ -274,6 +277,15 @@ class VimKeymap(Keymap):
             KeyBinding(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", NAV),
             KeyBinding(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", NAV),
             KeyBinding(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", NAV),
+            # LSP navigation: the chords dispatch through the ``g``-prefix
+            # branches in _handle_normal; these rows are help-table entries
+            # only (and give the extension-binding fallback the ``K`` key).
+            KeyBinding(parse_key(GOTO_DEF_KEY), "goto_definition",
+                       "Go to definition (gd)", NAV),
+            KeyBinding(parse_key(FIND_REFS_KEY), "find_references",
+                       "Find references (gr)", NAV),
+            KeyBinding(parse_key(HOVER_POPUP_KEY), "show_hover_docs",
+                       "Show hover documentation (K)", HLP),
         ]
 
     # --------------------------------------------------------------- dispatch
@@ -424,6 +436,8 @@ class VimKeymap(Keymap):
             return (
                 ("g", "go to line N / first line (gg) / display line (gj gk)"),
                 ("c", "toggle comment (gc{motion}, gcc)"),
+                ("d", "go to definition (gd)"),
+                ("r", "find references (gr)"),
             )
         if self.prefix in _FIND_PREFIX_HINTS:
             return (_FIND_PREFIX_HINTS[self.prefix],)
@@ -879,6 +893,18 @@ class VimKeymap(Keymap):
         if self.prefix == "g" and key == "c":
             self.prefix = None
             self.comment_pending = True
+            return True
+        if self.prefix == "g" and key == "d":
+            # LSP go-to definition: a complete command, so every half-finished
+            # state (count / register / operator) goes with it, mirroring the
+            # gg resolution below the branch order.
+            self._clear_pending()
+            ui.execute_action("goto_definition")
+            return True
+        if self.prefix == "g" and key == "r":
+            # LSP find references, dispatched exactly like ``gd`` above.
+            self._clear_pending()
+            ui.execute_action("find_references")
             return True
         if self.prefix in ("f", "F", "t", "T") and len(key) == 1 and key.isprintable():
             # no None guard needed here: the tuple test above already

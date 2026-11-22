@@ -107,3 +107,15 @@ Risk: `alt-g`/`alt-r` could conflict with terminal sequences; run
 `python -m tools.check_keys` equivalent test in the local test file via
 `conflicts.find_key_conflicts`. Rollback: revert this plan's commits; wave d
 cannot start until the action names are settled.
+
+## Execution deviation record (2026-11-22)
+
+Measured: the six new actions in `yate/actions.py` make pyright report 24
+`reportAttributeAccessIssue` errors because `Editor.lsp_navigation` does not
+exist until wave d (`flow-plan-d.md` §3). The keymap changes and all six tests
+pass; the only failing acceptance command is pyright on `actions.py`. Per
+unattended-mode authority the deviation is approved: plan b is committed with
+pytest green, its pyright acceptance is deferred until after wave d adds the
+`Editor` attribute, and the main agent will re-run
+`.venv\Scripts\python.exe -m pyright yate/actions.py` at that point.
+No `Protocol` / `Any` / ignore comment was introduced to work around it.
