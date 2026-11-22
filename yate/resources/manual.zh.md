@@ -1306,7 +1306,7 @@ yate 内置了一个精简的
 * **导航与符号操作**——以下能力全部以服务器声明的 capability 为门，请求
   **异步**发出，结果与失败都以显式消息回显；服务器未就绪或未声明能力时
   给出明确提示、不动 buffer。`gd` 跳转到定义、`gr` 查找引用（多结果弹出
-  选择器，Enter 跳转）、`:lsp outline`（`show_outline`）列出文档大纲、
+  选择器，Enter 跳转）、命令面板的 `show_outline` 动作列出文档大纲、
   另有 `rename_symbol`（重命名）、`show_code_actions`（代码操作）、
   `show_signature_help`（签名帮助）三个动作。键位如下：
 

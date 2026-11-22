@@ -37,7 +37,7 @@ Client capabilities:
   jumps to the selected location.
 - **Hover documentation (K)**: `K` under the vim keymap triggers the same
   `show_hover_docs` action as `F7` (the `<f7>` key stays).
-- **Document outline**: `:lsp outline` (the `show_outline` action) lists the
+- **Document outline**: the `show_outline` action (command palette) lists the
   symbols of the current document; `Enter` jumps to one.
 - **Rename** (`rename_symbol`), **code actions** (`show_code_actions`) and
   **signature help** (`show_signature_help`) are available through the

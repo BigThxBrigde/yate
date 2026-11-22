@@ -385,7 +385,7 @@ MAX_SOURCE_LINES: int = 800
 #: ``editor.py``, pushing it past 800 lines; single-duty thin delegate,
 #: registered per section 3.7.
 #: 2026-11-2x lsp-navigation wave-4 re-measure: ``vim.py`` 1704,
-#: ``editor.py`` 848, ``editor_lsp/manager.py`` 1168.
+#: ``editor.py`` 848, ``editor_lsp/manager.py`` 1189 (IKX5EP fix round).
 SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
     "keymaps/vim.py",
     "editor_components/file_manager/screen.py",
@@ -400,12 +400,12 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
 #: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
 #: source; this map is the executable half of the two-way sync guard.
 SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
-    "keymaps/vim.py": 1704,
+    "keymaps/vim.py": 1705,
     "editor_components/file_manager/screen.py": 1017,
     "editor_components/view.py": 878,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
-    "editor_lsp/manager.py": 1168,
+    "editor_lsp/manager.py": 1189,
     "editor.py": 848,
 }
 
@@ -1776,6 +1776,17 @@ def test_lsp_navigation_keys_are_shared_and_identical() -> None:
         binding = VimKeymap().lookup(parse_key(key))
         assert binding is not None
         assert binding.action == action
+    # Dual-row coexistence: in both keymaps the retained ``<f7>`` and the
+    # vim-style ``K`` each resolve to ``show_hover_docs``.
+    from yate.keymaps.keys import HOVER_DOC_KEY
+
+    for key in (HOVER_DOC_KEY, HOVER_POPUP_KEY):
+        vsc_hover = VscKeymap().lookup(parse_key(key))
+        assert vsc_hover is not None
+        assert vsc_hover.action == "show_hover_docs", key
+        vim_hover = VimKeymap().lookup(parse_key(key))
+        assert vim_hover is not None
+        assert vim_hover.action == "show_hover_docs", key
 
 
 def test_macro_keys_are_shared_and_identical() -> None:

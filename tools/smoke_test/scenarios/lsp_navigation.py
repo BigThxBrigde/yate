@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from yate.app import YateApp
 from yate.editor_components.lsp_chooser import LspChooserScreen
@@ -185,7 +185,11 @@ def _popup_text(popup: HoverPopup) -> str:
     return cast(str, getattr(popup, "_text"))
 
 
-async def _open_call_site(pilot: object, app: YateApp, call_path: Path) -> None:
+async def _open_call_site(
+    pilot: Any,  # noqa: Any - naming Pilot would import textual here
+    app: YateApp,
+    call_path: Path,
+) -> None:
     """Open the call-site file and park the cursor on ``greet(1)``."""
     app.editor.document_flows.open_path(call_path)
     await pilot.pause()

@@ -28,7 +28,7 @@ yate 内置一个精简的 [LSP](https://microsoft.github.io/language-server-pro
   结果弹出选择器，Enter 跳到选中位置。
 - **悬停文档（K）**：vim 键位 `K` 与 `F7` 触发同一 `show_hover_docs` 动作
   （`<f7>` 键保留）。
-- **文档大纲**：`:lsp outline`（即 `show_outline` 动作）列出当前文档符号，
+- **文档大纲**：通过命令面板触发 `show_outline` 动作，列出当前文档符号，
   Enter 跳转。
 - **重命名**（`rename_symbol`）、**代码操作**（`show_code_actions`）、
   **签名帮助**（`show_signature_help`）同样经命令面板/动作可用。

@@ -1975,6 +1975,8 @@ def test_chord_hints_list_prefix_followers() -> None:
     assert keymap.chord_hints() == (
         ("g", "go to line N / first line (gg) / display line (gj gk)"),
         ("c", "toggle comment (gc{motion}, gcc)"),
+        ("d", "go to definition (gd)"),
+        ("r", "find references (gr)"),
     )
 
 

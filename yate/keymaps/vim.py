@@ -277,9 +277,10 @@ class VimKeymap(Keymap):
             KeyBinding(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", NAV),
             KeyBinding(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", NAV),
             KeyBinding(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", NAV),
-            # LSP navigation: the chords dispatch through the ``g``-prefix
-            # branches in _handle_normal; these rows are help-table entries
-            # only (and give the extension-binding fallback the ``K`` key).
+            # LSP navigation: the ``gd``/``gr`` rows are help mirrors of the
+            # chords consumed by the ``g``-prefix branches in _handle_normal
+            # (the lookup never sees them); ``K`` below is a real dispatch
+            # row reached through _handle_normal's binding-table lookup.
             KeyBinding(parse_key(GOTO_DEF_KEY), "goto_definition",
                        "Go to definition (gd)", NAV),
             KeyBinding(parse_key(FIND_REFS_KEY), "find_references",
