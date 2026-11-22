@@ -31,11 +31,16 @@ class LspNavigationFlows:
                  push_overlay: Callable[[Screen[None]], None],
                  message: Callable[[str, str], None],
                  refresh: Callable[[], None],
+                 prompt: PromptBar,
                  has_modal_screen: Callable[[], bool]) -> None
 ```
 
 Only injected concrete objects/callbacks; no App handle (`test_flow_modules_hold_no_app_handle`).
-Module-level `NAV_JUMP_KIND = "info"`, `NAV_TIMEOUT_MESSAGE = "LSP request timed out"`.
+`PromptBar` comes from `yate.editor_components.commandline` (wave-d correction:
+`PromptFlows` has no `prompt_text` method; the bar's `activate(mode, *,
+placeholder, on_submit, ...)` API at `commandline.py:315-325` is the prompt
+seam). Module-level `NAV_JUMP_KIND = "info"`,
+`NAV_TIMEOUT_MESSAGE = "LSP request timed out"`.
 
 Public methods (names must match wave b actions):
 `goto_definition()`, `find_references()`, `show_outline()`, `rename_symbol()`,
@@ -52,11 +57,12 @@ Common machinery:
   `message(explicit_text, "warning")`, never silent.
 - `_chooser(rows, title)` pushes `LspChooserScreen(rows, title, self._jump_to_row)`.
 - `_jump_to_row(row: LspRow)`: resolve path via `uri_to_path(row.uri)`;
-  `open_path(path)`; if None -> message and return; set cursor at
-  `(row.row, row.col)`, clear anchor, `reveal_cursor()` on all views via
-  `panes.views_for(doc)`, `activate_doc` is already performed by `open_path`
-  when reusing an open document (verify against `document_flows.open_path`);
-  call `refresh()` and `message(f"jumped to {file}:{line+1}", "info")`.
+  `open_path(path)` (wave-d correction: `DocumentFlows.open_path` returns
+  `None`); then `doc = session.is_open(path)` (`session.py:243-249`) and if
+  `None` -> message and return; set cursor at `(row.row, row.col)`, clear
+  anchor, `reveal_cursor()` on all views via `panes.views_for(doc)`;
+  `open_path` activates the document; call `refresh()` and
+  `message(f"jumped to {file}:{line+1}", "info")`.
 
 Per-method behavior:
 - `goto_definition`: request definitions; 0 -> `"No definition found"`; 1 ->
@@ -65,11 +71,11 @@ Per-method behavior:
   chooser titled `References` with `detail = "line N"`.
 - `show_outline`: request document symbols; 0 -> "No symbols available"; else
   chooser titled `Outline`, `label` prefixed by `"  "*depth`.
-- `rename_symbol`: prompt via a Textual `Input` overlay is out of scope; use
-  an injected `prompt` callback added to `__init__` (`Callable[[str], str | None]`)
-  wired to `ed.prompt_flows.prompt_text` in wave-d wiring. Cancelling the prompt
-  is a no-op. Request rename; if `unsupported` -> warning message; else
-  `_apply_workspace_edit(edit)`.
+- `rename_symbol`: prompt via the injected `PromptBar` (`prompt.activate(
+  "lsp_rename", placeholder="New symbol name", on_submit=self._on_rename))`;
+  cancelling with ESC never calls `on_submit` and is a no-op. The submit
+  callback snapshots doc/pos/token, spawns the rename worker; if
+  `unsupported` -> warning message; else `_apply_workspace_edit(edit)`.
 - `_apply_workspace_edit(edit)`: pre-resolve every URI to a path; if any path is
   missing/unreadable -> message, no changes. Snapshot `buffer.get_text()` and
   cursor for each affected document. Apply text edits per document bottom-up
@@ -92,10 +98,8 @@ Construct the flow near `HoverFlows` (`:250-257`), after `ed.overlays` and
 is the model). Inject `spawn=ed.app.run_worker`, `lsp=ed.lsp`, session, panes,
 `popup=ed.hover_popup`, `open_path=ed.document_flows.open_path`,
 `push_overlay=ed.overlays.push`, `message=ed.message`, `refresh=ed.refresh_ui`,
-`has_modal_screen=ed.has_modal_screen`, `prompt=ed.prompt_flows.prompt_text`
-(verify the exact prompt method name; if it does not exist, add a small
-`prompt_text` method to `PromptFlows` in this plan and add it to the exclusive
-file list by reporting the deviation to the main agent before editing).
+`has_modal_screen=ed.has_modal_screen`, `prompt=ed.prompt_bar`.
+No `PromptFlows` change is needed: the corrected prompt seam is `PromptBar.activate`.
 
 ### 3. `editor.py`
 
