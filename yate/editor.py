@@ -72,6 +72,7 @@ from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
+from yate.flows.lsp_navigation_flows import LspNavigationFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
@@ -142,6 +143,7 @@ class Editor:
     window_flows: WindowFlows
     extension_flows: ExtensionFlows
     hover: HoverFlows
+    lsp_navigation: LspNavigationFlows
     mouse_flows: MouseFlows
     chunked_flows: ChunkedFlows
     macro_flows: MacroFlows
@@ -179,6 +181,8 @@ class Editor:
         # exit verb is bound by the app shell on mount (bind_file_manager_exit).
         # Hover flows: built after panes, before mouse_flows (which receives
         # their on_mouse_move callback, plan h).
+        # LSP navigation flows: built with the pane stack, right after
+        # navigation_flows (shared overlay push verb + hover popup).
         # Macro flows: built after the models (it reads session.macro) and
         # before the widgets (StatusBar takes the recording label callback);
         # key_ui actions reach it later through the editor attribute.
