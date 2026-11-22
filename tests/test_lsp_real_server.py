@@ -181,8 +181,9 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
             assert "\n".join(server_lines) == doc.buffer.get_text()
 
             # (b) Diagnostics arrive: the server parsed the synced document.
-            # Polled on the received wire instead of the manager's per-URI
-            # store, which pyright's echoed (drive-escaped) URI does not key.
+            # Polled on the received wire; the manager's per-URI store is
+            # keyed by the canonicalized URI (pyright's drive-escaped echo
+            # maps onto the same key), so it tracks these too.
             await _wait_until(
                 lambda: any(
                     cast(dict[str, Any], diagnostic).get("severity") == 1

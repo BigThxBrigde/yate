@@ -18,10 +18,15 @@ import pytest
 
 from yate.editor_core.document import Document
 from yate.editor_lsp.manager import LspManager
-from yate.editor_lsp.client import ServerConfig, ServerState
+from yate.editor_lsp.client import Diagnostic, LspError, ServerConfig, ServerState
 from yate.editor_lsp.navigation import (
+    REASON_NO_READY_SERVER,
+    REASON_UNSUPPORTED,
+    LspCodeAction,
     LspFeatureFailed,
     LspFeatureUnavailable,
+    LspSignature,
+    WorkspaceEdit,
     parse_code_actions,
     parse_locations,
     parse_signature_help,
@@ -54,6 +59,7 @@ class _FakeClient:
         exception: BaseException | None = None,
         never_settles: bool = False,
         capabilities: dict[str, object] | None = None,
+        cancel_error: BaseException | None = None,
     ) -> None:
         self.config = config
         self.root = root
@@ -66,6 +72,7 @@ class _FakeClient:
         self._result = result
         self._exception = exception
         self._never_settles = never_settles
+        self._cancel_error = cancel_error
 
     async def start_request(
         self, method: str, params: dict[str, Any] | None
@@ -87,8 +94,10 @@ class _FakeClient:
         self.settled.append(request_id)
 
     async def send_cancel(self, request_id: int) -> None:
-        """Record the $/cancelRequest call."""
+        """Record the $/cancelRequest call (or fail, when scripted)."""
         self.cancelled.append(request_id)
+        if self._cancel_error is not None:
+            raise self._cancel_error
 
 
 def _make_doc(tmp_path: Path, text: str) -> Document:
@@ -112,6 +121,7 @@ class _Harness:
         exception: BaseException | None = None,
         never_settles: bool = False,
         capabilities: dict[str, object] | None = None,
+        cancel_error: BaseException | None = None,
     ) -> None:
         self.mgr = LspManager()
         self.mgr.register_server(PY_CONFIG)
@@ -122,6 +132,7 @@ class _Harness:
         self.client = _FakeClient(
             cfg, root, result=result, exception=exception,
             never_settles=never_settles, capabilities=capabilities,
+            cancel_error=cancel_error,
         )
         self.client.state = state
         self.mgr._clients[(cfg.name, str(root))] = cast(Any, self.client)
@@ -333,3 +344,260 @@ def test_manager_notification_uses_canonical_diagnostic_uri(
     })
     assert escaped_uri not in h.mgr._diagnostics
     assert canonical in h.mgr._diagnostics
+
+
+# --------------------------------------------------- M6 degradation reasons
+
+
+def test_unavailable_reason_is_unsupported_when_capability_missing(
+    tmp_path: Path,
+) -> None:
+    """A ready client without the capability -> reason "unsupported"."""
+    h = _Harness(tmp_path, capabilities={"referencesProvider": True})
+
+    async def scenario() -> None:
+        with pytest.raises(LspFeatureUnavailable) as excinfo:
+            await h.mgr.request_definition(h.doc, 0, 0)
+        assert excinfo.value.reason == REASON_UNSUPPORTED
+        assert excinfo.value.feature == "definitionProvider"
+        assert h.client.calls == []
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_reason_is_no_ready_server_without_client(
+    tmp_path: Path,
+) -> None:
+    """No open document on the client -> reason "no-ready-server"."""
+    h = _Harness(tmp_path, opened=True, capabilities={"definitionProvider": True})
+    # Drop the open state so _ready_client_for finds no live didOpen.
+    h.mgr._open.pop(h.mgr._uri(h.doc))
+
+    async def scenario() -> None:
+        with pytest.raises(LspFeatureUnavailable) as excinfo:
+            await h.mgr.request_definition(h.doc, 0, 0)
+        assert excinfo.value.reason == REASON_NO_READY_SERVER
+        assert h.client.calls == []
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_default_reason_is_unsupported() -> None:
+    """The bare constructor keeps the historical "unsupported" default."""
+    exc = LspFeatureUnavailable("someFeature")
+    assert exc.reason == REASON_UNSUPPORTED
+    assert exc.feature == "someFeature"
+
+
+# ------------------------------------------------ M4 direct manager tests
+
+
+def test_manager_request_document_symbols_flattens_and_clamps(
+    tmp_path: Path,
+) -> None:
+    """Symbols in the open doc clamp to it; another URI passes through."""
+    h = _Harness(
+        tmp_path,
+        capabilities={"documentSymbolProvider": True},
+        result=[
+            {"name": "Local", "kind": 12, "detail": "",
+             "selectionRange": {"start": {"line": 0, "character": 0},
+                                 "end": {"line": 0, "character": 1}},
+              "range": {"start": {"line": 0, "character": 0},
+                         "end": {"line": 0, "character": 1}}},
+            {"name": "Far", "kind": 12, "detail": "",
+             "location": {"uri": "file:///other.py", "range": {
+                 "start": {"line": 50, "character": 99},
+                 "end": {"line": 50, "character": 99}}}},
+        ],
+    )
+
+    async def scenario() -> None:
+        symbols = await h.mgr.request_document_symbols(h.doc)
+        assert [s.name for s in symbols] == ["Local", "Far"]
+        assert (symbols[0].row, symbols[0].col) == (0, 0)
+        # The unopened URI's columns pass through untouched (no clamp
+        # against the source document), only floored at 0.
+        assert (symbols[1].row, symbols[1].col) == (50, 99)
+        method, _params = h.client.calls[0]
+        assert method == "textDocument/documentSymbol"
+
+    asyncio.run(scenario())
+
+
+def test_manager_request_rename_parses_document_changes(tmp_path: Path) -> None:
+    """A ``documentChanges`` reply parses and converts to the open doc."""
+    h = _Harness(
+        tmp_path,
+        capabilities={"renameProvider": True},
+        result=None,
+    )
+    # The scripted response needs the canonical URI, which only exists
+    # after the harness built it; patch it in place.
+    h.client._result = {
+        "documentChanges": [{
+            "textDocument": {"uri": h.mgr._uri(h.doc)},
+            "edits": [{
+                "range": {"start": {"line": 0, "character": 0},
+                           "end": {"line": 0, "character": 1}},
+                "newText": "NEW",
+            }],
+        }],
+    }
+    uri = h.mgr._uri(h.doc)
+
+    async def scenario() -> None:
+        edit = await h.mgr.request_rename(h.doc, 0, 0, "NEW")
+        assert isinstance(edit, WorkspaceEdit)
+        assert edit.unsupported is False
+        assert set(edit.changes) == {uri}
+        assert edit.changes[uri][0].text == "NEW"
+        method, params = h.client.calls[0]
+        assert method == "textDocument/rename"
+        assert params["newName"] == "NEW"
+
+    asyncio.run(scenario())
+
+
+def test_manager_rename_converts_utf16_and_clamps_per_target_uri(
+    tmp_path: Path,
+) -> None:
+    """UTF-16 columns convert against the target URI's document, never the
+    source one: the open doc converts, an unopened URI passes through."""
+    # Non-BMP char: one buffer column == two UTF-16 code units.
+    h = _Harness(
+        tmp_path,
+        text="\U0001f389\U0001f389\U0001f389\n",
+        capabilities={"renameProvider": True},
+        result=None,
+    )
+    open_uri = h.mgr._uri(h.doc)
+    # The open document's second emoji starts at UTF-16 col 2 -> buffer col 1.
+    h.client._result = {
+        "changes": {
+            open_uri: [
+                {"range": {
+                    "start": {"line": 0, "character": 2},
+                    "end": {"line": 0, "character": 4},
+                }, "newText": "X"},
+            ],
+            "file:///unopened.py": [
+                {"range": {
+                    "start": {"line": 50, "character": 99},
+                    "end": {"line": 50, "character": 120},
+                }, "newText": "Y"},
+            ],
+        },
+    }
+
+    async def scenario() -> None:
+        edit = await h.mgr.request_rename(h.doc, 0, 0, "X")
+        converted = edit.changes[open_uri][0]
+        assert (converted.start_row, converted.start_col) == (0, 1)
+        assert (converted.end_row, converted.end_col) == (0, 2)
+        passthrough = edit.changes["file:///unopened.py"][0]
+        assert (passthrough.start_row, passthrough.start_col) == (50, 99)
+        assert (passthrough.end_row, passthrough.end_col) == (50, 120)
+
+    asyncio.run(scenario())
+
+
+def test_manager_request_code_actions_roundtrips_diagnostics_utf16(
+    tmp_path: Path,
+) -> None:
+    """The diagnostic range converts back to UTF-16 for the wire params."""
+    h = _Harness(
+        tmp_path,
+        text="a\U0001f389b\nx = 1\n",
+        capabilities={"codeActionProvider": True},
+        result=[{"title": "Fix", "kind": "quickfix"}],
+    )
+    diagnostic = Diagnostic(
+        start_row=0, start_col=2, end_row=0, end_col=3,
+        severity=1, message="boom", source="test",
+    )
+
+    async def scenario() -> None:
+        actions = await h.mgr.request_code_actions(
+            h.doc, 0, 2, [diagnostic]
+        )
+        assert isinstance(actions[0], LspCodeAction)
+        assert actions[0].title == "Fix"
+        _method, params = h.client.calls[0]
+        context = params["context"]
+        sent = context["diagnostics"][0]
+        # Buffer col 2 on "a🎉b" is UTF-16 col 3 (the emoji spans two).
+        assert sent["range"]["start"] == {"line": 0, "character": 3}
+        assert sent["range"]["end"] == {"line": 0, "character": 4}
+
+    asyncio.run(scenario())
+
+
+def test_manager_request_signature_help_returns_card(tmp_path: Path) -> None:
+    """A SignatureHelp payload parses through the manager wrapper."""
+    h = _Harness(
+        tmp_path,
+        capabilities={"signatureHelpProvider": True},
+        result={
+            "signatures": [{"label": "f(x)",
+                            "parameters": [{"label": "x"}]}],
+            "activeSignature": 0,
+            "activeParameter": 0,
+        },
+    )
+
+    async def scenario() -> None:
+        sig = await h.mgr.request_signature_help(h.doc, 0, 0)
+        assert isinstance(sig, LspSignature)
+        assert sig.text == "f(**x**)"
+        assert sig.active_parameter == 0
+        method, _params = h.client.calls[0]
+        assert method == "textDocument/signatureHelp"
+
+    asyncio.run(scenario())
+
+
+def test_manager_execute_command_swallows_and_logs_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed executeCommand logs at debug and never raises."""
+    h = _Harness(tmp_path, exception=LspError("boom"))
+    records: list[str] = []
+
+    class _Recorder:
+        def debug(self, fmt: str, *args: object) -> None:
+            records.append(fmt % args)
+
+    monkeypatch.setattr(
+        "yate.editor_lsp.manager.log", _Recorder(), raising=True
+    )
+
+    async def scenario() -> None:
+        await h.mgr.execute_command(
+            cast(Any, h.client), "server.fix", [1]
+        )
+        assert h.client.calls[0][0] == "workspace/executeCommand"
+        assert any("executeCommand" in r for r in records)
+
+    asyncio.run(scenario())
+
+
+def test_navigation_timeout_swallows_send_cancel_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing $/cancelRequest is logged, not raised (m3)."""
+    h = _Harness(
+        tmp_path,
+        capabilities={"referencesProvider": True},
+        never_settles=True,
+        cancel_error=LspError("transport gone"),
+    )
+    monkeypatch.setattr("yate.editor_lsp.navigation.NAV_TIMEOUT_S", 0.001)
+
+    async def scenario() -> None:
+        with pytest.raises(LspFeatureFailed):
+            await h.mgr.request_references(h.doc, 0, 0)
+        assert h.client.cancelled == [1]
+        assert h.client.settled == [1]
+
+    asyncio.run(scenario())

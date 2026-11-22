@@ -26,6 +26,7 @@ from yate.editor_core import Document
 from yate.editor_core.buffer import Pos, TextBuffer
 from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.navigation import (
+    REASON_NO_READY_SERVER,
     LspCodeAction,
     LspFeatureUnavailable,
     LspLocation,
@@ -42,8 +43,8 @@ log = tracing.get_logger(__name__)
 #: Message kind of the jump confirmation line.
 NAV_JUMP_KIND: str = "info"
 
-#: Text shown when a navigation request exceeds the bounded wait.
-NAV_TIMEOUT_MESSAGE: str = "LSP request timed out"
+#: Text shown when no READY server serves the document at all.
+NO_READY_SERVER_TEXT: str = "language server is not ready"
 
 
 def _check_edit_range(buf: TextBuffer, edit: LspTextEdit) -> None:
@@ -401,9 +402,9 @@ class LspNavigationFlows:
     def _failure_text(self, exc: Exception, feature: str) -> str:
         """Map a request failure to its explicit message text."""
         if isinstance(exc, LspFeatureUnavailable):
-            return f"{feature} unavailable: {exc}"
-        if isinstance(exc, TimeoutError):
-            return NAV_TIMEOUT_MESSAGE
+            if exc.reason == REASON_NO_READY_SERVER:
+                return f"{feature} unavailable: {NO_READY_SERVER_TEXT}"
+            return f"{feature} unavailable: server does not support {exc.feature}"
         return f"{feature} failed: {exc}"
 
     def _location_row(self, loc: LspLocation) -> LspRow:
@@ -476,8 +477,12 @@ class LspNavigationFlows:
         per document bottom-up so earlier positions stay valid.  Any
         failure restores every affected buffer from its snapshot.  No
         disk writes happen here (the sync layer owns persistence).
+        Documents the rename newly opened are tracked (M5): on failure
+        the message discloses that they were left unsaved, and the
+        success message always says the changes are in-memory only.
         """
         docs: dict[str, Document] = {}
+        opened_names: list[str] = []
         for uri in edit.changes:
             path = uri_to_path(uri)
             if not path.is_file():
@@ -487,6 +492,8 @@ class LspNavigationFlows:
             if doc is None:
                 self._open_path(path)
                 doc = self._session.is_open(path)
+                if doc is not None:
+                    opened_names.append(path.name)
             if doc is None:
                 self._message(f"rename failed: cannot open {path.name}", "warn")
                 return
@@ -528,7 +535,16 @@ class LspNavigationFlows:
                 )
                 doc.buffer.set_cursor(cursor)
             self._refresh()
-            self._message(f"rename failed: {exc}", "warn")
+            disclosure = (
+                f" (newly opened {', '.join(opened_names)} left unsaved)"
+                if opened_names
+                else ""
+            )
+            self._message(f"rename failed: {exc}{disclosure}", "warn")
             return
         self._refresh()
-        self._message(f"Renamed {applied} occurrence(s)", "info")
+        self._message(
+            f"Renamed {applied} occurrence(s) in {len(docs)} file(s) "
+            "(unsaved; save to apply)",
+            "info",
+        )

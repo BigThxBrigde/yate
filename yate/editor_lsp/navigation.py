@@ -20,6 +20,14 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from yate.editor_lsp.client import LspError
+from yate.logs import tracing
+
+#: Trace logger ("yate.editor_lsp.navigation"); silent unless yate_trace is on.
+log = tracing.get_logger(__name__)
+
+#: Reason spellings carried by :class:`LspFeatureUnavailable`.
+REASON_NO_READY_SERVER: str = "no-ready-server"
+REASON_UNSUPPORTED: str = "unsupported"
 
 #: Bounded wait for a navigation response.  Mirrors ``HOVER_TIMEOUT_S``:
 #: a hung server must degrade to "feature unavailable" instead of stalling
@@ -28,7 +36,18 @@ NAV_TIMEOUT_S: float = 3.0
 
 
 class LspFeatureUnavailable(Exception):
-    """The server does not advertise (or declares false) the capability."""
+    """The server does not advertise (or declares false) the capability.
+
+    ``reason`` distinguishes *why* the feature is unusable:
+    :data:`REASON_NO_READY_SERVER` when no READY client serves the document
+    at all, and :data:`REASON_UNSUPPORTED` (the default) when a ready
+    server's capabilities do not declare the feature.
+    """
+
+    def __init__(self, feature: str, reason: str = REASON_UNSUPPORTED) -> None:
+        super().__init__(feature)
+        self.feature = feature
+        self.reason = reason
 
 
 class LspFeatureFailed(Exception):
@@ -151,7 +170,12 @@ async def request(
     except asyncio.CancelledError:
         raise
     except TimeoutError:
-        await client.send_cancel(request_id)
+        # Best-effort cancel: a failed $/cancelRequest must not mask the
+        # timeout itself, so the send failure is logged (never raised).
+        try:
+            await client.send_cancel(request_id)
+        except (LspError, OSError) as exc:
+            log.debug("send_cancel failed for %s: %s", method, exc)
         raise LspFeatureFailed(method) from None
     except (LspError, OSError) as exc:
         raise LspFeatureFailed(f"{method}: {exc}") from exc

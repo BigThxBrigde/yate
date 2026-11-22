@@ -26,6 +26,8 @@ from yate.editor_components.panes import PaneManager
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
 from yate.editor_lsp.navigation import (
+    REASON_NO_READY_SERVER,
+    REASON_UNSUPPORTED,
     LspCodeAction,
     LspFeatureUnavailable,
     LspLocation,
@@ -60,6 +62,8 @@ class _FakeLsp:
         self.signature: LspSignature | None = None
         #: Feature key whose request must raise (``"definition"`` etc.).
         self.raise_on: str | None = None
+        #: Reason carried by the raised LspFeatureUnavailable.
+        self.raise_reason: str = REASON_UNSUPPORTED
         #: When set, every request waits on it before answering.
         self.gate: asyncio.Event | None = None
         self.calls: list[str] = []
@@ -70,7 +74,7 @@ class _FakeLsp:
         if self.gate is not None:
             await self.gate.wait()
         if self.raise_on == feature:
-            raise LspFeatureUnavailable(f"no {feature} provider")
+            raise LspFeatureUnavailable(feature, reason=self.raise_reason)
 
     async def request_definition(
         self, doc: Document, row: int, col: int
@@ -352,7 +356,7 @@ def test_goto_definition_multiple_locations_open_chooser(
     asyncio.run(scenario())
 
 
-def test_goto_definition_without_provider_reports_message(
+def test_goto_definition_without_provider_reports_unsupported(
     tmp_path: Path,
 ) -> None:
     """A missing definition provider degrades to a warning, no chooser."""
@@ -363,7 +367,28 @@ def test_goto_definition_without_provider_reports_message(
         h.flows.goto_definition()
         assert await wait_until(lambda: len(h.messages) == 1)
         text, kind = h.messages[0]
-        assert "definition" in text
+        assert text == (
+            "definition unavailable: server does not support definition"
+        )
+        assert kind == "warn"
+        assert h.pushes == []
+
+    asyncio.run(scenario())
+
+
+def test_unavailable_without_ready_server_maps_ready_message(
+    tmp_path: Path,
+) -> None:
+    """A no-ready-server reason degrades to the explicit ready message."""
+    h = _Harness(tmp_path)
+    h.lsp.raise_on = "definition"
+    h.lsp.raise_reason = REASON_NO_READY_SERVER
+
+    async def scenario() -> None:
+        h.flows.goto_definition()
+        assert await wait_until(lambda: len(h.messages) == 1)
+        text, kind = h.messages[0]
+        assert text == "definition unavailable: language server is not ready"
         assert kind == "warn"
         assert h.pushes == []
 
@@ -515,6 +540,83 @@ def test_rename_unsupported_edit_reports_message(tmp_path: Path) -> None:
         )
         assert h.doc.buffer.get_text() == "abc def\nghi jkl\n"
         assert h.refreshes == 0
+
+    asyncio.run(scenario())
+
+
+def test_rename_unopened_target_with_invalid_edit_restores_and_discloses(
+    tmp_path: Path,
+) -> None:
+    """An invalid edit after opening an unopened target restores buffers
+    and discloses that the newly opened file was left unsaved (M5)."""
+    target = tmp_path / "other.py"
+    target.write_text("target\n", encoding="utf-8")
+    h = _Harness(tmp_path)
+    h.lsp.rename = WorkspaceEdit(
+        changes={
+            str(tmp_path / "other.py"): (
+                LspTextEdit(
+                    start_row=0, start_col=0, end_row=0, end_col=3,
+                    text="NEW",
+                ),
+            ),
+            str(tmp_path / "mod.py"): (
+                LspTextEdit(
+                    start_row=9, start_col=0, end_row=9, end_col=1,
+                    text="boom",
+                ),
+            ),
+        },
+        unsupported=False,
+    )
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("rename failed" in t for t in h.message_texts())
+        )
+        # The unopened target got opened by the pre-open pass...
+        target_doc = h.session.is_open(target)
+        assert target_doc is not None
+        # ...and both buffers are restored byte-for-byte.
+        assert h.doc.buffer.get_text() == "abc def\nghi jkl\n"
+        assert target_doc.buffer.get_text() == "target\n"
+        assert target_doc.buffer.cursor == (0, 0)
+        # The message discloses the unsaved newly opened file.
+        text = next(t for t in h.message_texts() if "rename failed" in t)
+        assert "unsaved" in text and "other.py" in text
+
+    asyncio.run(scenario())
+
+
+def test_rename_success_message_discloses_unsaved_files(
+    tmp_path: Path,
+) -> None:
+    """A successful rename reports occurrences, files and the unsaved note."""
+    h = _Harness(tmp_path)
+    uri = str(tmp_path / "mod.py")
+    h.lsp.rename = WorkspaceEdit(
+        changes={
+            uri: (
+                LspTextEdit(
+                    start_row=0, start_col=0, end_row=0, end_col=3,
+                    text="ABC",
+                ),
+            )
+        },
+        unsupported=False,
+    )
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(lambda: h.refreshes >= 1)
+        assert any(
+            "Renamed 1 occurrence(s) in 1 file(s) (unsaved; save to apply)"
+            in t
+            for t in h.message_texts()
+        )
 
     asyncio.run(scenario())
 

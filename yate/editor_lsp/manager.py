@@ -747,13 +747,16 @@ class LspManager:
         """Shared request path: ready client -> capability gate -> request.
 
         Raises :class:`LspFeatureUnavailable` when no READY client serves
-        *doc* or its capabilities do not declare *feature*; request
-        failures propagate as :class:`navigation.LspFeatureFailed`.
+        *doc* (``reason="no-ready-server"``) or its capabilities do not
+        declare *feature* (``reason="unsupported"``); request failures
+        propagate as :class:`navigation.LspFeatureFailed`.
         """
         client = self._ready_client_for(doc)
-        if client is None or not navigation.supports_feature(
-            client.server_capabilities, feature
-        ):
+        if client is None:
+            raise LspFeatureUnavailable(
+                feature, reason=navigation.REASON_NO_READY_SERVER
+            )
+        if not navigation.supports_feature(client.server_capabilities, feature):
             raise LspFeatureUnavailable(feature)
         uri = self._uri(doc)
         return await navigation_request(client, method, params_builder(uri))
@@ -764,6 +767,24 @@ class LspManager:
         return client is not None and navigation.supports_feature(
             client.server_capabilities, feature
         )
+
+    def _clamp_range_for(
+        self, uri: str, rng: tuple[int, int, int, int]
+    ) -> tuple[int, int, int, int]:
+        """Clamp a UTF-16 range onto the document *uri* belongs to (M4 m2).
+
+        The clamp target is ``_open[uri].doc`` -- the document the server
+        is actually editing -- never the requesting (source) document:
+        a location in another file must not be clamped against the
+        source buffer's bounds.  URIs that are not open pass through
+        with only the 0-floor applied (no source document is available
+        to translate or bound the UTF-16 columns).
+        """
+        state = self._open.get(uri)
+        if state is None:
+            r0, c0, r1, c1 = rng
+            return (max(0, r0), max(0, c0), max(0, r1), max(0, c1))
+        return self._clamp_range(state.doc, rng)
 
     def _clamp_range(
         self, doc: Document, rng: tuple[int, int, int, int]
@@ -789,12 +810,12 @@ class LspManager:
             min(max(0, _from_utf16(line1, c1)), len(line1)),
         )
 
-    def _location_rows(self, doc: Document, raw: object) -> list[LspLocation]:
+    def _location_rows(self, raw: object) -> list[LspLocation]:
         """Convert parsed server locations into buffer-row LspLocations."""
         locations: list[LspLocation] = []
         for loc in parse_locations(raw):
-            r0, c0, r1, c1 = self._clamp_range(
-                doc, (loc.row, loc.col, loc.end_row, loc.end_col)
+            r0, c0, r1, c1 = self._clamp_range_for(
+                loc.uri, (loc.row, loc.col, loc.end_row, loc.end_col)
             )
             locations.append(LspLocation(
                 uri=loc.uri, row=r0, col=c0, end_row=r1, end_col=c1,
@@ -809,7 +830,7 @@ class LspManager:
             doc, "definitionProvider", "textDocument/definition",
             lambda uri: self._request_positions(doc, row, col)[1],
         )
-        return self._location_rows(doc, raw)
+        return self._location_rows(raw)
 
     async def request_references(
         self, doc: Document, row: int, col: int
@@ -826,7 +847,7 @@ class LspManager:
         raw = await self._request(
             doc, "referencesProvider", "textDocument/references", _params
         )
-        return self._location_rows(doc, raw)
+        return self._location_rows(raw)
 
     async def request_document_symbols(
         self, doc: Document
@@ -841,8 +862,8 @@ class LspManager:
         )
         result: list[LspSymbol] = []
         for sym in parse_symbols(raw):
-            r0, c0, r1, c1 = self._clamp_range(
-                doc, (sym.row, sym.col, sym.end_row, sym.end_col)
+            r0, c0, r1, c1 = self._clamp_range_for(
+                sym.uri, (sym.row, sym.col, sym.end_row, sym.end_col)
             )
             result.append(LspSymbol(
                 name=sym.name,
@@ -881,7 +902,7 @@ class LspManager:
         for uri, edits in edit.changes.items():
             converted: list[navigation.LspTextEdit] = []
             for text_edit in edits:
-                r0, c0, r1, c1 = self._clamp_range(doc, (
+                r0, c0, r1, c1 = self._clamp_range_for(uri, (
                     text_edit.start_row, text_edit.start_col,
                     text_edit.end_row, text_edit.end_col,
                 ))

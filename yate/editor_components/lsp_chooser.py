@@ -128,9 +128,15 @@ class LspChooserScreen(OverlayScreen):
         return text
 
     def action_pick(self) -> None:
-        """Hand the selected row to the callback, then close the screen."""
+        """Hand the selected row to the callback, then close the screen.
+
+        The dismiss runs in ``finally`` (m7): a pick callback that raises
+        must not strand the modal overlay on screen.
+        """
         if not self._rows:
             return
         row = self._rows[self._selected]
-        self._on_pick(row)
-        self.dismiss()
+        try:
+            self._on_pick(row)
+        finally:
+            self.dismiss()
