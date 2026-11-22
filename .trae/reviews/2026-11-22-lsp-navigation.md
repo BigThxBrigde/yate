@@ -60,3 +60,33 @@ follow-ups in the fix plan.
 
 Reviewer conclusion at time of review: REQUEST_CHANGES. After fixes the main
 agent must rerun all gates itself.
+
+## Post-fix gate rerun (main agent, 2026-11-22)
+
+Fix waves F1/F2 committed as `0d787642` and `761a365e`. B1 was rejected with a
+direct probe; all other accepted blocker/major items were fixed (B2 comment and
+dual-binding guard, M1 pilot typing, M2 two test tables, M3 four docs, M4 five
+manager methods with direct tests incl. documentChanges/UTF-16, M5 rename
+message disclosure and rollback test, M6 no-ready-server vs unsupported).
+Cheap minors m3/m7/m8/m9/m13 were also fixed; m1/m4/m5/m6/m10/m11/m12 remain
+registered follow-ups (non-blocking).
+
+Measured by the main agent after fixes:
+
+| Gate | Result | Exit |
+|---|---|---|
+| `pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `pytest tests/ -q -n auto` (gate run) | all tests green | 0 |
+| `pytest tests/test_architecture.py -q` | 47 passed | 0 |
+| coverage `-n auto` | 4029 passed, 10 skipped; 92.80% total (threshold 75%) | 0 |
+| `smoke --jobs 4` | 128/128 scenarios, 1554/1554 checks | 0 |
+| `tools.changelog check` | branch-level "unreleased lags 193 commits" only; released sections up to date | 0 |
+
+A later ad-hoc repeat of `pytest -n auto` returned exit 1 with all tests at
+100% and no `F` markers; the log shows
+`[safe-delete][SAFE_DELETE_BULK_CONFIRM_REQUIRED] count=10000` during pytest's
+temp cleanup. This is the documented environment hook artifact (not a test
+failure); the gate run and the coverage run were both fully green.
+
+Final line counts pinned in both places: `keymaps/vim.py` 1705,
+`editor_lsp/manager.py` 1189, `editor.py` 848.
