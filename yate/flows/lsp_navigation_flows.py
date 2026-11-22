@@ -48,13 +48,23 @@ NO_READY_SERVER_TEXT: str = "language server is not ready"
 
 
 def _check_edit_range(buf: TextBuffer, edit: LspTextEdit) -> None:
-    """Raise ``ValueError`` when *edit* falls outside *buf*'s live bounds.
+    """Raise ``ValueError`` when *edit* cannot be applied safely to *buf*.
 
     The buffer primitives do not guard against out-of-range positions, and
     a failed mutation corrupts the undo pending region -- so the flow
     validates every range up front and never touches the buffer on a bad
-    workspace edit.
+    workspace edit.  Locked (chunked) buffers silently ignore mutations and
+    read-only buffers raise, so both are rejected here: otherwise a rename
+    reports success although no text changed.  An inverted range is rejected
+    for the same reason (``_delete_range`` raises only after earlier edits in
+    the batch have already been applied).
     """
+    if buf.locked:
+        raise ValueError("cannot rename in a locked (chunked) buffer")
+    if buf.read_only:
+        raise ValueError("cannot rename in a read-only buffer")
+    if (edit.start_row, edit.start_col) > (edit.end_row, edit.end_col):
+        raise ValueError(f"invalid edit range: {edit!r}")
     line_count = buf.line_count
     for row, col in (
         (edit.start_row, edit.start_col),
@@ -498,6 +508,28 @@ class LspNavigationFlows:
                 self._message(f"rename failed: cannot open {path.name}", "warn")
                 return
             docs[uri] = doc
+        # Phase 1: validate every edit against its live buffer before any
+        # mutation.  A rejected edit (out of bounds / inverted / locked /
+        # read-only) means nothing changed, so there is nothing to roll back --
+        # and rolling back a read-only buffer would raise a second error that
+        # masks the original one.
+        disclosure = (
+            f" (newly opened {', '.join(opened_names)} left unsaved)"
+            if opened_names
+            else ""
+        )
+        try:
+            for uri, edits in edit.changes.items():
+                buf = docs[uri].buffer
+                for text_edit in edits:
+                    _check_edit_range(buf, text_edit)
+        except ValueError as exc:
+            log.debug("workspace edit rejected: %s", exc, exc_info=False)
+            self._message(f"rename failed: {exc}{disclosure}", "warn")
+            return
+
+        # Phase 2: apply.  Only now can a failure leave partial mutations, so
+        # this is where the snapshot rollback applies.
         snapshots: list[tuple[Document, str, Pos]] = [
             (doc, doc.buffer.get_text(), doc.buffer.cursor)
             for doc in docs.values()
@@ -511,11 +543,6 @@ class LspNavigationFlows:
                     key=lambda e: (e.start_row, e.start_col),
                     reverse=True,
                 )
-                # Pre-validate the ranges against the live buffer: an
-                # out-of-bounds edit must fail *before* any mutation, so
-                # the rollback below only ever handles unmutated buffers.
-                for text_edit in ordered:
-                    _check_edit_range(buf, text_edit)
                 for text_edit in ordered:
                     buf.replace_range(
                         (text_edit.start_row, text_edit.start_col),
@@ -535,11 +562,6 @@ class LspNavigationFlows:
                 )
                 doc.buffer.set_cursor(cursor)
             self._refresh()
-            disclosure = (
-                f" (newly opened {', '.join(opened_names)} left unsaved)"
-                if opened_names
-                else ""
-            )
             self._message(f"rename failed: {exc}{disclosure}", "warn")
             return
         self._refresh()

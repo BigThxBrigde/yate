@@ -245,7 +245,12 @@ def parse_locations(raw: object) -> list[LspLocation]:
         if not isinstance(uri, str) or not uri:
             continue
         range_key = "targetRange" if "targetUri" in entry else "range"
-        r0, c0, r1, c1 = _range_from(entry.get(range_key))
+        raw_range = entry.get(range_key)
+        if not isinstance(raw_range, dict):
+            # A location without a usable range is malformed; skipping it is
+            # safer than fabricating (0, 0) and jumping to the file's start.
+            continue
+        r0, c0, r1, c1 = _range_from(cast(dict[str, object], raw_range))
         result.append(LspLocation(uri=uri, row=r0, col=c0, end_row=r1, end_col=c1))
     return result
 
@@ -482,12 +487,17 @@ def parse_signature_help(raw: object) -> LspSignature | None:
     label = signature.get("label")
     if not isinstance(label, str):
         return None
-    active_param_raw = payload.get("activeParameter", 0)
+    # Servers may report the active parameter on the selected signature
+    # (LSP 3.17 SignatureInformation) or on the SignatureHelp envelope.
+    active_param_raw = signature.get(
+        "activeParameter", payload.get("activeParameter", 0)
+    )
     active_param = (
         active_param_raw
         if isinstance(active_param_raw, int) and not isinstance(active_param_raw, bool)
         else 0
     )
+    active_param = max(0, active_param)
     card = _format_signature_card(signature, label, active_param)
     return LspSignature(text=card, active_parameter=active_param)
 

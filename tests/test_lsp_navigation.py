@@ -177,6 +177,20 @@ def test_parse_locations_accepts_location_link_and_null() -> None:
     assert (loc.row, loc.col, loc.end_row, loc.end_col) == (2, 4, 2, 9)
 
 
+def test_parse_locations_skips_entries_without_a_range() -> None:
+    """A malformed Location (uri but no range) must not become a (0,0) jump."""
+    raw: list[object] = [
+        {"uri": "file:///bad.py"},
+        {"uri": "file:///ok.py",
+         "range": {"start": {"line": 3, "character": 1},
+                   "end": {"line": 3, "character": 5}}},
+    ]
+    locations = parse_locations(raw)
+    assert len(locations) == 1
+    assert locations[0].uri == "file:///ok.py"
+    assert (locations[0].row, locations[0].col) == (3, 1)
+
+
 def test_parse_symbols_flattens_nested_document_symbols() -> None:
     """Parent + child DocumentSymbols -> two LspSymbols with depths 0/1."""
     raw: list[object] = [{
@@ -259,6 +273,35 @@ def test_parse_signature_help_marks_active_parameter() -> None:
     assert sig is not None
     assert sig.active_parameter == 1
     assert "second(x, **y**)" == sig.text
+
+
+def test_parse_signature_help_prefers_signature_level_active_parameter() -> None:
+    """A per-signature activeParameter wins over the envelope's value."""
+    raw: dict[str, object] = {
+        "signatures": [
+            {"label": "f(x, y)",
+             "parameters": [{"label": "x"}, {"label": "y"}],
+             "activeParameter": 1},
+        ],
+        "activeSignature": 0,
+        "activeParameter": 0,
+    }
+    sig = parse_signature_help(raw)
+    assert sig is not None
+    assert sig.active_parameter == 1
+    assert "f(x, **y**)" == sig.text
+
+
+def test_parse_signature_help_clamps_negative_active_parameter() -> None:
+    """A negative activeParameter is clamped to zero, never leaked."""
+    raw: dict[str, object] = {
+        "signatures": [{"label": "f(x)", "parameters": [{"label": "x"}]}],
+        "activeParameter": -2,
+    }
+    sig = parse_signature_help(raw)
+    assert sig is not None
+    assert sig.active_parameter == 0
+    assert "f(**x**)" == sig.text
 
 
 # --------------------------------------------------------- manager wrappers

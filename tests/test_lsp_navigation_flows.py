@@ -527,6 +527,55 @@ def test_rename_rolls_back_all_buffers_on_failure(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_rename_locked_buffer_reports_failure_without_false_success(
+    tmp_path: Path,
+) -> None:
+    """A locked (chunked) buffer must not report a rename that changed nothing."""
+    h = _Harness(tmp_path)
+    uri = str(tmp_path / "mod.py")
+    h.lsp.rename = WorkspaceEdit(
+        changes={uri: (
+            LspTextEdit(start_row=0, start_col=0, end_row=0, end_col=3, text="X"),
+        )},
+        unsupported=False,
+    )
+    h.doc.buffer.locked = True
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("rename failed" in t for t in h.message_texts())
+        )
+        assert not any("Renamed " in t for t in h.message_texts())
+        assert h.doc.buffer.get_text() == _TEXT
+
+    asyncio.run(scenario())
+
+
+def test_rename_read_only_buffer_reports_failure(tmp_path: Path) -> None:
+    """A read-only buffer is rejected up front, before any mutation."""
+    h = _Harness(tmp_path)
+    uri = str(tmp_path / "mod.py")
+    h.lsp.rename = WorkspaceEdit(
+        changes={uri: (
+            LspTextEdit(start_row=0, start_col=0, end_row=0, end_col=3, text="X"),
+        )},
+        unsupported=False,
+    )
+    h.doc.buffer.read_only = True
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("read-only" in t for t in h.message_texts())
+        )
+        assert h.doc.buffer.get_text() == _TEXT
+
+    asyncio.run(scenario())
+
+
 def test_rename_unsupported_edit_reports_message(tmp_path: Path) -> None:
     """``unsupported=True`` warns and never mutates a buffer."""
     h = _Harness(tmp_path)
