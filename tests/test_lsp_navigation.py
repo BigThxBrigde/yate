@@ -191,6 +191,23 @@ def test_parse_locations_skips_entries_without_a_range() -> None:
     assert (locations[0].row, locations[0].col) == (3, 1)
 
 
+def test_parse_locations_skips_ranges_missing_an_endpoint() -> None:
+    """A range dict without both start and end must not fabricate (0,0)."""
+    raw: list[object] = [
+        {"uri": "file:///missing-end.py",
+         "range": {"start": {"line": 1, "character": 2}}},
+        {"uri": "file:///missing-start.py",
+         "range": {"end": {"line": 5, "character": 3}}},
+        {"uri": "file:///ok.py",
+         "range": {"start": {"line": 2, "character": 1},
+                   "end": {"line": 2, "character": 4}}},
+    ]
+    locations = parse_locations(raw)
+    assert len(locations) == 1
+    assert locations[0].uri == "file:///ok.py"
+    assert (locations[0].row, locations[0].col, locations[0].end_row) == (2, 1, 2)
+
+
 def test_parse_symbols_flattens_nested_document_symbols() -> None:
     """Parent + child DocumentSymbols -> two LspSymbols with depths 0/1."""
     raw: list[object] = [{

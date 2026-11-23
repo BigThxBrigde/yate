@@ -576,6 +576,44 @@ def test_rename_read_only_buffer_reports_failure(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_rename_multi_doc_prevalidation_is_atomic(tmp_path: Path) -> None:
+    """An unwritable target in a multi-doc edit rejects everything up front."""
+    target = tmp_path / "other.py"
+    target.write_text("target\n", encoding="utf-8")
+    h = _Harness(tmp_path)
+    h.lsp.rename = WorkspaceEdit(
+        changes={
+            str(tmp_path / "mod.py"): (
+                LspTextEdit(start_row=0, start_col=0, end_row=0, end_col=3,
+                            text="NEW"),
+            ),
+            str(target): (
+                LspTextEdit(start_row=0, start_col=0, end_row=0, end_col=6,
+                            text="CHANGED"),
+            ),
+        },
+        unsupported=False,
+    )
+    target_doc = Document.open(target)
+    h.session.docs.append(target_doc)
+    target_doc.buffer.read_only = True
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("rename failed" in t for t in h.message_texts())
+        )
+        assert h.doc.buffer.get_text() == _TEXT
+        assert target_doc.buffer.get_text() == "target\n"
+        assert any(
+            "rename failed" in t and "other.py" in t
+            for t in h.message_texts()
+        )
+
+    asyncio.run(scenario())
+
+
 def test_rename_unsupported_edit_reports_message(tmp_path: Path) -> None:
     """``unsupported=True`` warns and never mutates a buffer."""
     h = _Harness(tmp_path)

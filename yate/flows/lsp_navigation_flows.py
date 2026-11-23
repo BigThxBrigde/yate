@@ -521,8 +521,13 @@ class LspNavigationFlows:
         try:
             for uri, edits in edit.changes.items():
                 buf = docs[uri].buffer
-                for text_edit in edits:
-                    _check_edit_range(buf, text_edit)
+                try:
+                    for text_edit in edits:
+                        _check_edit_range(buf, text_edit)
+                except ValueError as exc:
+                    # Name the offending file: other failure branches above
+                    # report path.name, so keep the same level of detail.
+                    raise ValueError(f"{exc} ({uri_to_path(uri).name})") from exc
         except ValueError as exc:
             log.debug("workspace edit rejected: %s", exc, exc_info=False)
             self._message(f"rename failed: {exc}{disclosure}", "warn")

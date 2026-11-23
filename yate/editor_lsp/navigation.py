@@ -246,9 +246,13 @@ def parse_locations(raw: object) -> list[LspLocation]:
             continue
         range_key = "targetRange" if "targetUri" in entry else "range"
         raw_range = entry.get(range_key)
-        if not isinstance(raw_range, dict):
-            # A location without a usable range is malformed; skipping it is
-            # safer than fabricating (0, 0) and jumping to the file's start.
+        # A usable Location needs both Position endpoints; a partial range
+        # would make ``_pos_from(None)`` fabricate (0, 0) and jump to the
+        # file's first line (or leave an inverted range).
+        if not isinstance(raw_range, dict) or not all(
+            isinstance(cast(dict[str, object], raw_range).get(key), dict)
+            for key in ("start", "end")
+        ):
             continue
         r0, c0, r1, c1 = _range_from(cast(dict[str, object], raw_range))
         result.append(LspLocation(uri=uri, row=r0, col=c0, end_row=r1, end_col=c1))
