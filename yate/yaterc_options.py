@@ -194,7 +194,11 @@ def _parse_journey_fraction(  # noqa: Any - raw yaterc value, parsed and validat
             if bottom != 0:
                 try:
                     parsed = int(numerator) / bottom
-                except ValueError:  # pragma: no cover - isdecimal() guards this
+                except ValueError:
+                    # "0.0 < parsed < 1.0" below then reports the value.
+                    # Reachable despite the isdecimal() guard: "--5" (a
+                    # doubled sign) strips to a decimal "5" but int()
+                    # rejects it.
                     parsed = None
     if parsed is None or not 0.0 < parsed < 1.0:
         config.errors.append(
