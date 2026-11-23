@@ -1116,6 +1116,52 @@ def test_diagnostic_at_large_d_uses_row_index(
     asyncio.run(scenario())
 
 
+def test_diagnostic_at_over_span_diagnostic_matches_reference(
+    tmp_path: Path,
+) -> None:
+    """Diagnostics wider than the row-index span cap stay covered: the
+    overflow path answers ``diagnostic_at`` / ``diagnostics_on_line``
+    with the same coverage, severity and publish-order ties as the
+    full-table reference."""
+
+    async def scenario() -> None:
+        mgr, fakes = _manager_with_fakes()
+        # Real line content: empty lines would clamp the diagnostic columns
+        # to 0 and change which (row, col) points a range covers.
+        doc = make_python_doc(str(tmp_path), "x = 1\n" * 1200)
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({"uri": uri, "diagnostics": [
+            _diag_payload(0, 0, 2000, 0, 2, "whole-file-warn"),
+            _diag_payload(5, 0, 5, 3, 2, "row-5-warn"),
+            _diag_payload(7, 0, 7, 3, 1, "row-7-error"),
+        ]})
+
+        # A row the over-span diagnostic solely covers.
+        got = mgr.diagnostic_at(doc, 900, 0)
+        assert got is not None
+        assert got.message == "whole-file-warn"
+        # Severity tie with a row-local diagnostic: publish order decides.
+        got = mgr.diagnostic_at(doc, 5, 1)
+        assert got is not None
+        assert got.message == "whole-file-warn"
+        # A more severe row-local diagnostic still beats the tie.
+        got = mgr.diagnostic_at(doc, 7, 1)
+        assert got is not None
+        assert got.message == "row-7-error"
+        # diagnostics_on_line merges the overflow list in publish order.
+        on_line = mgr.diagnostics_on_line(doc, 5)
+        assert [d.message for d in on_line] == [
+            "whole-file-warn", "row-5-warn",
+        ]
+
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_diagnostics_row_index_multi_row_and_rebuild(tmp_path: Path) -> None:
     """P11: multi-row diagnostics are indexed on every covered row and a
     republish rebuilds the index so queries match the full-table filter."""
