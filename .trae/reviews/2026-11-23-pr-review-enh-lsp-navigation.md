@@ -99,9 +99,9 @@ explicitly registered. No hard gate was red at baseline.
 | Gate | Result | Exit |
 |---|---|---|
 | `pyright yate/ tests/ tools/ pack/` | 0 errors | 0 |
-| `pytest tests/ -q -n auto` (4029 passed, 10 skipped) | all green | 0 |
+| `pytest tests/ -q -n auto` (4046 tests, 4036 passed, 10 skipped) | all green | 0 |
 | `pytest tests/test_architecture.py -q` | 47 passed | 0 |
-| `pytest tests/ --cov=yate --cov-branch -n auto` | 92.81% (≥75); 1 parallel flake in `test_app_find_replace.py` re-run `-n 1` → pass | 0 (serial) |
+| `pytest tests/ --cov=yate --cov-branch -n auto` | 92.74% (≥75), 4036 passed / 10 skipped; 1 earlier parallel flake in `test_app_find_replace.py` re-run `-n 1` → pass | 0 |
 | `tools.smoke_test run --jobs 4` | 128/128 scenarios, 1554/1554 checks | 0 |
 | `tools.changelog check` | released up to date; unreleased lag is generator mechanism | 0 |
 | `git diff --check c6d6e89a...HEAD` | no whitespace errors | 0 |
@@ -114,6 +114,34 @@ flake and passed on serial re-run. The first smoke run reported 127/128 with
 one failing check; an immediate re-run gave 128/128 / 1554 checks exit 0.
 All three are load-sensitive environment artifacts, recorded per repo rules;
 the authoritative post-fix results above are the passing runs.
+
+## Second-round pr-review (2026-11-23, `e018cb1c..f1c4e8b4`)
+
+A second reviewer re-audited the two fix commits. Baseline: REQUEST_CHANGES
+with 2 MAJOR / 4 MINOR. A negative drill (porting the new tests onto the
+pre-fix `9b6f6471` in a throwaway worktree) turned all five behavior cases
+red, confirming the tests are not tautological.
+
+- MAJOR (fixed) — `navigation.py:249-253`: the first-round guard only checked
+  that `range` was a dict; a partial range (`{"start": ...}` or `{"end": ...}`)
+  still made `_pos_from(None)` fabricate `(0,0)`, restoring the ghost jump.
+  Guard now requires both `start` and `end` to be dicts; regression
+  `test_parse_locations_skips_ranges_missing_an_endpoint` added.
+- MAJOR (fixed) — this report and `.trae/reviews/README.md` #80 quoted
+  pre-fix gate numbers (4029 passed / 92.81%). Updated to final-state
+  measurements (incl. the two new second-round cases): 4046 tests /
+  4036 passed / 10 skipped, 92.74%.
+- MINOR (fixed) — `lsp_navigation_flows.py:521-529`: pre-validation failures
+  omitted the offending filename while other branches include `path.name`;
+  the Phase-1 wrapper now appends `(<file>)`. Added
+  `test_rename_multi_doc_prevalidation_is_atomic` locking in the zero-side-
+  effect contract for a multi-document edit with an unwritable target.
+- MINOR (registered, not in this PR) — rollback via `replace_range` leaves one
+  undo entry; present before this PR, harmless (content matches original),
+  clarified by the Phase-1/PHASE-2 docstring split.
+- MINOR (registered, master baseline) — smoke `stress_rapid_toggles` is load-
+  sensitive at `--jobs 4` (127/128) and green at `--jobs 1`; unrelated to this
+  diff and already on the master baseline flake list.
 
 ## Strengths
 
