@@ -476,6 +476,11 @@ def test_manager_request_document_symbols_flattens_and_clamps(
         symbols = await h.mgr.request_document_symbols(h.doc)
         assert [s.name for s in symbols] == ["Local", "Far"]
         assert (symbols[0].row, symbols[0].col) == (0, 0)
+        # Hierarchical DocumentSymbol entries carry no location, so the
+        # parser leaves their uri empty: the manager defaults it to the
+        # requesting document or the outline chooser cannot jump.
+        assert symbols[0].uri == h.mgr._uri(h.doc)
+        assert symbols[1].uri == "file:///other.py"
         # The unopened URI's columns pass through untouched (no clamp
         # against the source document), only floored at 0.
         assert (symbols[1].row, symbols[1].col) == (50, 99)
@@ -617,27 +622,20 @@ def test_manager_request_signature_help_returns_card(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
-def test_manager_execute_command_swallows_and_logs_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_manager_execute_command_propagates_failure(
+    tmp_path: Path,
 ) -> None:
-    """A failed executeCommand logs at debug and never raises."""
+    """A failed executeCommand raises LspFeatureFailed: the flow layer is
+    the sole caller and surfaces it to the user (silent failure would make
+    a broken command indistinguishable from a success)."""
     h = _Harness(tmp_path, exception=LspError("boom"))
-    records: list[str] = []
-
-    class _Recorder:
-        def debug(self, fmt: str, *args: object) -> None:
-            records.append(fmt % args)
-
-    monkeypatch.setattr(
-        "yate.editor_lsp.manager.log", _Recorder(), raising=True
-    )
 
     async def scenario() -> None:
-        await h.mgr.execute_command(
-            cast(Any, h.client), "server.fix", [1]
-        )
+        with pytest.raises(LspFeatureFailed):
+            await h.mgr.execute_command(
+                cast(Any, h.client), "server.fix", [1]
+            )
         assert h.client.calls[0][0] == "workspace/executeCommand"
-        assert any("executeCommand" in r for r in records)
 
     asyncio.run(scenario())
 

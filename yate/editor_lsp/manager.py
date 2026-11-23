@@ -877,16 +877,22 @@ class LspManager:
             doc, "documentSymbolProvider",
             "textDocument/documentSymbol", _params,
         )
+        doc_uri = self._uri(doc)
         result: list[LspSymbol] = []
         for sym in parse_symbols(raw):
+            # Hierarchical DocumentSymbol entries belong to the requested
+            # document (LSP spec) and carry no ``location``, so the parser
+            # leaves their uri empty -- default them here or every outline
+            # row would be unjumpable (uri_to_path("") -> Path("")).
+            uri = sym.uri if sym.uri else doc_uri
             r0, c0, r1, c1 = self._clamp_range_for(
-                sym.uri, (sym.row, sym.col, sym.end_row, sym.end_col)
+                uri, (sym.row, sym.col, sym.end_row, sym.end_col)
             )
             result.append(LspSymbol(
                 name=sym.name,
                 kind=sym.kind,
                 detail=sym.detail,
-                uri=sym.uri,
+                uri=uri,
                 row=r0,
                 col=c0,
                 end_row=r1,
@@ -1001,17 +1007,18 @@ class LspManager:
     async def execute_command(
         self, client: LspClient, name: str, arguments: list[object]
     ) -> None:
-        """Send workspace/executeCommand and ignore the result."""
+        """Send workspace/executeCommand and discard the success result.
+
+        Failures propagate as :class:`navigation.LspFeatureFailed` -- the
+        sole caller (``LspNavigationFlows._worker_apply_action``) surfaces
+        them to the user, so swallowing here would make a failed command
+        indistinguishable from a silent success.
+        """
         params: dict[str, object] = {
             "command": name,
             "arguments": arguments,
         }
-        try:
-            await navigation_request(client, "workspace/executeCommand", params)
-        except asyncio.CancelledError:
-            raise
-        except navigation.LspFeatureFailed as exc:
-            log.debug("executeCommand %s failed: %s", name, exc)
+        await navigation_request(client, "workspace/executeCommand", params)
 
     @staticmethod
     def _unwrap_completion(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:

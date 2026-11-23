@@ -631,6 +631,42 @@ def test_rename_unsupported_edit_reports_message(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_rename_unopened_target_converts_utf16_columns(
+    tmp_path: Path,
+) -> None:
+    """A rename target opened by the apply pass still carries raw UTF-16
+    columns (the manager converts only docs already open at request
+    time): an astral char on the edited line shifts every later column,
+    so the flow must translate against the live buffer before applying."""
+    target = tmp_path / "emoji.py"
+    target.write_text("a🦊b\n", encoding="utf-8")
+    h = _Harness(tmp_path)
+    # UTF-16 units on "a🦊b": a=0..1, 🦊=1..3, b=3..4 (code points 2..3).
+    h.lsp.rename = WorkspaceEdit(
+        changes={
+            str(target): (
+                LspTextEdit(
+                    start_row=0, start_col=3, end_row=0, end_col=4,
+                    text="NEW",
+                ),
+            ),
+        },
+        unsupported=False,
+    )
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("Renamed 1 occurrence" in t for t in h.message_texts())
+        )
+        target_doc = h.session.is_open(target)
+        assert target_doc is not None
+        assert target_doc.buffer.get_text() == "a🦊NEW\n"
+
+    asyncio.run(scenario())
+
+
 def test_rename_unopened_target_with_invalid_edit_restores_and_discloses(
     tmp_path: Path,
 ) -> None:

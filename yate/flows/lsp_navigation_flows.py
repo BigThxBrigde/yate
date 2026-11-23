@@ -33,6 +33,7 @@ from yate.editor_lsp.navigation import (
     LspTextEdit,
     WorkspaceEdit,
 )
+from yate.editor_lsp.parsing import _from_utf16
 from yate.editor_lsp.protocol import uri_file_name, uri_to_path
 from yate.flows import MessageFn, SpawnFn
 from yate.logs import tracing
@@ -72,6 +73,29 @@ def _check_edit_range(buf: TextBuffer, edit: LspTextEdit) -> None:
     ):
         if row >= line_count or col > len(buf.lines[row]):
             raise ValueError(f"edit range out of bounds: {edit!r}")
+
+
+def _to_buffer_edit(buf: TextBuffer, edit: LspTextEdit) -> LspTextEdit:
+    """Translate one server-side UTF-16 edit onto *buf*'s coordinate space.
+
+    Used for documents the rename newly opened: the manager converts
+    UTF-16 columns only for documents already open at request time, so a
+    just-opened target still carries raw UTF-16 ranges.  Rows clamp to
+    the buffer, columns convert via ``_from_utf16`` and clamp to the
+    line -- mirroring ``manager._clamp_range`` against the real buffer.
+    """
+    last = buf.line_count - 1
+    r0 = max(0, min(edit.start_row, last))
+    r1 = max(0, min(edit.end_row, last))
+    line0 = buf.lines[r0]
+    line1 = buf.lines[r1]
+    return LspTextEdit(
+        start_row=r0,
+        start_col=min(max(0, _from_utf16(line0, edit.start_col)), len(line0)),
+        end_row=r1,
+        end_col=min(max(0, _from_utf16(line1, edit.end_col)), len(line1)),
+        text=edit.text,
+    )
 
 
 class LspNavigationFlows:
@@ -493,6 +517,7 @@ class LspNavigationFlows:
         """
         docs: dict[str, Document] = {}
         opened_names: list[str] = []
+        newly_opened: set[str] = set()
         for uri in edit.changes:
             path = uri_to_path(uri)
             if not path.is_file():
@@ -504,10 +529,25 @@ class LspNavigationFlows:
                 doc = self._session.is_open(path)
                 if doc is not None:
                     opened_names.append(path.name)
+                    newly_opened.add(uri)
             if doc is None:
                 self._message(f"rename failed: cannot open {path.name}", "warn")
                 return
             docs[uri] = doc
+        # The manager converts UTF-16 columns only for documents already
+        # open at request time; a rename target opened just now still
+        # carries raw UTF-16 ranges.  Translate those against the live
+        # buffer before validation -- on a line with an astral char (an
+        # emoji spans 2 UTF-16 units) the raw column would land past the
+        # code-point index and corrupt or reject the edit.
+        per_uri: dict[str, tuple[LspTextEdit, ...]] = {
+            uri: (
+                tuple(_to_buffer_edit(docs[uri].buffer, e) for e in edits)
+                if uri in newly_opened
+                else edits
+            )
+            for uri, edits in edit.changes.items()
+        }
         # Phase 1: validate every edit against its live buffer before any
         # mutation.  A rejected edit (out of bounds / inverted / locked /
         # read-only) means nothing changed, so there is nothing to roll back --
@@ -519,7 +559,7 @@ class LspNavigationFlows:
             else ""
         )
         try:
-            for uri, edits in edit.changes.items():
+            for uri, edits in per_uri.items():
                 buf = docs[uri].buffer
                 try:
                     for text_edit in edits:
@@ -541,7 +581,7 @@ class LspNavigationFlows:
         ]
         applied = 0
         try:
-            for uri, edits in edit.changes.items():
+            for uri, edits in per_uri.items():
                 buf = docs[uri].buffer
                 ordered = sorted(
                     edits,
