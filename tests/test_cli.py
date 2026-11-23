@@ -295,6 +295,15 @@ def test_cli_two_way_rejects_three_files() -> None:
     _expect_cli_error(["--diff", "a", "b", "c", "--2way"])
 
 
+def test_cli_diag_rejects_hex() -> None:
+    """--diag prints a report and exits: --hex would be silently dropped."""
+    _expect_cli_error(["--diag", "--hex", "f.png"])
+
+
+def test_cli_diag_rejects_file_manager() -> None:
+    _expect_cli_error(["--diag", "--file-manager"])
+
+
 def test_cli_two_and_three_way_mutually_exclusive() -> None:
     with pytest.raises(SystemExit) as ctx:
         build_parser().parse_args(["--diff", "a", "b", "--2way", "--3way"])

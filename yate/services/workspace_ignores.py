@@ -73,6 +73,10 @@ class _IgnorePattern:
     #: A ``/`` at the start or middle (git anchoring): match the entry's
     #: path relative to the ignore file's own directory, not its basename.
     anchored: bool
+    #: Directory the pattern's ignore file lives in (git matches anchored
+    #: rules against the path relative to it).  ``None`` for root-level
+    #: patterns, which resolve against the workspace root instead.
+    base: Path | None = None
 
 
 def _parse_ignore(text: str) -> list[_IgnorePattern]:
@@ -200,10 +204,37 @@ class IgnoreIndex:
                 text = ignore_file.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            patterns.extend(_parse_ignore(text))
+            for pat in _parse_ignore(text):
+                pat.base = directory
+                patterns.append(pat)
         if len(self.dir_ignore_cache) >= _DIR_IGNORE_CACHE_MAX:
             self.dir_ignore_cache.clear()
         self.dir_ignore_cache[key] = patterns
+        return patterns
+
+    def dir_ignores_inherited(self, directory: Path) -> list[_IgnorePattern]:
+        """Patterns of *directory* plus every ancestor, shallower first.
+
+        Git applies a ``.gitignore`` to its whole subtree, so a listing of
+        a nested directory must also see its ancestors' rules.  The walk
+        stops at the workspace root when *directory* lives under it (root
+        files are already loaded by :meth:`set_root`, but re-including them
+        here is harmless -- the last-match-wins loop yields the same
+        verdict); outside the root it walks to the filesystem boundary, the
+        closest approximation of git's repo boundary for trees the file
+        manager browses.  Each level reuses :meth:`dir_ignores`, so the
+        mtime-keyed cache still pays the reads once per directory.
+        """
+        scope: list[Path] = []
+        current = directory
+        while True:
+            scope.append(current)
+            if current == self._root or current.parent == current:
+                break
+            current = current.parent
+        patterns: list[_IgnorePattern] = []
+        for d in reversed(scope):
+            patterns.extend(self.dir_ignores(d))
         return patterns
 
     def ignored(
@@ -217,10 +248,12 @@ class IgnoreIndex:
         Basename patterns match the entry name at any depth; anchored
         patterns (a ``/`` at the start or middle) match the entry's path
         relative to the ignore file's own directory -- the workspace root
-        for root files.  Per-directory patterns only ever see the direct
-        children of their own directory, whose relative path is the bare
-        name, so they match on the name either way.  Later patterns win
-        (last match decides), mirroring ``.gitignore`` semantics.
+        for root files, ``pat.base`` for per-directory files.  Callers
+        listing a nested directory pass the inherited chain from
+        :meth:`dir_ignores_inherited` (shallower files first), so a
+        ``.gitignore`` governs its whole subtree like in git.  Later
+        patterns win (last match decides), mirroring ``.gitignore``
+        semantics.
         """
         lower = path.name.lower()
         # Anchored root rules need the root-relative path; compute it lazily
@@ -245,9 +278,33 @@ class IgnoreIndex:
             elif fnmatch.fnmatch(lower, pat.pattern):
                 ignored = not pat.negated
         if dir_ignores is not None:
+            # Anchored per-directory rules match the entry's path relative
+            # to the defining ignore file's own directory (pat.base); that
+            # path is computed lazily per base so pattern-free workspaces
+            # and basename-only lists never pay the relative_to.
+            dir_rels: dict[Path, str | None] = {}
+
+            def _rel_to(base: Path) -> str | None:
+                if base not in dir_rels:
+                    try:
+                        dir_rels[base] = (
+                            path.relative_to(base).as_posix().lower()
+                        )
+                    except ValueError:
+                        dir_rels[base] = None
+                return dir_rels[base]
+
             for pat in dir_ignores:
                 if pat.dir_only and not is_dir:
                     continue
-                if fnmatch.fnmatch(lower, pat.pattern):
+                if pat.anchored:
+                    if pat.base is None:
+                        continue  # root-anchored rules live in the root loop
+                    rel_dir = _rel_to(pat.base)
+                    if rel_dir is not None and _anchored_match(
+                        rel_dir, pat.pattern
+                    ):
+                        ignored = not pat.negated
+                elif fnmatch.fnmatch(lower, pat.pattern):
                     ignored = not pat.negated
         return ignored

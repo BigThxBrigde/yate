@@ -549,7 +549,11 @@ class VimKeymap(Keymap):
             ui.execute_action("delete_backward")
             return True
         if key == "\x1b[3~":
-            self._exit_multi(buf)
+            # delete_forward is multi-cursor aware (delete_forward_at_points),
+            # so keep the extra cursors like Backspace above
+            if buf.has_extra_cursors():
+                buf.delete_forward_at_points()
+                return True
             ui.execute_action("delete_forward")
             return True
         if key == "\x17":  # ctrl-w: delete word backwards
@@ -784,6 +788,9 @@ class VimKeymap(Keymap):
         typed = self._typed_count()
         self.count_str = ""
         target = min((typed or 1) - 1, len(buf.lines) - 1)
+        # plan-c C3 (S-09): the visual gg landing column is the first
+        # non-blank itself; the half-open selection deliberately stops
+        # short of it (test_visual_gg_extends_to_the_first_line).
         buf.set_cursor((target, first_non_blank(buf.lines[target])), select=True)
         if self.mode == VimMode.VISUAL_LINE:
             self._fix_linewise(buf)
@@ -1538,15 +1545,21 @@ class VimKeymap(Keymap):
                     buf.set_cursor((r, max(0, len(buf.lines[r]) - 1)))
             elif code == "G":
                 # jump, not repeatable: a count names the target line.  Normal
-                # mode lands on the first non-blank like vim's G; visual and
-                # operator mode keep the line-edge column so half-open spans
-                # (d5G, dG) still reach the target char.
+                # mode lands on the first non-blank like vim's G; in visual
+                # mode the half-open selection must keep the landed-on char,
+                # so the cursor steps one past the first non-blank (the
+                # e-motion precedent); without a count the span runs to the
+                # line end like the ``$`` branch.
                 if count is not None:
                     r = max(0, min(count - 1, len(buf.lines) - 1))
                 else:
                     r = len(buf.lines) - 1
                 if select:
-                    col = 0 if count is not None else len(buf.lines[r])
+                    col = (
+                        min(first_non_blank(buf.lines[r]) + 1, len(buf.lines[r]))
+                        if count is not None
+                        else len(buf.lines[r])
+                    )
                     buf.set_cursor((r, col), select=True)
                 else:
                     buf.set_cursor((r, first_non_blank(buf.lines[r])))

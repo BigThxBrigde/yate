@@ -424,6 +424,38 @@ def test_render_extra_point_at_row_end_expands_cells(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_render_clips_a_straddling_wide_glyph_at_the_window_edge(
+    tmp_path: Path,
+) -> None:
+    """Far-edge twin of the start-side blank (wide-glyph windowing).
+
+    With soft wrap off, a wide glyph whose second column falls beyond the
+    text window would paint a 2-column Segment while ``used`` counts one,
+    overflowing the Strip by one cell.  The row must stay exactly
+    ``view_w`` cells wide, and the straddled glyph shows as one blank.
+    """
+
+    async def scenario() -> None:
+        target = tmp_path / "wide.txt"
+        target.write_text("placeholder\n", encoding="utf-8")
+        app = YateApp(target=target)
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            editor = app.editor.panes.active_view
+            assert editor is not None
+            buf = app.editor.session.buffer
+            text_w = editor.size.width - editor.gutter_width()
+            # Wide glyphs start at even cell offsets, so the straddle at
+            # cell text_w-1 needs an odd text_w fed pure wide glyphs and
+            # an even text_w one ASCII spacer up front.
+            line = "中" * 80 if text_w % 2 else "X" + "中" * 80
+            buf.lines = [line, ""]
+            strip = editor.render_line(0)
+            assert strip.cell_length == editor.size.width
+
+    asyncio.run(scenario())
+
+
 def test_render_no_extra_points_matches_baseline(tmp_path: Path) -> None:
     """IKKJHH: without extra points rendering matches the single-cursor base.
 

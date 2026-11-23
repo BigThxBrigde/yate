@@ -692,13 +692,26 @@ class EditorView(ScrollView, HighlightMixin):
             if underlines[cell_idx] and sid != S_CURSOR:
                 style += Style(underline=True)
             if ch:
-                # an empty cell is the second column of a wide glyph
-                # (expand_char): Rich already advanced 2 cells for the
-                # glyph itself, so emitting a space here would add a
-                # visible blank after every CJK/fullwidth character.
-                # The one exception is a wide glyph clipped by horizontal
-                # scroll at its first half: draw a blank replacement cell.
-                segments.append(Segment(ch, style))
+                if (
+                    cell_idx + 1 >= end
+                    and cell_idx + 1 < n_cells
+                    and not cells[cell_idx + 1]
+                ):
+                    # a wide glyph whose second column fell beyond the
+                    # window's far edge: the glyph's Segment would paint
+                    # 2 columns and overflow the Strip by one, so draw a
+                    # blank replacement cell (the far-edge twin of the
+                    # start-side handling below)
+                    segments.append(Segment(" ", style))
+                else:
+                    # an empty cell is the second column of a wide glyph
+                    # (expand_char): Rich already advanced 2 cells for the
+                    # glyph itself, so emitting a space here would add a
+                    # visible blank after every CJK/fullwidth character.
+                    # The one exception is a wide glyph clipped by
+                    # horizontal scroll at its first half: draw a blank
+                    # replacement cell.
+                    segments.append(Segment(ch, style))
             elif cell_idx == start and cell_idx > 0:
                 segments.append(Segment(" ", style))
             used += 1
