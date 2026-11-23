@@ -47,6 +47,7 @@ PREFIXES: dict[str, tuple[str, str]] = {
     "new_file": ("New file: ", "green"),
     "new_dir": ("New folder: ", "accent"),
     "rename": ("Rename: ", "yellow"),
+    "lsp_rename": ("Rename: ", "yellow"),
     "delete": ("Delete? ", "red"),
 }
 

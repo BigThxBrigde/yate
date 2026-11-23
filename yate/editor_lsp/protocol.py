@@ -179,6 +179,21 @@ def uri_to_path(uri: str) -> Path:
     return Path(_url_path_to_pathname(parsed.path)) if parsed.path else Path(uri)
 
 
+def canonical_uri(uri: str) -> str:
+    """Normalize any URI spelling to the canonical ``file://`` form.
+
+    Converts via :func:`uri_to_path` then :func:`path_to_uri`, so a
+    drive-escaped echo from a server (``file:///d%3A/x.py``) and the
+    locally built URI (``file:///D:/x.py``) compare equal.  URIs with a
+    non-``file`` scheme (``untitled:``, unknown schemes) are returned
+    unchanged.
+    """
+    parsed = urlparse(uri)
+    if parsed.scheme != "file":
+        return uri
+    return path_to_uri(uri_to_path(uri))
+
+
 def uri_file_name(uri: str) -> str:
     """File name portion of a URI (for logs/messages)."""
     tail = uri.rstrip("/").rsplit("/", 1)[-1]

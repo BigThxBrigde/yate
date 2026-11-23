@@ -1463,6 +1463,21 @@ stdio, speaks JSON-RPC itself, and provides:
   changes synchronization. Hover is request-only (no `didOpen`/`didChange`);
   extensions can rebind the key once for both keymaps with
   `bind_key(..., keymap="both")`.
+* **Navigation and symbol operations** -- all of these are gated on the
+  server's declared capabilities and sent **asynchronously**: results and
+  failures are echoed as explicit messages, and an unsupported capability
+  or a not-ready server yields a clear message while the buffer stays
+  untouched. `gd` goes to the definition, `gr` finds references (multiple
+  results open a chooser; `Enter` navigates), the `show_outline` action
+  (command palette) lists the document outline, and the `rename_symbol`,
+  `show_code_actions` and `show_signature_help` actions cover rename, code
+  actions and signature help. Keys:
+
+  | Key | vim | vsc | Action |
+  |---|---|---|---|
+  | Go to definition | `gd` | `<alt-g>` | `goto_definition` |
+  | Find references | `gr` | `<alt-r>` | `find_references` |
+  | Hover documentation | `K` / `F7` | `K` / `F7` | `show_hover_docs` |
 
 Documents are synchronized whole-text on open / save / after a short idle
 debounce while typing. Servers start lazily when the first matching file is

@@ -23,6 +23,7 @@ from yate.editor_core.document import Document
 from yate.editor_lsp import ServerState
 from yate.editor_lsp.client import SYNC_INCREMENTAL, LspClient, ServerConfig
 from yate.editor_lsp.manager import LspManager
+from yate.editor_lsp.protocol import uri_to_path
 
 from test_lsp_diff import apply_changes
 
@@ -180,8 +181,9 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
             assert "\n".join(server_lines) == doc.buffer.get_text()
 
             # (b) Diagnostics arrive: the server parsed the synced document.
-            # Polled on the received wire instead of the manager's per-URI
-            # store, which pyright's echoed (drive-escaped) URI does not key.
+            # Polled on the received wire; the manager's per-URI store is
+            # keyed by the canonicalized URI (pyright's drive-escaped echo
+            # maps onto the same key), so it tracks these too.
             await _wait_until(
                 lambda: any(
                     cast(dict[str, Any], diagnostic).get("severity") == 1
@@ -191,6 +193,115 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
                 ),
                 _POLL_TIMEOUT_S,
             )
+        finally:
+            await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+# Two-file navigation fixture: A (``mod.py``) defines ``greet``, B
+# (``app.py``) imports and calls it.  The call site is row 2 col 0 of B.
+_DEF_FILE_TEXT = 'def greet(name: int) -> str:\n    return "Hi"\n'
+_CALL_FILE_TEXT = "from mod import greet\n\ngreet(1)\n"
+_DEF_ROW = 0
+_DEF_COL = 4
+_CALL_ROW = 2
+_CALL_COL = 0
+
+
+def test_real_pyright_two_file_definition_references_hover(
+    tmp_path: Path,
+) -> None:
+    """Against a real pyright: definition / references / hover across files.
+
+    A (``mod.py``) defines ``greet``; B (``app.py``) imports and calls it.
+    After startup and didOpen for both documents, ``request_definition`` on
+    the B call site must resolve to the ``def greet`` line of A,
+    ``request_references`` must cover both files, and ``request_hover``
+    must return non-empty text.  Diagnostics keep the wire-recorder
+    approach (never the manager's raw per-URI diagnostic key).
+    """
+
+    async def scenario() -> None:
+        command = shutil.which("pyright-langserver")
+        assert command is not None
+
+        def_path = tmp_path / "mod.py"
+        call_path = tmp_path / "app.py"
+        def_path.write_text(_DEF_FILE_TEXT, encoding="utf-8")
+        call_path.write_text(_CALL_FILE_TEXT, encoding="utf-8")
+
+        mgr = LspManager(workspace_root=lambda: tmp_path)
+        recorder = _WireRecorder(mgr)
+        clients: list[LspClient] = []
+
+        def factory(config: ServerConfig, root: Path) -> LspClient:
+            """Build a real client, wrapping notify to record the wire."""
+            client = LspClient(
+                config, root, on_notification=recorder.on_notification
+            )
+            clients.append(client)
+            return client
+
+        mgr.set_client_factory(factory)
+        mgr.register_server(
+            ServerConfig(
+                name="pyright",
+                command=command,
+                args=["--stdio"],
+                filetypes=["py"],
+            )
+        )
+        def_doc = Document.open(def_path)
+        call_doc = Document.open(call_path)
+
+        try:
+            for doc in (def_doc, call_doc):
+                try:
+                    await asyncio.wait_for(
+                        mgr.on_document_shown(doc), timeout=_SPAWN_TIMEOUT_S
+                    )
+                except (asyncio.TimeoutError, OSError) as exc:
+                    pytest.skip(f"pyright-langserver failed to start: {exc}")
+            client = clients[0]
+            if client.state is not ServerState.READY:
+                pytest.skip(
+                    "pyright-langserver did not reach READY"
+                    " (missing node runtime?);"
+                    f" state={client.state.value} error={client.error!r}"
+                )
+
+            # Give pyright a moment to finish its first analysis pass: the
+            # definition / references / hover requests poll below anyway.
+            await _wait_until(
+                lambda: any(
+                    method == "textDocument/publishDiagnostics"
+                    for method, _ in recorder.received
+                ),
+                _POLL_TIMEOUT_S,
+            )
+
+            # (a) definition on the B call site resolves to A's def line.
+            locations = await mgr.request_definition(
+                call_doc, _CALL_ROW, _CALL_COL
+            )
+            assert locations, "pyright returned no definition location"
+            target = locations[0]
+            resolved = uri_to_path(target.uri)
+            assert resolved == def_path, (resolved, def_path)
+            assert (target.row, target.col) == (_DEF_ROW, _DEF_COL), target
+
+            # (b) references cover both files (declaration + call site).
+            refs = await mgr.request_references(
+                call_doc, _CALL_ROW, _CALL_COL
+            )
+            ref_paths = {uri_to_path(loc.uri) for loc in refs}
+            assert ref_paths == {def_path, call_path}, ref_paths
+            assert len(refs) >= 2, refs
+
+            # (c) hover at the call site carries non-empty text.
+            hover = await mgr.request_hover(call_doc, _CALL_ROW, _CALL_COL)
+            assert hover.strip(), hover
         finally:
             await mgr.shutdown_all()
 

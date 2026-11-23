@@ -30,9 +30,49 @@ Client capabilities:
   changes focus, never swallows other keys, and never starts a server or
   changes synchronization. Extensions can rebind it once for both keymaps
   with `bind_key(..., keymap="both")`.
+- **Go to definition**: `gd` under the vim keymap, `<alt-g>` under vsc
+  (`goto_definition`).
+- **Find references**: `gr` under the vim keymap, `<alt-r>` under vsc
+  (`find_references`); with multiple results a chooser opens and `Enter`
+  jumps to the selected location.
+- **Hover documentation (K)**: `K` under both keymaps (vim `K` / vsc `Shift+K`)
+  triggers the same `show_hover_docs` action as `F7` (the `<f7>` key stays).
+- **Document outline**: the `show_outline` action (command palette) lists the
+  symbols of the current document; `Enter` jumps to one.
+- **Rename** (`rename_symbol`), **code actions** (`show_code_actions`) and
+  **signature help** (`show_signature_help`) are available through the
+  command palette / actions as well.
+- All of these navigation and editing features are **server-capability
+  gated**: when the server does not declare the capability or is not ready,
+  yate shows an explicit message and leaves the buffer untouched. Every
+  request is **async**: results and failures are echoed as explicit messages
+  and never block typing.
 - **Buffer completion fallback**: when the current file has no usable language
   server, completion falls back to words collected from all open buffers (and
   completes file paths when the prefix contains `/` or `~`).
+
+Two-file pyright example — `mathutil.py` defines a function and `app.py`
+imports and calls it:
+
+```python
+# mathutil.py
+def greet(name: int) -> str:
+    return f"Hi {name}"
+
+# app.py
+from mathutil import greet
+
+greet(7)   # with the cursor on greet: vim `gd` jumps to the def line in
+           # mathutil.py, `gr` lists both references (the chooser shows both
+           # file names, Enter navigates), and `K` (or F7) shows the
+           # signature / docstring card
+```
+
+(With the matching extension registering
+`command="pyright-langserver"`, `filetypes=["py"]`,
+`root_markers=["pyrightconfig.json", ".git"]`, see §1; every feature is
+gated on the server's declared capabilities — unsupported ones answer with
+an explicit message.)
 
 Documents synchronize whole-text: on open, on save, and after an idle debounce
 (0.25s) while typing. A server starts **lazily** when the first matching file

@@ -33,7 +33,7 @@ from typing import Any
 from yate.editor_core.document import Document
 from yate.logs import tracing
 
-from yate.editor_lsp import parsing, protocol
+from yate.editor_lsp import navigation, parsing, protocol
 from yate.editor_lsp.client import (
     Completion,
     Diagnostic,
@@ -41,6 +41,20 @@ from yate.editor_lsp.client import (
     LspError,
     ServerConfig,
     ServerState,
+)
+from yate.editor_lsp.navigation import (
+    LspCodeAction,
+    LspFeatureUnavailable,
+    LspLocation,
+    LspSignature,
+    LspSymbol,
+    WorkspaceEdit,
+    parse_code_actions,
+    parse_locations,
+    parse_signature_help,
+    parse_symbols,
+    parse_workspace_edit,
+    request as navigation_request,
 )
 from yate.editor_lsp.parsing import _from_utf16 as _from_utf16
 from yate.editor_lsp.parsing import _to_utf16 as _to_utf16
@@ -720,6 +734,292 @@ class LspManager:
             log.debug("failed to parse hover response for %s", uri)
             return ""
 
+    # ----------------------------------------------------- navigation layer
+
+    def _request_positions(
+        self, doc: Document, row: int, col: int
+    ) -> tuple[str, dict[str, object]]:
+        """Canonical URI + LSP ``textDocument``/``position`` params for *doc*.
+
+        Columns are converted to UTF-16 code units via the shared
+        ``_to_utf16`` helper, like every other outgoing request.
+        """
+        uri = self._uri(doc)
+        cursor_line = (
+            doc.buffer.lines[row] if row < doc.buffer.line_count else ""
+        )
+        params: dict[str, object] = {
+            "textDocument": {"uri": uri},
+            "position": {"line": row, "character": _to_utf16(cursor_line, col)},
+        }
+        return uri, params
+
+    async def _request(
+        self,
+        doc: Document,
+        feature: str,
+        method: str,
+        params_builder: Callable[[str], dict[str, object]],
+    ) -> object:
+        """Shared request path: ready client -> capability gate -> request.
+
+        Raises :class:`LspFeatureUnavailable` when no READY client serves
+        *doc* (``reason="no-ready-server"``) or its capabilities do not
+        declare *feature* (``reason="unsupported"``); request failures
+        propagate as :class:`navigation.LspFeatureFailed`.
+        """
+        client = self._ready_client_for(doc)
+        if client is None:
+            raise LspFeatureUnavailable(
+                feature, reason=navigation.REASON_NO_READY_SERVER
+            )
+        if not navigation.supports_feature(client.server_capabilities, feature):
+            raise LspFeatureUnavailable(feature)
+        uri = self._uri(doc)
+        return await navigation_request(client, method, params_builder(uri))
+
+    def supports_feature(self, doc: Document, feature: str) -> bool:
+        """Whether a READY client for *doc* declares *feature* usable."""
+        client = self._ready_client_for(doc)
+        return client is not None and navigation.supports_feature(
+            client.server_capabilities, feature
+        )
+
+    def _clamp_range_for(
+        self, uri: str, rng: tuple[int, int, int, int]
+    ) -> tuple[int, int, int, int]:
+        """Clamp a UTF-16 range onto the document *uri* belongs to (M4 m2).
+
+        The clamp target is ``_open[uri].doc`` -- the document the server
+        is actually editing -- never the requesting (source) document:
+        a location in another file must not be clamped against the
+        source buffer's bounds.  URIs that are not open pass through
+        with only the 0-floor applied (no source document is available
+        to translate or bound the UTF-16 columns).
+        """
+        state = self._open.get(uri)
+        if state is None:
+            r0, c0, r1, c1 = rng
+            return (max(0, r0), max(0, c0), max(0, r1), max(0, c1))
+        return self._clamp_range(state.doc, rng)
+
+    def _clamp_range(
+        self, doc: Document, rng: tuple[int, int, int, int]
+    ) -> tuple[int, int, int, int]:
+        """Clamp a server UTF-16 range onto the buffer (rows and columns).
+
+        Rows outside the document clamp to the nearest real line and
+        columns clamp to the line length, mirroring
+        ``parsing._range_to_buffer_cols`` without needing a Document
+        subclass seam.
+        """
+        r0, c0, r1, c1 = rng
+        lines = doc.buffer.lines
+        last = len(lines) - 1
+        r0 = max(0, min(r0, last))
+        r1 = max(0, min(r1, last))
+        line0 = lines[r0]
+        line1 = lines[r1]
+        return (
+            r0,
+            min(max(0, _from_utf16(line0, c0)), len(line0)),
+            r1,
+            min(max(0, _from_utf16(line1, c1)), len(line1)),
+        )
+
+    def _location_rows(self, raw: object) -> list[LspLocation]:
+        """Convert parsed server locations into buffer-row LspLocations."""
+        locations: list[LspLocation] = []
+        for loc in parse_locations(raw):
+            r0, c0, r1, c1 = self._clamp_range_for(
+                loc.uri, (loc.row, loc.col, loc.end_row, loc.end_col)
+            )
+            locations.append(LspLocation(
+                uri=loc.uri, row=r0, col=c0, end_row=r1, end_col=c1,
+            ))
+        return locations
+
+    async def request_definition(
+        self, doc: Document, row: int, col: int
+    ) -> list[LspLocation]:
+        """Jump targets of textDocument/definition at the cursor."""
+        raw = await self._request(
+            doc, "definitionProvider", "textDocument/definition",
+            lambda uri: self._request_positions(doc, row, col)[1],
+        )
+        return self._location_rows(raw)
+
+    async def request_references(
+        self, doc: Document, row: int, col: int
+    ) -> list[LspLocation]:
+        """Jump targets of textDocument/references (declarations included)."""
+        def _params(uri: str) -> dict[str, object]:
+            _, position_params = self._request_positions(doc, row, col)
+            return {
+                "textDocument": {"uri": uri},
+                "position": position_params["position"],
+                "context": {"includeDeclaration": True},
+            }
+
+        raw = await self._request(
+            doc, "referencesProvider", "textDocument/references", _params
+        )
+        return self._location_rows(raw)
+
+    async def request_document_symbols(
+        self, doc: Document
+    ) -> list[LspSymbol]:
+        """Flattened document outline of *doc*."""
+        def _params(uri: str) -> dict[str, object]:
+            return {"textDocument": {"uri": uri}}
+
+        raw = await self._request(
+            doc, "documentSymbolProvider",
+            "textDocument/documentSymbol", _params,
+        )
+        doc_uri = self._uri(doc)
+        result: list[LspSymbol] = []
+        for sym in parse_symbols(raw):
+            # Hierarchical DocumentSymbol entries belong to the requested
+            # document (LSP spec) and carry no ``location``, so the parser
+            # leaves their uri empty -- default them here or every outline
+            # row would be unjumpable (uri_to_path("") -> Path("")).
+            uri = sym.uri if sym.uri else doc_uri
+            r0, c0, r1, c1 = self._clamp_range_for(
+                uri, (sym.row, sym.col, sym.end_row, sym.end_col)
+            )
+            result.append(LspSymbol(
+                name=sym.name,
+                kind=sym.kind,
+                detail=sym.detail,
+                uri=uri,
+                row=r0,
+                col=c0,
+                end_row=r1,
+                end_col=c1,
+                depth=sym.depth,
+            ))
+        return result
+
+    async def request_rename(
+        self, doc: Document, row: int, col: int, new_name: str
+    ) -> WorkspaceEdit:
+        """WorkspaceEdit of a rename to *new_name* at the cursor."""
+        def _params(uri: str) -> dict[str, object]:
+            _, position_params = self._request_positions(doc, row, col)
+            return {
+                "textDocument": {"uri": uri},
+                "position": position_params["position"],
+                "newName": new_name,
+            }
+
+        raw = await self._request(
+            doc, "renameProvider", "textDocument/rename", _params
+        )
+        edit = parse_workspace_edit(raw)
+        if edit.unsupported:
+            return edit
+        # Convert UTF-16 columns to buffer columns for this document's
+        # ranges (the same document the cursor sits in).
+        changes: dict[str, tuple[navigation.LspTextEdit, ...]] = {}
+        for uri, edits in edit.changes.items():
+            converted: list[navigation.LspTextEdit] = []
+            for text_edit in edits:
+                r0, c0, r1, c1 = self._clamp_range_for(uri, (
+                    text_edit.start_row, text_edit.start_col,
+                    text_edit.end_row, text_edit.end_col,
+                ))
+                converted.append(navigation.LspTextEdit(
+                    start_row=r0, start_col=c0, end_row=r1, end_col=c1,
+                    text=text_edit.text,
+                ))
+            changes[uri] = tuple(converted)
+        return WorkspaceEdit(changes=changes, unsupported=False)
+
+    async def request_code_actions(
+        self,
+        doc: Document,
+        row: int,
+        col: int,
+        diagnostics: list[Diagnostic],
+    ) -> list[LspCodeAction]:
+        """Quickfix / refactor / source actions for the cursor's diagnostic."""
+        def _utf16_diag(d: Diagnostic) -> dict[str, object]:
+            line_start = (
+                doc.buffer.lines[d.start_row]
+                if d.start_row < doc.buffer.line_count else ""
+            )
+            line_end = (
+                doc.buffer.lines[d.end_row]
+                if d.end_row < doc.buffer.line_count else ""
+            )
+            return {
+                "range": {
+                    "start": {
+                        "line": d.start_row,
+                        "character": _to_utf16(line_start, d.start_col),
+                    },
+                    "end": {
+                        "line": d.end_row,
+                        "character": _to_utf16(line_end, d.end_col),
+                    },
+                },
+                "severity": d.severity,
+                "message": d.message,
+                "source": d.source,
+            }
+
+        def _params(uri: str) -> dict[str, object]:
+            _, position_params = self._request_positions(doc, row, col)
+            return {
+                "textDocument": {"uri": uri},
+                "range": {
+                    "start": position_params["position"],
+                    "end": position_params["position"],
+                },
+                "context": {
+                    "diagnostics": [_utf16_diag(d) for d in diagnostics],
+                    "only": ["quickfix", "refactor", "source"],
+                },
+            }
+
+        raw = await self._request(
+            doc, "codeActionProvider", "textDocument/codeAction", _params
+        )
+        return parse_code_actions(raw)
+
+    async def request_signature_help(
+        self, doc: Document, row: int, col: int
+    ) -> LspSignature | None:
+        """Signature help card at the cursor (``None`` when unavailable)."""
+        def _params(uri: str) -> dict[str, object]:
+            _, position_params = self._request_positions(doc, row, col)
+            return {
+                "textDocument": {"uri": uri},
+                "position": position_params["position"],
+            }
+
+        raw = await self._request(
+            doc, "signatureHelpProvider", "textDocument/signatureHelp", _params
+        )
+        return parse_signature_help(raw)
+
+    async def execute_command(
+        self, client: LspClient, name: str, arguments: list[object]
+    ) -> None:
+        """Send workspace/executeCommand and discard the success result.
+
+        Failures propagate as :class:`navigation.LspFeatureFailed` -- the
+        sole caller (``LspNavigationFlows._worker_apply_action``) surfaces
+        them to the user, so swallowing here would make a failed command
+        indistinguishable from a silent success.
+        """
+        params: dict[str, object] = {
+            "command": name,
+            "arguments": arguments,
+        }
+        await navigation_request(client, "workspace/executeCommand", params)
+
     @staticmethod
     def _unwrap_completion(raw: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         """Forward to :func:`parsing._unwrap_completion`.
@@ -740,8 +1040,11 @@ class LspManager:
         acknowledged but not surfaced yet.
         """
         if method == "textDocument/publishDiagnostics":
-            uri = params.get("uri")
-            if isinstance(uri, str):
+            uri_raw = params.get("uri")
+            if isinstance(uri_raw, str):
+                # Canonicalize so pyright's drive-escaped echoes compare
+                # equal to the locally built URI used as the dict key.
+                uri = protocol.canonical_uri(uri_raw)
                 state = self._open.get(uri)
                 lines = state.doc.buffer.lines if state is not None else None
                 parsed = self._parse_diagnostics(
@@ -936,7 +1239,7 @@ class LspManager:
         if cached is None:
             # ``path_to_uri`` resolves the path (a real filesystem call on
             # Windows); cache the result per document path.
-            cached = protocol.path_to_uri(doc.path)
+            cached = protocol.canonical_uri(protocol.path_to_uri(doc.path))
             self._uri_cache[doc.path] = cached
         return cached
 

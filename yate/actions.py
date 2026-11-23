@@ -266,6 +266,21 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("command_prompt", lambda ctx: editor.command_prompt(), "Ex command prompt")
     reg("show_hover_docs", lambda ctx: editor.hover.request_at_cursor(),
         "Show API documentation at cursor")
+    # LSP navigation (wave d supplies the flow object methods; the lambdas
+    # resolve ``editor.lsp_navigation`` lazily, exactly like the other
+    # editor-level actions below -- registration never touches the editor).
+    reg("goto_definition", lambda ctx: editor.lsp_navigation.goto_definition(),
+        "Go to definition")
+    reg("find_references", lambda ctx: editor.lsp_navigation.find_references(),
+        "Find references")
+    reg("show_outline", lambda ctx: editor.lsp_navigation.show_outline(),
+        "Show document outline")
+    reg("rename_symbol", lambda ctx: editor.lsp_navigation.rename_symbol(),
+        "Rename symbol at cursor")
+    reg("show_code_actions", lambda ctx: editor.lsp_navigation.show_code_actions(),
+        "Show code actions")
+    reg("show_signature_help", lambda ctx: editor.lsp_navigation.show_signature_help(),
+        "Show signature help")
     reg("goto_prompt", lambda ctx: editor.prompt_flows.goto_prompt(),
         "Go to line (enter a line number)")
     reg("quick_open", lambda ctx: editor.overlays.open_file_palette(),

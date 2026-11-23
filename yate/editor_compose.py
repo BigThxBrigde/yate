@@ -37,6 +37,7 @@ from yate.flows.document_flows import DocumentFlows
 from yate.flows.extension_flows import ExtensionFlows
 from yate.flows.file_manager_flows import FileManagerFlows
 from yate.flows.hover_flows import HoverFlows
+from yate.flows.lsp_navigation_flows import LspNavigationFlows
 from yate.flows.lsp_sync import LspSync
 from yate.flows.macro_flows import MacroFlows
 from yate.flows.mouse_flows import MouseFlows
@@ -308,6 +309,21 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         push_overlay=ed.overlays.push,
         message=ed.message,
         refresh=ed.refresh_ui,
+    )
+    # LSP navigation flows: same shared push verb (NavigationFlows model),
+    # hover popup geometry and PromptBar.activate prompt seam (rename).
+    ed.lsp_navigation = LspNavigationFlows(
+        spawn=ed.app.run_worker,
+        lsp=ed.lsp,
+        session=ed.session,
+        panes=ed.panes,
+        popup=ed.hover_popup,
+        open_path=ed.document_flows.open_path,
+        push_overlay=ed.overlays.push,
+        message=ed.message,
+        refresh=ed.refresh_ui,
+        prompt=ed.prompt_bar,
+        has_modal_screen=ed.has_modal_screen,
     )
     # The file manager flows: overlay/fullscreen open points plus the
     # workspace-switch orchestration.  Its fullscreen exit verb is bound
