@@ -176,11 +176,21 @@ class FakeProc:
 class ServerHarness:
     """A loopback TCP server speaking enough JSON-RPC for client tests."""
 
-    def __init__(self, *, completion_result: Any = None) -> None:
+    def __init__(
+        self,
+        *,
+        completion_result: Any = None,
+        server_capabilities: dict[str, Any] | None = None,
+    ) -> None:
         self.completion_result: Any = (
             completion_result
             if completion_result is not None
             else [{"label": "abc", "kind": 3}]
+        )
+        self.server_capabilities: dict[str, Any] = (
+            {"completionProvider": {"triggerCharacters": [".", "["]}}
+            if server_capabilities is None
+            else server_capabilities
         )
         self.messages: list[dict[str, Any]] = []
         self.init_params: dict[str, Any] = {}
@@ -202,9 +212,7 @@ class ServerHarness:
                 self.init_params = init
                 writer.write(protocol.encode_message(protocol.build_response(
                     init["id"],
-                    {"capabilities": {
-                        "completionProvider": {"triggerCharacters": [".", "["]},
-                    }},
+                    {"capabilities": self.server_capabilities},
                 )))
                 await writer.drain()
                 while True:
@@ -261,6 +269,20 @@ class ServerHarness:
         if self.server is not None:
             self.server.close()
             await self.server.wait_closed()
+
+
+def _capture_wire_frames(client: LspClient) -> list[bytes]:
+    """Wrap *client*'s ``_write_raw`` to capture every raw outgoing frame."""
+    frames: list[bytes] = []
+    inner = client._write_raw
+
+    async def capture(payload: dict[str, Any]) -> None:
+        frames.append(protocol.encode_message(payload))
+        await inner(payload)
+
+    # noqa: Any - test seam: wrap the production encoder boundary.
+    cast(Any, client)._write_raw = capture
+    return frames
 
 
 def test_handshake_triggers_and_stops() -> None:
@@ -2775,5 +2797,133 @@ def test_on_document_closed_during_didopen_notify_leaves_no_open_state(
         assert cast(Any, mgr)._opening == set()
         assert mgr.is_open(doc) is False
         await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+# -------------------------------------------------- wire-level frame capture
+
+
+async def _drive_manager_with_harness(
+    harness: ServerHarness, tmp_path: Path, text: str
+) -> tuple[LspManager, LspClient, Document, Any, list[bytes]]:
+    """Start *harness*, capture its wire frames and open a document."""
+    client = await harness.start()
+    frames = _capture_wire_frames(client)
+    managers: list[LspManager] = []
+
+    def factory(config: ServerConfig, root: Path) -> LspClient:
+        return client
+
+    mgr = LspManager(
+        workspace_root=lambda: tmp_path,
+        client_factory=cast(Any, factory),
+    )
+    managers.append(mgr)
+    mgr.register_server(PY_CONFIG)
+    doc = make_python_doc(str(tmp_path), text)
+    await mgr.on_document_shown(doc)
+    internals = cast(Any, mgr)
+    return mgr, client, doc, internals, frames
+
+
+async def _wait_for_wire_frames(
+    frames: list[bytes], method: str
+) -> list[tuple[bytes, dict[str, Any]]]:
+    """Boundedly poll *frames* until at least one encodes *method*."""
+    async with asyncio.timeout(2.0):
+        while True:
+            captured: list[tuple[bytes, dict[str, Any]]] = []
+            for raw in frames:
+                msg = await protocol.read_message(FakeReader(raw))
+                assert msg is not None
+                if msg.get("method") == method:
+                    captured.append((raw, msg))
+            if captured:
+                return captured
+            await asyncio.sleep(0.02)
+
+
+def test_did_change_wire_capture_carries_only_changed_range(tmp_path: Path) -> None:
+    """A sync-kind-2 server receives a real didChange frame whose
+    contentChanges carry only the changed range with UTF-16 columns, never
+    the full document text."""
+    async def scenario() -> None:
+        harness = ServerHarness(server_capabilities={
+            "textDocumentSync": {"openClose": True, "change": 2, "save": True},
+        })
+        mgr: LspManager | None = None
+        try:
+            mgr, client, doc, internals, frames = await _drive_manager_with_harness(
+                harness, tmp_path, "a\U0001F600b\ncd\n"
+            )
+            assert client.sync_kind == 2
+            # Column 2 counts code points on the row; the emoji counts as two
+            # UTF-16 units on the wire, so the insert lands at column 3.
+            doc.buffer.set_cursor((0, 2))
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            captured = await _wait_for_wire_frames(frames, "textDocument/didChange")
+            assert len(captured) == 1
+            raw, msg = captured[0]
+            params = msg["params"]
+            assert params["textDocument"]["version"] == 2
+            assert len(params["contentChanges"]) == 1
+            change = params["contentChanges"][0]
+            assert set(change) == {"range", "rangeLength", "text"}
+            assert change["range"]["start"] == {"line": 0, "character": 3}
+            assert change["range"]["end"] == {"line": 0, "character": 3}
+            assert change["rangeLength"] == 0
+            assert change["text"] == "X"
+            # The patch is a fragment: the wire JSON must not carry the row
+            # prefix that only the full document would contain.
+            assert "a\U0001F600b" not in json.dumps(msg, ensure_ascii=False)
+            assert raw.startswith(b"Content-Length: ")
+            assert len(raw) < 1024
+        finally:
+            assert mgr is not None
+            await mgr.shutdown_all()
+            await harness.close()
+
+    asyncio.run(scenario())
+
+
+def test_full_only_server_wire_capture_sends_whole_document(tmp_path: Path) -> None:
+    """A negotiated Full-sync (kind 1) server receives the whole document
+    text in one contentChange, never a range patch."""
+    async def scenario() -> None:
+        harness = ServerHarness(server_capabilities={
+            "textDocumentSync": {"openClose": True, "change": 1, "save": True},
+        })
+        mgr: LspManager | None = None
+        try:
+            mgr, client, doc, internals, frames = await _drive_manager_with_harness(
+                harness, tmp_path, "abc\ndef\n"
+            )
+            assert client.sync_kind == 1
+            doc.buffer.set_cursor((0, 1))
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            changed = await _wait_for_wire_frames(frames, "textDocument/didChange")
+            assert len(changed) == 1
+            raw, msg = changed[0]
+            params = msg["params"]
+            assert params["textDocument"]["version"] == 2
+            assert len(params["contentChanges"]) == 1
+            change = params["contentChanges"][0]
+            assert set(change) == {"text"}
+            assert change["text"] == doc.buffer.get_text() == "aXbc\ndef\n"
+            # The raw frame round-trips through the production decoder,
+            # proving Content-Length and the JSON body are intact.
+            assert await protocol.read_message(FakeReader(raw)) == msg
+            await mgr.on_document_closed(doc)
+            closed = await _wait_for_wire_frames(frames, "textDocument/didClose")
+            assert closed[0][1]["params"]["textDocument"]["uri"] == (
+                params["textDocument"]["uri"]
+            )
+        finally:
+            assert mgr is not None
+            await mgr.shutdown_all()
+            await harness.close()
 
     asyncio.run(scenario())
