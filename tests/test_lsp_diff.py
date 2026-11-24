@@ -34,7 +34,11 @@ import random
 from collections.abc import Sequence
 from typing import cast
 
-from yate.editor_lsp.diff import ChangePatch, build_change_patches
+from yate.editor_lsp.diff import (
+    ChangePatch,
+    build_change_patches,
+    build_content_changes,
+)
 from yate.editor_lsp.parsing import _from_utf16, _to_utf16
 
 #: Characters randomized documents are drawn from (code points only; new
@@ -163,6 +167,39 @@ def test_no_change_yields_no_patches() -> None:
     """Equal snapshots produce an empty patch list."""
     assert build_change_patches(["a", "b"], ["a", "b"]) == []
     assert build_change_patches([], []) == []
+
+
+def test_build_content_changes_emits_range_length_and_text() -> None:
+    """A cross-line splice emits the exact ``contentChanges`` wire item.
+
+    The exact-dict assertion is the only direct ``rangeLength`` check at
+    the wire-dict layer, pinning the "deprecated but still sent" decision;
+    the server simulator replay proves the emitted shape is cascade-safe.
+    """
+    old = ["ab", "cd"]
+    new = ["aXbcd"]
+    changes = build_content_changes(old, new)
+    assert changes == [
+        {
+            "range": {
+                "start": {"line": 0, "character": 1},
+                "end": {"line": 1, "character": 0},
+            },
+            "rangeLength": 2,
+            "text": "Xb",
+        }
+    ]
+    assert apply_changes(old, changes) == new
+
+
+def test_build_content_changes_is_empty_for_equal_snapshots() -> None:
+    """Equal snapshots produce an empty ``contentChanges`` list.
+
+    Mirrors the empty-patch early return in ``sync.py``: no diff means the
+    payload carries no changes at all, not a whole-document rewrite.
+    """
+    assert build_content_changes(["a", "b"], ["a", "b"]) == []
+    assert build_content_changes([], []) == []
 
 
 def test_edit_after_astral_character_uses_utf16_columns() -> None:
