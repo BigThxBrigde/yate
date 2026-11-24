@@ -393,6 +393,12 @@ def test_manager_notification_uses_canonical_diagnostic_uri(
     h = _Harness(tmp_path)
     canonical = h.mgr._uri(h.doc)
     parsed = urlparse(canonical)
+    if parsed.path[2:3] != ":":
+        # A drive-escaped echo only exists for Windows drive-letter URIs:
+        # on POSIX roots the fabricated "/t%3A/..." form decodes to a
+        # different path ("/t:/...") than the canonical one, so the
+        # scenario cannot be constructed there.
+        pytest.skip("drive-escaped echoes require a drive-letter URI")
     # Drive-escape the actual drive letter, like pyright echoes it back.
     escaped_uri = (
         "file:///" + parsed.path[1].lower() + "%3A/" + parsed.path[3:]
