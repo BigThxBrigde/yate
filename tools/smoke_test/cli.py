@@ -36,6 +36,20 @@ __all__ = ["build_parser", "main"]
 # ------------------------------------------------------------------ helpers
 
 
+def _resolved_tmp(td: str) -> Path:
+    """Resolve the ``TemporaryDirectory`` root before handing it to scenarios.
+
+    ``TemporaryDirectory`` may hand back an aliased path (an 8.3 short
+    form of the runner's home directory, as the Windows CI runner exposes
+    via its TEMP variable).  Scenarios compare documents against paths
+    built from this root, while the jump flows round-trip paths through
+    ``Path.resolve()`` (via ``path_to_uri``), which expands aliases to
+    the long form -- the raw alias would make the path-identity checks
+    fail exactly as they did on the Windows CI job.
+    """
+    return Path(td).resolve()
+
+
 def _add_common_filters(p: argparse.ArgumentParser) -> None:
     p.add_argument("--scenario", action="append", metavar="NAME",
                    help="scenario name (repeatable; default: all)")
@@ -230,7 +244,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
-            selected, Path(td), options, repeat=args.repeat, jobs=args.jobs
+            selected, _resolved_tmp(td), options, repeat=args.repeat,
+            jobs=args.jobs
         )
     if not args.quiet:
         reporter.results(results)
@@ -272,7 +287,7 @@ def cmd_snapshot(args: argparse.Namespace) -> int:
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
-            selected, Path(td), options, repeat=args.repeat
+            selected, _resolved_tmp(td), options, repeat=args.repeat
         )
     count = baselines.write_baselines(results, outdir)
     if not args.quiet:
@@ -324,7 +339,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
     )
     with TemporaryDirectory() as td:
         results, cov = _execute(
-            selected, Path(td), options, repeat=args.repeat
+            selected, _resolved_tmp(td), options, repeat=args.repeat
         )
     exit_code = 0
     if not args.quiet:
