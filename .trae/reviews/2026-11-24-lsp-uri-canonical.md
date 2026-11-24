@@ -1,6 +1,6 @@
-# pr-review 记录：fix/lsp-uri-canonical（2026-11-24）
+# pr-review 记录：feature/fix-lsp-uri-canonical（2026-11-24）
 
-- 范围：`fix/lsp-uri-canonical` vs `master`（merge-base），代码 diff 共
+- 范围：`feature/fix-lsp-uri-canonical` vs `master`（merge-base），代码 diff 共
   2 文件 +38/−7（`yate/editor_lsp/protocol.py`、`tools/smoke_test/cli.py`）；
   `.trae/documents/lsp-uri-canonical-fix-plan.md` 为配套计划文档（noise
   filter 外的行为无关文档，按事实核对不逐行评审）。
