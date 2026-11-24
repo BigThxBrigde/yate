@@ -184,14 +184,27 @@ def canonical_uri(uri: str) -> str:
 
     Converts via :func:`uri_to_path` then :func:`path_to_uri`, so a
     drive-escaped echo from a server (``file:///d%3A/x.py``) and the
-    locally built URI (``file:///D:/x.py``) compare equal.  URIs with a
-    non-``file`` scheme (``untitled:``, unknown schemes) are returned
-    unchanged.
+    locally built URI (``file:///D:/x.py``) compare equal: the drive
+    letter is uppercased on every platform (on Windows ``resolve()``
+    would do it anyway, on POSIX nothing else normalizes it).  URIs
+    with a non-``file`` scheme (``untitled:``, unknown schemes) are
+    returned unchanged.
     """
     parsed = urlparse(uri)
     if parsed.scheme != "file":
         return uri
-    return path_to_uri(uri_to_path(uri))
+    path = uri_to_path(uri)
+    # Normalize the drive-letter segment case ("/d:/x.py" -> "/D:/x.py"):
+    # servers echo the drive percent-escaped and sometimes lowercased,
+    # while the locally built form always carries the uppercase drive.
+    s = str(path)
+    if s[:1].isascii() and s[:1].isalpha() and s[1:2] == ":":
+        s = s[0].upper() + s[1:]
+    elif (
+        s[:1] == "/" and s[1:2].isascii() and s[1:2].isalpha() and s[2:3] == ":"
+    ):
+        s = "/" + s[1].upper() + s[2:]
+    return path_to_uri(Path(s))
 
 
 def uri_file_name(uri: str) -> str:
