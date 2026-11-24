@@ -197,6 +197,9 @@ def canonical_uri(uri: str) -> str:
     # Normalize the drive-letter segment case ("/d:/x.py" -> "/D:/x.py"):
     # servers echo the drive percent-escaped and sometimes lowercased,
     # while the locally built form always carries the uppercase drive.
+    # Known tradeoff: on POSIX a literal "/d:/" directory indistinguishable
+    # from a drive echo gets uppercased too -- the two spellings decode to
+    # the same string, so choosing Windows semantics here is unavoidable.
     s = str(path)
     if s[:1].isascii() and s[:1].isalpha() and s[1:2] == ":":
         s = s[0].upper() + s[1:]

@@ -39,12 +39,13 @@ __all__ = ["build_parser", "main"]
 def _resolved_tmp(td: str) -> Path:
     """Resolve the ``TemporaryDirectory`` root before handing it to scenarios.
 
-    ``TemporaryDirectory`` may hand back an aliased path (an 8.3 short form
-    like ``C:\\Users\\RUNNER~1\\...`` on the Windows CI runner).  Scenarios
-    compare documents against paths built from this root, while the jump
-    flows round-trip paths through ``Path.resolve()`` (via ``path_to_uri``),
-    which expands aliases to the long form -- the raw alias would make the
-    path-identity checks fail exactly as they did on the Windows CI job.
+    ``TemporaryDirectory`` may hand back an aliased path (an 8.3 short
+    form of the runner's home directory, as the Windows CI runner exposes
+    via its TEMP variable).  Scenarios compare documents against paths
+    built from this root, while the jump flows round-trip paths through
+    ``Path.resolve()`` (via ``path_to_uri``), which expands aliases to
+    the long form -- the raw alias would make the path-identity checks
+    fail exactly as they did on the Windows CI job.
     """
     return Path(td).resolve()
 
