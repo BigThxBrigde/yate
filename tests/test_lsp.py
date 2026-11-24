@@ -2322,6 +2322,211 @@ def test_no_did_change_after_did_open_without_edits(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_large_file_single_key_edit_payload_is_decoupled_from_document_length(
+    tmp_path: Path,
+) -> None:
+    """The same single-key edit produces byte-identical didChange frames
+    on a 200-row and a 4000-row document: the wire payload stays under
+    1 KiB and at least two orders of magnitude below the full text."""
+    small = "x = 1\n" + ("a" * 80 + "\n") * 200
+    large = "x = 1\n" + ("a" * 80 + "\n") * 4000
+
+    async def one_session(text: str) -> dict[str, Any]:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, text)
+        try:
+            await mgr.on_document_shown(doc)
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            await asyncio.sleep(0)
+            changed = _did_changes(fakes[0])
+            assert len(changed) == 1
+            return changed[0]
+        finally:
+            await mgr.shutdown_all()
+
+    async def scenario() -> None:
+        # Both sessions share the same URI: _sync_session always writes
+        # mod.py under tmp_path.
+        small_params = await one_session(small)
+        large_params = await one_session(large)
+        assert small_params["contentChanges"] == large_params["contentChanges"]
+        change = large_params["contentChanges"][0]
+        assert change["text"] == "X"
+        assert change["range"]["start"] == {"line": 0, "character": 0}
+        small_frame = protocol.encode_message(
+            protocol.build_notification("textDocument/didChange", small_params)
+        )
+        large_frame = protocol.encode_message(
+            protocol.build_notification("textDocument/didChange", large_params)
+        )
+        assert len(small_frame) == len(large_frame) < 1024
+        assert len(large.encode("utf-8")) > 100 * len(large_frame)
+        assert large not in json.dumps(large_params)
+        assert large_frame.startswith(b"Content-Length: ")
+        assert await protocol.read_message(FakeReader(large_frame)) is not None
+
+    asyncio.run(scenario())
+
+
+def test_incremental_wire_replay_matches_full_mode_for_astral_and_cross_line_edits(
+    tmp_path: Path,
+) -> None:
+    """Incremental patches carrying emoji (UTF-16 column), CJK rows and
+    astral/cross-line splices replay through the server simulator onto the
+    exact text the Full-mode manager sends, byte for byte."""
+    initial = "a\U0001F600b\n你好\nc\n"
+
+    async def scenario() -> None:
+        inc = _sync_session(tmp_path / "inc", 2, initial)
+        full = _sync_session(tmp_path / "full", 1, initial)
+        inc_mgr, inc_fakes, inc_doc, inc_int = inc
+        full_mgr, full_fakes, full_doc, full_int = full
+        await inc_mgr.on_document_shown(inc_doc)
+        await full_mgr.on_document_shown(full_doc)
+        server_lines = initial.split("\n")
+        try:
+            for cursor, text in (
+                ((0, 2), "X"),
+                ((1, 2), "\nZ"),
+                ((3, 0), "\U0001F40D"),
+            ):
+                inc_doc.buffer.set_cursor(cursor)
+                inc_doc.buffer.insert_text(text)
+                full_doc.buffer.set_cursor(cursor)
+                full_doc.buffer.insert_text(text)
+                inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
+                full_int._flush_change(full_doc, full_int._uri(full_doc))
+                await asyncio.sleep(0)
+                inc_changes = _did_changes(inc_fakes[0])
+                full_changes = _did_changes(full_fakes[0])
+                server_lines = apply_changes(
+                    server_lines, inc_changes[-1]["contentChanges"]
+                )
+                assert (
+                    "\n".join(server_lines)
+                    == inc_doc.buffer.get_text()
+                    == full_doc.buffer.get_text()
+                )
+                assert full_changes[-1]["contentChanges"] == [
+                    {"text": full_doc.buffer.get_text()}
+                ]
+            versions = [
+                params["textDocument"]["version"]
+                for params in _did_changes(inc_fakes[0])
+            ]
+            assert versions == [2, 3, 4]
+            first = _did_changes(inc_fakes[0])[0]["contentChanges"][0]
+            assert first["range"]["start"] == {"line": 0, "character": 3}
+            assert first["range"]["end"] == {"line": 0, "character": 3}
+            assert first["rangeLength"] == 0
+            assert first["text"] == "X"
+            second = _did_changes(inc_fakes[0])[1]["contentChanges"][0]
+            assert "\n" in second["text"]
+            # A pure row insertion anchors a zero-width range at the end
+            # of the previous row; the cross-line splice rides in the text.
+            assert second["range"]["start"] == {"line": 1, "character": 2}
+            assert second["range"]["end"] == {"line": 1, "character": 2}
+            assert second["rangeLength"] == 0
+            assert second["text"] == "\nZ"
+        finally:
+            await inc_mgr.shutdown_all()
+            await full_mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_incremental_send_lsp_error_keeps_snapshot_and_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A didChange notify that fails with ``LspError`` leaves the didOpen
+    snapshot stale exactly like the ``OSError`` branch, and the next
+    flush retries and advances only after success (sync.py's exception
+    tuple covers both)."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        real_notify = client.notify
+        failures = {"left": 1}
+
+        async def flaky(method: str, params: Any) -> None:
+            if method == "textDocument/didChange" and failures["left"] > 0:
+                failures["left"] -= 1
+                raise LspError("notify failed")
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", flaky)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        state = internals._open[uri]
+        # The didOpen snapshot stands: nothing advanced, nothing recorded.
+        assert state.last_synced_lines == ("abc", "")
+        assert state.version == 1
+        assert _did_changes(client) == []
+
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 1
+        assert changed[0]["textDocument"]["version"] == 2
+        assert state.version == 2
+        assert state.last_synced_lines == tuple(doc.buffer.lines)
+        assert state.last_synced_version == doc.buffer.content_version
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_full_mode_did_change_race_with_did_close_sends_nothing_after_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With Full sync, a didChange queued behind an in-flight send is
+    dropped when the document is closed while the first send hangs: only
+    the pre-close whole-document payload reaches the server."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 1, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        release = asyncio.Event()
+        real_notify = client.notify
+
+        async def hanging(method: str, params: Any) -> None:
+            if method == "textDocument/didChange":
+                await release.wait()
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", hanging)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # Queue a second send while the first hangs, then close the
+        # document; the waiter's pre-notify re-check must bail out.
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        await mgr.on_document_closed(doc)
+        release.set()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 1
+        # Only the first didChange (sent before the close) is on the wire;
+        # the post-close edit never reaches the server.
+        assert changed[0]["contentChanges"] == [{"text": "Xabc\n"}]
+        assert "textDocument/didClose" in [m for m, _ in client.sent]
+        assert internals._open.get(uri) is None
+        assert uri not in internals._change_locks
+        # Full branch shape: no range field anywhere in the params.
+        assert "range" not in json.dumps(changed[0])
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 # ------------------------ path gate / URI retarget / single didOpen (plan-b)
 
 
