@@ -2361,7 +2361,7 @@ def test_large_file_single_key_edit_payload_is_decoupled_from_document_length(
         )
         assert len(small_frame) == len(large_frame) < 1024
         assert len(large.encode("utf-8")) > 100 * len(large_frame)
-        assert large not in json.dumps(large_params)
+        assert "a" * 80 not in json.dumps(large_params)
         assert large_frame.startswith(b"Content-Length: ")
         assert await protocol.read_message(FakeReader(large_frame)) is not None
 
@@ -3086,8 +3086,8 @@ def test_did_change_wire_capture_carries_only_changed_range(tmp_path: Path) -> N
             assert raw.startswith(b"Content-Length: ")
             assert len(raw) < 1024
         finally:
-            assert mgr is not None
-            await mgr.shutdown_all()
+            if mgr is not None:
+                await mgr.shutdown_all()
             await harness.close()
 
     asyncio.run(scenario())
@@ -3127,8 +3127,8 @@ def test_full_only_server_wire_capture_sends_whole_document(tmp_path: Path) -> N
                 params["textDocument"]["uri"]
             )
         finally:
-            assert mgr is not None
-            await mgr.shutdown_all()
+            if mgr is not None:
+                await mgr.shutdown_all()
             await harness.close()
 
     asyncio.run(scenario())
