@@ -119,6 +119,36 @@
 
 ## 执行记录（回填区）
 
-- 步骤 1（Bug A）：待回填。
-- 步骤 2（Bug B）：待回填。
-- 门禁：待回填。
+- **步骤 1（Bug A）**：提交 83895cb5。`canonical_uri` 平台无关大写盘符段
+  （裸 `d:` 与前导 `/d:` 两种拼写）。验证：
+  - POSIX 模拟探针（patch `_url_path_to_pathname` + `PurePosixPath.as_uri`，
+    临时脚本已删除）：`file:///d%3A/x.py` 与 `file:///D:/x.py` 归一为
+    `file:///D%3A/x.py` 相等；非盘符 POSIX 路径与非 file scheme 透传不变。
+  - Windows 真机：`tests/test_lsp_navigation.py` 64 例全过。
+- **步骤 2（Bug B）**：提交 ecc3ef1b。`tools/smoke_test/cli.py` 新增
+  `_resolved_tmp`，run/snapshot/compare 三处 tmp 根先 `Path.resolve()`。
+  验证：junction 别名 TEMP 下 4 场景 43/43（修复前同条件 20/23，同款
+  `jump_vsc`/`jump_vim`/`enter_navigates` 失败）；正常 TEMP + jobs 4 +
+  repeat 3 回归 43/43。
+- **审核**：`code-review-expert` 评审（子代理，DeepSeek-V4.1-Flash）结论
+  **无 blocker / major**，3 条 minor：
+  1. 盘符判定谓词在 protocol.py 内 4 处重复（建议抽 `_is_ascii_drive_at`
+     助手）→ **登记待办**，不在本闭环扩散重构；
+  2. POSIX 根级 `/d:/` 真实路径会被误改写（固有取舍）→ **已采纳**：
+     afb3603d 在 `canonical_uri` 注释显式登记该取舍；
+  3. 建议补透传/空 URI 钉死用例 → **登记待办**。
+- **门禁实测**：
+  - pyright 全量（yate/ tests/ tools/ pack/）：0 errors, 0 warnings（exit 0）；
+  - pytest 全量 `-q -n auto`：首轮 1 失败——架构守卫
+    `test_no_machine_local_home_paths_in_sources` 命中 `_resolved_tmp`
+    docstring 中的 `C:\Users\RUNNER~1` 示例路径（属文档措辞违规，非代码
+    缺陷）；afb3603d 改写 docstring 后 `tests/test_architecture.py` 47 例
+    全过、目标模块全过、定向 pyright 0 诊断；最终全量复跑见下条；
+  - 最终全量 pytest `-q -n auto`：exit 0 全过（仅既有 skip）；
+  - 最终全量冒烟（CI 同口径 `--json smoke-report.json --report
+    smoke-report.html --jobs 4`）：1554/1554 checks，128/128 scenarios，
+    exit 0（报告产物为临时文件，未提交）。
+- **偏离记录**：无方案偏离；评审 minor 1/3 未采纳为代码改动，已登记待办。
+- **纪律修正**：复现探针（junction `yate-tmp-link`/`yate-tmp-real` 与临时
+  脚本）曾散落在 worktree 外，收尾时已全部删除；后续闭环任务的一切临时
+  产物一律放 worktree 内并用后即删。
