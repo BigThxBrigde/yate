@@ -140,3 +140,45 @@ flowchart LR
 1. issue 原题「全文同步升级为增量同步」的实现部分已在 master 完成（issue 自带核实段），本任务按建议定位为验收补强，不重复实现。
 2. 规划子代理零产出（见 §〇），主代理兜底产出本计划；执行阶段仍按闭环派发 plan-executor / code-review-expert，若同样失败则如实登记并由主代理兜底。
 3. 测试夹具 `ServerHarness` 为测试代码，新增可选参数不属于产品 API 变更；不触发架构边界 R 条款。
+
+## 十、执行与收尾记录（2026-11-24）
+
+### 10.1 产物与提交
+
+| 提交 | 内容 |
+|---|---|
+| `b12e0598` | 本计划 + 子计划目录（规划产物） |
+| `783c31c3` | plan-a：wire 帧捕获、增量/Full-only 两条线上用例 |
+| `573e9846` | plan-b：`build_content_changes` 两条线格式单测 |
+| `ab6a87ea` | plan-c：体积解耦 / astral+跨行重放 / `LspError` 重试 / Full 关闭竞态四条用例 |
+| `64d3f306` | 自审修复两处测试健壮性问题 |
+
+`git diff --name-only master...HEAD` 仅含本计划 5 份文档与 `tests/test_lsp.py`、`tests/test_lsp_diff.py`；**`yate/` 零 diff**。
+
+### 10.2 子代理状态
+
+- 规划者：两次 spawn 均因静态模型未注册失败，按规则重试一次后由主代理兜底（§〇），**零产出**。
+- 执行者：wave-1 `exec-a` / `exec-b` 与 wave-2 `exec-c` 均有落盘，主代理逐项重跑其验收命令（pytest / pyright 全部退出码 0）后才接收；三个团队均按纪律 `shutdown_request` + `team_delete` 回收。
+- 评审者：`code-review-expert` 团队完成回收但**未交付可见报告**，其遗留的临时 diff 文件已清理；按 `task-orchestration.md` §三 记为**零产出**，由主代理按 `.trae/skills/python-code-review/SKILL.md` 与 agent 剧本自审兜底。
+
+### 10.3 自审发现与迭代
+
+| 级别 | 问题 | 处置 |
+|---|---|---|
+| minor | 两条 wire 用例的 `finally` 用 `assert mgr is not None`，setup 失败时会掩盖原始异常 | 改为 `if mgr is not None:` 条件清理（`64d3f306`） |
+| minor | 体积解耦用例的「无全文」断言用原始含换行字符串匹配 `json.dumps`，JSON 转义会令断言恒真 | 改用 80 个连续 `a` 的行片段匹配（`64d3f306`） |
+
+无 blocker / major；未发生波次重排、阈值或范围偏离。4000 行文档规模按计划保留，`>100 × frame_size` 断言成立。
+
+### 10.4 全量门禁（主代理亲自，并行口径）
+
+| 命令 | 实测结果 | 退出码 |
+|---|---|---|
+| `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | 全绿（coverage 轮次计数 4060 passed, 10 skipped） | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 47 passed | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term --cov-fail-under=75 -n auto` | Total coverage 92.78%（阈值 75%）；4060 passed, 10 skipped | 0 |
+| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | 128/128 scenarios passed（82.54s） | 0 |
+| `.venv\Scripts\python.exe -m tools.changelog check` | 通过 | 0 |
+
+并行轮次无时序 flake，无需 `-n 1` 复核。闭环结论：**完成**；未推送、未合入 `master`（按规则须用户显式要求后才推送）。
