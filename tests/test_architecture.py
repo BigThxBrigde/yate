@@ -400,9 +400,9 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
 #: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
 #: source; this map is the executable half of the two-way sync guard.
 SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
-    "keymaps/vim.py": 1705,
+    "keymaps/vim.py": 1718,
     "editor_components/file_manager/screen.py": 1017,
-    "editor_components/view.py": 878,
+    "editor_components/view.py": 891,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
     "editor_lsp/manager.py": 1248,

@@ -709,6 +709,51 @@ def test_rename_unopened_target_with_invalid_edit_restores_and_discloses(
         # The message discloses the unsaved newly opened file.
         text = next(t for t in h.message_texts() if "rename failed" in t)
         assert "unsaved" in text and "other.py" in text
+    asyncio.run(scenario())
+
+
+def test_rename_missing_later_uri_discloses_newly_opened_earlier_one(
+    tmp_path: Path,
+) -> None:
+    """The pre-open pass's early bail-outs keep the unsaved disclosure (M5).
+
+    A missing later URI returns before the validation phase; if an earlier
+    URI was not yet open, the pre-open pass has already opened it, so the
+    failure message must still disclose the unsaved buffer.
+    """
+    extra = tmp_path / "extra.py"
+    extra.write_text("extra\n", encoding="utf-8")
+    h = _Harness(tmp_path)
+    h.lsp.rename = WorkspaceEdit(
+        changes={
+            str(extra): (
+                LspTextEdit(
+                    start_row=0, start_col=0, end_row=0, end_col=5,
+                    text="EXTRA",
+                ),
+            ),
+            str(tmp_path / "ghost.py"): (
+                LspTextEdit(
+                    start_row=0, start_col=0, end_row=0, end_col=1,
+                    text="X",
+                ),
+            ),
+        },
+        unsupported=False,
+    )
+
+    async def scenario() -> None:
+        h.flows.rename_symbol()
+        h.prompt.submit("newname")
+        assert await wait_until(
+            lambda: any("rename failed" in t for t in h.message_texts())
+        )
+        # The earlier URI was opened by the pre-open pass before the miss.
+        extra_doc = h.session.is_open(extra)
+        assert extra_doc is not None
+        assert extra_doc.buffer.get_text() == "extra\n"
+        text = next(t for t in h.message_texts() if "rename failed" in t)
+        assert "ghost.py" in text and "unsaved" in text and "extra.py" in text
 
     asyncio.run(scenario())
 
@@ -766,6 +811,39 @@ def test_show_code_actions_executes_command_without_edit(
         _client, name, arguments = h.lsp.executed[0]
         assert name == "server.fix"
         assert arguments == ["a", 1]
+
+    asyncio.run(scenario())
+
+
+def test_duplicate_code_action_titles_stay_distinct(tmp_path: Path) -> None:
+    """Two actions sharing title and kind stay individually pickable.
+
+    LspRow is a value-equal frozen dataclass and every action row shares
+    the position fields, so an equality-keyed action map would collapse
+    the rows and always run the last one; picking the first row must run
+    the first action.
+    """
+    h = _Harness(tmp_path)
+    h.lsp.actions = [
+        LspCodeAction(
+            title="Fix", kind="quickfix", edit=None,
+            command="first.fix", arguments=("1",),
+        ),
+        LspCodeAction(
+            title="Fix", kind="quickfix", edit=None,
+            command="second.fix", arguments=("2",),
+        ),
+    ]
+
+    async def scenario() -> None:
+        h.flows.show_code_actions()
+        assert await wait_until(lambda: len(h.pushes) == 1)
+        screen = h.chooser()
+        cast(Any, screen).dismiss = _noop
+        screen.action_pick()  # cursor on the first row
+        assert await wait_until(lambda: len(h.lsp.executed) == 1)
+        _client, name, _arguments = h.lsp.executed[0]
+        assert name == "first.fix"
 
     asyncio.run(scenario())
 

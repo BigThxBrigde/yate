@@ -376,10 +376,26 @@ class DiffPane(ScrollView):
             if row == cursor_row and cell_idx == cursor_cell:
                 style += Style(reverse=True)
             if ch:
-                # empty cells are the second half of a wide glyph: the
-                # glyph itself already advanced Rich by 2 cells (see
-                # editor.py render_line)
-                segments.append(Segment(ch, style))
+                if (
+                    cell_idx + 1 >= text_w
+                    and cell_idx + 1 < len(cells)
+                    and not cells[cell_idx + 1]
+                ):
+                    # a wide glyph whose second column fell beyond the
+                    # window: the glyph's Segment paints 2 columns while
+                    # ``used`` counts one, so replace it with a blank cell
+                    # to keep the Strip within view_w
+                    segments.append(Segment(" ", style))
+                else:
+                    segments.append(Segment(ch, style))
+            elif cell_idx > 0 and cells[cell_idx - 1]:
+                # an empty cell following a non-empty one is the second
+                # half of a wide glyph (see editor.py render_line /
+                # view.py): the glyph's own Segment already covered both
+                # columns, so emitting a space here would grow the row one
+                # column per wide glyph and leave a visible blank after
+                # every CJK/fullwidth character
+                pass
             else:
                 segments.append(Segment(" ", style))
             used += 1

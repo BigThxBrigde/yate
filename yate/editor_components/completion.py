@@ -389,17 +389,40 @@ def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:
     Relative prefixes resolve against *base_dir* (the workspace root) when
     given, otherwise against the process cwd.  A prefix that ends in a
     separator names a directory and completes that directory's children;
-    otherwise its last component is the needle to match.  Returns candidate
-    strings that extend the prefix; directories get a trailing slash.
+    otherwise its last component is the needle to match -- except a bare
+    ``~``/``~user`` stem, which ``expanduser`` maps to a real directory:
+    there the prefix itself is the completed directory and all of its
+    children are offered, keeping the typed stem so the accepted path
+    still expands back to the same place.  Returns candidate strings that
+    extend the prefix; directories get a trailing slash.
     """
-    expanded = Path(prefix).expanduser()
-    ends_with_separator = prefix.endswith(("/", "\\"))
     try:
-        # ``Path`` drops a trailing separator, so ``name`` would report the
-        # directory itself as the needle ("pkg/" -> "pkg") and the completion
-        # would come back empty as soon as the user typed the slash.
-        parent = expanded if ends_with_separator else expanded.parent
-        base = "" if ends_with_separator else expanded.name
+        expanded = Path(prefix).expanduser()
+    except RuntimeError:
+        # POSIX raises for "~unknown-user"; fall back to the literal path
+        # (which will not exist, so the completion below returns empty).
+        expanded = Path(prefix)
+    ends_with_separator = prefix.endswith(("/", "\\"))
+    # ``Path`` drops a trailing separator, so for separator-ended prefixes
+    # the directory itself is the target ("pkg/" -> children of pkg) and
+    # the needle is empty.  A tilde stem only takes the whole-directory
+    # path when expanduser actually rewrote it: a plain "~"-prefixed name
+    # deeper in the path ("pkg/~tmp") is an ordinary needle, not a tilde
+    # expression.
+    tilde_dir = (
+        not ends_with_separator
+        and expanded != Path(prefix)
+        and prefix.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].startswith("~")
+    )
+    try:
+        parent = expanded if (ends_with_separator or tilde_dir) else expanded.parent
+        if ends_with_separator or tilde_dir:
+            needle = ""
+            dir_part = prefix if ends_with_separator else prefix + "/"
+        else:
+            cut = max(prefix.rfind("/"), prefix.rfind("\\")) + 1
+            needle = prefix[cut:].lower()
+            dir_part = prefix[:cut]
     except ValueError:
         return []
     if not parent.is_absolute() and base_dir is not None:
@@ -410,13 +433,11 @@ def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:
         entries = sorted(parent.iterdir(), key=lambda p: p.name.lower())
     except OSError:
         return []
-    needle = base.lower()
     results: list[str] = []
     for entry in entries:
         name = entry.name
         if not name.lower().startswith(needle):
             continue
-        dir_part = prefix[: len(prefix) - len(base)] if base else prefix
         candidate = dir_part + name
         if entry.is_dir():
             candidate += "/"

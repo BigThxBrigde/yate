@@ -291,6 +291,8 @@ def _validate_hex_args(
             parser.error("--hex cannot be combined with a startup path argument")
         if args.diff_files:
             parser.error("--hex cannot be combined with --diff")
+        if args.diag:
+            parser.error("--hex cannot be combined with --diag")
 
 
 def _validate_file_manager_args(
@@ -307,6 +309,8 @@ def _validate_file_manager_args(
             parser.error("--file-manager cannot be combined with --diff")
         if args.hex_file:
             parser.error("--file-manager cannot be combined with --hex")
+        if args.diag:
+            parser.error("--file-manager cannot be combined with --diag")
 
 
 def _manage_extensions(args: argparse.Namespace) -> int:
@@ -323,7 +327,8 @@ def _manage_extensions(args: argparse.Namespace) -> int:
             print(
                 yxp.format_install_report(
                     yxp.install_package(
-                        Path(package_path), allow_unverified=args.allow_unverified
+                        Path(package_path).expanduser(),
+                        allow_unverified=args.allow_unverified,
                     )
                 )
             )
@@ -441,18 +446,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     from yate.yaterc import default_rc_paths, load_config
     from yate.editor_components import theme as theme_mod
 
-    target = Path(args.path) if args.path else None
+    # Expand "~" on every user path like the theme_dirs pass below:
+    # PowerShell/cmd pass it through literally and neither the app nor the
+    # open flows re-expand it, so a literal "~" would silently miss or
+    # create a bogus directory in the cwd.
+    target = Path(args.path).expanduser() if args.path else None
     # CLI --file-manager request: resolved to an absolute directory here so
     # the app receives a concrete Path ("." = the cwd, per the argparse const).
     fm_dir = (
-        Path(args.file_manager).resolve() if args.file_manager is not None else None
+        Path(args.file_manager).expanduser().resolve()
+        if args.file_manager is not None
+        else None
     )
     # user-visible notes from the rc discovery (an untrusted project rc skip)
     rc_notes: list[str] = []
     if args.yaterc == "NONE":
         rc_paths: list[Path] = []
     elif args.yaterc:
-        rc_paths = [Path(args.yaterc)]
+        rc_paths = [Path(args.yaterc).expanduser()]
     else:
         rc_paths = default_rc_paths(target, rc_notes)
 
@@ -533,9 +544,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             theme_name=args.theme,
             config=config,
             readonly=args.readonly,
-            ext_files=args.ext_files,
-            ext_dirs=args.ext_dirs,
-            diff_files=[Path(p) for p in args.diff_files]
+            ext_files=[Path(p).expanduser() for p in args.ext_files]
+            if args.ext_files
+            else None,
+            ext_dirs=[Path(d).expanduser() for d in args.ext_dirs]
+            if args.ext_dirs
+            else None,
+            diff_files=[Path(p).expanduser() for p in args.diff_files]
             if args.diff_files
             else None,
         )
@@ -550,12 +565,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         theme_name=args.theme,
         config=config,
         readonly=args.readonly,
-        ext_files=args.ext_files,
-        ext_dirs=args.ext_dirs,
-        diff_files=[Path(p) for p in args.diff_files]
+        ext_files=[Path(p).expanduser() for p in args.ext_files]
+        if args.ext_files
+        else None,
+        ext_dirs=[Path(d).expanduser() for d in args.ext_dirs]
+        if args.ext_dirs
+        else None,
+        diff_files=[Path(p).expanduser() for p in args.diff_files]
         if args.diff_files
         else None,
-        hex_file=Path(args.hex_file) if args.hex_file else None,
+        hex_file=Path(args.hex_file).expanduser() if args.hex_file else None,
         file_manager_dir=fm_dir,
     )
     app.run()
