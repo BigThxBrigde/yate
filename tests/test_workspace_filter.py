@@ -396,6 +396,46 @@ def test_anchored_star_does_not_cross_directories(tmp_path: Path) -> None:
     assert "x.spec" not in list_names(ws, pack / "sub")
 
 
+def test_anchored_subdirectory_rule_governs_its_subtree(tmp_path: Path) -> None:
+    """``build/*.o`` in sub/.gitignore hides sub/build/*.o (git semantics).
+
+    The anchored rule is defined in ``sub`` and must reach the entries of
+    ``sub/build`` -- both in a direct listing of ``sub/build`` and in the
+    quick-open walk -- while files outside ``sub/build`` stay visible.
+    """
+    sub = tmp_path / "sub"
+    build = sub / "build"
+    build.mkdir(parents=True)
+    (sub / ".gitignore").write_text("build/*.o\n", encoding="utf-8")
+    (build / "x.o").write_text("x\n", encoding="utf-8")
+    (build / "keep.py").write_text("x\n", encoding="utf-8")
+    (sub / "y.o").write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    got = list_names(ws, build)
+    assert "x.o" not in got
+    assert "keep.py" in got
+    # the deeper listing still sees the ancestor's anchored rule
+    got_root = list_names(ws, sub)
+    assert "y.o" in got_root
+    assert {"keep.py", "y.o"} == {
+        p.name for p in ws.walk_files() if p.suffix in {".py", ".o"}
+    }
+
+
+def test_anchored_subdirectory_rule_stays_in_its_own_tree(
+    tmp_path: Path,
+) -> None:
+    """``build/*.o`` defined in sub/ does not hide sub/deep/build/*.o."""
+    deep = tmp_path / "sub" / "deep"
+    (deep / "build").mkdir(parents=True)
+    (tmp_path / "sub" / ".gitignore").write_text("build/*.o\n", encoding="utf-8")
+    (deep / "build" / "x.o").write_text("x\n", encoding="utf-8")
+    ws = Workspace(tmp_path)
+
+    assert "x.o" in list_names(ws, deep / "build")
+
+
 def test_anchored_rules_are_skipped_outside_the_root(tmp_path: Path) -> None:
     """Listing a tree outside the root neither crashes nor leaks the
     anchored rule; basename rules keep their previous behaviour."""

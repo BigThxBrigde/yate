@@ -162,6 +162,10 @@ class Workspace:
         """Load the per-directory ignore patterns (delegated)."""
         return self._ignore_index.dir_ignores(directory)
 
+    def _inherited_dir_ignores(self, directory: Path) -> list[_IgnorePattern]:
+        """Ancestors-first chain of per-directory ignore patterns."""
+        return self._ignore_index.dir_ignores_inherited(directory)
+
     def _is_ignored(
         self,
         path: Path,
@@ -178,9 +182,10 @@ class Workspace:
 
         ``IGNORED_NAMES`` are always hidden.  Dotfiles are hidden unless
         ``show_hidden`` is set.  ``.gitignore`` / ``.yateignore`` patterns
-        (root + per-directory) are applied on top.
+        (root + the inherited per-directory chain, so a nested ``.gitignore``
+        governs its whole subtree) are applied on top.
         """
-        dir_ignores = self._dir_ignores(path)
+        dir_ignores = self._inherited_dir_ignores(path)
         entries: list[Entry] = []
         try:
             # Decorate-sort-undecorate: is_dir() is a stat call, and the
@@ -234,16 +239,22 @@ class Workspace:
             return cached[3].copy()
         files: list[Path] = []
 
-        def children(directory: Path) -> list[tuple[Path, bool]]:
+        def children(
+            directory: Path, inherited: tuple[_IgnorePattern, ...]
+        ) -> list[tuple[Path, bool, tuple[_IgnorePattern, ...]]]:
             """Filtered sub-entries of *directory*, reversed for stack order.
 
             Applies the same filters as the recursive walk it replaces
-            (``IGNORED_NAMES``, hidden files, per-directory ignore rules) and
-            drops symlinked directories entirely.  Reversing the sorted,
-            directories-first list lets the consumer ``pop()`` entries in the
-            exact pre-order the recursive version produced.
+            (``IGNORED_NAMES``, hidden files, per-directory ignore rules)
+            and drops symlinked directories entirely.  *inherited* carries
+            the ancestors' per-directory patterns so a nested ``.gitignore``
+            governs its subtree like in git; the directory's own rules are
+            appended after them (deeper files take precedence under the
+            last-match-wins loop).  Reversing the sorted, directories-first
+            list lets the consumer ``pop()`` entries in the exact pre-order
+            the recursive version produced.
             """
-            dir_ignores = self._dir_ignores(directory)
+            dir_ignores = inherited + tuple(self._dir_ignores(directory))
             try:
                 found = sorted(
                     ((child, child.is_dir()) for child in directory.iterdir()),
@@ -251,30 +262,33 @@ class Workspace:
                 )
             except (PermissionError, OSError):
                 return []
-            kept: list[tuple[Path, bool]] = []
+            kept: list[tuple[Path, bool, tuple[_IgnorePattern, ...]]] = []
             for child, is_dir in found:
                 name = child.name
                 if name in IGNORED_NAMES:
                     continue
                 if not self.show_hidden and name.startswith("."):
                     continue
-                if self._is_ignored(child, is_dir, dir_ignores):
+                if self._is_ignored(child, is_dir, list(dir_ignores)):
                     continue
                 if is_dir and child.is_symlink():
                     # Never follow symlinked directories: a link pointing at
                     # an ancestor would recurse forever.
                     continue
-                kept.append((child, is_dir))
+                kept.append((child, is_dir, dir_ignores))
             kept.reverse()
             return kept
 
-        # Work items are (path, is_dir): popping a directory pushes its own
-        # children on top of the stack, which keeps the depth-first order.
-        stack: list[tuple[Path, bool]] = children(self.root)
+        # Work items are (path, is_dir, inherited patterns): popping a
+        # directory pushes its own children on top of the stack, which keeps
+        # the depth-first order.
+        stack: list[tuple[Path, bool, tuple[_IgnorePattern, ...]]] = children(
+            self.root, ()
+        )
         while stack and len(files) < limit:
-            path, is_dir = stack.pop()
+            path, is_dir, inherited = stack.pop()
             if is_dir:
-                stack.extend(children(path))
+                stack.extend(children(path, inherited))
             else:
                 files.append(path)
         self._walk_cache = (
