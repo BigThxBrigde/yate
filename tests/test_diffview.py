@@ -1073,6 +1073,30 @@ def test_pane_render_line_handles_wide_and_oversized_lines(
     asyncio.run(scenario())
 
 
+def test_pane_render_line_clips_a_straddling_wide_glyph(
+    tmp_path: Path,
+) -> None:
+    """A wide glyph whose second column falls beyond the text window paints
+    one blank cell, keeping the Strip at exactly the pane width (the
+    sibling of the per-glyph spacer rule exercised above)."""
+
+    async def scenario() -> None:
+        docs = _make_docs(tmp_path, ["placeholder\n", "placeholder\n"])
+        app = _Host(docs, "2way", _keymaps("vsc"), ["left", "right"])
+        async with app.run_test(size=(100, 30)) as pilot:
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, DiffScreen)
+            pane = screen.query_one("#diff-pane-0", DiffPane)
+            text_w = pane.size.width - pane._gutter_width()
+            line = "中" * 80 if text_w % 2 else "X" + "中" * 80
+            pane.doc.buffer.lines = [line]
+            strip = pane.render_line(0)
+            assert strip.cell_length == pane.size.width
+
+    asyncio.run(scenario())
+
+
 def test_pane_unmount_without_theme_subscription_is_safe() -> None:
     """Unmounting a pane that never subscribed is a no-op (guard branch)."""
     pane = DiffPane(Document(), "solo")
