@@ -129,31 +129,60 @@ async def _stress_rapid_toggles(tmp: Path) -> ScenarioResult:
         panes = app.editor.panes
         view = panes.active_view if panes else None
         await wait_until(pilot, lambda: app.focused is view)
+        # The storm's ctrl+b keystrokes can land after pilot.press returns,
+        # so the flag may still be flipping when we get here. Require the
+        # flag to hold steady across several consecutive polls so every late
+        # toggle has drained before the baseline is read.
+        drained_observed = app.editor.explorer_visible
+        drained_streak = 0
+
+        def storm_drained() -> bool:
+            """Return True once the sidebar flag has stopped flipping."""
+            nonlocal drained_observed, drained_streak
+            current = app.editor.explorer_visible
+            if current == drained_observed:
+                drained_streak += 1
+            else:
+                drained_observed = current
+                drained_streak = 0
+            return drained_streak >= _SETTLED_POLLS
+
+        await wait_until(pilot, storm_drained)
         before = app.editor.explorer_visible
-        await pilot.press("ctrl+b")
-        await wait_until(
-            pilot, lambda: app.editor.explorer_visible == (not before))
-        checks.append(Check("toggles", not before, app.editor.explorer_visible))
-        await pilot.press("ctrl+b")
-        # Late keystrokes from the storm can still land after one convergence
-        # poll; require the flag and the widget to stay aligned for several
-        # consecutive polls before reading the assertion value.
         streak = 0
 
-        def toggled_back() -> bool:
-            """Return True once the state has stayed converged for several polls."""
+        def settled_aligned() -> bool:
+            """True once the flag and the widget agree and stopped flipping."""
             nonlocal streak
             aligned = (
                 (sidebar.display if sidebar else None)
                 == app.editor.explorer_visible
             )
-            stable = aligned and app.editor.explorer_visible == before
-            streak = streak + 1 if stable else 0
+            streak = streak + 1 if aligned else 0
             return streak >= _SETTLED_POLLS
 
-        # A False return (timeout) is already covered by the toggles_back
-        # check below; a second Check would inflate the frozen smoke baseline.
-        await wait_until(pilot, toggled_back)
+        async def settle_to(target: bool) -> None:
+            """Press ctrl+b (bounded) until the flag settles on *target*.
+
+            toggle_explorer steals focus to the tree on every show, and the
+            raw dispatch gates editor chords out while the tree holds focus
+            (explorer consumes its own keys), so a ctrl+b pressed there is
+            swallowed -- ctrl+1 restores the pane first.  A late storm
+            keystroke can also shift the parity by one flip, which no
+            amount of waiting fixes: settle, compare, and re-press.
+            """
+            for _ in range(3):
+                await wait_until(pilot, settled_aligned)
+                if app.editor.explorer_visible == target:
+                    return
+                if app.focused is not view:
+                    await pilot.press("ctrl+1")
+                    await wait_until(pilot, lambda: app.focused is view)
+                await pilot.press("ctrl+b")
+
+        await settle_to(not before)
+        checks.append(Check("toggles", not before, app.editor.explorer_visible))
+        await settle_to(before)
         checks.append(Check("toggles_back", before, app.editor.explorer_visible))
         checks.append(Check("still_no_crash", None, app.return_code))
         rows = snapshot_svg(app, tmp)
