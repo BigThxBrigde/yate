@@ -327,7 +327,8 @@ def _manage_extensions(args: argparse.Namespace) -> int:
             print(
                 yxp.format_install_report(
                     yxp.install_package(
-                        Path(package_path), allow_unverified=args.allow_unverified
+                        Path(package_path).expanduser(),
+                        allow_unverified=args.allow_unverified,
                     )
                 )
             )
@@ -543,8 +544,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             theme_name=args.theme,
             config=config,
             readonly=args.readonly,
-            ext_files=args.ext_files,
-            ext_dirs=args.ext_dirs,
+            ext_files=[Path(p).expanduser() for p in args.ext_files]
+            if args.ext_files
+            else None,
+            ext_dirs=[Path(d).expanduser() for d in args.ext_dirs]
+            if args.ext_dirs
+            else None,
             diff_files=[Path(p).expanduser() for p in args.diff_files]
             if args.diff_files
             else None,
@@ -560,8 +565,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         theme_name=args.theme,
         config=config,
         readonly=args.readonly,
-        ext_files=args.ext_files,
-        ext_dirs=args.ext_dirs,
+        ext_files=[Path(p).expanduser() for p in args.ext_files]
+        if args.ext_files
+        else None,
+        ext_dirs=[Path(d).expanduser() for d in args.ext_dirs]
+        if args.ext_dirs
+        else None,
         diff_files=[Path(p).expanduser() for p in args.diff_files]
         if args.diff_files
         else None,

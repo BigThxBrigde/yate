@@ -405,10 +405,15 @@ def _path_completions(prefix: str, base_dir: Path | None = None) -> list[str]:
     ends_with_separator = prefix.endswith(("/", "\\"))
     # ``Path`` drops a trailing separator, so for separator-ended prefixes
     # the directory itself is the target ("pkg/" -> children of pkg) and
-    # the needle is empty.
-    tilde_dir = not ends_with_separator and prefix.rsplit("/", 1)[
-        -1
-    ].rsplit("\\", 1)[-1].startswith("~")
+    # the needle is empty.  A tilde stem only takes the whole-directory
+    # path when expanduser actually rewrote it: a plain "~"-prefixed name
+    # deeper in the path ("pkg/~tmp") is an ordinary needle, not a tilde
+    # expression.
+    tilde_dir = (
+        not ends_with_separator
+        and expanded != Path(prefix)
+        and prefix.rsplit("/", 1)[-1].rsplit("\\", 1)[-1].startswith("~")
+    )
     try:
         parent = expanded if (ends_with_separator or tilde_dir) else expanded.parent
         if ends_with_separator or tilde_dir:

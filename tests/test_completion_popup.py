@@ -352,6 +352,27 @@ def test_path_completions_for_a_bare_tilde_offers_home_children(
     ]
 
 
+def test_path_completions_filters_a_tilde_named_component_in_a_subdirectory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``pkg/~tmp`` is an ordinary basename needle, not a tilde expression.
+
+    Only a prefix that ``expanduser`` actually rewrote takes the
+    whole-directory path; a plain "~"-prefixed name deeper in the path
+    keeps filtering its own directory's children.
+    """
+    pkg = tmp_path / "pkg"
+    pkg.mkdir()
+    (pkg / "~tmp").mkdir()
+    (pkg / "~tz.py").write_text("", encoding="utf-8")
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("HOME", str(tmp_path))
+    assert _private("_path_completions")("pkg/~t", tmp_path) == [
+        "pkg/~tmp/",
+        "pkg/~tz.py",
+    ]
+
+
 # --- buffer completions -----------------------------------------------------
 
 
