@@ -3015,7 +3015,6 @@ async def _drive_manager_with_harness(
     """Start *harness*, capture its wire frames and open a document."""
     client = await harness.start()
     frames = _capture_wire_frames(client)
-    managers: list[LspManager] = []
 
     def factory(config: ServerConfig, root: Path) -> LspClient:
         return client
@@ -3024,7 +3023,6 @@ async def _drive_manager_with_harness(
         workspace_root=lambda: tmp_path,
         client_factory=cast(Any, factory),
     )
-    managers.append(mgr)
     mgr.register_server(PY_CONFIG)
     doc = make_python_doc(str(tmp_path), text)
     await mgr.on_document_shown(doc)
