@@ -450,6 +450,25 @@ def test_visual_G_with_count_beyond_the_last_line_clamps() -> None:
     assert editor.buffer.get_text() == ""
 
 
+def test_visual_counted_G_keeps_the_target_first_char() -> None:
+    """``v2G``'s half-open span includes the target line's first char.
+
+    The selection must "reach the target char" as the motion's own comment
+    promises: the cursor steps one past the first non-blank (the visual
+    e-motion convention), so ``v`` ``2G`` ``d`` consumes the 'b' too.
+    """
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    _press(keymap, ctx, "v", "2", "G", "d")
+    assert editor.buffer.get_text() == "eta\ngamma"
+
+
+def test_visual_G_extends_to_the_end_of_the_last_line() -> None:
+    """``vG`` spans to the virtual EOL of the last line, like ``$``."""
+    editor, keymap, ctx = _setup("alpha\nbeta\ngamma")
+    _press(keymap, ctx, "v", "G", "d")
+    assert editor.buffer.get_text() == ""
+
+
 def test_arrow_keys_run_the_same_motions() -> None:
     """The arrow escapes map onto h/j/k/l."""
     editor, keymap, ctx = _setup("ab\ncd")
@@ -1755,6 +1774,26 @@ def test_alt_c_adds_cursor_below_in_normal_mode() -> None:
     assert keymap.handle_key(ctx, ALT_C) is True
     assert editor.buffer.extra_cursors == [(1, 2)]
     assert keymap.mode is VimMode.NORMAL
+
+
+DELETE_KEY: str = "\x1b[3~"
+
+
+def test_insert_delete_keeps_extra_cursors() -> None:
+    """Delete in INSERT is multi-cursor aware, like Backspace.
+
+    ``delete_forward`` maps onto ``delete_forward_at_points``, so the
+    extra points survive and every point deletes its own character --
+    dropping the cursors first (the old behaviour) would silently edit
+    only at the primary.
+    """
+    editor, keymap, ctx = _multi_setup()
+    _press(keymap, ctx, ALT_C)
+    _press(keymap, ctx, "i")  # INSERT keeps the extra points
+    _press(keymap, ctx, DELETE_KEY)
+    assert editor.buffer.get_text() == "alha beta\ngama delta\nepsilon zeta"
+    assert editor.buffer.extra_cursors == [(1, 2)]
+    assert keymap.mode is VimMode.INSERT
 
 
 def test_alt_c_twice_adds_second_cursor_below_last() -> None:

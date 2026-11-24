@@ -412,7 +412,7 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
 
    | Exempt file | Lines |
    |---|---|
-   | `keymaps/vim.py` | 1705 |
+   | `keymaps/vim.py` | 1718 |
    | `editor_components/file_manager/screen.py` | 1017 |
    | `editor_components/view.py` | 891 |
    | `editor_core/buffer.py` | 1565 |
