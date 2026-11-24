@@ -31,7 +31,8 @@
 
 ### 根因 B：冒烟 harness tmp 根路径未 resolve（Windows 失败，已本地复现）
 
-- GitHub Windows runner 的 TEMP 是 8.3 短路径（`C:\Users\RUNNER~1\AppData\Local\Temp`）。
+- GitHub Windows runner 的 TEMP 是 8.3 短路径（用户目录的 `RUNNER~1`
+  缩写形态）。
 - 场景断言 `app.editor.session.doc.path == def_path`，其中 `def_path = tmp /
   "mathutil.txt"`（harness `TemporaryDirectory()` 原样返回的短路径形式）。
 - 跳转链路 `_jump_to_row` → `uri_to_path(canonical_uri(path_to_uri(def_path)))`，
@@ -85,7 +86,7 @@
 - 输出：`tmp_root` 传入 harness 前已 resolve；并行路径 `str(tmp_root)`
   与 retry 子目录继承 resolved 根。
 - 验收命令（复现条件）：
-  - `$env:TMP='D:\Programming\yate-tmp-link'`（junction 别名，模拟 CI 短路径）
+  - `$env:TMP` 指向 worktree 内预建的 junction 别名目录（模拟 CI 短路径）
     下 `.venv\Scripts\python.exe -m tools.smoke_test run --tag lsp-navigation --jobs 1`
     应 43/43 全过；
   - 正常 TEMP 下同命令回归。
@@ -141,7 +142,7 @@
   - pyright 全量（yate/ tests/ tools/ pack/）：0 errors, 0 warnings（exit 0）；
   - pytest 全量 `-q -n auto`：首轮 1 失败——架构守卫
     `test_no_machine_local_home_paths_in_sources` 命中 `_resolved_tmp`
-    docstring 中的 `C:\Users\RUNNER~1` 示例路径（属文档措辞违规，非代码
+    docstring 中的 RUNNER~1 家目录示例路径（属文档措辞违规，非代码
     缺陷）；afb3603d 改写 docstring 后 `tests/test_architecture.py` 47 例
     全过、目标模块全过、定向 pyright 0 诊断；最终全量复跑见下条；
   - 最终全量 pytest `-q -n auto`：exit 0 全过（仅既有 skip）；
