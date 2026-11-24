@@ -298,7 +298,11 @@ class LspNavigationFlows:
         if not actions:
             self._message("No code actions available", "info")
             return
-        row_for: dict[LspRow, LspCodeAction] = {}
+        # Keyed by identity, not equality: two actions may share the same
+        # title and kind (the server may legitimately offer duplicates), and
+        # LspRow is a frozen value-equal dataclass -- an equality-keyed dict
+        # would collapse those rows and always run the last action.
+        row_for: dict[int, LspCodeAction] = {}
         rows: list[LspRow] = []
         for action in actions:
             row = LspRow(
@@ -311,13 +315,13 @@ class LspNavigationFlows:
                 end_col=pos[1],
                 kind="action",
             )
-            row_for[row] = action
+            row_for[id(row)] = action
             rows.append(row)
         self._chooser(
             rows,
             "Code actions",
             on_pick=lambda row: self._run_action(
-                row_for[row], doc, pos, token
+                row_for[id(row)], doc, pos, token
             ),
         )
 
@@ -518,10 +522,25 @@ class LspNavigationFlows:
         docs: dict[str, Document] = {}
         opened_names: list[str] = []
         newly_opened: set[str] = set()
+
+        def _unsaved_note() -> str:
+            # The docstring promises the failure message discloses documents
+            # the rename newly opened: an early bail-out below can happen
+            # after later URIs already opened buffers, so the note must be
+            # built from the live state, not once before the loop.
+            return (
+                f" (newly opened {', '.join(opened_names)} left unsaved)"
+                if opened_names
+                else ""
+            )
+
         for uri in edit.changes:
             path = uri_to_path(uri)
             if not path.is_file():
-                self._message(f"rename failed: cannot open {path.name}", "warn")
+                self._message(
+                    f"rename failed: cannot open {path.name}{_unsaved_note()}",
+                    "warn",
+                )
                 return
             doc = self._session.is_open(path)
             if doc is None:
@@ -531,7 +550,10 @@ class LspNavigationFlows:
                     opened_names.append(path.name)
                     newly_opened.add(uri)
             if doc is None:
-                self._message(f"rename failed: cannot open {path.name}", "warn")
+                self._message(
+                    f"rename failed: cannot open {path.name}{_unsaved_note()}",
+                    "warn",
+                )
                 return
             docs[uri] = doc
         # The manager converts UTF-16 columns only for documents already
@@ -553,11 +575,7 @@ class LspNavigationFlows:
         # read-only) means nothing changed, so there is nothing to roll back --
         # and rolling back a read-only buffer would raise a second error that
         # masks the original one.
-        disclosure = (
-            f" (newly opened {', '.join(opened_names)} left unsaved)"
-            if opened_names
-            else ""
-        )
+        disclosure = _unsaved_note()
         try:
             for uri, edits in per_uri.items():
                 buf = docs[uri].buffer
