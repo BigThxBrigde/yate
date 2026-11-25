@@ -118,3 +118,33 @@ After merge, tick the `IKUCKM` item:
 `- [x] **quickfix / 结果导航面板** 诊断列表、项目内搜索结果、LSP references 共用的底部可导航结果面板（cnext/cprev 式遍历）。是上述 LSP 功能与项目搜索的公共基础设施，宜早落地。`
 
 and mark `.trae/reviews/2026-11-16-marks-jumplist.md:72` T3 ("search hits not pushed") as closed in the post-merge review ledger. No external write is attempted by this branch.
+
+## 10. Execution record and final gates
+
+Completed waves and commits (all local, no push/merge):
+
+| Commit | Wave / purpose |
+|---|---|
+| `751b5829` | plan documents |
+| `7d6a9b1c` | wave 1 — model, panel, actions/keys, key guard |
+| `58b47bdb` | wave 2 — L3 flow, dock wiring, architecture registration |
+| `ed7c32c7` | wave 3 — three providers |
+| `69016a84` | fix — silent empty-batch clearing |
+| `1fa21773` | wave 4 — bilingual docs/manual, smoke, changelog |
+| `6808e062` | review fixes — 3 blockers and 6 majors closed |
+
+Review record: [`../reviews/2026-11-26-quickfix-nav.md`](../reviews/2026-11-26-quickfix-nav.md) — APPROVE after iteration.
+
+Final gate results (main agent, all exit 0): `pyright` 0 diagnostics; `pytest -n auto` 4075 passed / 10 skipped; architecture 48 passed; branch coverage 92.79% (`fail_under=75`); smoke 129/129 scenarios · 1575/1575 checks; `tools.changelog check` 0.
+
+Additional deviations from the original subplans, all evidence-backed:
+
+- `QuickFixList.replace` uses in-place slice replacement (new batch occupies the discarded batch's display position), matching the written test expectations.
+- `QuickFixFlows` receives a shared `QuickFixList` via `entries=` because the panel is constructed before the flow; `Editor.quickfix` holds the same instance.
+- `QuickFixPanel.repaint()` is public so L3 can repaint without private access or `pyright` ignores.
+- Empty search batches clear the previous search slice but emit no generic message, so a search/replace report on the message line is not overwritten; provider-owned empty messages remain for diagnostics and references.
+- Project-search `FileMatch → QuickFixEntry` conversion lives in `QuickFixFlows.set_search_results`, not the assembly module, preserving the six-factory contract.
+- `set_quickfix` is a required keyword-only injection in both LSP flows; test harnesses inject recording stubs explicitly.
+- Smoke next/prev landing order follows the actual references entry order (definition first, call site second), verified by observable state.
+
+One non-blocking follow-up remains: `QuickFixFlows.jump_to` pushes the jump-list origin before `reveal`; on an `OSError` the origin entry stays on the back stack. Fixing it cleanly requires a rollback-capable push API in `session.py` and is intentionally left out of this scope.

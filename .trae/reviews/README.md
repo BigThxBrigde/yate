@@ -506,6 +506,8 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 
 | 2026-11-20 | **全仓库多维扫描（只出 issue 文本，不改产品代码）**（本地 `master` `f7e34c34`；`multi-dim-review` 13 维度 / 5 只读分区审查员两波 fan-out + 主代理逐条回读与门禁亲跑） | ⚠️ REQUEST_CHANGES（0 BLOCKER / 1 MAJOR / 6 MINOR；4 Suspects / 5 Suggestions） | MAJOR = LSP 诊断热路径 `diagnostic_at` 全表扫描；MINOR = `move_entry` 自嵌套守卫、yaterc Unicode 分数、规则行数/守卫数漂移、嵌套 pytest 并行覆盖率 flake、文档索引/状态块失真 | 👀 仅生成 [issue 文本](../documents/full-repo-sweep-issue-brief.md)，修复另立计划；门禁 pyright 0 / 全量 pytest 0 / 架构 45 / 覆盖率 `-n 1` 93.09%·3962 passed（`-n auto` 1 flake）/ 冒烟 124/124·1511 / changelog 0 | [2026-11-20-full-repo-review.md](2026-11-20-full-repo-review.md) |
 
+| 2026-11-26（分支局部） | **IKY0E8 quickfix 结果导航闭环评审**（`feature/enh-quickfix-nav`，基线 `b97a695c`，范围至 `6808e062`；`code-review-expert` 交付完整报告 + 主代理逐条回读复核） | ✅ APPROVE（初评 REQUEST_CHANGES：3 BLOCKER / 6 MAJOR / 5 MINOR，其中 1 MINOR 误报撤回；修复后 blocker/major 归零） | BLOCKER = `:diagnostics` 旧断言未同步 / 新 action 未登记测试白名单 / 覆盖率门禁红；MAJOR = 六工厂契约漂移 / 搜索空批次语义矛盾 / `set_quickfix` 可选注入偏离 | ✅ 已闭环（提交 `6808e062` 全修；主代理亲跑门禁全 exit 0：pyright 0 / pytest `-n auto` 4075 passed·10 skipped / 架构 48 / 覆盖率 92.79% / 冒烟 129/129·1575 checks / changelog 0；余 1 MINOR 登记后续小步） | [2026-11-26-quickfix-nav.md](2026-11-26-quickfix-nav.md)，方案见 [quickfix-nav-plan.md](../documents/quickfix-nav-plan.md) |
+
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
 ---
