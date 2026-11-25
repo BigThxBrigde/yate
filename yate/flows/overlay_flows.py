@@ -19,6 +19,7 @@ from textual.screen import Screen
 from yate.config import YateConfig
 from yate.editor_core.chunked import ChunkedBinaryFile
 from yate.editor_core.document import Document
+from yate.editor_core.project_search import FileMatch
 from yate.editor_sprites.characters import character_names
 from yate.editor_components.commandline import PromptBar
 from yate.editor_components.diff.screen import MAX_DIFF_LINES, DiffScreen
@@ -60,6 +61,7 @@ class OverlayFlows:
         execute_action: ActionRunner,
         run_command: Callable[[str], None],
         refresh: Callable[[], None],
+        on_search_results: Callable[[list[FileMatch]], None] | None = None,
     ) -> None:
         # Screen-stack verbs and the top-screen query, injected as bound
         # methods / callables by the editor (no App handle is held here).
@@ -82,6 +84,9 @@ class OverlayFlows:
         self._execute_action = execute_action
         self._run_command = run_command
         self._refresh = refresh
+        # Quickfix mirror hook for the find & replace overlay (wave d):
+        # fired with the flat result list on every successful scan/clear.
+        self._on_search_results = on_search_results
 
     def push(
         self,
@@ -315,6 +320,7 @@ class OverlayFlows:
             message=self._message,
             readonly_notice=self._readonly_notice,
             refresh=self._refresh,
+            on_results=self._on_search_results,
         ))
 
     def _palette(self, mode: str) -> PaletteScreen:

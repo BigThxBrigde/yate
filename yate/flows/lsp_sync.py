@@ -10,17 +10,18 @@ this module is constructed by the editor and never imports upward.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 from yate.editor_core import Document
 from yate.editor_lsp.manager import LspManager
 from yate.editor_components.commandline import PromptBar
-from yate.editor_components.modals import OutputScreen
 from yate.editor_components.panes import PaneManager
 from yate.editor_components.statusbar import StatusBar
 from yate.flows import MessageFn, OverlayPusher, SpawnFn, StateQuery
 from yate.services.events import DiagnosticsUpdated, EditorEvent, EventHub
-from yate.session import EditorSession
+from yate.session import EditorSession, QuickFixEntry
 
 
 class LspSync:
@@ -38,6 +39,7 @@ class LspSync:
         message: MessageFn,
         mounted: StateQuery,
         push_overlay: OverlayPusher,
+        set_quickfix: Callable[[str, list[QuickFixEntry], str], None] | None = None,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -51,6 +53,9 @@ class LspSync:
         self._message = message
         self._mounted = mounted
         self._push_overlay = push_overlay
+        # Quickfix publisher (quickfix-nav wave d): receives
+        # (provider, entries, label) batches for the ``diagnostics`` slice.
+        self._set_quickfix = set_quickfix
 
     def documents_closed(self, closed: list[Document]) -> None:
         """Session hook: tell the servers the documents were closed.
@@ -111,19 +116,34 @@ class LspSync:
             prompt.idle()
 
     def show_diagnostics(self) -> None:
-        """``:diagnostics`` -- list the active document's LSP diagnostics."""
+        """``:diagnostics`` -- publish the active document's LSP diagnostics.
+
+        The diagnostics become ``diagnostics`` quickfix entries (row/col,
+        severity label, ``[source]`` detail); the empty case publishes an
+        explicit empty set plus the ``no diagnostics`` message.  The old
+        ``OutputScreen`` overlay path is gone (quickfix-nav wave d).
+        """
         doc = self.session.doc
         diags = self.lsp.diagnostics_for(doc)
+        labels = {1: "error", 2: "warning", 3: "info", 4: "hint"}
         if not diags:
             self._message("no diagnostics", "ok")
+            if self._set_quickfix is not None:
+                self._set_quickfix("diagnostics", [], "no diagnostics")
             return
-        labels = {1: "error", 2: "warning", 3: "info", 4: "hint"}
-        lines = [
-            f"L{d.start_row + 1}:{d.start_col + 1}  "
-            f"{labels.get(d.severity, str(d.severity)).upper():7}  "
-            f"{('[' + d.source + '] ') if d.source else ''}{d.message}"
+        entries = [
+            QuickFixEntry(
+                provider="diagnostics",
+                path=doc.path if doc.path is not None else Path(doc.name),
+                row=d.start_row,
+                col=d.start_col,
+                label=d.message,
+                detail=f"[{d.source}]" if d.source else "",
+                severity=labels.get(d.severity, str(d.severity)),
+            )
             for d in diags
         ]
         errors, warnings = self.lsp.counts_for(doc)
         title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        self._push_overlay(OutputScreen(title, "\n".join(lines), 0))
+        if self._set_quickfix is not None:
+            self._set_quickfix("diagnostics", entries, title)

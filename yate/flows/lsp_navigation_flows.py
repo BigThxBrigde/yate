@@ -37,7 +37,7 @@ from yate.editor_lsp.parsing import _from_utf16
 from yate.editor_lsp.protocol import uri_file_name, uri_to_path
 from yate.flows import MessageFn, SpawnFn
 from yate.logs import tracing
-from yate.session import EditorSession
+from yate.session import EditorSession, QuickFixEntry
 
 log = tracing.get_logger(__name__)
 
@@ -120,6 +120,7 @@ class LspNavigationFlows:
         refresh: Callable[[], None],
         prompt: PromptBar,
         has_modal_screen: Callable[[], bool],
+        set_quickfix: Callable[[str, list[QuickFixEntry], str], None] | None = None,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -137,6 +138,9 @@ class LspNavigationFlows:
         # Invalidates every in-flight result issued before it.
         self._token: int = 0
         self._doc_path: str | None = None
+        # Quickfix publisher (quickfix-nav wave d): receives
+        # (provider, entries, label) batches for the ``references`` slice.
+        self._set_quickfix = set_quickfix
 
     # ---------------------------------------------------------------- verbs
 
@@ -242,10 +246,26 @@ class LspNavigationFlows:
             return
         if not locations:
             self._message("No references found", "info")
+            if self._set_quickfix is not None:
+                self._set_quickfix("references", [], "no references")
             return
-        self._chooser(
-            [self._location_row(loc) for loc in locations], "References"
-        )
+        rows = [self._location_row(loc) for loc in locations]
+        # Dual publish (wave d): the chooser drives the immediate selection
+        # path; the quickfix batch mirrors the same result set in the panel.
+        entries = [
+            QuickFixEntry(
+                provider="references",
+                path=uri_to_path(r.uri),
+                row=r.row,
+                col=r.col,
+                label=r.label,
+                detail=r.detail,
+            )
+            for r in rows
+        ]
+        if self._set_quickfix is not None:
+            self._set_quickfix("references", entries, "references")
+        self._chooser(rows, "References")
 
     async def _worker_outline(
         self, doc: Document, pos: Pos, token: int
@@ -473,6 +493,10 @@ class LspNavigationFlows:
 
     def _jump_to_row(self, row: LspRow) -> None:
         """Open the row's target document and land on its position."""
+        # Record the jump origin before anything moves the cursor (single
+        # push contract); quickfix panel jumps route through
+        # QuickFixFlows.jump_to instead, so no double push happens.
+        self._session.push_jump()
         path = uri_to_path(row.uri)
         self._open_path(path)
         doc = self._session.is_open(path)

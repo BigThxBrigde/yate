@@ -31,6 +31,7 @@ from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_components.statusbar import StatusBar
 from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
+from yate.editor_core.project_search import FileMatch
 from yate.editor_lsp.manager import LspManager
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
@@ -57,7 +58,7 @@ from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.events import EventHub
 from yate.services.extensions import ExtensionAPI, ExtensionLoader
 from yate.services.workspace import Workspace
-from yate.session import EditorSession, QuickFixList
+from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
 __all__ = [
     "_build_key_ui",
@@ -67,6 +68,27 @@ __all__ = [
     "_build_widgets",
     "_open_startup_target",
 ]
+
+
+def _file_match_entries(matches: list[FileMatch]) -> list[QuickFixEntry]:
+    """Flatten project-search matches into ``search`` quickfix entries.
+
+    One entry per hit row: path, 0-based position and the hit line as the
+    display snippet (quickfix-nav wave d, concrete adapter -- no protocol).
+    """
+    entries: list[QuickFixEntry] = []
+    for fm in matches:
+        for m in fm.matches:
+            entries.append(
+                QuickFixEntry(
+                    provider="search",
+                    path=fm.path,
+                    row=m.row,
+                    col=m.start,
+                    label=fm.hit_lines.get(m.row, "").rstrip("\r"),
+                )
+            )
+    return entries
 
 
 def _build_models(ed: yate.editor.Editor, keymap: str | None) -> None:
@@ -308,6 +330,15 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         execute_action=ed.execute_action,
         run_command=ed.run_command,
         refresh=ed.refresh_ui,
+        # Find & replace results mirror into the quickfix list (wave d):
+        # ``ed.quickfix_flows`` is built further down, so the callback
+        # resolves the flow lazily (same shape as the panel callbacks).
+        # Empty batches are dropped here: ``QuickFixFlows.set_results``
+        # reports empty sets on the message line, which would clobber the
+        # replace report right after a follow-up scan finds zero hits.
+        on_search_results=lambda matches: ed.quickfix_flows.set_results(
+            "search", _file_match_entries(matches), "project search"
+        ),
     )
     # The hex opener rides DocumentFlows' binary-open branch; the overlays
     # exist only from the line above, so the callback is bound here (the
@@ -350,6 +381,9 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         refresh=ed.refresh_ui,
         prompt=ed.prompt_bar,
         has_modal_screen=ed.has_modal_screen,
+        # References mirror into the quickfix list (wave d): same concrete
+        # publisher as LspSync below.
+        set_quickfix=ed.quickfix_flows.set_results,
     )
     # The file manager flows: overlay/fullscreen open points plus the
     # workspace-switch orchestration.  Its fullscreen exit verb is bound
@@ -381,6 +415,9 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         message=ed.message,
         mounted=lambda: ed.mounted,
         push_overlay=ed.overlays.push,
+        # ``:diagnostics`` publishes its result set into the quickfix list
+        # (wave d); the overlay output screen is gone.
+        set_quickfix=ed.quickfix_flows.set_results,
     )
     ed.shell = ShellFlows(
         spawn=ed.app.run_worker,

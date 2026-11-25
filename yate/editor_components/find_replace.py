@@ -137,6 +137,7 @@ class FindReplaceScreen(ModalScreen[None]):
         message: MessageFn,
         readonly_notice: Callable[[], None],
         refresh: Callable[[], None],
+        on_results: Callable[[list[FileMatch]], None] | None = None,
     ) -> None:
         """Store the injected collaborators (no App handle reaches here).
 
@@ -144,6 +145,9 @@ class FindReplaceScreen(ModalScreen[None]):
         *reveal* focuses the match inside it once open (``None`` keeps the
         open-only behaviour until the wiring wave supplies one); *message* /
         *readonly_notice* / *refresh* are the usual editor feedback hooks.
+        *on_results* receives the flat result list after every successful
+        scan (and ``[]`` on clear) so a quickfix provider can mirror the
+        hits (``None`` keeps the screen standalone).
         """
         super().__init__()
         self._workspace = workspace
@@ -154,6 +158,8 @@ class FindReplaceScreen(ModalScreen[None]):
         self._readonly_notice = readonly_notice
         # named apart from ``Widget.refresh`` (palette precedent)
         self._refresh_ui = refresh
+        # quickfix mirror hook: fired on every successful scan and clear
+        self._on_results = on_results
         self._case = False
         self._word = False
         self._regex = False
@@ -397,6 +403,12 @@ class FindReplaceScreen(ModalScreen[None]):
         self._flat = [(fm.path, m) for fm in results for m in fm.matches]
         self._cursor = 0
         self._render_results()
+        self._notify_results()
+
+    def _notify_results(self) -> None:
+        """Publish the current result list to the quickfix mirror hook."""
+        if self._on_results is not None:
+            self._on_results(list(self._results))
 
     def _clear_results(self) -> None:
         """Drop every hit and repaint the empty results pane."""
@@ -406,6 +418,7 @@ class FindReplaceScreen(ModalScreen[None]):
         self._cursor = 0
         self._truncated = False
         self._render_results()
+        self._notify_results()
 
     def _cancel_debounce(self) -> None:
         """Cancel a pending debounce timer, if any."""
@@ -486,6 +499,9 @@ class FindReplaceScreen(ModalScreen[None]):
         self.dismiss()
         self._open_path(path)
         if self._reveal is not None:
+            # Record the jump origin immediately before the reveal lands
+            # the cursor elsewhere (single push contract, T3 closure).
+            self._session.push_jump()
             self._reveal(path, match.row, match.start)
 
     # -------------------------------------------------------------- replace
