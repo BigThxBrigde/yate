@@ -20,6 +20,9 @@ from yate.keymaps.keys import (
     MACRO_RECORD_KEY,
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
+    QUICKFIX_NEXT_KEY,
+    QUICKFIX_PANEL_KEY,
+    QUICKFIX_PREV_KEY,
     SOFT_WRAP_KEY,
     TOGGLE_COMMENT_KEY,
     TOGGLE_KEYMAP_KEY,
@@ -153,4 +156,7 @@ class VscKeymap(Keymap):
             _raw(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", "NAV"),
             _raw(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", "NAV"),
             _raw(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", "NAV"),
+            _raw(QUICKFIX_NEXT_KEY, "quickfix_next", "Go to the next quickfix entry", "NAV"),
+            _raw(QUICKFIX_PREV_KEY, "quickfix_prev", "Go to the previous quickfix entry", "NAV"),
+            _raw(QUICKFIX_PANEL_KEY, "quickfix_open", "Open the quickfix result panel", "NAV"),
         ]

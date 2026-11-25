@@ -216,6 +216,12 @@ JUMPLIST_FORWARD_KEY: str = "\x1b[1;3C"
 #: Marks overlay key (alt+m); parse_key's meta-prefix form IS the bytes a
 #: terminal sends for alt plus a letter (MACRO_CONTROL_KEYS precedent).
 MARKS_OVERLAY_KEY: str = parse_key("<alt-m>")
+#: Quickfix result navigation keys (alt+j / alt+k / alt+q); parse_key's
+#: meta-prefix form IS the bytes a terminal sends for alt plus a letter
+#: (MARKS_OVERLAY_KEY precedent).
+QUICKFIX_NEXT_KEY: str = parse_key("<alt-j>")
+QUICKFIX_PREV_KEY: str = parse_key("<alt-k>")
+QUICKFIX_PANEL_KEY: str = parse_key("<alt-q>")
 
 
 def key_name(key: str) -> str:

@@ -327,4 +327,15 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
     reg("marks_overlay", lambda ctx: editor.navigation_flows.show_marks(),
         "Open the marks overview (alt+m)")
 
+    # Quickfix result navigation (plan c supplies the flow object methods;
+    # the lambdas resolve ``editor.quickfix_flows`` lazily, exactly like the
+    # other editor-level actions above -- registration never touches the
+    # editor).
+    reg("quickfix_next", lambda ctx: editor.quickfix_flows.next(),
+        "Go to the next quickfix entry (alt+j)")
+    reg("quickfix_prev", lambda ctx: editor.quickfix_flows.prev(),
+        "Go to the previous quickfix entry (alt+k)")
+    reg("quickfix_open", lambda ctx: editor.quickfix_flows.open(),
+        "Open the quickfix result panel (alt+q)")
+
     log.info("builtin actions populated: %d", len(registry.names()))

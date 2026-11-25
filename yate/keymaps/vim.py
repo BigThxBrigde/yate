@@ -48,6 +48,9 @@ from yate.keymaps.keys import (
     MACRO_RECORD_KEY,
     MACRO_REPLAY_LAST_KEY,
     MARKS_OVERLAY_KEY,
+    QUICKFIX_NEXT_KEY,
+    QUICKFIX_PANEL_KEY,
+    QUICKFIX_PREV_KEY,
     SOFT_WRAP_KEY,
     TOGGLE_COMMENT_KEY,
     TOGGLE_KEYMAP_KEY,
@@ -94,11 +97,13 @@ _FIND_PREFIX_HINTS: dict[str, tuple[str, str]] = {
 
 _FUNCTION_KEYS: frozenset[str] = frozenset(parse_key(f"<f{i}>") for i in range(1, 13))
 
-#: Raw alt keys consumed before mode dispatch so the jump-list / marks
-#: bindings answer in every vim mode and drop any half-finished chord
-#: (issue IKUOCI, same shape as the ctrl+/ and _FUNCTION_KEYS branches).
+#: Raw alt keys consumed before mode dispatch so the jump-list / marks /
+#: quickfix bindings answer in every vim mode and drop any half-finished
+#: chord (issue IKUOCI, same shape as the ctrl+/ and _FUNCTION_KEYS
+#: branches).
 _NAVIGATION_KEYS: frozenset[str] = frozenset(
-    {JUMPLIST_BACK_KEY, JUMPLIST_FORWARD_KEY, MARKS_OVERLAY_KEY}
+    {JUMPLIST_BACK_KEY, JUMPLIST_FORWARD_KEY, MARKS_OVERLAY_KEY,
+     QUICKFIX_NEXT_KEY, QUICKFIX_PREV_KEY, QUICKFIX_PANEL_KEY}
 )
 
 #: Raw keys the hard-coded ``_handle_normal`` branches consume before the
@@ -277,6 +282,12 @@ class VimKeymap(Keymap):
             KeyBinding(JUMPLIST_BACK_KEY, "jump_back", "Jump back in jump history", NAV),
             KeyBinding(JUMPLIST_FORWARD_KEY, "jump_forward", "Jump forward in jump history", NAV),
             KeyBinding(MARKS_OVERLAY_KEY, "marks_overlay", "Open the marks overview", NAV),
+            KeyBinding(QUICKFIX_NEXT_KEY, "quickfix_next",
+                       "Go to the next quickfix entry", NAV),
+            KeyBinding(QUICKFIX_PREV_KEY, "quickfix_prev",
+                       "Go to the previous quickfix entry", NAV),
+            KeyBinding(QUICKFIX_PANEL_KEY, "quickfix_open",
+                       "Open the quickfix result panel", NAV),
             # LSP navigation: the ``gd``/``gr`` rows are help mirrors of the
             # chords consumed by the ``g``-prefix branches in _handle_normal
             # (the lookup never sees them); ``K`` below is a real dispatch

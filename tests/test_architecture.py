@@ -1789,6 +1789,64 @@ def test_lsp_navigation_keys_are_shared_and_identical() -> None:
         assert vim_hover.action == "show_hover_docs", key
 
 
+def test_quickfix_keys_are_shared_and_identical() -> None:
+    """Quickfix keys are named once (keymaps/keys.py) in both keymaps.
+
+    AST part: ``vsc.py`` / ``vim.py`` ``build_bindings`` reference all three
+    ``QUICKFIX_*_KEY`` constants and never spell ``"<alt-j>"`` /
+    ``"<alt-k>"`` / ``"<alt-q>"`` literally, so a one-sided key edit fails
+    here.  Runtime part: each raw key resolves to the same action name in
+    both keymaps.
+    """
+    from yate.keymaps.keys import (
+        QUICKFIX_NEXT_KEY,
+        QUICKFIX_PANEL_KEY,
+        QUICKFIX_PREV_KEY,
+    )
+    from yate.keymaps.vim import VimKeymap
+    from yate.keymaps.vsc import VscKeymap
+
+    required = {
+        "vsc.py": {
+            "QUICKFIX_NEXT_KEY", "QUICKFIX_PREV_KEY", "QUICKFIX_PANEL_KEY",
+        },
+        "vim.py": {
+            "QUICKFIX_NEXT_KEY", "QUICKFIX_PREV_KEY", "QUICKFIX_PANEL_KEY",
+        },
+    }
+    forbidden = {"<alt-j>", "<alt-k>", "<alt-q>"}
+    for name, constants in required.items():
+        path = YATE / "keymaps" / name
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        fn = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_bindings"
+        )
+        source_names = {
+            node.id for node in ast.walk(fn) if isinstance(node, ast.Name)
+        }
+        assert constants <= source_names, name
+        literals = {
+            node.value for node in ast.walk(fn)
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        assert not literals & forbidden, name
+
+    expect = (
+        (QUICKFIX_NEXT_KEY, "quickfix_next"),
+        (QUICKFIX_PREV_KEY, "quickfix_prev"),
+        (QUICKFIX_PANEL_KEY, "quickfix_open"),
+    )
+    for key, action in expect:
+        vsc_binding = VscKeymap().lookup(key)
+        assert vsc_binding is not None
+        assert vsc_binding.action == action, (key, "vsc")
+        vim_binding = VimKeymap().lookup(key)
+        assert vim_binding is not None
+        assert vim_binding.action == action, (key, "vim")
+
+
 def test_macro_keys_are_shared_and_identical() -> None:
     """The three macro keys come from shared L0 constants in both keymaps (AC3).
 

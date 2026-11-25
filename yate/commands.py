@@ -570,6 +570,15 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     def _diagnostics(args: str) -> None:
         editor.lsp_sync.show_diagnostics()
 
+    def _quickfix(args: str) -> None:
+        editor.quickfix_flows.open()
+
+    def _cnext(args: str) -> None:
+        editor.quickfix_flows.next()
+
+    def _cprev(args: str) -> None:
+        editor.quickfix_flows.prev()
+
     def _font(args: str) -> None:
         editor.shell.install_font()
 
@@ -579,6 +588,9 @@ def register_commands(registry: CommandRegistry, editor: Editor) -> None:
     reg("termclose", _termclose, "hide the integrated terminal")
     reg("diagnostics", _diagnostics,
         "list language server diagnostics for the current file")
+    reg("quickfix", _quickfix, "open the quickfix result panel")
+    reg("cnext", _cnext, "go to the next quickfix entry")
+    reg("cprev", _cprev, "go to the previous quickfix entry")
     reg("font", _font, "install the bundled Nerd Font")
 
     # ---- diff ---------------------------------------------------------------

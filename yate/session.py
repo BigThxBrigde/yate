@@ -189,6 +189,80 @@ class JumpList:
         return (list(self._back), list(self._forward))
 
 
+@dataclass(frozen=True)
+class QuickFixEntry:
+    """One quickfix result row: pure display data, positions 0-based."""
+
+    provider: str
+    path: Path
+    row: int
+    col: int
+    label: str
+    detail: str = ""
+    severity: str = ""
+
+
+class QuickFixList:
+    """Session-level quickfix result set: per-provider batches plus a
+    cursor (L1, pure data -- no widget, document, callback or server
+    reference).
+
+    Producers call :meth:`replace` with a provider tag; entries of the
+    same provider are dropped before the new batch is appended, so
+    refreshes never duplicate rows.  :meth:`step` wraps around at both
+    ends and is empty-safe.
+    """
+
+    def __init__(self) -> None:
+        self.entries: tuple[QuickFixEntry, ...] = ()
+        self.selected: int = 0
+        self.label: str = ""
+
+    def replace(
+        self, provider: str, entries: list[QuickFixEntry], label: str
+    ) -> None:
+        """Replace every prior entry of *provider* with *entries*.
+
+        The new batch takes the display position of the dropped batch
+        (a brand-new provider's batch is appended); the selection resets
+        to ``0`` only when it would point past the end.
+        """
+        starts = [i for i, e in enumerate(self.entries) if e.provider == provider]
+        kept = [e for e in self.entries if e.provider != provider]
+        at = min(starts) if starts else len(kept)
+        kept[at:at] = list(entries)
+        self.entries = tuple(kept)
+        self.label = label
+        if self.selected >= len(self.entries):
+            self.selected = 0
+
+    def clear(self) -> None:
+        """Drop every entry and reset the cursor."""
+        self.entries = ()
+        self.selected = 0
+
+    def at(self, index: int) -> QuickFixEntry | None:
+        """The entry at *index*, or ``None`` when out of range."""
+        if 0 <= index < len(self.entries):
+            return self.entries[index]
+        return None
+
+    def current(self) -> QuickFixEntry | None:
+        """The selected entry, or ``None`` when the list is empty."""
+        return self.at(self.selected)
+
+    def step(self, delta: int) -> QuickFixEntry | None:
+        """Move the cursor by *delta* with wrap-around; ``None`` if empty."""
+        if not self.entries:
+            return None
+        self.selected = (self.selected + delta) % len(self.entries)
+        return self.entries[self.selected]
+
+    def snapshot(self) -> tuple[QuickFixEntry, ...]:
+        """A copy of the current entries in display order."""
+        return self.entries
+
+
 log = tracing.get_logger(__name__)
 
 
