@@ -7,7 +7,7 @@
 ## 一、输入
 
 - `../../../yate/editor_lsp/diff.py:260-287`：`build_content_changes(old_lines, new_lines)` 把 `ChangePatch` 转成 `{range, rangeLength, text}`。
-- `../../../yate/editor_lsp/diff.py:245-252`：跨行 splice 的既有 patch 断言（start `(0,1)`、end `(1,0)`、`range_length_utf16 == 2`、`text == "Xb"`）。
+- `../../../tests/test_lsp_diff.py:245-252`：跨行 splice 的既有 patch 断言（start `(0,1)`、end `(1,0)`、`range_length_utf16 == 2`、`text == "Xb"`）；断言在测试侧，`diff.py:245-252` 只是构造 `ChangePatch`。
 - `../../../tests/test_lsp_diff.py:37`：当前只导入 `ChangePatch, build_change_patches`；`:93-103` 有 `_patch_to_wire` 但仅服务 `build_change_patches` 路径。
 
 ## 二、具体修改

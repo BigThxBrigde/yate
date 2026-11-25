@@ -49,7 +49,7 @@
   - 每步 `"\n".join(server_lines) == inc_doc.buffer.get_text() == full_doc.buffer.get_text()`（逐字节一致）。
   - inc 三条 didChange 的 `version` 为 `[2, 3, 4]`（严格递增）。
   - 第一条 inc change 的 `range.start == {"line": 0, "character": 3}`、`range.end` 相同、`rangeLength == 0`、`text == "X"`。
-  - 第二步的 change 含 `text` 中的 `"\n"`（跨行补丁），且 `range.end["line"] > range.start["line"]` 或 `rangeLength` 反映换行计数。
+  - 第二步按 LSP 零宽插入语义断言：`range.start == range.end == {"line": 1, "character": 2}`、`rangeLength == 0`，换行由 `text == "\nZ"` 携带（实测形态；原备选条件「跨行 end」不成立，已在主计划 §九登记）。
 - **清理**：两个 manager 均 `shutdown_all()`。
 
 ### 2.3 `test_incremental_send_lsp_error_keeps_snapshot_and_retries`

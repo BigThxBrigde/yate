@@ -140,6 +140,7 @@ flowchart LR
 1. issue 原题「全文同步升级为增量同步」的实现部分已在 master 完成（issue 自带核实段），本任务按建议定位为验收补强，不重复实现。
 2. 规划子代理零产出（见 §〇），主代理兜底产出本计划；执行阶段仍按闭环派发 plan-executor / code-review-expert，若同样失败则如实登记并由主代理兜底。
 3. 测试夹具 `ServerHarness` 为测试代码，新增可选参数不属于产品 API 变更；不触发架构边界 R 条款。
+4. plan-c 原写「跨行补丁 end.line > start.line 或 rangeLength 反映换行计数」，实测为 LSP 零宽插入（`range.start == range.end`、`rangeLength == 0`、换行在 `text` 中）；实现断言正确，计划文本已按实测修正（pr-review MINOR #8）。
 
 ## 十、执行与收尾记录（2026-11-24）
 
@@ -152,14 +153,18 @@ flowchart LR
 | `573e9846` | plan-b：`build_content_changes` 两条线格式单测 |
 | `ab6a87ea` | plan-c：体积解耦 / astral+跨行重放 / `LspError` 重试 / Full 关闭竞态四条用例 |
 | `64d3f306` | 自审修复两处测试健壮性问题 |
+| `1f967488` | 回填首轮门禁与子代理状态 |
+| `e67f5f23` | pr-review minor：删除 wire 助手冗余 `managers` 列表 |
+| `c301bfc3` | 归档 pr-review 记录、索引与本计划回填 |
+| `1098c28e` | 合并 `master`（`b97a695c`，`tests/test_lsp_navigation.py` +6），消除落后 1 笔 |
 
-`git diff --name-only master...HEAD` 仅含本计划 5 份文档与 `tests/test_lsp.py`、`tests/test_lsp_diff.py`；**`yate/` 零 diff**。
+`git diff --name-only master...HEAD` 含本计划 5 份文档、评审记录 2 份与 `tests/test_lsp.py`、`tests/test_lsp_diff.py`、`tests/test_lsp_navigation.py`（后者来自 master 合流）；**`yate/` 零 diff**。
 
 ### 10.2 子代理状态
 
 - 规划者：两次 spawn 均因静态模型未注册失败，按规则重试一次后由主代理兜底（§〇），**零产出**。
 - 执行者：wave-1 `exec-a` / `exec-b` 与 wave-2 `exec-c` 均有落盘，主代理逐项重跑其验收命令（pytest / pyright 全部退出码 0）后才接收；三个团队均按纪律 `shutdown_request` + `team_delete` 回收。
-- 评审者：`code-review-expert` 团队完成回收但**未交付可见报告**，其遗留的临时 diff 文件已清理；按 `task-orchestration.md` §三 记为**零产出**，由主代理按 `.trae/skills/python-code-review/SKILL.md` 与 agent 剧本自审兜底。
+- 评审者：合并前 pr-review 的 `pr-a` 仅回 shutdown ack、无报告（**零产出**）；`pr-b` 在团队删除后迟到交付完整报告（APPROVE / 0 blocker / 0 major / 8 minor），已逐条复核并并入 §10.3/§10.5。首轮 code-review-expert 同样零产出，均由主代理按 `.trae/skills/python-code-review/SKILL.md` 与 agent 剧本自审兜底。
 
 ### 10.3 自审发现与迭代
 
@@ -167,26 +172,31 @@ flowchart LR
 |---|---|---|
 | minor | 两条 wire 用例的 `finally` 用 `assert mgr is not None`，setup 失败时会掩盖原始异常 | 改为 `if mgr is not None:` 条件清理（`64d3f306`） |
 | minor | 体积解耦用例的「无全文」断言用原始含换行字符串匹配 `json.dumps`，JSON 转义会令断言恒真 | 改用 80 个连续 `a` 的行片段匹配（`64d3f306`） |
+| minor | pr-review：wire 助手冗余 `managers` 列表 | 删除两行（`e67f5f23`） |
+| minor | pr-review：plan-b 把测试侧断言误写为 `diff.py:245-252` | 改为 `tests/test_lsp_diff.py:245-252` 并注明 diff.py 只构造 patch |
+| minor | pr-review：plan-c 跨行补丁预期与实测零宽插入不符 | 按实测改写 §2.2，并在 §九第 4 条登记偏差 |
+| minor（登记） | pr-review：`LspError` 与 `OSError` 重试用例近乎重复、重放脚手架重复约 60 行 | 两用例断言侧重不同，非功能缺陷；参数化/抽 helper 留作后续维护项 |
+| minor（登记） | pr-review：4 笔 `test(lsp):` 不在规则允许值内但 master 已有 14 处先例 | 属规则文本滞后，不改历史提交；建议另案追加 `test` 类型 |
 
 无 blocker / major；未发生波次重排、阈值或范围偏离。4000 行文档规模按计划保留，`>100 × frame_size` 断言成立。
 
 ### 10.4 全量门禁（主代理亲自，并行口径）
 
-| 命令 | 实测结果 | 退出码 |
+| 命令 | 实测结果（合并 `master` 后终态 `1098c28e`） | 退出码 |
 |---|---|---|
 | `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations | 0 |
-| `.venv\Scripts\python.exe -m pytest tests/ -q -n auto` | 全绿（coverage 轮次计数 4060 passed, 10 skipped） | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ -q -n 4` | 4060 passed, 10 skipped（`-n auto` 在 `1f967488` 上亦 exit 0） | 0 |
 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 47 passed | 0 |
-| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term --cov-fail-under=75 -n auto` | Total coverage 92.78%（阈值 75%）；4060 passed, 10 skipped | 0 |
-| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | 128/128 scenarios passed（82.54s） | 0 |
-| `.venv\Scripts\python.exe -m tools.changelog check` | 通过 | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term --cov-fail-under=75 -n 4` | Total coverage 92.74%（阈值 75%）；4060 passed, 10 skipped | 0 |
+| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | 128/128 scenarios passed（82.06s） | 0 |
+| `.venv\Scripts\python.exe -m tools.changelog check` | released sections up to date；unreleased 为发布时刷新惯例 | 0 |
 
-并行轮次无时序 flake，无需 `-n 1` 复核。闭环结论：**完成**；未推送、未合入 `master`（按规则须用户显式要求后才推送）。
+`-n auto` 在本机两次被工具空闲超时取消，等价 `-n 4` 完成同一全量套件；未把工具超时记成测试失败。闭环结论：**完成**；未推送、未合入 `master`（按规则须用户显式要求后才推送）。
 
 ### 10.5 合并前 pr-review（2026-11-25）
 
 - 记录：[`../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md`](../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md)；索引已登记。
-- 结论：**APPROVE**，0 blocker / 0 major / 1 minor（当轮闭环）。两名分维度评审员零产出，主代理按 pr-review skill 六维度兜底。
-- 新增提交 `e67f5f23`：删除 wire 助手中冗余 `managers` 列表；targeted pytest 2/2、pyright 0 已复验。
-- 终态 HEAD `e67f5f23` 六门禁复跑全 exit 0：pyright 0、pytest 全绿（10 skipped）、架构 47、覆盖率 92.77%、冒烟 128/128、changelog 0。`-n auto` 在本机两次被工具空闲超时取消，等价 `-n 4` 完成同一全量套件；此前 `1f967488` 上 `-n auto` 已 exit 0。
+- 结论：**APPROVE**，0 blocker / 0 major。`pr-a` 零产出；`pr-b` 迟到交付完整报告（8 minor），已逐条复核：3 条当轮修复（`e67f5f23` 与两份计划文档更正），5 条登记为后续维护/规则/流程项。
+- 唯一合并前动作项已完成：`master` 新进 `b97a695c`，本分支曾落后 1 笔；已以 `1098c28e` 合入，三方 merge-tree 无冲突。
+- 合并后终态六门禁全 exit 0（见 §10.4）：pyright 0、pytest 4060 passed/10 skipped、架构 47、覆盖率 92.74%、冒烟 128/128、changelog 0。
 - 闭环结论仍为**完成**，未推送、未合入 `master`。
