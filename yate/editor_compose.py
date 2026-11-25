@@ -31,7 +31,6 @@ from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_components.statusbar import StatusBar
 from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
-from yate.editor_core.project_search import FileMatch
 from yate.editor_lsp.manager import LspManager
 from yate.flows.chunked_flows import ChunkedFlows
 from yate.flows.completion_flows import CompletionFlows
@@ -58,7 +57,7 @@ from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.events import EventHub
 from yate.services.extensions import ExtensionAPI, ExtensionLoader
 from yate.services.workspace import Workspace
-from yate.session import EditorSession, QuickFixEntry, QuickFixList
+from yate.session import EditorSession, QuickFixList
 
 __all__ = [
     "_build_key_ui",
@@ -68,27 +67,6 @@ __all__ = [
     "_build_widgets",
     "_open_startup_target",
 ]
-
-
-def _file_match_entries(matches: list[FileMatch]) -> list[QuickFixEntry]:
-    """Flatten project-search matches into ``search`` quickfix entries.
-
-    One entry per hit row: path, 0-based position and the hit line as the
-    display snippet (quickfix-nav wave d, concrete adapter -- no protocol).
-    """
-    entries: list[QuickFixEntry] = []
-    for fm in matches:
-        for m in fm.matches:
-            entries.append(
-                QuickFixEntry(
-                    provider="search",
-                    path=fm.path,
-                    row=m.row,
-                    col=m.start,
-                    label=fm.hit_lines.get(m.row, "").rstrip("\r"),
-                )
-            )
-    return entries
 
 
 def _build_models(ed: yate.editor.Editor, keymap: str | None) -> None:
@@ -333,12 +311,9 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         # Find & replace results mirror into the quickfix list (wave d):
         # ``ed.quickfix_flows`` is built further down, so the callback
         # resolves the flow lazily (same shape as the panel callbacks).
-        # Empty batches are dropped here: ``QuickFixFlows.set_results``
-        # reports empty sets on the message line, which would clobber the
-        # replace report right after a follow-up scan finds zero hits.
-        on_search_results=lambda matches: ed.quickfix_flows.set_results(
-            "search", _file_match_entries(matches), "project search"
-        ),
+        # Empty batches still clear the previous search slice; the flow
+        # stays silent so a replace report on the message line survives.
+        on_search_results=lambda matches: ed.quickfix_flows.set_search_results(matches),
     )
     # The hex opener rides DocumentFlows' binary-open branch; the overlays
     # exist only from the line above, so the callback is bound here (the
@@ -355,8 +330,8 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         refresh=ed.refresh_ui,
     )
     # Quickfix flows: built after the panel (share the one QuickFixList
-    # created in _build_widgets); provider callbacks arrive in a later
-    # wave -- no provider wiring here yet.
+    # created in _build_widgets); provider callbacks above and below use
+    # this flow by name through late-bound adapters.
     ed.quickfix_flows = QuickFixFlows(
         ed.session,
         ed.quickfix_panel,

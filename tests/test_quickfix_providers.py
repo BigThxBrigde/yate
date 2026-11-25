@@ -26,8 +26,9 @@ from yate.editor_lsp.client import Diagnostic
 from yate.editor_lsp.manager import LspManager
 from yate.flows.lsp_navigation_flows import LspNavigationFlows
 from yate.flows.lsp_sync import LspSync
-from yate.editor_compose import _file_match_entries
 from yate.session import EditorSession, QuickFixEntry
+
+from test_quickfix_flow import _Harness
 
 import test_lsp_navigation_flows as base
 from test_lsp_navigation_flows import (
@@ -178,7 +179,9 @@ def test_project_search_publishes_flat_entries_and_records_jump(
     screen._notify_results()
 
     assert published == [[fm]]
-    entries = _file_match_entries(published[0])
+    harness = _Harness()
+    harness.flow.set_search_results(published[0])
+    entries = list(harness.flow.active_entries)
     assert len(entries) == 2
     assert all(e.provider == "search" for e in entries)
     assert [e.row for e in entries] == [3, 7]

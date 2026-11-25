@@ -336,6 +336,7 @@ def _lsp_sync(events: EventHub) -> LspSync:
         message=MagicMock(),
         mounted=lambda: True,
         push_overlay=MagicMock(),
+        set_quickfix=lambda provider, entries, label: None,
     )
 
 

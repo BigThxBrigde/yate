@@ -55,6 +55,7 @@ def test_clear_and_empty_step_are_safe() -> None:
     assert qf.current() is None
     assert qf.step(1) is None
     assert qf.selected == 0
+    assert qf.label == ""
 
 
 def test_entries_are_immutable_pure_data() -> None:

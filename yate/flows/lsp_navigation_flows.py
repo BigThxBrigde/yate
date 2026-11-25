@@ -120,7 +120,7 @@ class LspNavigationFlows:
         refresh: Callable[[], None],
         prompt: PromptBar,
         has_modal_screen: Callable[[], bool],
-        set_quickfix: Callable[[str, list[QuickFixEntry], str], None] | None = None,
+        set_quickfix: Callable[[str, list[QuickFixEntry], str], None],
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -246,8 +246,7 @@ class LspNavigationFlows:
             return
         if not locations:
             self._message("No references found", "info")
-            if self._set_quickfix is not None:
-                self._set_quickfix("references", [], "no references")
+            self._set_quickfix("references", [], "no references")
             return
         rows = [self._location_row(loc) for loc in locations]
         # Dual publish (wave d): the chooser drives the immediate selection
@@ -263,8 +262,7 @@ class LspNavigationFlows:
             )
             for r in rows
         ]
-        if self._set_quickfix is not None:
-            self._set_quickfix("references", entries, "references")
+        self._set_quickfix("references", entries, "references")
         self._chooser(rows, "References")
 
     async def _worker_outline(

@@ -16,6 +16,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from yate.editor_components.quickfix_panel import QuickFixPanel
+from yate.editor_core.project_search import FileMatch
 from yate.flows import MessageFn
 from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
@@ -84,6 +85,27 @@ class QuickFixFlows:
             # Providers own their explicit empty-state messages; a silent
             # clear must not overwrite the last search/replace report.
             self._hide()
+
+    def set_search_results(self, matches: list[FileMatch]) -> None:
+        """Flatten project-search hits into entries and publish them.
+
+        One entry per hit row keeps the panel cursor aligned with the
+        search screen's own flat table; an empty batch clears the previous
+        search slice without emitting a message that could replace the
+        search/replace report on the message line.
+        """
+        entries = [
+            QuickFixEntry(
+                provider="search",
+                path=file_match.path,
+                row=hit.row,
+                col=hit.start,
+                label=file_match.hit_lines.get(hit.row, "").rstrip("\r\n"),
+            )
+            for file_match in matches
+            for hit in file_match.matches
+        ]
+        self.set_results("search", entries, "project search")
 
     def open(self) -> None:
         """Show the docked panel over the current result set."""

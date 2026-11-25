@@ -14,6 +14,7 @@ from typing import override
 from yate.config import YateConfig
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_core import Document
+from yate.editor_core.project_search import FileMatch, LineMatch
 from yate.flows.quickfix_flows import QuickFixFlows
 from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
@@ -103,6 +104,28 @@ def test_set_results_replaces_provider_slice_and_opens_panel() -> None:
     assert h.visible is True
     assert len(h.show_calls) == 1
     assert h.paints == [2, 3]
+
+
+def test_set_search_results_flattens_hits_and_empty_batch_clears() -> None:
+    """Search hits become one entry per row; an empty scan clears them."""
+    h = _Harness()
+    matches = [
+        FileMatch(
+            path=Path("search.py"),
+            matches=[LineMatch(row=2, start=4, end=8), LineMatch(row=6, start=1, end=5)],
+            hit_lines={2: "needle here\r\n", 6: "another needle\n"},
+        )
+    ]
+    h.flow.set_search_results(matches)
+    assert [(e.path.name, e.row, e.col, e.label) for e in h.flow.active_entries] == [
+        ("search.py", 2, 4, "needle here"),
+        ("search.py", 6, 1, "another needle"),
+    ]
+    assert h.visible is True
+    h.flow.set_search_results([])
+    assert h.flow.active_entries == ()
+    assert h.visible is False
+    assert h.messages == []
 
 
 def test_next_and_prev_wrap_and_jump_records_one_push() -> None:

@@ -39,7 +39,8 @@ class LspSync:
         message: MessageFn,
         mounted: StateQuery,
         push_overlay: OverlayPusher,
-        set_quickfix: Callable[[str, list[QuickFixEntry], str], None] | None = None,
+        *,
+        set_quickfix: Callable[[str, list[QuickFixEntry], str], None],
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -128,8 +129,7 @@ class LspSync:
         labels = {1: "error", 2: "warning", 3: "info", 4: "hint"}
         if not diags:
             self._message("no diagnostics", "ok")
-            if self._set_quickfix is not None:
-                self._set_quickfix("diagnostics", [], "no diagnostics")
+            self._set_quickfix("diagnostics", [], "no diagnostics")
             return
         entries = [
             QuickFixEntry(
@@ -145,5 +145,4 @@ class LspSync:
         ]
         errors, warnings = self.lsp.counts_for(doc)
         title = f"diagnostics — {errors} error(s), {warnings} warning(s)"
-        if self._set_quickfix is not None:
-            self._set_quickfix("diagnostics", entries, title)
+        self._set_quickfix("diagnostics", entries, title)

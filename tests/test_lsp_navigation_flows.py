@@ -39,7 +39,7 @@ from yate.editor_lsp.navigation import (
 from yate.editor_lsp.protocol import uri_to_path
 from yate.flows import SpawnFn
 from yate.flows.lsp_navigation_flows import LspNavigationFlows
-from yate.session import EditorSession
+from yate.session import EditorSession, QuickFixEntry
 
 _TEXT = "abc def\nghi jkl\n"
 
@@ -267,6 +267,7 @@ class _Harness:
         self.opened: list[Path] = []
         self.pushes: list[Screen[None]] = []
         self.messages: list[tuple[str, str]] = []
+        self.quickfix: list[tuple[str, list[QuickFixEntry], str]] = []
         self.refreshes = 0
         self.flows = LspNavigationFlows(
             spawn=cast(SpawnFn, _spawn_shim),
@@ -280,7 +281,12 @@ class _Harness:
             refresh=self._refresh,
             prompt=cast(PromptBar, self.prompt),
             has_modal_screen=lambda: False,
+            set_quickfix=self._set_quickfix,
         )
+
+    def _set_quickfix(self, provider: str, entries: list[QuickFixEntry], label: str) -> None:
+        """Record one quickfix publication from the flow."""
+        self.quickfix.append((provider, entries, label))
 
     def _open_path(self, path: Path) -> None:
         """Fake ``DocumentFlows.open_path``: record and open the document."""

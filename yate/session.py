@@ -237,9 +237,10 @@ class QuickFixList:
             self.selected = 0
 
     def clear(self) -> None:
-        """Drop every entry and reset the cursor."""
+        """Drop every entry, the label and the cursor."""
         self.entries = ()
         self.selected = 0
+        self.label = ""
 
     def at(self, index: int) -> QuickFixEntry | None:
         """The entry at *index*, or ``None`` when out of range."""

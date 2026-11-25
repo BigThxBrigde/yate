@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 import pytest
 from yate.app import YateApp
 from conftest import plain_text, wait_until
@@ -334,7 +334,6 @@ def test_completion_popup_navigate_accept_and_ctrl_space(tmp_path: Path) -> None
 
 def test_diagnostic_render_status_echo_and_command(tmp_path: Path) -> None:
     from yate.editor_lsp import protocol
-    from yate.editor_components.modals import OutputScreen
 
     async def scenario() -> None:
         py = tmp_path / "diag.py"
@@ -373,12 +372,12 @@ def test_diagnostic_render_status_echo_and_command(tmp_path: Path) -> None:
             assert prompt_bar is not None
             app.editor.refresh_ui()
             assert "undefined name" in plain_text(prompt_bar.message.content)
-            # :diagnostics opens the listing screen
+            # :diagnostics publishes the listing into the docked quickfix panel
             app.editor.run_command("diagnostics")
             await pilot.pause()
-            screen = app.screen
-            assert isinstance(screen, OutputScreen)
-            assert "undefined name" in cast(OutputScreen, screen).output_text
+            assert app.editor.quickfix_panel.display is True
+            labels = [entry.label for entry in app.editor.quickfix_flows.active_entries]
+            assert "undefined name 'x'" in labels
 
     asyncio.run(scenario())
 
