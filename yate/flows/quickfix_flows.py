@@ -81,8 +81,9 @@ class QuickFixFlows:
         else:
             self._repaint()
             # Keep a stale panel from lingering over an emptied list.
+            # Providers own their explicit empty-state messages; a silent
+            # clear must not overwrite the last search/replace report.
             self._hide()
-            self._message(f"no {provider} results", "info")
 
     def open(self) -> None:
         """Show the docked panel over the current result set."""
@@ -157,6 +158,4 @@ class QuickFixFlows:
 
     def _repaint(self) -> None:
         """Repaint the panel body from the current result set."""
-        # The L2 panel keeps its paint path private this wave (frozen
-        # file); the flows drive it through this single seam.
-        self._panel._paint()  # pyright: ignore[reportPrivateUsage] - panel seam
+        self._panel.repaint()

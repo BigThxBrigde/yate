@@ -2,8 +2,8 @@
 
 The flow sequences the shared L1 result set and the docked panel through
 injected callbacks: provider slice replacement opens the panel, close
-keeps the entries for a later reopen, empty sets hide a stale panel with
-an explicit message, and every jump pushes exactly one jump-list entry.
+keeps the entries for a later reopen, empty sets silently clear a stale
+panel, and every jump pushes exactly one jump-list entry.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ class _RecordingPanel(QuickFixPanel):
         self.paints = paints
 
     @override
-    def _paint(self) -> None:
+    def repaint(self) -> None:
         self.paints.append(len(self._test_entries.snapshot()))
 
 
@@ -147,15 +147,15 @@ def test_close_keeps_entries_and_reopen_restores_selection() -> None:
     assert h.flow.selected == 1
 
 
-def test_empty_results_emit_message_and_do_not_show_stale_panel() -> None:
-    """An empty batch clears the slice, hides the panel and reports it."""
+def test_empty_results_clear_and_hide_without_stale_message() -> None:
+    """An empty batch clears the slice and hides the panel without noise."""
     h = _Harness()
     h.flow.set_results("diagnostics", [_entry("diagnostics", "d1", 0)], "diags")
     assert h.visible is True
     h.flow.set_results("diagnostics", [], "diags")
     assert h.visible is False
     assert h.flow.active_entries == ()
-    assert any("no diagnostics" in m for m in h.messages)
+    assert h.messages == []
 
 
 def test_jump_to_out_of_range_is_ignored() -> None:

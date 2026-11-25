@@ -85,8 +85,12 @@ class QuickFixPanel(VerticalScroll):
         else:
             self._on_close()
 
-    def _paint(self) -> None:
+    def repaint(self) -> None:
         """Repaint the body and the scrollbar palette from current state."""
+        self._paint()
+
+    def _paint(self) -> None:
+        """Apply the shared paint path to body, palette and scroll offset."""
         apply_scrollbar_theme(self)
         body = self.query_one("#quickfix-body", Static)
         body.update(self._body_text())
