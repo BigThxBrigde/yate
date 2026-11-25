@@ -132,7 +132,7 @@ flowchart LR
 | 协议捕获：`contentChanges` 只含变更区间、range 正确、text 为片段 | plan-a `test_did_change_wire_capture_carries_only_changed_range`；plan-b `test_build_content_changes_emits_range_length_and_text` |
 | 大文件单次按键编辑不再全文传输 | plan-c `test_large_file_single_key_edit_payload_is_decoupled_from_document_length` |
 | 多字节/astral/跨行逐条重放与全量一致 | plan-c `test_incremental_wire_replay_matches_full_mode_for_astral_and_cross_line_edits`；既有 `test_lsp_diff.py` 随机差分 |
-| Full-only / notify 失败重试 / 关闭中途飞不变 | plan-a `test_full_only_server_wire_capture_sends_whole_document`；plan-c `test_incremental_send_lsp_error_keeps_snapshot_and_retries`、`test_full_mode_did_change_race_with_did_close_sends_nothing_after_close` |
+| Full-only / notify 失败重试 / 关闭中途飞不变 | plan-a `test_full_only_server_wire_capture_sends_whole_document`；plan-c 参数化 `test_incremental_send_failure_keeps_snapshot_and_retries`（`os-error`/`lsp-error`）、`test_full_mode_did_change_race_with_did_close_sends_nothing_after_close` |
 | 全量门禁退出码 0 | §七 |
 
 ## 九、偏离登记
@@ -175,20 +175,20 @@ flowchart LR
 | minor | pr-review：wire 助手冗余 `managers` 列表 | 删除两行（`e67f5f23`） |
 | minor | pr-review：plan-b 把测试侧断言误写为 `diff.py:245-252` | 改为 `tests/test_lsp_diff.py:245-252` 并注明 diff.py 只构造 patch |
 | minor | pr-review：plan-c 跨行补丁预期与实测零宽插入不符 | 按实测改写 §2.2，并在 §九第 4 条登记偏差 |
-| minor（登记） | pr-review：`LspError` 与 `OSError` 重试用例近乎重复、重放脚手架重复约 60 行 | 两用例断言侧重不同，非功能缺陷；参数化/抽 helper 留作后续维护项 |
-| minor（登记） | pr-review：4 笔 `test(lsp):` 不在规则允许值内但 master 已有 14 处先例 | 属规则文本滞后，不改历史提交；建议另案追加 `test` 类型 |
+| minor | pr-review：`LspError` 与 `OSError` 重试用例近乎重复、重放脚手架重复约 60 行 | 合并为参数化 `test_incremental_send_failure_keeps_snapshot_and_retries`；抽取 `_assert_replay_matches_full` 并用 `on_changes` 保留线格式断言 |
+| minor | pr-review：4 笔 `test(lsp):` 不在规则允许值内但 master 已有 14 处先例 | `.trae/rules/git-commit-message.md` §5 追加 `test`（测试）类型，历史提交保持不变 |
 
 无 blocker / major；未发生波次重排、阈值或范围偏离。4000 行文档规模按计划保留，`>100 × frame_size` 断言成立。
 
 ### 10.4 全量门禁（主代理亲自，并行口径）
 
-| 命令 | 实测结果（合并 `master` 后终态 `1098c28e`） | 退出码 |
+| 命令 | 实测结果（合并 `master` 且 8 MINOR 全闭环后） | 退出码 |
 |---|---|---|
 | `.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations | 0 |
 | `.venv\Scripts\python.exe -m pytest tests/ -q -n 4` | 4060 passed, 10 skipped（`-n auto` 在 `1f967488` 上亦 exit 0） | 0 |
 | `.venv\Scripts\python.exe -m pytest tests/test_architecture.py -q` | 47 passed | 0 |
-| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term --cov-fail-under=75 -n 4` | Total coverage 92.74%（阈值 75%）；4060 passed, 10 skipped | 0 |
-| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | 128/128 scenarios passed（82.06s） | 0 |
+| `.venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch --cov-report=term --cov-fail-under=75 -n 4` | Total coverage 92.75%（阈值 75%）；4060 passed, 10 skipped | 0 |
+| `.venv\Scripts\python.exe -m tools.smoke_test run --jobs 4` | 128/128 scenarios passed（86.22s） | 0 |
 | `.venv\Scripts\python.exe -m tools.changelog check` | released sections up to date；unreleased 为发布时刷新惯例 | 0 |
 
 `-n auto` 在本机两次被工具空闲超时取消，等价 `-n 4` 完成同一全量套件；未把工具超时记成测试失败。闭环结论：**完成**；未推送、未合入 `master`（按规则须用户显式要求后才推送）。
@@ -196,7 +196,7 @@ flowchart LR
 ### 10.5 合并前 pr-review（2026-11-25）
 
 - 记录：[`../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md`](../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md)；索引已登记。
-- 结论：**APPROVE**，0 blocker / 0 major。`pr-a` 零产出；`pr-b` 迟到交付完整报告（8 minor），已逐条复核：5 条已闭环（死变量、plan-b 引用、plan-c 预期、合并 master、索引已在报告前落盘），3 条登记为后续维护/规则项。
+- 结论：**APPROVE**，0 blocker / 0 major。`pr-a` 零产出；`pr-b` 迟到交付完整报告（8 minor），连同主代理自审 1 minor **全部闭环**。
 - 唯一合并前动作项已完成：`master` 新进 `b97a695c`，本分支曾落后 1 笔；已以 `1098c28e` 合入，三方 merge-tree 无冲突。
-- 合并后终态六门禁全 exit 0（见 §10.4）：pyright 0、pytest 4060 passed/10 skipped、架构 47、覆盖率 92.74%、冒烟 128/128、changelog 0。
+- 终态六门禁全 exit 0（见 §10.4）：pyright 0、pytest 4060 passed/10 skipped、架构 47、覆盖率 92.75%、冒烟 128/128、changelog 0。
 - 闭环结论仍为**完成**，未推送、未合入 `master`。

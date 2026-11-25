@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import warnings
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast, override
@@ -2067,53 +2068,89 @@ def test_incremental_sync_sends_range_patches_not_full_text(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
+async def _assert_replay_matches_full(
+    tmp_path: Path,
+    initial: str,
+    edits: Sequence[tuple[tuple[int, int] | None, str]],
+    *,
+    on_changes: Callable[[list[dict[str, Any]]], None] | None = None,
+) -> None:
+    """Drive inc/full managers through *edits* and assert wire replay parity.
+
+    ``None`` in an edit keeps the buffer's current cursor (the original
+    sequential-insert guard); an explicit ``Pos`` exercises a known UTF-16
+    anchor.  ``on_changes`` receives every captured incremental didChange
+    for case-specific range/version assertions.
+    """
+    inc = _sync_session(tmp_path / "inc", 2, initial)
+    full = _sync_session(tmp_path / "full", 1, initial)
+    inc_mgr, inc_fakes, inc_doc, inc_int = inc
+    full_mgr, full_fakes, full_doc, full_int = full
+    await inc_mgr.on_document_shown(inc_doc)
+    await full_mgr.on_document_shown(full_doc)
+    server_lines = initial.split("\n")
+    try:
+        for index, (cursor, text) in enumerate(edits, start=1):
+            if cursor is not None:
+                inc_doc.buffer.set_cursor(cursor)
+                full_doc.buffer.set_cursor(cursor)
+            inc_doc.buffer.insert_text(text)
+            full_doc.buffer.insert_text(text)
+            inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
+            full_int._flush_change(full_doc, full_int._uri(full_doc))
+            await asyncio.sleep(0)
+            inc_changes = _did_changes(inc_fakes[0])
+            full_changes = _did_changes(full_fakes[0])
+            assert len(inc_changes) == index
+            assert len(full_changes) == index
+            server_lines = apply_changes(
+                server_lines, inc_changes[-1]["contentChanges"]
+            )
+            assert (
+                "\n".join(server_lines)
+                == inc_doc.buffer.get_text()
+                == full_doc.buffer.get_text()
+            )
+            assert full_changes[-1]["contentChanges"] == [
+                {"text": full_doc.buffer.get_text()}
+            ]
+        if on_changes is not None:
+            on_changes(_did_changes(inc_fakes[0]))
+    finally:
+        await inc_mgr.shutdown_all()
+        await full_mgr.shutdown_all()
+
+
 def test_incremental_replay_matches_full_mode_byte_for_byte(tmp_path: Path) -> None:
     """Manager-level differential guard: the same edit sequence replayed
     through the server simulator after incremental patches lands on the
     exact full text the Full-mode manager sends."""
+
     async def scenario() -> None:
-        inc = _sync_session(tmp_path / "inc", 2, "alpha\nbeta\ngamma\n")
-        full = _sync_session(tmp_path / "full", 1, "alpha\nbeta\ngamma\n")
-        await inc[0].on_document_shown(inc[2])
-        await full[0].on_document_shown(full[2])
-        inc_doc, full_doc = inc[2], full[2]
-        inc_int, full_int = inc[3], full[3]
-        # A trailing newline is one more (empty) row for the server, same
-        # as the buffer's line model that didOpen snapshotted.
-        server_lines: list[str] = ["alpha", "beta", "gamma", ""]
-        sent = 0
-        for edit in ("X", "Y\n", "Z"):
-            inc_doc.buffer.insert_text(edit)
-            full_doc.buffer.insert_text(edit)
-            inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
-            full_int._flush_change(full_doc, full_int._uri(full_doc))
-            await asyncio.sleep(0)
-            inc_changes = _did_changes(inc[1][0])
-            full_changes = _did_changes(full[1][0])
-            assert len(inc_changes) == sent + 1
-            assert len(full_changes) == sent + 1
-            sent += 1
-            # Replay each incremental patch set server-style (test_lsp_diff
-            # semantics), then compare against the Full-mode full text.
-            server_lines = apply_changes(
-                server_lines, inc_changes[-1]["contentChanges"]
-            )
-            assert "\n".join(server_lines) == (
-                full_changes[-1]["contentChanges"][0]["text"]
-            )
-        # Final states agree with the live buffers too.
-        assert "\n".join(server_lines) == inc_doc.buffer.get_text()
-        await inc[0].shutdown_all()
-        await full[0].shutdown_all()
+        await _assert_replay_matches_full(
+            tmp_path,
+            "alpha\nbeta\ngamma\n",
+            [(None, "X"), (None, "Y\n"), (None, "Z")],
+        )
 
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(OSError("pipe closed"), id="os-error"),
+        pytest.param(LspError("notify failed"), id="lsp-error"),
+    ],
+)
 def test_incremental_send_failure_keeps_snapshot_and_retries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
 ) -> None:
-    """A failed didChange notify leaves ``last_synced_lines`` stale; the
-    next flush retries and advances the state only after success."""
+    """Both branches of ``except (LspError, OSError)`` leave the didOpen
+    snapshot stale; the next flush retries and advances only on success."""
+
     async def scenario() -> None:
         mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
         await mgr.on_document_shown(doc)
@@ -2124,7 +2161,7 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
         async def flaky(method: str, params: Any) -> None:
             if method == "textDocument/didChange" and failures["left"] > 0:
                 failures["left"] -= 1
-                raise OSError("pipe closed")
+                raise error
             await real_notify(method, params)
 
         monkeypatch.setattr(client, "notify", flaky)
@@ -2143,6 +2180,7 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
         await asyncio.sleep(0)
         changed = _did_changes(client)
         assert len(changed) == 1
+        assert changed[0]["textDocument"]["version"] == 2
         assert state.version == 2
         assert state.last_synced_lines == tuple(doc.buffer.lines)
         assert state.last_synced_version == doc.buffer.content_version
@@ -2374,108 +2412,36 @@ def test_incremental_wire_replay_matches_full_mode_for_astral_and_cross_line_edi
     """Incremental patches carrying emoji (UTF-16 column), CJK rows and
     astral/cross-line splices replay through the server simulator onto the
     exact text the Full-mode manager sends, byte for byte."""
-    initial = "a\U0001F600b\n你好\nc\n"
+
+    def assert_wire_shape(changes: list[dict[str, Any]]) -> None:
+        assert [
+            params["textDocument"]["version"] for params in changes
+        ] == [2, 3, 4]
+        first = changes[0]["contentChanges"][0]
+        assert first["range"]["start"] == {"line": 0, "character": 3}
+        assert first["range"]["end"] == {"line": 0, "character": 3}
+        assert first["rangeLength"] == 0
+        assert first["text"] == "X"
+        second = changes[1]["contentChanges"][0]
+        assert "\n" in second["text"]
+        # A pure row insertion anchors a zero-width range at the end of
+        # the previous row; the cross-line splice rides in the text.
+        assert second["range"]["start"] == {"line": 1, "character": 2}
+        assert second["range"]["end"] == {"line": 1, "character": 2}
+        assert second["rangeLength"] == 0
+        assert second["text"] == "\nZ"
 
     async def scenario() -> None:
-        inc = _sync_session(tmp_path / "inc", 2, initial)
-        full = _sync_session(tmp_path / "full", 1, initial)
-        inc_mgr, inc_fakes, inc_doc, inc_int = inc
-        full_mgr, full_fakes, full_doc, full_int = full
-        await inc_mgr.on_document_shown(inc_doc)
-        await full_mgr.on_document_shown(full_doc)
-        server_lines = initial.split("\n")
-        try:
-            for cursor, text in (
+        await _assert_replay_matches_full(
+            tmp_path,
+            "a\U0001F600b\n你好\nc\n",
+            [
                 ((0, 2), "X"),
                 ((1, 2), "\nZ"),
                 ((3, 0), "\U0001F40D"),
-            ):
-                inc_doc.buffer.set_cursor(cursor)
-                inc_doc.buffer.insert_text(text)
-                full_doc.buffer.set_cursor(cursor)
-                full_doc.buffer.insert_text(text)
-                inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
-                full_int._flush_change(full_doc, full_int._uri(full_doc))
-                await asyncio.sleep(0)
-                inc_changes = _did_changes(inc_fakes[0])
-                full_changes = _did_changes(full_fakes[0])
-                server_lines = apply_changes(
-                    server_lines, inc_changes[-1]["contentChanges"]
-                )
-                assert (
-                    "\n".join(server_lines)
-                    == inc_doc.buffer.get_text()
-                    == full_doc.buffer.get_text()
-                )
-                assert full_changes[-1]["contentChanges"] == [
-                    {"text": full_doc.buffer.get_text()}
-                ]
-            versions = [
-                params["textDocument"]["version"]
-                for params in _did_changes(inc_fakes[0])
-            ]
-            assert versions == [2, 3, 4]
-            first = _did_changes(inc_fakes[0])[0]["contentChanges"][0]
-            assert first["range"]["start"] == {"line": 0, "character": 3}
-            assert first["range"]["end"] == {"line": 0, "character": 3}
-            assert first["rangeLength"] == 0
-            assert first["text"] == "X"
-            second = _did_changes(inc_fakes[0])[1]["contentChanges"][0]
-            assert "\n" in second["text"]
-            # A pure row insertion anchors a zero-width range at the end
-            # of the previous row; the cross-line splice rides in the text.
-            assert second["range"]["start"] == {"line": 1, "character": 2}
-            assert second["range"]["end"] == {"line": 1, "character": 2}
-            assert second["rangeLength"] == 0
-            assert second["text"] == "\nZ"
-        finally:
-            await inc_mgr.shutdown_all()
-            await full_mgr.shutdown_all()
-
-    asyncio.run(scenario())
-
-
-def test_incremental_send_lsp_error_keeps_snapshot_and_retries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A didChange notify that fails with ``LspError`` leaves the didOpen
-    snapshot stale exactly like the ``OSError`` branch, and the next
-    flush retries and advances only after success (sync.py's exception
-    tuple covers both)."""
-    async def scenario() -> None:
-        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
-        await mgr.on_document_shown(doc)
-        client = fakes[0]
-        real_notify = client.notify
-        failures = {"left": 1}
-
-        async def flaky(method: str, params: Any) -> None:
-            if method == "textDocument/didChange" and failures["left"] > 0:
-                failures["left"] -= 1
-                raise LspError("notify failed")
-            await real_notify(method, params)
-
-        monkeypatch.setattr(client, "notify", flaky)
-        uri = internals._uri(doc)
-        doc.buffer.insert_text("X")
-        internals._flush_change(doc, uri)
-        await asyncio.sleep(0)
-        state = internals._open[uri]
-        # The didOpen snapshot stands: nothing advanced, nothing recorded.
-        assert state.last_synced_lines == ("abc", "")
-        assert state.version == 1
-        assert _did_changes(client) == []
-
-        doc.buffer.insert_text("Y")
-        internals._flush_change(doc, uri)
-        await asyncio.sleep(0)
-        changed = _did_changes(client)
-        assert len(changed) == 1
-        assert changed[0]["textDocument"]["version"] == 2
-        assert state.version == 2
-        assert state.last_synced_lines == tuple(doc.buffer.lines)
-        assert state.last_synced_version == doc.buffer.content_version
-        await mgr.shutdown_all()
+            ],
+            on_changes=assert_wire_shape,
+        )
 
     asyncio.run(scenario())
 

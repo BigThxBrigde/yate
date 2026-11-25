@@ -52,12 +52,12 @@
   - 第二步按 LSP 零宽插入语义断言：`range.start == range.end == {"line": 1, "character": 2}`、`rangeLength == 0`，换行由 `text == "\nZ"` 携带（实测形态；原备选条件「跨行 end」不成立，已在主计划 §九登记）。
 - **清理**：两个 manager 均 `shutdown_all()`。
 
-### 2.3 `test_incremental_send_lsp_error_keeps_snapshot_and_retries`
+### 2.3 `test_incremental_send_failure_keeps_snapshot_and_retries`（参数化）
 
-- **前置**：`_sync_session(tmp_path, 2, "abc\n")`；`client.notify` 用 monkeypatch 包一层，仅第一次 didChange 抛 `LspError("notify failed")`。
-- **act**：仿照既有 `test_incremental_send_failure_keeps_snapshot_and_retries`（`:2090-2129`）先 `insert_text("X")` + flush，断言失败未推进；再 `insert_text("Y")` + flush。
+- **前置**：`_sync_session(tmp_path, 2, "abc\n")`；`client.notify` 用 monkeypatch 包一层，仅第一次 didChange 抛参数化异常：`OSError("pipe closed")` 或 `LspError("notify failed")`（`pytest.param(..., id=...)`）。
+- **act**：先 `insert_text("X")` + flush，断言失败未推进；再 `insert_text("Y")` + flush。
 - **assert**：失败后 `state.last_synced_lines == ("abc", "")`、`state.version == 1`、`_did_changes(client) == []`；重试后恰好 1 条 didChange、`version == 2`、`last_synced_lines == tuple(doc.buffer.lines)`、`last_synced_version == doc.buffer.content_version`。
-- **说明**：补齐 `sync.py:148` 异常元组中 `LspError` 分支的独立覆盖（既有只覆盖 `OSError`）。
+- **说明**：原独立 `test_incremental_send_lsp_error_keeps_snapshot_and_retries` 已并入本参数化用例，`sync.py:148` 异常元组两个分支均覆盖（pr-review MINOR #2 闭环）。
 
 ### 2.4 `test_full_mode_did_change_race_with_did_close_sends_nothing_after_close`
 
