@@ -200,3 +200,11 @@ flowchart LR
 - 唯一合并前动作项已完成：`master` 新进 `b97a695c`，本分支曾落后 1 笔；已以 `1098c28e` 合入，三方 merge-tree 无冲突。
 - 终态六门禁全 exit 0（见 §10.4）：pyright 0、pytest 4060 passed/10 skipped、架构 47、覆盖率 92.75%、冒烟 128/128、changelog 0。
 - 闭环结论仍为**完成**，未推送、未合入 `master`。
+
+### 10.6 通用代码审查轮（2026-11-25，TRAE-code-review）
+
+- 记录：[`../reviews/2026-11-25-code-review-incremental-sync-acceptance.md`](../reviews/2026-11-25-code-review-incremental-sync-acceptance.md)；索引已登记。
+- 结论：**APPROVE**，0 blocker / 0 major / 1 minor（当轮闭环）。2 名独立验证员共识计分：1 项确认（`noqa: Any` 注释独立成行偏离 §3.3 行内约定，master 同病 1 处）、1 项 0/2 剔除（竞态用例固定 yield 收尾，实测仅需 2 个事件循环周期且为仓库既有惯例）。
+- 修复：`94174a6f` 按「修同族不修单点」将两处注释一并改为行尾；定向 pyright 0 / pytest 99 passed 复验后主代理亲跑全量门禁。
+- 全量门禁（修复后，主代理亲自，并行口径）：pyright 全树 0 诊断；`pytest tests/ -q -n auto` exit 0；架构 47 passed；覆盖率 92.76%（4060 passed / 10 skipped，150.65s）；冒烟 128/128 · 1554 checks（84.13s）——全部退出码 0。
+- 闭环结论：**完成**；未推送、未合入 `master`。

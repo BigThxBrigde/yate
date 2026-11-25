@@ -508,6 +508,8 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 
 | 2026-11-25 | **pr-review · `feature/enh-lsp-incremental-sync` 合并前评审**（IKXQFK；merge-base `1f0ee5a0`，起点 7 文件 +905−5；`pr-a` 零产出、`pr-b` 迟到交付 8 MINOR，主代理按 skill 六维度兜底并逐条复核） | ✅ APPROVE（0 blocker / 0 major） | 主代理自审 1 MINOR + `pr-b` 8 MINOR **全闭环**（参数化重试、抽重放助手、补 `test` 提交类型等） | ✅ 唯一合并前动作完成：`1098c28e` 合入 master `b97a695c`；终态六门禁全 exit 0（pyright 0 / pytest 4060 passed·10 skipped / 架构 47 / 覆盖率 92.75% / 冒烟 128/128 / changelog 0）；分支未推送未合入 master | [2026-11-25-pr-review-incremental-sync-acceptance.md](2026-11-25-pr-review-incremental-sync-acceptance.md) |
 
+| 2026-11-25 | **code-review · `feature/enh-lsp-incremental-sync` 通用代码审查轮**（TRAE-code-review skill；merge-base `b97a695c` 对 master 无落后；主审查对照生产实现手工推演 + 2 独立验证员共识计分，0/2 剔除 1 候选） | ✅ APPROVE（0 blocker / 0 major） | 1 MINOR（wire 缝 `noqa: Any` 注释独立成行偏离行内约定，master 同病 1 处）**当轮闭环** | ✅ 已修（`94174a6f` 两处一并行内化；全量门禁见主计划 §10.6）；分支未推送未合入 master | [2026-11-25-code-review-incremental-sync-acceptance.md](2026-11-25-code-review-incremental-sync-acceptance.md) |
+
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 
 ---
