@@ -389,6 +389,8 @@ yate 内置两套键位：
 | `<alt-left>` | 在跳转历史中回退（`jump_back`） |
 | `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
 | `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
+| `<alt-j>` / `<alt-k>` | 下一个 / 上一个 quickfix 条目（`quickfix_next` / `quickfix_prev`） |
+| `<alt-q>` | 打开 quickfix 结果面板（`quickfix_open`） |
 
 **选择（Selection）**
 
@@ -533,6 +535,8 @@ NUL 字节。若在个别终端上遇到输入异常，可在 yaterc 设置
 | `<alt-left>` | 在跳转历史中回退（`jump_back`） |
 | `<alt-right>` | 在跳转历史中前进（`jump_forward`） |
 | `<alt-m>` | 打开 marks 一览浮层（`marks_overlay`） |
+| `<alt-j>` / `<alt-k>` | 下一个 / 上一个 quickfix 条目（`quickfix_next` / `quickfix_prev`） |
+| `<alt-q>` | 打开 quickfix 结果面板（`quickfix_open`） |
 
 **进入插入模式（Vim: insert）**
 
@@ -732,6 +736,18 @@ mark 名为单个字母 `a-z`；非法或缺失的名字会得到 usage 警告
 （`usage: :mark <a-z> (jump if set, else set here)`）。跳转列表为双栈结构，
 每个方向最多保留 100 条；越过任一端时提示 `no earlier jump` / `no later jump`
 而不循环。文件内查找命中（`/`、`?`、`n`、`N`）不推入跳转条目。
+
+**quickfix 列表**——等价按键 `<alt-j>` / `<alt-k>` / `<alt-q>` 见第 5 节：
+
+| 命令 | 说明 |
+|---|---|
+| `:quickfix` | 打开 quickfix 结果面板（同 `<alt-q>`） |
+| `:cnext` | 跳到下一个 quickfix 条目（同 `<alt-j>`） |
+| `:cprev` | 跳到上一个 quickfix 条目（同 `<alt-k>`） |
+
+结果集由各提供方填充（`:diagnostics`、项目搜索与 LSP 流程）；每次
+quickfix 跳转记录一条跳转列表条目，`<alt-left>` / `<alt-right>` 可撤销 /
+重做它。
 
 ### 8.1 窗格分割（`:split` / `:vsplit`）
 
@@ -1528,7 +1544,8 @@ vsc 键位（默认）：
 | `Ctrl+Space` | 触发自动补全 | 面板 `diagnostics` | 列出 LSP 诊断 |
 | `` Ctrl+` `` | 切换集成终端 | `Shift+PageUp/PageDown` | 终端回滚 |
 | `F7` | 显示光标处 API 文档 | `F7` | 显示光标处 API 文档 |
-| `Alt+Z` | 切换软换行（`:set wrap=on|off`） | | |
+| `Alt+Z` | 切换软换行（`:set wrap=on|off`） | `Alt+J` / `Alt+K` | quickfix 下一个 / 上一个 |
+| `Alt+Q` | quickfix 结果面板 | | |
 
 文件树内：`j`/`k` 移动 · `l`/`Enter` 打开/展开 · `h` 折叠 ·
 `a` 新建文件 · `A` 新建文件夹 · `r` 重命名 · `d`/`Del` 删除（`y` 确认） ·
@@ -1553,10 +1570,11 @@ vim 键位：
 | `Ctrl+W` `+-<>` | 调整窗格高 / 宽 | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | 等分 / 循环焦点 |
 | `Shift+PageUp/PageDown` | 终端回滚 | `>` / `<` | 增 / 减缩进（计数按行数，如 `3>` = 缩进 3 行） |
 | `gj` / `gk` | 按显示行移动（软换行） | `Alt+Z` | 切换软换行 |
+| `Alt+J` / `Alt+K` | quickfix 下一个 / 上一个 | `Alt+Q` | quickfix 结果面板 |
 
 命令行速查：`:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:quickfix` `:cnext` `:cprev` `:vsc` `:vim` `:theme` `:colorscheme` `:!命令`
 
 ## 19. 构建与发布
 

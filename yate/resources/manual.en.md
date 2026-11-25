@@ -426,6 +426,8 @@ replay can never append its own keys to the open recording buffer.
 | `<alt-left>` | Jump back in jump history (`jump_back`) |
 | `<alt-right>` | Jump forward in jump history (`jump_forward`) |
 | `<alt-m>` | Open the marks overview (`marks_overlay`) |
+| `<alt-j>` / `<alt-k>` | Next / previous quickfix entry (`quickfix_next` / `quickfix_prev`) |
+| `<alt-q>` | Open the quickfix result panel (`quickfix_open`) |
 
 **Selection**
 
@@ -577,6 +579,8 @@ e.g. `3j`, `2dd`, `5w`.
 | `<alt-left>` | Jump back in jump history (`jump_back`) |
 | `<alt-right>` | Jump forward in jump history (`jump_forward`) |
 | `<alt-m>` | Open the marks overview (`marks_overlay`) |
+| `<alt-j>` / `<alt-k>` | Next / previous quickfix entry (`quickfix_next` / `quickfix_prev`) |
+| `<alt-q>` | Open the quickfix result panel (`quickfix_open`) |
 
 **Entering insert mode**
 
@@ -800,6 +804,19 @@ jump list keeps up to 100 entries per direction on two stacks, and stepping
 past either end reports `no earlier jump` / `no later jump` instead of
 wrapping around. Hits from in-buffer search (`/`, `?`, `n`, `N`) do not push
 jump entries.
+
+**Quickfix list** -- key equivalents `<alt-j>` / `<alt-k>` / `<alt-q>` live
+in section 5:
+
+| Command | Description |
+|---|---|
+| `:quickfix` | Open the quickfix result panel (same as `<alt-q>`) |
+| `:cnext` | Jump to the next quickfix entry (same as `<alt-j>`) |
+| `:cprev` | Jump to the previous quickfix entry (same as `<alt-k>`) |
+
+The result set is filled by providers (`:diagnostics`, project search and
+the LSP flows); each quickfix jump records one jump-list entry, so
+`<alt-left>` / `<alt-right>` undo / redo it.
 
 ### 8.1 Split panes (`:split` / `:vsplit`)
 
@@ -1717,7 +1734,8 @@ vsc keymap (default):
 | `Ctrl+Space` | Trigger autocomplete | palette `diagnostics` | List LSP diagnostics |
 | `` Ctrl+` `` | Toggle integrated terminal | `Shift+PageUp/PageDown` | Terminal scrollback |
 | `F7` | Show API documentation | `F7` | Show API documentation |
-| `Alt+Z` | Toggle soft wrap (`:set wrap=on|off`) | | |
+| `Alt+Z` | Toggle soft wrap (`:set wrap=on|off`) | `Alt+J` / `Alt+K` | Quickfix next / previous |
+| `Alt+Q` | Quickfix result panel | | |
 
 Inside the file tree: `j`/`k` move · `l`/`Enter` open/expand · `h` collapse ·
 `a` new file · `A` new folder · `r` rename · `d`/`Del` delete (`y` confirms) ·
@@ -1742,10 +1760,11 @@ vim keymap:
 | `Ctrl+W` `+-<>` | Resize pane height / width | `Ctrl+W` `=` / `Ctrl+W Ctrl+W` | Equalize / cycle focus |
 | `Shift+PageUp/PageDown` | Terminal scrollback | `>` / `<` | Increase / decrease indent (a count is a line count, e.g. `3>` = 3 lines) |
 | `gj` / `gk` | Move by display row (soft wrap) | `Alt+Z` | Toggle soft wrap |
+| `Alt+J` / `Alt+K` | Quickfix next / previous | `Alt+Q` | Quickfix result panel |
 
 Command line cheat sheet: `:w` `:saveas` `:q` `:q!` `:wq` `:e` `:enew` `:welcome` `:sp` `:vs` `:only` `:42` `:+5` `:bn` `:bp` `:bd`
 `:files` `:palette` `:manual` `:changelog` `:help` `:explorer` `:font` `:term` `:termclose`
-`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
+`:set keymap=…` `:set theme=…` `:set shell=…` `:set terminal_height=…` `:set wrap=…` `:set filetype=…` `:set readonly=…` `:filetype …` `:quickfix` `:cnext` `:cprev` `:vsc` `:vim` `:theme` `:colorscheme` `:!cmd`
 
 ## 19. Build & Release
 

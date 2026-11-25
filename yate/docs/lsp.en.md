@@ -92,6 +92,24 @@ buffer to a different path closes the old URI and opens the new one.
 This file is a configuration cookbook for mainstream language servers;
 section 16 of the manual is a short introduction.
 
+## Result navigation
+
+LSP results land in a docked quickfix panel at the bottom of the editor:
+
+- `:diagnostics` publishes all diagnostics of the current file into the
+  panel; an empty result set closes a stale panel and shows the
+  provider's own empty-state message (`no diagnostics`).
+- **Find references** (`gr` under vim, `<alt-r>` under vsc) dual-publishes:
+  the chooser still drives the immediate selection path, and the same
+  result set mirrors into the panel (`No references found` when empty).
+- `alt+j` / `alt+k` (`quickfix_next` / `quickfix_prev`, the same keys under
+  both keymaps) step the panel cursor with wrap-around and jump to the
+  entry; `alt+q` (`quickfix_open`) opens the panel again.
+- The same verbs exist as commands: `:quickfix` (open the panel), `:cnext`
+  (next entry) and `:cprev` (previous entry).
+- Every quickfix jump records exactly one jump-list entry: `alt+left`
+  steps back to the pre-jump position, `alt+right` steps forward again.
+
 ---
 
 ## 1. How a language server is registered

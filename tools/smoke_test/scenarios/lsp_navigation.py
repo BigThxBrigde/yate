@@ -16,6 +16,10 @@ through ``register_server`` + ``set_client_factory`` exactly like
 * ``lsp_navigation_no_server_warns_and_leaves_buffer_untouched`` -- with
   no server at all the same key emits a warning message and the buffer
   stays byte-identical.
+* ``quickfix_panel_next_prev_and_jump_back`` -- ``gr`` dual-publishes the
+  two references into the bottom quickfix panel; ``alt+j`` / ``alt+k``
+  step and jump between the entries, and ``alt+left`` undoes the last
+  quickfix jump through the jump list.
 
 All waiting goes through :func:`wait_until`; no fixed sleeps.
 """
@@ -33,7 +37,7 @@ from yate.editor_lsp.client import LspClient, ServerConfig
 from yate.editor_lsp.protocol import canonical_uri, path_to_uri
 
 from tools.smoke_test.harness import Check, Scenario, ScenarioResult, new_app, snapshot_svg
-from tools.smoke_test.scenarios._base import message_text, wait_until
+from tools.smoke_test.scenarios._base import message_text, run_command, wait_until
 
 __all__ = ["SCENARIOS"]
 
@@ -389,6 +393,99 @@ async def _no_server_warns_and_leaves_buffer_untouched(
     )
 
 
+async def _quickfix_panel_next_prev_and_jump_back(tmp: Path) -> ScenarioResult:
+    """``gr`` fills the quickfix panel; alt+j/k step and alt+left undoes.
+
+    Entry order mirrors the server answer (definition first, call site
+    second), so the fresh panel selects the definition entry at index 0:
+    ``alt+j`` lands on the call-site entry, ``alt+k`` steps back to the
+    definition row in the other file, and ``alt+left`` pops the one
+    jump-list entry pushed by the quickfix jumps.
+    """
+    def_path, call_path = _two_file_project(tmp)
+    app = new_app(target=tmp / "app.txt")
+    checks: list[Check] = []
+    holder: list[_NavFakeClient] = []
+    _install_nav_server(app, def_path, call_path, holder)
+    panel = app.editor.quickfix_panel
+    flows = app.editor.quickfix_flows
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        app.editor.refresh_ui()
+        await _open_call_site(pilot, app, call_path)
+
+        # gr dual-publishes: the chooser opens AND the result set lands
+        # in the quickfix list.
+        await pilot.press("alt+r")
+        filled = await wait_until(pilot, lambda: len(flows.active_entries) == 2)
+        checks.append(Check("entries_filled", 2, len(flows.active_entries)))
+        checks.append(Check("filled", True, filled))
+        # Dismiss the chooser, then open the docked panel explicitly.
+        await pilot.press("escape")
+        await run_command(pilot, "quickfix")
+        shown = await wait_until(pilot, lambda: panel.display)
+        checks.append(Check("panel_display", True, shown))
+        rows = snapshot_svg(app, tmp)
+        rendered = "".join(rows.values())
+        checks.append(Check(
+            "svg_shows_references", True, "references" in rendered,
+        ))
+        checks.append(Check(
+            "svg_shows_file_name", True,
+            "mathutil.txt" in rendered or "app.txt" in rendered,
+        ))
+
+        # alt+j steps forward onto the call-site entry (index 1).
+        await pilot.press("alt+j")
+        next_entry = await wait_until(pilot, lambda: flows.selected == 1)
+        checks.append(Check("next_selected", 1, flows.selected))
+        checks.append(Check("next_selected_ok", True, next_entry))
+        landed_next = await wait_until(
+            pilot,
+            lambda: app.editor.session.doc.path == call_path
+            and app.editor.session.buffer.cursor == (_CALL_ROW, _CALL_COL),
+        )
+        checks.append(Check("next_cursor", True, landed_next))
+
+        # alt+k steps back onto the definition entry (index 0, other file).
+        await pilot.press("alt+k")
+        prev_entry = await wait_until(pilot, lambda: flows.selected == 0)
+        checks.append(Check("prev_selected", 0, flows.selected))
+        checks.append(Check("prev_selected_ok", True, prev_entry))
+        landed_prev = await wait_until(
+            pilot,
+            lambda: app.editor.session.doc.path == def_path
+            and app.editor.session.buffer.cursor == (_DEF_ROW, _DEF_COL),
+        )
+        checks.append(Check("prev_cursor", True, landed_prev))
+        checks.append(Check("panel_still_shown", True, panel.display))
+
+        # alt+left pops the single jump-list entry pushed by the quickfix
+        # jumps and returns to the pre-jump position.
+        back_before = len(app.editor.session.jumps.stacks()[0])
+        await pilot.press("alt+left")
+        back_len = await wait_until(
+            pilot,
+            lambda: len(app.editor.session.jumps.stacks()[0]) == back_before - 1,
+        )
+        checks.append(Check(
+            "back_stack_decreased", back_before - 1,
+            len(app.editor.session.jumps.stacks()[0]),
+        ))
+        checks.append(Check("back_stack_ok", True, back_len))
+        landed_back = await wait_until(
+            pilot,
+            lambda: app.editor.session.doc.path == call_path
+            and app.editor.session.buffer.cursor == (_CALL_ROW, _CALL_COL),
+        )
+        checks.append(Check("jump_back_position", True, landed_back))
+        rows = snapshot_svg(app, tmp)
+    return ScenarioResult(
+        "quickfix_panel_next_prev_and_jump_back",
+        checks, rows,
+    )
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         "lsp_navigation_gd_jumps_across_files_in_both_keymaps",
@@ -408,6 +505,11 @@ SCENARIOS: list[Scenario] = [
     Scenario(
         "lsp_navigation_no_server_warns_and_leaves_buffer_untouched",
         _no_server_warns_and_leaves_buffer_untouched,
+        ("lsp-navigation",),
+    ),
+    Scenario(
+        "quickfix_panel_next_prev_and_jump_back",
+        _quickfix_panel_next_prev_and_jump_back,
         ("lsp-navigation",),
     ),
 ]

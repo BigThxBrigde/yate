@@ -71,6 +71,23 @@ buffer 保存时的 `Save as: ` 输入行）补齐路径后，视为首次打开
 
 本文件是主流语言服务器的配置食谱；手册第 16 节是简介。
 
+## 结果导航
+
+LSP 结果会落入编辑区底部的停靠 quickfix 面板：
+
+- `:diagnostics` 把当前文件的全部诊断发布进面板；空结果集会关掉残留的
+  面板，并由提供方给出各自的空态文案（诊断为 `no diagnostics`）。
+- **查找引用**（vim `gr`、vsc `<alt-r>`）会双重发布：选择器照旧负责即时
+  选中跳转，同一份结果集同步镜像到面板（空结果时提示
+  `No references found`）。
+- `alt+j` / `alt+k`（`quickfix_next` / `quickfix_prev`，两套键位同键）在
+  面板内带环绕地步进光标并跳转到该条目；`alt+q`（`quickfix_open`）重新
+  打开面板。
+- 同样的动作也有命令形态：`:quickfix`（打开面板）、`:cnext`（下一个
+  条目）、`:cprev`（上一个条目）。
+- 每次 quickfix 跳转恰好记录一条跳转列表条目：`alt+left` 回退到跳转前的
+  位置，`alt+right` 再前进回来。
+
 ---
 
 ## 1. 如何注册语言服务器
