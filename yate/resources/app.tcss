@@ -12,6 +12,12 @@
     height: 12;
     display: none;
 }
+#quickfix-panel {
+    height: 8;
+    display: none;
+    border-top: wide $border;
+    padding: 0 1;
+}
 #body {
     height: 1fr;
 }

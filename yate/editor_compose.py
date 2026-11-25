@@ -27,6 +27,7 @@ from yate.editor_components.completion import CompletionPopup
 from yate.editor_components.explorer import ExplorerTree
 from yate.editor_components.hover_popup import HoverPopup
 from yate.editor_components.panes import PaneHost, PaneManager
+from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_components.statusbar import StatusBar
 from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.whichkey import EditorColumn, WhichKeyPanel
@@ -44,6 +45,7 @@ from yate.flows.mouse_flows import MouseFlows
 from yate.flows.navigation_flows import NavigationFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
+from yate.flows.quickfix_flows import QuickFixFlows
 from yate.flows.shell_flows import ShellFlows
 from yate.flows.whichkey_flows import WhichKeyFlows
 from yate.flows.window_flows import WindowFlows
@@ -55,7 +57,7 @@ from yate.registries import ActionRegistry, CommandRegistry
 from yate.services.events import EventHub
 from yate.services.extensions import ExtensionAPI, ExtensionLoader
 from yate.services.workspace import Workspace
-from yate.session import EditorSession
+from yate.session import EditorSession, QuickFixList
 
 __all__ = [
     "_build_key_ui",
@@ -152,6 +154,17 @@ def _build_widgets(ed: yate.editor.Editor) -> None:
     ed.breadcrumbs = Breadcrumbs(ed.session, ed.workspace, id="breadcrumbs")
     ed.completion_popup = CompletionPopup()
     ed.hover_popup = HoverPopup(id="hover-docs")
+    # Quickfix dock: the shared L1 result set is created here and handed to
+    # both the panel and the flow (single source of truth); the panel is
+    # built first -- its pick / close callbacks resolve the flow lazily
+    # because ``ed.quickfix_flows`` does not exist yet.
+    ed.quickfix = QuickFixList()
+    ed.quickfix_panel = QuickFixPanel(
+        ed.quickfix,
+        on_pick=lambda index: ed.quickfix_flows.jump_to(index),
+        on_close=lambda: ed.quickfix_flows.close(),
+        id="quickfix-panel",
+    )
     ed.terminal_panel = TerminalPanel(
         ed.config, ed.workspace, ed.prompt_bar,
         focus_editor=ed.focus_editor, id="terminal-dock",
@@ -307,6 +320,19 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         panes=ed.panes,
         activate_doc=ed.document_flows.activate_doc,
         push_overlay=ed.overlays.push,
+        message=ed.message,
+        refresh=ed.refresh_ui,
+    )
+    # Quickfix flows: built after the panel (share the one QuickFixList
+    # created in _build_widgets); provider callbacks arrive in a later
+    # wave -- no provider wiring here yet.
+    ed.quickfix_flows = QuickFixFlows(
+        ed.session,
+        ed.quickfix_panel,
+        entries=ed.quickfix,
+        reveal=ed.reveal_match,
+        show=ed.show_quickfix,
+        hide=ed.hide_quickfix,
         message=ed.message,
         refresh=ed.refresh_ui,
     )

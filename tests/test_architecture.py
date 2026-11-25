@@ -268,6 +268,12 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
         "yate.editor_components.explorer",
         "yate.editor_components.file_manager.screen",
     },
+    # quickfix-nav wave-c: registered (R11) BEFORE the flow gained its
+    # editor_components import -- quickfix panel coupling is frozen up front.
+    "flows/quickfix_flows.py": {
+        "yate.editor_components",
+        "yate.editor_components.quickfix_panel",
+    },
     # lsp-navigation wave-4: registered (R11) after the fact -- the flow was
     # wired first, this whitelist entry retro-records its editor_components
     # coupling (commandline / hover_popup / lsp_chooser / panes).
@@ -397,16 +403,17 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
 })
 
 #: Measured ``splitlines()`` counts mirrored from architecture-boundaries.md
-#: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
+#: section 3.7 (quickfix-nav wave-c re-measure: ``vim.py`` 1729,
+#: ``editor.py`` 868).  The rule table is the readable
 #: source; this map is the executable half of the two-way sync guard.
 SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
-    "keymaps/vim.py": 1718,
+    "keymaps/vim.py": 1729,
     "editor_components/file_manager/screen.py": 1017,
     "editor_components/view.py": 891,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
     "editor_lsp/manager.py": 1248,
-    "editor.py": 848,
+    "editor.py": 868,
 }
 
 #: Code points a code comment or docstring must not carry (misc-rules

@@ -62,6 +62,7 @@ from yate.editor_components.completion import CompletionPopup
 from yate.editor_components.explorer import ExplorerTree
 from yate.editor_components.hover_popup import HoverPopup
 from yate.editor_components.panes import PaneHost, PaneManager
+from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_components.statusbar import StatusBar, mode_chip
 from yate.editor_components.terminal import TerminalPanel
 from yate.editor_components.view import EditorView
@@ -79,6 +80,7 @@ from yate.flows.mouse_flows import MouseFlows
 from yate.flows.navigation_flows import NavigationFlows
 from yate.flows.overlay_flows import OverlayFlows
 from yate.flows.prompt_flows import PromptFlows
+from yate.flows.quickfix_flows import QuickFixFlows
 from yate.flows.shell_flows import ShellFlows
 from yate.flows.whichkey_flows import WhichKeyFlows
 from yate.flows.window_flows import WindowFlows
@@ -95,7 +97,7 @@ from yate.services.events import (
 )
 from yate.services.extensions import ExtensionAPI, ExtensionContext, ExtensionLoader
 from yate.services.workspace import Workspace
-from yate.session import EditorSession
+from yate.session import EditorSession, QuickFixList
 
 #: Trace logger ("yate.editor"); silent unless yate_trace is on.
 log = tracing.get_logger(__name__)
@@ -123,6 +125,8 @@ class Editor:
     completion_popup: CompletionPopup
     hover_popup: HoverPopup
     terminal_panel: TerminalPanel
+    quickfix_panel: QuickFixPanel
+    quickfix: QuickFixList
     explorer_tree: ExplorerTree
     status_bar: StatusBar
     which_key_panel: WhichKeyPanel
@@ -148,6 +152,7 @@ class Editor:
     chunked_flows: ChunkedFlows
     macro_flows: MacroFlows
     navigation_flows: NavigationFlows
+    quickfix_flows: QuickFixFlows
 
     def __init__(
         self,
@@ -188,6 +193,9 @@ class Editor:
         # key_ui actions reach it later through the editor attribute.
         # Navigation flows: built in _build_pane_stack, right after overlays
         # (it needs the shared push verb and the document flows' activate).
+        # Quickfix flows: built in _build_pane_stack after navigation_flows;
+        # they share the QuickFixList created with the widgets (the panel
+        # is built first, its callbacks resolve the flow lazily).
         _build_models(self, keymap)
         _build_macro_flows(self)
         _build_widgets(self)
@@ -337,8 +345,10 @@ class Editor:
                 # layer above pane_host while #bottom (statusbar / prompt) no longer
                 # competes for vertical space -- the bug fix for "always shows VIM".
                 yield self.which_key_panel
-        # One docked container: the terminal sits directly above status/prompt.
+        # One docked container: the quickfix panel and the terminal sit
+        # directly above status/prompt.
         with Vertical(id="bottom-dock"):
+            yield self.quickfix_panel
             yield self.terminal_panel
             with Vertical(id="bottom"):
                 yield self.status_bar
@@ -349,6 +359,8 @@ class Editor:
         self._mounted = True
         self.terminal_panel.styles.height = self.config.terminal_height
         self.terminal_panel.display = False
+        # The quickfix dock starts hidden (no results yet; providers open it).
+        self.quickfix_panel.display = False
         # buffer the loader warnings BEFORE registering the servers, so a
         # registration failure cannot lose them (baseline on_mount ordering)
         self._ext_messages.extend(self.extension_flows.load_extensions())
@@ -527,6 +539,14 @@ class Editor:
     def execute_action(self, name: str) -> bool:
         """Run a registered action by name; ``False`` when it is unknown."""
         return _execute_action(self, name)
+
+    def show_quickfix(self) -> None:
+        """Reveal the docked quickfix panel (display switch only, R13)."""
+        self.quickfix_panel.display = True
+
+    def hide_quickfix(self) -> None:
+        """Hide the docked quickfix panel (display switch only, R13)."""
+        self.quickfix_panel.display = False
 
     def readonly_notice(self) -> None:
         """User feedback for an edit refused on a read-only buffer."""
