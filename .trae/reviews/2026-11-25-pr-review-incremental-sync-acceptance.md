@@ -4,7 +4,7 @@
 > 主计划：[`../documents/lsp-incremental-sync-acceptance-plan.md`](../documents/lsp-incremental-sync-acceptance-plan.md)
 > 子计划总纲：[`../documents/lsp-incremental-sync-acceptance-plans/overview.md`](../documents/lsp-incremental-sync-acceptance-plans/overview.md)
 
-Overall: **APPROVE**（0 BLOCKER / 0 MAJOR；主代理自审 1 MINOR 已修，迟到交付的 `pr-b` 报告 8 MINOR 经复核 3 修 5 登记）
+Overall: **APPROVE**（0 BLOCKER / 0 MAJOR；主代理自审 1 MINOR 已修，迟到交付的 `pr-b` 报告 8 MINOR 经复核 5 修 3 登记）
 
 ## 一、范围与基线
 

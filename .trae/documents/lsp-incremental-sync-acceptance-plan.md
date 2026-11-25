@@ -196,7 +196,7 @@ flowchart LR
 ### 10.5 合并前 pr-review（2026-11-25）
 
 - 记录：[`../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md`](../reviews/2026-11-25-pr-review-incremental-sync-acceptance.md)；索引已登记。
-- 结论：**APPROVE**，0 blocker / 0 major。`pr-a` 零产出；`pr-b` 迟到交付完整报告（8 minor），已逐条复核：3 条当轮修复（`e67f5f23` 与两份计划文档更正），5 条登记为后续维护/规则/流程项。
+- 结论：**APPROVE**，0 blocker / 0 major。`pr-a` 零产出；`pr-b` 迟到交付完整报告（8 minor），已逐条复核：5 条已闭环（死变量、plan-b 引用、plan-c 预期、合并 master、索引已在报告前落盘），3 条登记为后续维护/规则项。
 - 唯一合并前动作项已完成：`master` 新进 `b97a695c`，本分支曾落后 1 笔；已以 `1098c28e` 合入，三方 merge-tree 无冲突。
 - 合并后终态六门禁全 exit 0（见 §10.4）：pyright 0、pytest 4060 passed/10 skipped、架构 47、覆盖率 92.74%、冒烟 128/128、changelog 0。
 - 闭环结论仍为**完成**，未推送、未合入 `master`。
