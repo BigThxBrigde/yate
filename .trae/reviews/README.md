@@ -225,11 +225,12 @@ issue 文本 [full-repo-sweep-issue-brief.md](../documents/full-repo-sweep-issue
 评审记录 [2026-11-20-full-repo-review.md](2026-11-20-full-repo-review.md)。
 **2026-11-26 全仓 review 增量**：新增 #81（分支局部）（本地 `master` `b97a695c` = `origin/master`
 只读全仓多维度评审，`multi-dim-review` 13 维度、12 个只读分区审查员四波 fan-out + 主代理逐条
-回读与探针实测 + 主代理亲跑门禁）。基线 **0 BLOCKER / 6 MAJOR / 27 MINOR**（MAJOR =
-`support_mouse` 闸门顺序守卫恒真、`buffer_completions` 每请求全文档并集、`diff_words` 字符级
-O(n·m) 占 UI 线程、vim count 无上限、发布回滚只对 `RuntimeError` 生效、命令 / 动作 / 键位分派
-无异常边界（设计裁决项））+ 7 Suspects / 20 Suggestions；审查员 24 条候选经回读或实测反证
-撤回；已登记项现状复核无回归（#33 进程树终止维持另案，#77 yaterc 分数条目在分母分支有残留）。
+回读与探针实测 + 主代理亲跑门禁 + 3 名独立审核员并行反证与 S6 修订）。基线
+**0 BLOCKER / 5 MAJOR / 28 MINOR**（MAJOR = `buffer_completions` 每请求全文档并集、
+`diff_words` 字符级 O(n·m) 占 UI 线程、vim count 无上限、发布回滚只对 `RuntimeError` 生效、
+命令 / 动作 / 键位分派无异常边界（设计裁决项）；`support_mouse` 恒真守卫因另有行为测试兜底
+降 MINOR）+ 6 Suspects / 25 Suggestions；审查员 24 条候选经回读或实测反证撤回（1 条经独立审核
+重开）；已登记项现状复核无回归（#33 进程树终止维持另案，#77 yaterc 分数条目在分母分支有残留）。
 门禁全绿：pyright 0 / 全量 pytest `-n auto` 4062 收集·0 failed·10 skipped / 架构 47 /
 覆盖率 92.76% / 冒烟 128/128·1554 checks / changelog 0。本轮不修改产品代码，修复方案待用户批准。
 评审记录 [2026-11-26-full-repo-review.md](2026-11-26-full-repo-review.md)，
@@ -416,7 +417,7 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 
 | 79（分支局部） | 2026-11-21 | **全仓扫描修复闭环评审重试兜底**（`feature/fix-full-repo-sweep` 收尾提交 `8a247d98..ad505bf0`；`code-review-expert` 变更配置重试后首个探活即 `Recipient not found`，主代理按纪律兜底） | ✅ **APPROVE**（0 blocker / 0 major / 0 minor；七道门禁全 exit 0：pyright 0 / pytest `-n auto` 0 / 架构 46 / 覆盖率双口径 3981 passed·10 skipped·93.14%·93.12% / 冒烟 124/124·1511 checks / changelog 0） | [2026-11-21-full-repo-sweep-independent-review.md](2026-11-21-full-repo-sweep-independent-review.md)，方案见 [full-repo-sweep-plan.md](../documents/full-repo-sweep-plan.md) |
 | 80（分支局部） | 2026-11-23 | **`feature/enh-lsp-navigation` 合并前 pr-review**（merge-base `c6d6e89a` / 12 提交 / 38 文件 +5011−21；2 名 `code-review-expert` 只读分域审查 + 主代理逐条回读实证）。基线 REQUEST_CHANGES：3 MAJOR = locked/read-only buffer rename 假成功 / `parse_locations` 缺 range 产出 (0,0) 幽灵跳转 / 双语 lsp 文档 K 键仅写 vim 而 vsc 同绑定；另 3 MAJOR 属文档登记（§一 L3 清单漏登 / plan-e R11 偏离悬空 / 评审记录 scope 过期）+ 8 MINOR | ✅ **APPROVE**（全部当轮修复：rename 改两阶段预校验并拒 locked/read-only、畸形 location 跳过、四份文档 K 键对齐、本机路径脱敏、架构 §一/plan-e/索引/scope 回填；signature activeParameter 取 signature 级并钳负；带 9 条回归用例先红后绿；复审 2 MAJOR 当轮修复（partial range 幽灵跳转 / 门禁数字漂移）；门禁全绿：pyright 0 / 全量 pytest `-n auto` 0（4046 tests·4036 passed·10 skipped）/ 架构 47 / 覆盖率 92.74% / 冒烟 128/128·1554 / changelog 0 / diffcheck 0；并行覆盖率 1 flake 串行复核 0） | [2026-11-23-pr-review-enh-lsp-navigation.md](2026-11-23-pr-review-enh-lsp-navigation.md)，方案见 [lsp-navigation-plan.md](../documents/lsp-navigation-plan.md) |
-| 81（分支局部） | 2026-11-26 | **全仓库多维度评审（只读）**（本地 `master` `b97a695c` = `origin/master`；`multi-dim-review` 13 维度 / 12 个只读分区审查员四波 fan-out + 主代理逐条回读与探针实测；规划子代理零产出，方案由主代理代笔）。基线 REQUEST_CHANGES：6 MAJOR = `support_mouse` 闸门顺序守卫恒真 / `buffer_completions` 每请求全文档并集 / `diff_words` 字符级 O(n·m) 占 UI 线程 / vim count 无上限 / 发布回滚只对 `RuntimeError` 生效 / 命令·动作·键位分派无异常边界（设计裁决项）+ 27 MINOR | 👀 仅出评审记录，修复方案待用户批准（本轮零产品代码改动）；门禁全绿：pyright 0 / 全量 pytest `-n auto` 0（4062 收集·0 failed·10 skipped）/ 架构 47 / 覆盖率 92.76% / 冒烟 128/128·1554 checks / changelog 0 | [2026-11-26-full-repo-review.md](2026-11-26-full-repo-review.md)，方案见 [full-repo-review-plan.md](../documents/full-repo-review-plan.md) |
+| 81（分支局部） | 2026-11-26 | **全仓库多维度评审（只读）**（本地 `master` `b97a695c` = `origin/master`；`multi-dim-review` 13 维度 / 12 个只读分区审查员四波 fan-out + 主代理逐条回读与探针实测；规划子代理零产出，方案由主代理代笔）。基线 REQUEST_CHANGES：5 MAJOR = `buffer_completions` 每请求全文档并集 / `diff_words` 字符级 O(n·m) 占 UI 线程 / vim count 无上限 / 发布回滚只对 `RuntimeError` 生效 / 命令·动作·键位分派无异常边界（设计裁决项）+ 28 MINOR（`support_mouse` 恒真守卫降 MINOR）；另由 3 名独立审核员复核修订 | 👀 仅出评审记录，修复方案待用户批准（本轮零产品代码改动）；门禁全绿：pyright 0 / 全量 pytest `-n auto` 0（4062 收集·0 failed·10 skipped）/ 架构 47 / 覆盖率 92.76% / 冒烟 128/128·1554 checks / changelog 0 | [2026-11-26-full-repo-review.md](2026-11-26-full-repo-review.md)，方案见 [full-repo-review-plan.md](../documents/full-repo-review-plan.md) |
 
 ---
 
@@ -517,7 +518,7 @@ vsc / 默认值零回归。七道门禁全 exit 0（pyright 0 / 全量 pytest 0 
 | 2026-11-19 | **pr-review · `feature/feat-toggle-comment` 合并前评审 + 遗留 MINOR 闭环修复**（IKWNOG；`50702ec7..431ab4f3` 8 笔 / 34 文件 +1338−55；`Ctrl+/` 改注释、`Ctrl+Shift+/` 走 name-level 切键位；子代理模型一致性约束无法在 spawn 参数满足，主代理亲自评审） | ✅ APPROVE（REQUEST_CHANGES → 2 MAJOR 当轮修复转绿；遗留 2 MINOR 后续无人值守波次全闭环） | 2 MAJOR（`# `/`// ` 仅 marker 行首次 toggle 塌成空行不可逆；`/*  x */` 内侧多余空格剥层丢空白不可逆）/ 0 blocker / 2 minor（别名硬编码、命令忽略参数）+ 1 非缺陷（gcc 光标落点） | ✅ 全修（`680c3780` 严格形态判定 + 尾随空白外置，TDD 先红后绿 + 18 组边界矩阵 `BROKEN: []`；`47b12c09` 别名提升共享常量、`fa1fdd37` `:toggle-comment` 拒绝参数；门禁 pyright 0 + pytest 全绿 + 架构 45 + 覆盖率 93.15% + 冒烟复跑 124/124·1511·exit0（前几轮 sidebar flake）+ changelog 0，全 exit 0；分支未推送未合入 master） | [2026-11-19-pr-review-toggle-comment.md](2026-11-19-pr-review-toggle-comment.md) |
 
 | 2026-11-20 | **全仓库多维扫描（只出 issue 文本，不改产品代码）**（本地 `master` `f7e34c34`；`multi-dim-review` 13 维度 / 5 只读分区审查员两波 fan-out + 主代理逐条回读与门禁亲跑） | ⚠️ REQUEST_CHANGES（0 BLOCKER / 1 MAJOR / 6 MINOR；4 Suspects / 5 Suggestions） | MAJOR = LSP 诊断热路径 `diagnostic_at` 全表扫描；MINOR = `move_entry` 自嵌套守卫、yaterc Unicode 分数、规则行数/守卫数漂移、嵌套 pytest 并行覆盖率 flake、文档索引/状态块失真 | 👀 仅生成 [issue 文本](../documents/full-repo-sweep-issue-brief.md)，修复另立计划；门禁 pyright 0 / 全量 pytest 0 / 架构 45 / 覆盖率 `-n 1` 93.09%·3962 passed（`-n auto` 1 flake）/ 冒烟 124/124·1511 / changelog 0 | [2026-11-20-full-repo-review.md](2026-11-20-full-repo-review.md) |
-| 2026-11-26 | **全仓库多维度评审（只读，出评审记录不改产品代码）**（本地 `master` `b97a695c`；`multi-dim-review` 13 维度 / 12 个只读分区审查员四波 fan-out + 主代理逐条回读与探针实测 + 主代理亲跑门禁） | ⚠️ REQUEST_CHANGES（0 BLOCKER / 6 MAJOR / 27 MINOR；7 Suspects / 20 Suggestions） | MAJOR = `support_mouse` 闸门顺序守卫恒真 / `buffer_completions` 每请求全文档并集 / `diff_words` 字符级 O(n·m) 占 UI 线程 / vim count 无上限 / 发布回滚只对 `RuntimeError` 生效 / 命令·动作·键位分派无异常边界（设计裁决项） | 👀 仅出评审记录，修复方案待用户批准（本轮零产品代码改动）；门禁 pyright 0 / 全量 pytest `-n auto` 0（4062 收集·0 failed·10 skipped）/ 架构 47 / 覆盖率 92.76% / 冒烟 128/128·1554 / changelog 0 | [2026-11-26-full-repo-review.md](2026-11-26-full-repo-review.md) |
+| 2026-11-26 | **全仓库多维度评审（只读，出评审记录不改产品代码）**（本地 `master` `b97a695c`；`multi-dim-review` 13 维度 / 12 个只读分区审查员四波 fan-out + 主代理逐条回读与探针实测 + 主代理亲跑门禁 + 3 名独立审核员反证） | ⚠️ REQUEST_CHANGES（0 BLOCKER / 5 MAJOR / 28 MINOR；6 Suspects / 25 Suggestions） | MAJOR = `buffer_completions` 每请求全文档并集 / `diff_words` 字符级 O(n·m) 占 UI 线程 / vim count 无上限 / 发布回滚只对 `RuntimeError` 生效 / 命令·动作·键位分派无异常边界（设计裁决项） | 👀 仅出评审记录，修复方案待用户批准（本轮零产品代码改动）；门禁 pyright 0 / 全量 pytest `-n auto` 0（4062 收集·0 failed·10 skipped）/ 架构 47 / 覆盖率 92.76% / 冒烟 128/128·1554 / changelog 0 | [2026-11-26-full-repo-review.md](2026-11-26-full-repo-review.md) |
 
 **状态图例**：✅ 已全修 ｜ 🟡 部分待修 ｜ ⬜ 已失效 ｜ ➖ 不适用
 

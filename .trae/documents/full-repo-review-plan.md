@@ -64,7 +64,7 @@
 
 | 分区 | 范围 | 文件 / 行数 | 重点文件 | 关注重点 |
 |---|---|---|---|---|
-| **P-A** 编辑内核与语法 | `yate/editor_core/**`、`yate/editor_syntax/**`、`yate/editor_sprites/**`（sprites 为纯数据，只核对数据契约） | 48 / 8368 | `editor_core/diff.py`、`editor_core/commenting.py` | 撤销 delta 语义、脏区间 take/peek 契约、diff3 单调游标、注释引擎可逆性、ts 树增量 edit、文本对象边界、O(文档) 每击键工作 |
+| **P-A** 编辑内核与语法 | `yate/editor_core/**`、`yate/editor_syntax/**`、`yate/editor_sprites/**`（sprites 为纯数据，只核对数据契约） | 48 / 8368 | `editor_core/diff.py`、`editor_core/commenting.py` | 撤销 delta 语义、脏区间 take/peek 契约、diff3 单调游标、注释引擎可逆性、ts 树增量 edit、文本对象边界、每击键全文档工作 |
 | **P-B1** 调度与模型 | `yate/editor.py`、`editor_compose.py`、`editor_dispatch.py`、`actions.py`、`commands.py`、`cmdline_completions.py`、`diagnostics.py`、`session.py`、`registries.py` | 9 / 3998 | `actions.py`、`commands.py`、`editor.py`、`editor_compose.py`、`editor_dispatch.py`、`diagnostics.py` | 窗格树不变量、按键一次派发与 fall-through（R10）、动作 / 命令表一致性、组装顺序与注入边界、诊断快照只读性 |
 | **P-B2** 流程模块 | `yate/flows/**` | 17 / 4359 | `flows/lsp_navigation_flows.py`（新） | 不持有 App 句柄、在途请求过期与竞态、rename 两阶段预校验、工作区编辑落盘原子性、worker 异常可观测、`UI_FROZEN_FILES` 登记 |
 | **P-C1** 渲染 / 主题 / 浏览组件 | `editor_components/{view,highlighting,wrap_layout,welcome,cells,chrome,canvas_screen,screensaver,icons,scrollbars,preview,manual}.py`、`editor_components/theme/**`、`editor_components/diff/**` | 18 / 6108 | `view.py`、`diff/pane.py` | render_line 每行成本、宽字符裁剪、wrap 缓存键、主题所有权（R13）、滚动条注入（R15）、diff 重算防抖与取消 |
@@ -258,26 +258,38 @@ git diff --stat master...HEAD                      # 仅 .trae/ 下 3 个文档
 | 步骤 | 时间（本地） | 结果 |
 |---|---|---|
 | S0 领会 | 2026-11-26 06:35 | worktree + 分支 + 独立 venv 建立，`import yate` 指向本 worktree |
-| S1 方案 | 进行中 | 规划子代理两次 spawn 均模型未注册 → 主代理代笔本文件 |
-| S2 门禁 | 进行中 | 见 §十 |
-| S3 fan-out | 未开始 | — |
-| S4 记录 | 未开始 | — |
-| S5 审核 | 未开始 | — |
-| S7 收尾 | 未开始 | — |
+| S1 方案 | 07:06（提交 `8c805463`） | 规划子代理两次 spawn 均模型未注册 → 主代理代笔本文件 |
+| S2 门禁 | 06:40–07:10 | 六道门禁全绿，主代理亲跑（见 §十） |
+| S3 fan-out | 07:08–07:37 | 12 个只读分区审查员四波 fan-out；首个 P-B1 因通读长文档被上下文压缩零交付，改「最小读取清单」后重试交付；主代理逐条回读、探针实测、裁定 |
+| S4 记录 | 08:23（提交 `516276b3`） | 评审记录 + README 追加；记录 mdlint 0 / README 76=master 基线；架构守卫复跑 47 passed；`git diff --check` 0 |
+| S5 审核 | 08:30–20:20 | 3 名 `code-review-expert` 并行只读反证（共 535 次只读工具调用，全部交付、未跑门禁）+ 主代理逐条裁定 |
+| S6 迭代 | 20:31（提交 `64f15a6d`） | M1 降 MINOR、撤回 #24 重开、m16 降 SUGGESTION；驳回 error_for 升 MAJOR 与 m4 降级；最终 5 MAJOR / 28 MINOR / 6 Suspects / 25 Suggestions，mdlint 0 |
+| S7 收尾 | 20:31 起 | 回填本节 / §十 / §十一；README 计数校正；清理临时产物；提交后向用户汇报并等待修复批准 |
 
 ## 十、门禁实测（回填）
 
 | 命令 | 结果 | 退出码 |
 |---|---|---|
-| `pyright yate/ tests/ tools/ pack/` | 待回填 | — |
-| `pytest tests/ -q -n auto` | 待回填 | — |
-| `pytest tests/test_architecture.py -q` | 待回填 | — |
-| `pytest tests/ --cov=yate --cov-branch -n auto` | 待回填 | — |
-| `tools.smoke_test run --jobs 4` | 待回填 | — |
-| `tools.changelog check` | 待回填 | — |
+| `pyright yate/ tests/ tools/ pack/` | 0 errors | 0 |
+| `pytest tests/ -q -n auto` | 4062 收集 · 0 failed · 10 skipped | 0 |
+| `pytest tests/test_architecture.py -q` | 47 passed（S4 文档改动后复跑仍 47） | 0 |
+| `pytest tests/ --cov=yate --cov-branch -n auto` | 覆盖率 92.76%（4052 passed · 10 skipped），阈值 75 | 0 |
+| `tools.smoke_test run --jobs 4` | 128/128 场景 · 1554/1554 检查（93.87 s） | 0 |
+| `tools.changelog check` | released 段一致 | 0 |
+
+复核期另跑一次全量 `pytest --cov`（仅三模块，全新 basetemp）exit 0；首次尝试被本机
+safe-delete 钩子在收尾清理阶段杀掉（100% 跑完、无 F/E，环境伪影），换全新 basetemp 后通过。
+S5 审核员受只读约束未跑门禁，门禁数字仅由主代理背书。
 
 ## 十一、偏离记录（回填）
 
 | # | 偏离 | 依据与处置 |
 |---|---|---|
 | D-1 | 【方案】未由 `plan-architect-designer` 子代理产出 | 该角色模型在本机未注册（两次 spawn 均 `Model "qwen-3.8-plus" not found`，`task` 工具无模型参数可改），按 `task-orchestration.md` §一.3.5 / §三 由主代理按剧本代笔，如实标注「子代理零产出」 |
+| D-2 | 【审查】首个 P-B1 审查员零交付 | 通读 563 / 742 行长文档致上下文压缩，最终回复只有摘要；改「最小读取清单 + `rg` 定位分段读 + 先写候选清单 + 禁止通读长文档」后重试交付，已在评审记录 §九 登记 |
+| D-3 | 【索引】README 追加 3 处而非方案 §五 S4 的「一段 + 一行」 | 多追加了 #81 编号行，与 #77 / #80 既有登记惯例一致（§一 表格留空编号会让索引失真）；未重排既有编号，不违反 R7 的合并热点控制 |
+| D-4 | 【门禁】首次覆盖率探针被本机钩子杀掉 | `@safe-delete` 在 pytest 收尾清理 `%TEMP%` 积压时拦截批量删除（100% 通过后、无 F/E），退出码 1 属环境伪影；用全新 `--basetemp` 重跑 exit 0；`%TEMP%\yate-covprobe-*` 未擅清，仅在汇报中列出。`.venv/gate-logs/cov.xml` 实为 pytest JUnit 报告，非覆盖率 XML |
+| D-5 | 【文档门禁】mdlint 基线不干净 | 新评审记录修订至 0 违规；README 现版 76 = master 基线 76（我的追加未新增违规）；方案文档 10 处 `YM002` 中 9 处是 Markdown 链接 `](../rules/...)` 的误报，1 处 `O(文档)` 已改写 |
+| D-6 | 【独立审核】S5 两条提议被主代理驳回 | ① 「LSP 启动失败原因两条通道都不可达 → 升 MAJOR」：`manager.py:407,416` 有 `log.warning`，日志通道可达，改 SUGGESTION（UI 缺口）；② 「锁表误摘降级」：`sync.py:142` 先算版本、`:152` 才回写，同一当前 state 的两个并发发送者都能通过 `:140/:151`，维持 MINOR |
+| D-7 | 【撤回重开】#24 `_render_parent` | 初版只在 `explorer.py` 检索符号并据「找不到」撤回，属事实错误；S5 在 `file_manager/screen.py:199,455` 找到符号并给出未缓存 `list_dir` 的反证，改记 SUSPECT（评审记录 §三 / §七） |
+| D-8 | 【流程】本轮不推送、不合并 | 3 笔提交（方案 + 记录 + 修订）全部留在 `feature/enh-full-repo-review`，未推送；产品代码零改动；修复方案须用户批准后另立计划 |
