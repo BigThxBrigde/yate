@@ -80,7 +80,11 @@ class ActionRegistry:
         action = self._actions.get(name)
         if action is None:
             return False
-        action.func(ctx)
+        try:
+            action.func(ctx)
+        except Exception as exc:  # noqa: BLE001 - one handler must not kill the session
+            log.exception("action %s failed", name)
+            ctx.report_error(f"action {name} failed: {type(exc).__name__}: {exc}")
         return True
 
     def names(self) -> list[str]:
