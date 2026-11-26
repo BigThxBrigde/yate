@@ -168,7 +168,9 @@ git --no-pager diff --check
 | C | `ef84366e`（21:05） | M4/m10/m11/m12/m13/m14/m15/m16/m18/m19/m20/m21/m28 落地；新增 7 个测试文件 | pyright tools 0，132 条通过 |
 | D | `82eb2ef4`（21:07） | m23/m24/m25/m26/m27/m29 落地；主代理同步 A/B 引起的三处行数固定值 | 架构 47 passed |
 | 全量门禁修正 | `ce86af67`（21:11）、`26af5c07`（21:13）、`02c8ab20`（21:25） | 修正波次 C 测试的 21 处 pyright 诊断；全量 pytest 暴露的 8 条回归（领域异常契约、宏计数上界、信任存储缺失、wiki push 桩、saveas 契约） | 修复后六道门禁全绿 |
-| 门禁 / 审核 | 审核员结论回填中 | 主代理六道门禁（21:25–21:35）全部 exit 0 | pyright 0 / pytest 4115 收集·0 failed / 架构 47 / 覆盖率 92.79% / 冒烟 128·1559 / changelog 0 |
+| 门禁（首轮） | — | 主代理六道门禁（21:25–21:35）全部 exit 0，全量 pytest 暴露的 8 条回归已修 | pyright 0 / pytest 4115 收集·0 failed / 架构 47 / 覆盖率 92.79% / 冒烟 128·1559 / changelog 0 |
+| S5 审核回炉 | `b0f76c3c`（21:42） | `code-reviewer-tools` 交付 13 闭合 / 5 部分闭合 + 1 major（Lua lint 字符串内 `--` 致后续规则静默失效）+ 9 minor；主代理逐条裁定后全部修复并补负向用例 | 定点 11 文件全通过、pyright 0 |
+| 门禁（重验收） | — | §二.7 要求 major 回炉后重跑六道门禁，全部 exit 0 | pyright 0 / pytest 4121 收集·0 failed / 架构 48 / 覆盖率 92.78% / 冒烟 128·1559 / changelog 0 |
 
 ## 七、偏离记录（回填）
 
@@ -182,4 +184,7 @@ git --no-pager diff --check
 | D-6 | 子代理越界提交 | 历史中出现两笔 `Merge branch 'master'`（`b19b283d`、`2afd0057`）与两笔 `chore`（agents 模型、translate 默认模型 `ee446b8b`、`ac47f7d1`），均署名 i77，内容超出本轮范围且违反「不合并 / 子代理不提交」。因已入历史且门禁全绿，主代理不重写历史；**请用户在合并本分支前裁决是否拆分/回退这四笔** |
 | D-7 | m2 的 stderr 丢弃未完全闭合 | 客户端仍以 `DEVNULL` 丢弃服务器进程 stderr；spawn 失败在 `manager.py:407,416` 有日志，UI 侧缺口保持 SUGGESTION，列为后续项 |
 | D-8 | 全量 pytest 出现一条 `PytestUnraisableExceptionWarning` | Textual `active_message_pump` ContextVar 跨 Context（测试清理阶段），退出码 0、无失败用例；按 load-sensitive 环境噪声登记，不修改测试掩盖 |
-| D-9 | 两名独立审核员零最终产出 | 波次 C/D 的执行成员正常落盘；但用于最终复核的两名 `code-review-expert` 在约 1 小时内无回音、无落盘结果（已发探活、催办与关闭请求）。按 `subagent-workflow.md` §五.6 查过可观察产物后不再等待；收尾由主代理逐条回读 + 六道全量门禁 + 8 条回归修正背书 |
+| D-9 | 独立审核员产出不对称 | `code-reviewer-tools` 在关闭握手时交付完整报告（13 闭合 / 5 部分闭合、1 major + 9 minor），已全部处置；`code-reviewer-product` 被运行时停止且无报告（`shutdown_response` 自动确认），由主代理按 §五.6 自查 A/B 波次并以全量门禁补位。此前 D-9 曾记作「两名零产出」，据实际回音更正 |
+| D-10 | S5 major 回炉 | Lua lint 的注释剥离先于字符串屏蔽，字符串内 `--` 会令后续规则静默失效（相对修复前为回归）；改为先屏蔽字符串再剥注释，补 2 条负向用例；附带 9 条 minor（回滚异常集、`wait_for` 边界、zip 无备份分支、icon 用例判别力、explorer 早退、3 处行宽、D9 措辞等）一并闭合 |
+| D-11 | M4 未按方案「原样 `raise`」 | 实现为 `return _abort_with_rollback(...)`（受控 exit 1），Ctrl+C 退出码为 1 而非 130；功能上回滚与报告完整，保留现状并登记偏离，如需 130 语义另行处理 |
+| D-12 | 审核员检查时方案尚未回填 | `code-reviewer-tools` 报告的「§六/§七 待回填」在其检查时点成立；主代理随后已回填执行日志、门禁数字与偏离记录 |
