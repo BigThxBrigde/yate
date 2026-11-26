@@ -93,8 +93,8 @@ flowchart LR
 
 ## 五、回填区（P2/P3 完成后填写）
 
-- 评审结论：
-- 门禁数字：
-- 发现统计与处置：
-- 子代理存活/零产出情况：
-- 提交与工作树状态：
+- 评审结论：**APPROVE**（初评 `REQUEST_CHANGES`：0 BLOCKER / 6 MAJOR / 16 MINOR；迭代后 blocker/major 归零）。
+- 门禁数字（终态 HEAD `24fb1068`，主代理亲跑）：pyright 0；`pytest -n 1` 全量 exit 0（4099 collected）；架构 48 passed；覆盖率 `fail-under=75` exit 0、92.82%；冒烟 129/129 scenarios · 1575/1575 checks；`changelog check` exit 0；`git diff --check master...HEAD` 0。`-n auto` 在工具层 idle-timeout，按纪律以串行复核，非测试失败。
+- 发现统计与处置：6 MAJOR 全修；M4-M11、M13 与 C-04 全修；M1/M2/M3 与 A-12 作为既定设计/性能量级登记不修；A-7 并入 A-1 统一修复；初评撤回/降级项按评审记录 §4 保留证据。
+- 子代理存活/零产出情况：3 名只读评审员 + 2 名执行者全部交付；无零产出；`python-code-review` skill 未注册，评审员按 agent 剧本回退。
+- 提交与工作树状态：方案 `e242d38c` / 报告 `93102c59` / F1 `2a67fe4b` / F2 `9ca81da8` / R11 `1bb955e0` / 用例稳定 `5ee31927` / SVG `24fb1068`；未推送、未合并 master；收尾工作树干净。

@@ -73,10 +73,10 @@ flowchart LR
 
 ## 五、回填区
 
-- 修复提交：
-- 修复后门禁：
-- 发现处置：
-- 子代理情况：
+- 修复提交：`2a67fe4b`（F1 产品逻辑）、`9ca81da8`（F2 文档事实链）、`1bb955e0`（R11 登记与行数表）、`5ee31927`（面板滚动用例时序）、`24fb1068`（冒烟 SVG 断言稳定化）。终态 HEAD `24fb1068`；未推送、未合并 master。
+- 修复后门禁：pyright 0；全量 pytest `-n 1` exit 0（4099 collected）；架构 48 passed；覆盖率 `fail-under=75` exit 0、精确值 92.82%；冒烟 129/129 scenarios · 1575/1575 checks；`changelog check` exit 0；`git diff --check master...HEAD` 0。`-n auto` 两次在工具层 idle-timeout，按纪律串行复核，非测试失败。
+- 发现处置：6 MAJOR 全部闭环；M4-M11、M13 与 C-04 全修；M1/M2/M3 与 A-12 登记不修；A-7 并入 A-1。F1 引入的 `find_replace` 组件导入按 R11 补登白名单，`editor.py` 行数同步为 875；窄视口用例在并行下暴露布局时序伪影，已改为等待 `max_scroll_y` 后再重绘；SVG provider 断言改为稳定子串后冒烟全绿。
+- 子代理情况：F1/F2 两名 `plan-executor` 全部交付；主代理逐条回读并重跑其名下测试与门禁，无零产出。
 - 执行进度（F2 执行者登记，2026-11-26）：F1 已落盘（主代理侧）；F2 进行中——
   双语手册 `:diagnostics` 四处、事实链五处（上一轮记录 / 索引 / 主计划 §10 /
   pr-review 方案 / pr-review 记录头部）、R9 `#quickfix-panel` + docstring `R1-R15`、

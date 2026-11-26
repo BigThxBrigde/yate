@@ -5,7 +5,7 @@
 
 三名 `code-review-expert` 只读分域评审（A 功能/安全/算法性能、B 架构/类型/文档、C 测试/键位/冒烟/纪律）全部交付；主代理逐条回读复核，不引用子代理自述数字。`python-code-review` skill 在运行时未注册，评审员按 agent 剧本回退，未阻塞。
 
-**Overall: REQUEST_CHANGES**（初评：6 MAJOR / 16 MINOR / 0 BLOCKER；硬门禁全绿但存在用户可见语义与事实链问题）
+**Overall: APPROVE**（初评 REQUEST_CHANGES：0 BLOCKER / 6 MAJOR / 16 MINOR；修复后 blocker/major 归零，4 条设计/性能提示登记不修，其余 MINOR 全部闭环）
 
 ## 1. 维度小结
 
@@ -93,6 +93,7 @@ Fix: 统一口径：功能分支起点 `b97a695c` 保留历史叙述，评审范
 
 ## 7. 回填区（修复波后填写）
 
-- 迭代结论：
-- 修复提交：
-- 修复后门禁：
+- 迭代结论：**APPROVE**。6 个 MAJOR 全部关闭；M4-M11、M13 与 C-04 的 SVG 断言全修；M1/M2/M3 与 A-12 按既定设计/性能量级登记不修。F1 引入的 `find_replace` 组件导入按 R11 补登并同步 `editor.py` 实测行数 875，`editor.py` 行数与规则表一致。
+- 修复提交：`2a67fe4b`（F1 产品逻辑）、`9ca81da8`（F2 文档事实链）、`1bb955e0`（R11 登记与行数表）、`5ee31927`（面板滚动用例时序）、`24fb1068`（SVG 断言稳定化）。终态 HEAD `24fb1068`；未推送、未合并 master。
+- 修复后门禁（主代理亲跑）：pyright 0；`pytest -n 1` 全量 exit 0（4099 collected）；架构 48 passed；覆盖率数据 `fail-under=75` 检查 exit 0、精确值 92.82%；冒烟 129/129 scenarios · 1575/1575 checks；`changelog check` exit 0；`git diff --check master...HEAD` 0。`-n auto` 两次在工具层 idle-timeout，按纪律以 `-n 1` 串行复核，非测试失败。
+- 子代理情况：3 名评审员全部交付；2 名执行者全部交付；无零产出成员。
