@@ -100,22 +100,23 @@ def _run_one(scenario: Scenario, svg_path: Path) -> None:
         fixtures.mkdir()
         write_fixtures(fixtures)
 
-        async def _drive() -> None:
-            await asyncio.wait_for(
-                scenario.driver(svg_path, fixtures), timeout=timeout
-            )
-            # Inside the same wait_for budget: embed_icon_font spawns a
-            # fontTools.subset subprocess that must never stall the run
-            # indefinitely (its own subprocess.run carries a timeout too).
+        async def _render_and_finish() -> None:
+            await scenario.driver(svg_path, fixtures)
+            if not svg_path.is_file():
+                raise RuntimeError("no image written")
+            text = svg_path.read_text(encoding="utf-8")
+            if not text.lstrip().startswith("<svg"):
+                raise RuntimeError("no image written")
+            # embed_icon_font spawns a fontTools.subset subprocess; its own
+            # subprocess.run carries a timeout, and this whole coroutine
+            # shares one budget with the pilot run.
             await asyncio.to_thread(scrub_svg, svg_path)
             await asyncio.to_thread(embed_icon_font, svg_path)
 
+        async def _drive() -> None:
+            await asyncio.wait_for(_render_and_finish(), timeout=timeout)
+
         asyncio.run(_drive())
-    if not svg_path.is_file():
-        raise RuntimeError("no image written")
-    text = svg_path.read_text(encoding="utf-8")
-    if not text.lstrip().startswith("<svg"):
-        raise RuntimeError("no image written")
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -273,9 +273,12 @@ def check_source(
                 {param.strip() for param in params.split(",") if param.strip()}
             )
 
-    # One masked text for all lines: the long-bracket state must survive
-    # line breaks, and the brace depth below reads the same masked text.
-    masked_lines = mask_strings("\n".join(code_lines)).split("\n")
+    # Mask strings on the ORIGINAL source first: stripping comments before
+    # masking lets a "--" inside a string truncate the line, which in turn
+    # leaves an unclosed [[ and silently disables every later rule.  On the
+    # masked text "--" inside strings is already blanked, so comment removal
+    # cannot confuse the long-string state.  Both passes keep line counts.
+    masked_lines = strip_comments(mask_strings(source))
     depth = 0
     for number, (code, masked) in enumerate(zip(code_lines, masked_lines), start=1):
         # Banned calls scan string-masked text so a literal like

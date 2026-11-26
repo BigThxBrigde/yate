@@ -281,7 +281,8 @@ def _capture_wire_frames(client: LspClient) -> list[bytes]:
         frames.append(protocol.encode_message(payload))
         await inner(payload)
 
-    cast(Any, client)._write_raw = capture  # noqa: Any - test seam: wrap the production encoder boundary.
+    # noqa: Any - test seam: wrap the production encoder boundary.
+    cast(Any, client)._write_raw = capture
     return frames
 
 

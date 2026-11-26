@@ -66,6 +66,10 @@ def test_scrub_and_embed_run_inside_the_wait_for_budget() -> None:
     observe by inspecting the coroutine body.
     """
     source = inspect.getsource(_run_one)
-    drive = source.split("async def _drive", 1)[1].split("asyncio.run(", 1)[0]
-    assert "scrub_svg" in drive
-    assert "embed_icon_font" in drive
+    body = source.split("async def _render_and_finish", 1)[1].split(
+        "asyncio.run(", 1
+    )[0]
+    # The post-processing steps share one wait_for with the pilot run:
+    assert "scrub_svg" in body
+    assert "embed_icon_font" in body
+    assert "asyncio.wait_for(_render_and_finish(), timeout=timeout)" in body

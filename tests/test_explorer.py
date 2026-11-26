@@ -219,6 +219,22 @@ def test_submit_delete_reports_os_error(tmp_path: Path) -> None:
     assert prompt.writes == [("delete failed: directory not empty", "error")]
 
 
+def test_submit_actions_without_target_are_silent(tmp_path: Path) -> None:
+    """Every submit path no-ops when no target has been chosen (m26 remaining)."""
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    assert tree._target is None
+
+    tree.submit_create("a.py")
+    tree.submit_rename("b.py")
+    tree.submit_delete("y")
+
+    workspace.create_entry.assert_not_called()
+    workspace.rename_entry.assert_not_called()
+    workspace.remove_entry.assert_not_called()
+    assert prompt.writes == []
+
+
 # --- EditorSession.close_under / LspSync.documents_closed ------------------
 
 

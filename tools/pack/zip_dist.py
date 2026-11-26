@@ -258,6 +258,12 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
                 else:
                     archive.unlink(missing_ok=True)
             except OSError as rollback_exc:
+                if backup is None:
+                    print(
+                        f"zip_dist: rollback failed ({rollback_exc}); the "
+                        f"archive was replaced but checksums were not updated",
+                        file=sys.stderr,
+                    )
                 if backup is not None:
                     # A failed rollback must not hide the swap error -- and
                     # the backup of the previous archive is now the only

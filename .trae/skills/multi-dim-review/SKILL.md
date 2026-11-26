@@ -181,8 +181,9 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
 - 4-space indent, lines <= 100 chars, house naming table; guard clauses and
   early returns, nesting <= 3; truthiness tests; comprehensions over
   append-loops where they stay readable
-- Comments and docstrings: **English only, ASCII only** (no CJK, fullwidth
-  punctuation, `§` / `°`) — new hits must be rewritten,
+- Comments and docstrings: **English only**; the guard rejects CJK, fullwidth
+  punctuation and `§` / `°` (other non-ASCII symbols such as em dashes and
+  arrows pass) — new banned hits must be rewritten,
   `NON_ASCII_COMMENT_EXEMPT` is frozen
 - No `print()` in `yate/` outside `PRINT_EXEMPT_SITES`; log via tracing with
   lazy `%` placeholders, never f-strings

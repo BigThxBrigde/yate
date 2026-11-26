@@ -138,7 +138,11 @@ def test_banned_calls_are_reported(
     """print / io / os.execute are all rejected."""
     source = 'print("x")\nio.open("y")\nos.execute("z")\n'
 
-    issues = [issue for issue in _lint(tmp_path, source, compiler, modules) if issue.rule == "banned-call"]
+    issues = [
+        issue
+        for issue in _lint(tmp_path, source, compiler, modules)
+        if issue.rule == "banned-call"
+    ]
 
     assert len(issues) == 3
 
@@ -167,6 +171,32 @@ def test_banned_call_inside_string_literal_is_not_reported(
     issues = _lint(tmp_path, source, compiler, modules)
 
     assert [issue.rule for issue in issues] == []
+
+
+@requires_lupa
+def test_double_dash_inside_long_string_keeps_later_rules_active(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """A ``--`` inside a string must not mask every subsequent line (S5 M-1)."""
+    issues = _lint(tmp_path, 'local doc = [[a--b]]\nprint(1)\n', compiler, modules)
+
+    assert any(
+        issue.rule == "banned-call" and issue.line == 2 for issue in issues
+    )
+
+
+@requires_lupa
+def test_double_dash_inside_quoted_string_keeps_global_leak_detection(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """String masking runs before comment stripping, so depth stays balanced."""
+    source = 'local x = f("a--b")\nif true then\n  leak = 1\nend\n'
+    issues = _lint(tmp_path, source, compiler, modules)
+
+    assert any(
+        issue.rule == "global-leak" and issue.message == "global assignment: leak"
+        for issue in issues
+    )
 
 
 @requires_lupa
