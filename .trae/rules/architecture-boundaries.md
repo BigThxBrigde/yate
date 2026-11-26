@@ -183,7 +183,7 @@ flowchart TD
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
   `CommandRegistry` 本身，不再为每个消费者定义窄协议。
 - **R9 — 组件 id 归调度层**：`Editor` 构造 widget 时必须带上 id
-  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key` `#hover-docs`），
+  （`#sidebar` `#sidebar-head` `#explorer` `#editor-col` `#tabbar` `#breadcrumbs` `#terminal-dock` `#statusbar` `#which-key` `#hover-docs` `#quickfix-panel`），
   `compose()` 里再带上容器 id（`#body` `#bottom-dock` `#bottom`）。
   其中 `#statusbar`、`#which-key` 与 `#hover-docs` 只是 widget id，样式由组件自持、
   不被外壳 CSS 引用：`#statusbar` 对应 `yate/resources/status-bar.tcss`

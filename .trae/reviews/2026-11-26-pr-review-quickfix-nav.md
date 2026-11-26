@@ -1,6 +1,6 @@
 # 2026-11-26 合并前 pr-review：IKY0E8 quickfix 导航
 
-分支：`feature/enh-quickfix-nav`；评审时点 HEAD `e242d38c`；基线 `master` merge-base `81170b8b`（`git diff master...HEAD`：11 笔提交 / 45 文件 / +3363−49）。
+分支：`feature/enh-quickfix-nav`；评审时点 HEAD `e242d38c`；F1 修复 HEAD `2a67fe4b`（不写“当前 HEAD”）；基线 `master` merge-base `81170b8b`（`git diff master...HEAD`：11 笔提交 / 45 文件 / +3363−49）。
 方案：[`../documents/quickfix-nav-pr-review-plan.md`](../documents/quickfix-nav-pr-review-plan.md)；产品主计划：[`../documents/quickfix-nav-plan.md`](../documents/quickfix-nav-plan.md)；上一轮闭环评审：[`2026-11-26-quickfix-nav.md`](2026-11-26-quickfix-nav.md)。
 
 三名 `code-review-expert` 只读分域评审（A 功能/安全/算法性能、B 架构/类型/文档、C 测试/键位/冒烟/纪律）全部交付；主代理逐条回读复核，不引用子代理自述数字。`python-code-review` skill 在运行时未注册，评审员按 agent 剧本回退，未阻塞。

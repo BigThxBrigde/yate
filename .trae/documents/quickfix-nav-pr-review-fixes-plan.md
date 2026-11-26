@@ -77,3 +77,13 @@ flowchart LR
 - 修复后门禁：
 - 发现处置：
 - 子代理情况：
+- 执行进度（F2 执行者登记，2026-11-26）：F1 已落盘（主代理侧）；F2 进行中——
+  双语手册 `:diagnostics` 四处、事实链五处（上一轮记录 / 索引 / 主计划 §10 /
+  pr-review 方案 / pr-review 记录头部）、R9 `#quickfix-panel` + docstring `R1-R15`、
+  冒烟 SVG 断言收紧均已改毕；F2 验收以
+  `python -m compileall -q tools/smoke_test/scenarios` 等价替代
+  `pytest tools/ -q`（tools/ 无对应用例）+ `git diff --check`，结果见下方登记；
+  最终全量门禁由主代理收尾统一执行并回填上文各栏。
+- F2 验收登记：
+  `python -m compileall -q tools/smoke_test/scenarios` → 退出码 0；
+  `git diff --check` → 退出码 0。

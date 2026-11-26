@@ -306,9 +306,11 @@ cancels. In find mode all matches highlight live as you type.
 success (`:w`, `:set …`, `:term` …), yellow means a warning or a blocked
 action (`:q` with unsaved changes, unknown command, `:bn` with one tab), red
 means an error. Commands that open a full-screen overlay (`:manual`, `:help`,
-`:files`, `:palette`, `:diagnostics`, shell-command output) reset the line to
+`:files`, `:palette`, shell-command output) reset the line to
 its idle hint first, so a previous command's message never reappears, stale,
-when the overlay closes.
+when the overlay closes. `:diagnostics` does not open an overlay: it publishes
+every diagnostic to the bottom quickfix panel, traversable with `<alt-j>` /
+`<alt-k>`.
 
 ### 3.8 Command palette
 
@@ -1465,8 +1467,9 @@ stdio, speaks JSON-RPC itself, and provides:
 * **Diagnostics** -- errors and warnings are underlined in the editor, the
   gutter shows `✖` (error) / `▲` (warning) and tints the line number, the
   diagnostic under the cursor is echoed on the message bar, and the status
-  bar shows live counts. `:diagnostics` lists every diagnostic of the
-  current file in an output screen.
+  bar shows live counts. `:diagnostics` publishes every diagnostic of the
+  current file to the bottom quickfix panel, traversable with `<alt-j>` /
+  `<alt-k>`.
 * **Hover documentation** -- `F7` (the same key under the vsc and vim keymaps,
   no per-keymap default, no chord) shows the API docs card for the symbol at
   the cursor. With `support_mouse` enabled, resting the pointer on a symbol

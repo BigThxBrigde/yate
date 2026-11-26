@@ -135,7 +135,7 @@ Completed waves and commits (all local, no push/merge):
 | `19d55e05` | review record, index and execution-result backfill |
 | `983b1e77` | follow-up minor — failed reveals no longer pollute the jump list |
 
-Review record: [`../reviews/2026-11-26-quickfix-nav.md`](../reviews/2026-11-26-quickfix-nav.md) — APPROVE after iteration.
+Review record: [`../reviews/2026-11-26-quickfix-nav.md`](../reviews/2026-11-26-quickfix-nav.md) — APPROVE after iteration. Scope note: `b97a695c` is kept as the historical branch-start point (§1/§3); the follow-up pre-merge pr-review (2026-11-26) measures its range as `81170b8b..HEAD` (merge-base moved forward after master advanced).
 
 Final gate results (main agent, all exit 0, rerun after `983b1e77`): `pyright` 0 diagnostics; `pytest -n auto` 4084 passed / 10 skipped; architecture 48 passed; branch coverage 92.83% (`fail_under=75`); smoke 129/129 scenarios · 1575/1575 checks; `tools.changelog check` 0.
 

@@ -1,7 +1,7 @@
 # IKY0E8 合并前 pr-review 方案
 
 - 日期：2026-11-26；状态：已落盘，无人值守自动批准（未向用户询问）。
-- 分支：`feature/enh-quickfix-nav`；基线：`master`，merge-base `81170b8b`；HEAD `069408ad`。
+- 分支：`feature/enh-quickfix-nav`；基线：`master`，merge-base `81170b8b`；评审时点 HEAD `e242d38c`；F1 修复 HEAD `2a67fe4b`（不写“当前 HEAD”，时点只钉两处）。
 - 规模：10 笔本地提交、44 文件、+3263/−49（生成式 changelog 与计划文档占主要行数）。
 - 规范来源：[`pr-review/SKILL.md`](../skills/pr-review/SKILL.md)、[`../rules/task-orchestration.md`](../rules/task-orchestration.md)、[`../rules/subagent-workflow.md`](../rules/subagent-workflow.md)、[`../rules/architecture-boundaries.md`](../rules/architecture-boundaries.md)、[`../rules/python-coding-style.md`](../rules/python-coding-style.md)、[`../rules/doc-conventions.md`](../rules/doc-conventions.md)。
 

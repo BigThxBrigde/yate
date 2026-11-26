@@ -1,6 +1,6 @@
 # 2026-11-26 quickfix 结果导航闭环评审
 
-分支：`feature/enh-quickfix-nav`；基线：`b97a695c`（master）；评审范围 `b97a695c..6808e062`（8 笔提交，含方案、5 个实现波、空批次修复与 doc/smoke 波）。
+分支：`feature/enh-quickfix-nav`；基线：`b97a695c`（master，功能分支起点历史事实）；评审范围 `b97a695c..6808e062`（8 笔提交，含方案、5 个实现波、空批次修复与 doc/smoke 波）。后续合并前 pr-review 的范围口径为 `81170b8b..HEAD`（见 [`2026-11-26-pr-review-quickfix-nav.md`](2026-11-26-pr-review-quickfix-nav.md)）。
 唯一规范来源：[`../documents/quickfix-nav-plan.md`](../documents/quickfix-nav-plan.md) 与 [`../documents/quickfix-nav-plans/`](../documents/quickfix-nav-plans/overview.md)。
 
 ## 1. 评审执行

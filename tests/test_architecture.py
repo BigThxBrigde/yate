@@ -1,7 +1,7 @@
 """Architecture guards: the narrow-interface rules must not regress.
 
 These tests enforce the boundaries documented in
-``.trae/rules/architecture-boundaries.md`` (R1-R12) and
+``.trae/rules/architecture-boundaries.md`` (R1-R15) and
 ``.trae/documents/app-layering-refactoring-plans/overview.md`` (section 4,
 "dependency rules (hard)"):
 
