@@ -89,6 +89,9 @@ def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
         # bytes decode to U+FFFD instead of raising UnicodeDecodeError, and
         # the surrounding entries still load.
         raw = store.read_text(encoding="utf-8", errors="replace")
+    except FileNotFoundError:
+        # A fresh home has no trust store; that is the normal empty case.
+        return set()
     except OSError as exc:
         log.warning("cannot read trust store %s: %s", store, exc)
         return set()

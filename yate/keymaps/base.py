@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from yate.editor_core.buffer import TextBuffer
+from yate.editor_core.buffer import BufferReadOnlyError, TextBuffer
 from yate.editor_core.document import Document
 from yate.keymaps.keys import (
     HOVER_DOC_KEY as HOVER_DOC_KEY,
@@ -208,6 +208,8 @@ class Keymap:
         if callable(action):
             try:
                 action(ctx)
+            except BufferReadOnlyError:
+                raise  # domain error with an existing caller-side handler
             except Exception as exc:  # noqa: BLE001 - one handler must not kill the session
                 log.exception("direct key action failed: %s", exc)
                 ctx.report_error(f"key action failed: {type(exc).__name__}: {exc}")

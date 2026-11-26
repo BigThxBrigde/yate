@@ -57,7 +57,7 @@ from yate.services.clipboard import copy_text, paste_text
 #: Upper bound for a typed count.  Vim counts are clamped by the buffer on
 #: use; capping here keeps repeat operators (``x`` / ``p`` / motions) from
 #: spinning the UI thread for an effectively unbounded number of iterations.
-_MAX_COUNT: int = 9999
+_MAX_COUNT: int = 100_000
 
 
 class VimMode(str, Enum):

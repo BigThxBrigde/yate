@@ -462,12 +462,20 @@ def test_readonly_saveas_unexpected_error_restores_lock(
 
             monkeypatch.setattr(Document, "save", boom)
 
-            # an unexpected error propagates to the caller without taking
-            # the app down, and the finally re-locks the buffer
-            with pytest.raises(RuntimeError):
-                app.editor.run_command(f"saveas {tmp_path / 'copy.txt'}")
+            # the command boundary reports unexpected errors in place (no
+            # crash / no propagation), and the finally re-locks the buffer
+            errors: list[tuple[str, str]] = []
+            real_message = app.editor.message
+
+            def record(text: str, kind: str = "info") -> None:
+                errors.append((text, kind))
+                real_message(text, kind)
+
+            monkeypatch.setattr(app.editor, "message", record)
+            app.editor.run_command(f"saveas {tmp_path / 'copy.txt'}")
             assert app.editor.session.buffer.read_only
             assert app.is_running
+            assert any(kind == "error" and "boom" in text for text, kind in errors)
 
             # expected failures (OSError) still report "save failed" and
             # restore the lock too

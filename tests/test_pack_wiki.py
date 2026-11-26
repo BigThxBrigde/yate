@@ -395,6 +395,8 @@ def test_push_sequence_commits_and_pushes_both_remotes(
         calls.append(args)
         if args[:2] == ("remote", "get-url"):
             return subprocess.CompletedProcess(args, 1, "", "")
+        if args == ("status", "--porcelain"):
+            return subprocess.CompletedProcess(args, 0, " M Home.md\n", "")
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(wiki, "run_git", fake_git)
@@ -431,6 +433,8 @@ def test_push_aborts_when_commit_fails(
         calls.append(args)
         if args[:1] == ("commit",):
             return subprocess.CompletedProcess(args, 128, "", "fatal: no identity")
+        if args == ("status", "--porcelain"):
+            return subprocess.CompletedProcess(args, 0, " M Home.md\n", "")
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(wiki, "run_git", fake_git)

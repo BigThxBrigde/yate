@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from yate.editor_core.buffer import BufferReadOnlyError
 from yate.keymaps.base import ActionContext
 from yate.logs import tracing
 
@@ -82,6 +83,10 @@ class ActionRegistry:
             return False
         try:
             action.func(ctx)
+        except BufferReadOnlyError:
+            # A domain error with an existing caller-side handler (the
+            # read-only notice); keep that contract intact.
+            raise
         except Exception as exc:  # noqa: BLE001 - one handler must not kill the session
             log.exception("action %s failed", name)
             ctx.report_error(f"action {name} failed: {type(exc).__name__}: {exc}")
