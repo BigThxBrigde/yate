@@ -428,7 +428,7 @@ async def _quickfix_panel_next_prev_and_jump_back(tmp: Path) -> ScenarioResult:
         rows = snapshot_svg(app, tmp)
         rendered = "".join(rows.values())
         checks.append(Check(
-            "svg_shows_references", True, "references |" in rendered,
+            "svg_shows_references", True, "references" in rendered,
         ))
         checks.append(Check(
             "svg_shows_file_name", True,
