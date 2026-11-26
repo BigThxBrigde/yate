@@ -94,6 +94,6 @@ Fix: 统一口径：功能分支起点 `b97a695c` 保留历史叙述，评审范
 ## 7. 回填区（修复波后填写）
 
 - 迭代结论：**APPROVE**。6 个 MAJOR 全部关闭；M4-M11、M13 与 C-04 的 SVG 断言全修；M1/M2/M3 与 A-12 按既定设计/性能量级登记不修。F1 引入的 `find_replace` 组件导入按 R11 补登并同步 `editor.py` 实测行数 875，`editor.py` 行数与规则表一致。
-- 修复提交：`2a67fe4b`（F1 产品逻辑）、`9ca81da8`（F2 文档事实链）、`1bb955e0`（R11 登记与行数表）、`5ee31927`（面板滚动用例时序）、`24fb1068`（SVG 断言稳定化）。终态 HEAD `24fb1068`；未推送、未合并 master。
+- 修复提交：`2a67fe4b`（F1 产品逻辑）、`9ca81da8`（F2 文档事实链）、`1bb955e0`（R11 登记与行数表）、`5ee31927`（面板滚动用例时序）、`24fb1068`（SVG 断言稳定化）。门禁时点 HEAD `24fb1068`（其后仅纯文档回填）；未推送、未合并 master。
 - 修复后门禁（主代理亲跑）：pyright 0；`pytest -n 1` 全量 exit 0（4099 collected）；架构 48 passed；覆盖率数据 `fail-under=75` 检查 exit 0、精确值 92.82%；冒烟 129/129 scenarios · 1575/1575 checks；`changelog check` exit 0；`git diff --check master...HEAD` 0。`-n auto` 两次在工具层 idle-timeout，按纪律以 `-n 1` 串行复核，非测试失败。
 - 子代理情况：3 名评审员全部交付；2 名执行者全部交付；无零产出成员。
