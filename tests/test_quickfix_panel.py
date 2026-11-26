@@ -23,7 +23,7 @@ from yate.editor_components import theme
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.session import QuickFixEntry, QuickFixList
 
-from conftest import plain_text
+from conftest import plain_text, wait_until
 
 
 class _StubKey:
@@ -148,9 +148,15 @@ def test_narrow_viewport_renders_one_physical_line_per_entry() -> None:
         panel = _panel(qf, picked, closed)
         app = _Host(panel)
         async with app.run_test(size=(40, 8)) as pilot:
-            # The mount-time paint may run before layout reports a width;
-            # the flow always repaints after mount (and so does the theme
-            # attach), so repaint now that the size is known.
+            # The mount-time paint may run before layout reports a size;
+            # repaint after the viewport is laid out so the scroll reveal
+            # sees the real height instead of the pre-layout zero.
+            await wait_until(pilot, lambda: panel.size.height > 0)
+            panel.repaint()
+            # The first paint fills the body; Textual learns the new
+            # virtual height on the next layout pass.  Repaint once more
+            # after that pass so the reveal sees a non-zero scroll range.
+            await wait_until(pilot, lambda: panel.max_scroll_y > 0)
             panel.repaint()
             await pilot.pause()
             body = panel.query_one("#quickfix-body", Static)
