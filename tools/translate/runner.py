@@ -17,10 +17,10 @@ from pathlib import Path
 DEFAULT_CMD: str = "codebuddy-code"
 
 #: Default model.
-DEFAULT_MODEL: str = "hy3"
+DEFAULT_MODEL: str = "hy4-flash-free"
 
 #: Default fallback model, forwarded as ``--fallback-model`` (used on overload).
-DEFAULT_FALLBACK_MODEL: str = "glm-5.3-flash"
+DEFAULT_FALLBACK_MODEL: str = "hy4-flash"
 
 #: Default max agent turns -- each Read tool call consumes one turn.
 DEFAULT_MAX_TURNS: int = 10
