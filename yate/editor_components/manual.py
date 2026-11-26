@@ -49,6 +49,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.geometry import Size
 from textual.screen import ModalScreen
 from textual.strip import Strip
+from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import Input, Static
 
@@ -393,6 +394,9 @@ class MarkdownDocScreen(ModalScreen[None]):
         # query it will run (typing merges into one rebuild per window)
         self._search_timer: asyncio.TimerHandle | None = None
         self._pending_query: str | None = None
+        # resize rerender: only the last event inside the debounce window
+        # may schedule work (a live drag must not queue N full rerenders)
+        self._rerender_timer: Timer | None = None
 
     @override
     def compose(self) -> ComposeResult:
@@ -436,6 +440,9 @@ class MarkdownDocScreen(ModalScreen[None]):
         if self._search_timer is not None:
             self._search_timer.cancel()
             self._search_timer = None
+        if self._rerender_timer is not None:
+            self._rerender_timer.stop()
+            self._rerender_timer = None
         self._pending_query = None
         theme.detach(self)
 
@@ -556,10 +563,15 @@ class MarkdownDocScreen(ModalScreen[None]):
             return
         if self._body_width() == body.render_width:
             return
-        self.set_timer(self._RERENDER_DELAY_S, self._rerender_now)
+        if self._rerender_timer is not None:
+            self._rerender_timer.stop()
+        self._rerender_timer = self.set_timer(
+            self._RERENDER_DELAY_S, self._rerender_now
+        )
 
     def _rerender_now(self) -> None:
         """Timer callback: re-render at the current body width."""
+        self._rerender_timer = None
         body = self._doc_body()
         if body is None or not body.source:
             return

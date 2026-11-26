@@ -88,6 +88,20 @@ def _run_action(ctx: Any) -> None:
     assert registry.execute("toggle_comment", ctx)
 
 
+def test_toggle_comment_selection_only_on_large_document() -> None:
+    """Toggling a 3-row selection must not depend on document length."""
+    text = "\n".join(f"line {i}" for i in range(5000))
+    ctx = _action_context(text, "py")
+    ctx.buffer.anchor = (10, 0)
+    ctx.buffer.cursor = (12, 3)
+
+    _run_action(ctx)
+    lines = ctx.buffer.lines
+    assert lines[10].startswith("# ") and lines[12].startswith("# ")
+    assert lines[9] == "line 9" and lines[13] == "line 13"
+    assert len(lines) == 5000
+
+
 def test_action_toggles_current_python_line_and_restores() -> None:
     ctx = _action_context("def f():\n    pass\n", "py")
 

@@ -6,6 +6,9 @@ what the editor does) and a recording stand-in for the few editor-level entry
 points the table calls.
 """
 
+# tests legitimately poke at internals:
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -35,6 +38,16 @@ CTRL_B: str = "\x02"
 CTRL_W: str = "\x17"
 CTRL_SLASH: str = "\x1f"
 DEL: str = "\x1b[3~"
+
+
+def test_long_digit_run_is_clamped_before_repeat_operators() -> None:
+    """A held digit key cannot build an unbounded repeat count."""
+    ctx = make_action_context("abcdef")
+    keymap = VimKeymap()
+    for _ in range(20):
+        keymap.handle_key(ctx, "9")
+    assert keymap.count_str == str(vim_module._MAX_COUNT)
+    assert keymap._take_count() == vim_module._MAX_COUNT
 
 
 class _Editor:

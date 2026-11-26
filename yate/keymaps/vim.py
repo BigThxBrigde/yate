@@ -54,6 +54,11 @@ from yate.keymaps.keys import (
 )
 from yate.services.clipboard import copy_text, paste_text
 
+#: Upper bound for a typed count.  Vim counts are clamped by the buffer on
+#: use; capping here keeps repeat operators (``x`` / ``p`` / motions) from
+#: spinning the UI thread for an effectively unbounded number of iterations.
+_MAX_COUNT: int = 9999
+
 
 class VimMode(str, Enum):
     """The modal states the vim keymap dispatches on."""
@@ -612,8 +617,9 @@ class VimKeymap(Keymap):
         ):
             # digits accumulate exactly like in NORMAL mode so counts reach
             # motions (``v2l``), finds (``v2f.``) and repeats (``v3;``);
-            # _ARG_PREFIXES keeps ``f3`` finding the char "3"
-            self.count_str += key
+            # _ARG_PREFIXES keeps ``f3`` finding the char "3".  Clamp while
+            # typing so a held digit key cannot build an unbounded loop.
+            self.count_str = str(min(int(self.count_str + key), _MAX_COUNT))
             return True
         if self.prefix == "g" and key == "g":
             self._resolve_visual_gg(ctx)
@@ -877,7 +883,7 @@ class VimKeymap(Keymap):
             and not (key == "0" and not self.count_str)
             and self.prefix not in _ARG_PREFIXES
         ):
-            self.count_str += key
+            self.count_str = str(min(int(self.count_str + key), _MAX_COUNT))
             return True
 
         # resolve an armed prefix: "g" completes on a second "g", the
@@ -997,7 +1003,9 @@ class VimKeymap(Keymap):
             # drops it first, so "ax cannot swallow the next yy into register a
             self.pending_register = None
             self._exit_multi(buf)
-            for _ in range(self._take_count()):
+            count = self._take_count()
+            remaining = max(0, len(buf.lines[buf.row]) - buf.col)
+            for _ in range(min(count, remaining)):
                 buf.delete_forward()
             return True
         if key == "p":
@@ -1428,7 +1436,7 @@ class VimKeymap(Keymap):
 
     def _typed_count(self) -> int | None:
         """The count typed so far, or ``None`` when no digits were given."""
-        return int(self.count_str) if self.count_str else None
+        return min(int(self.count_str), _MAX_COUNT) if self.count_str else None
 
     def _take_count(self) -> int:
         n = self._peek_count()
@@ -1436,7 +1444,7 @@ class VimKeymap(Keymap):
         return n
 
     def _peek_count(self) -> int:
-        return int(self.count_str) if self.count_str else 1
+        return min(int(self.count_str), _MAX_COUNT) if self.count_str else 1
 
     @override
     def take_pending_count(self) -> int:
@@ -1502,7 +1510,7 @@ class VimKeymap(Keymap):
 
     def _motion(self, ctx: ActionContext, code: str, count: int | None, select: bool) -> None:
         buf = ctx.buffer
-        n = count if count is not None else 1
+        n = min(count if count is not None else 1, _MAX_COUNT)
         for _ in range(n):
             if code == "h":
                 buf.move_left(select=select)

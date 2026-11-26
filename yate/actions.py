@@ -87,11 +87,15 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
             return
         rows = buf.selected_rows()
         first, last = rows if rows is not None else (buf.row, buf.row)
-        before = list(buf.lines)
+        if first < 0 or first > last or last >= buf.line_count:
+            return
+        # Only the selected rows need copying/comparing; a whole-document
+        # copy here made one Ctrl+/ scale with file size instead of selection.
+        before = list(buf.lines[first : last + 1])
         after = comment_range(
             before,
-            first,
-            last,
+            0,
+            len(before) - 1,
             line_comment=spec.line_comment,
             block_comment=spec.block_comment,
         )
@@ -102,8 +106,11 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
         def remap(pos: tuple[int, int]) -> tuple[int, int]:
             row, col = pos
-            old_line = before[row]
-            new_line = after[row]
+            if row < first or row > last:
+                return pos
+            offset = row - first
+            old_line = before[offset]
+            new_line = after[offset]
             prefix = 0
             while prefix < min(len(old_line), len(new_line)) and (
                 old_line[prefix] == new_line[prefix]
@@ -115,8 +122,8 @@ def populate(registry: ActionRegistry, editor: Editor) -> None:
 
         buf.replace_range(
             (first, 0),
-            (last, len(before[last])),
-            "\n".join(after[first : last + 1]),
+            (last, len(before[-1])),
+            "\n".join(after),
         )
         # replace_range clears the anchor; restore both ends so a second
         # press sees the same row span and removes exactly one layer.

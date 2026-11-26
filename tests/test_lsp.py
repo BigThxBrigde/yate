@@ -1099,6 +1099,32 @@ def test_diagnostic_at_prefers_most_severe_on_same_row(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_diagnostic_index_bounds_wide_span_fanout(tmp_path: Path) -> None:
+    """Short spans stay row-indexed; a whole-file span uses the interval fallback."""
+
+    async def scenario() -> None:
+        mgr, fakes = _manager_with_fakes()
+        doc = make_python_doc(str(tmp_path), "\n" * 20)
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        assert doc.path is not None
+        uri = protocol.path_to_uri(doc.path)
+        client.publish({
+            "uri": uri,
+            "diagnostics": [
+                _diag_payload(0, 0, 0, 1, 1, "short"),
+                _diag_payload(1, 0, 19, 0, 1, "wide"),
+            ],
+        })
+        assert len(mgr._diagnostics_by_row[uri]) == 1
+        assert len(mgr._diagnostics_overflow[uri]) == 1
+        got = mgr.diagnostic_at(doc, 10, 0)
+        assert got is not None and got.message == "wide"
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
 def test_diagnostic_at_large_d_uses_row_index(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

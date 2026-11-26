@@ -111,14 +111,24 @@ def diff_lines(a: Sequence[str], b: Sequence[str]) -> DiffResult:
     )
 
 
+#: Longest line pair still diffed character by character.  The matcher is
+#: O(len(a) * len(b)) and runs on the UI loop; beyond this bound the caller
+#: gets whole-line ranges instead (the hunk is already a replace pair), so a
+#: minified or generated long line cannot freeze the screen.
+MAX_DIFF_WORD_CHARS: int = 2000
+
+
 def diff_words(a: str, b: str) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     """Compute intra-line highlight ranges for a pair of single lines.
 
     Character-level ``SequenceMatcher`` (``autojunk=False`` for the same
-    reason as :func:`diff_lines`); returns the non-equal ``(start, end)``
-    character spans (half-open) for each side, ready to be rendered as
-    intra-line highlight ranges on a replace-type hunk pair.
+    reason as :func:`diff_lines`) for lines up to :data:`MAX_DIFF_WORD_CHARS`;
+    longer lines get whole-line ranges without running the matcher.  Returns
+    the non-equal ``(start, end)`` character spans (half-open) for each side,
+    ready to be rendered as intra-line highlight ranges on a replace hunk.
     """
+    if max(len(a), len(b)) > MAX_DIFF_WORD_CHARS:
+        return ([(0, len(a))] if a else []), ([(0, len(b))] if b else [])
     matcher = difflib.SequenceMatcher(None, a, b, autojunk=False)
     a_ranges: list[tuple[int, int]] = []
     b_ranges: list[tuple[int, int]] = []

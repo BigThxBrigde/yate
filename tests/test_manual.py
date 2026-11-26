@@ -18,6 +18,7 @@ the search runs, not what it paints.
 from __future__ import annotations
 
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -34,6 +35,42 @@ from yate.editor_components.manual import (
     doc_rich_theme,
     render_doc_lines,
 )
+
+
+def test_resize_rerender_debounce_cancels_previous_timer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rapid resize events leave exactly one armed rerender timer."""
+
+    class FakeTimer:
+        def __init__(self) -> None:
+            self.stopped = False
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    timers: list[FakeTimer] = []
+
+    def fake_set_timer(*_args: object) -> FakeTimer:
+        timer = FakeTimer()
+        timers.append(timer)
+        return timer
+
+    def fake_body(_self: MarkdownDocScreen) -> SimpleNamespace:
+        return SimpleNamespace(source="x", render_width=10)
+
+    def fake_width(_self: MarkdownDocScreen) -> int:
+        return 24
+
+    screen = MarkdownDocScreen(kind="manual", lang="en", title="t")
+    monkeypatch.setattr(MarkdownDocScreen, "_doc_body", fake_body)
+    monkeypatch.setattr(MarkdownDocScreen, "_body_width", fake_width)
+    monkeypatch.setattr(MarkdownDocScreen, "set_timer", fake_set_timer)
+
+    screen._schedule_rerender()
+    screen._schedule_rerender()
+    assert len(timers) == 2
+    assert timers[0].stopped and not timers[1].stopped
 
 
 def _install_search_spy(

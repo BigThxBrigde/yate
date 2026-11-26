@@ -13,6 +13,7 @@ current document -- see :func:`buffer_completions`.
 
 from __future__ import annotations
 
+import heapq
 import re
 import weakref
 from dataclasses import dataclass
@@ -33,6 +34,9 @@ from yate.editor_components import theme
 
 #: Maximum number of completion rows visible at once.
 MAX_VISIBLE: int = 8
+
+#: Hard cap on returned items; only this many are materialised per request.
+MAX_ITEMS: int = 64
 
 #: Completion item kinds reused from the LSP item kind table.
 _KIND_TEXT: int = 0          # plain word / unknown
@@ -273,17 +277,24 @@ def _ident_prefix(line: str, col: int) -> tuple[str, int]:
 def _words_from_buffer(buf: TextBuffer, exclude_row: int) -> set[str]:
     """All identifier-like words in *buf* (skipping the cursor row).
 
-    The per-row word sets come from the per-content-version cache
-    (:func:`_buffer_row_words`), so the repeated full-buffer regex scan per
-    keystroke becomes a union over cached sets.  A word appearing on both
-    the excluded and another row is still collected (union, not
-    subtraction).
+    Reads the per-version aggregate counts maintained by
+    :func:`_buffer_row_words` instead of re-unioning every cached row on
+    each request.  Occurrence counts keep a word that also appears on the
+    excluded row (union semantics, not subtraction).
     """
-    words: set[str] = set()
-    for r, row_words in _buffer_row_words(buf).items():
-        if r != exclude_row:
-            words |= row_words
-    return words
+    rows = _buffer_row_words(buf)
+    cached = _row_word_cache.get(buf)
+    if cached is None:  # unreachable: _buffer_row_words always stores a slot
+        return set()
+    counts = cached.counts
+    if exclude_row < 0:
+        return set(counts)
+    excluded = rows.get(exclude_row)
+    if not excluded:
+        return set(counts)
+    return {
+        word for word, count in counts.items() if count > (1 if word in excluded else 0)
+    }
 
 
 @dataclass
@@ -303,6 +314,10 @@ class _RowWords:
     #: end of the document (defence in depth beside the buffer's own
     #: dirty-range contract).
     row_count: int
+    #: Word -> occurrence count across all rows.  Updated in place with the
+    #: dirty rows so a completion request reads O(unique words) instead of
+    #: unioning every row of a large buffer.
+    counts: dict[str, int]
 
 
 #: Per-row word sets cached per buffer (one slot each, weakly keyed).
@@ -338,29 +353,39 @@ def _buffer_row_words(buf: TextBuffer) -> dict[int, frozenset[str]]:
     if cached is not None and cached.content_version == version:
         return cached.rows
     dirty = buf.dirty_range
-    rows: dict[int, frozenset[str]] = {}
-    if cached is not None and dirty is not None:
-        # Carry over rows outside the dirty range (row indices stay valid:
-        # the dirty range contract covers every structural change).
-        top, bottom = dirty
-        if cached.row_count != len(buf.lines):
-            # Defence in depth: a structural add/remove shifts every row
-            # below the edit, so recompute through the end of the document
-            # instead of trusting the reported dirty range alone.
-            bottom = len(buf.lines) - 1
-        rows = {
-            r: words
-            for r, words in cached.rows.items()
-            if (r < top or r > bottom) and r < len(buf.lines)
-        }
-        for r in range(max(0, top), min(bottom, len(buf.lines) - 1) + 1):
-            rows[r] = scan_row_words(buf.lines[r])
-    else:
+    if cached is None or dirty is None:
         rows = {
             r: scan_row_words(line) for r, line in enumerate(buf.lines)
         }
-    _row_word_cache[buf] = _RowWords(version, rows, len(buf.lines))
-    return rows
+        counts: dict[str, int] = {}
+        for words in rows.values():
+            for word in words:
+                counts[word] = counts.get(word, 0) + 1
+        _row_word_cache[buf] = _RowWords(version, rows, len(buf.lines), counts)
+        return rows
+
+    # Incremental update: mutate the cached rows and aggregate counts in
+    # place, touching only the dirty rows (plus rows past a truncated end).
+    top, bottom = dirty
+    if cached.row_count != len(buf.lines):
+        bottom = len(buf.lines) - 1
+    for r in range(max(0, top), min(bottom, len(buf.lines) - 1) + 1):
+        new_words = scan_row_words(buf.lines[r])
+        for word in cached.rows.get(r, ()):
+            cached.counts[word] -= 1
+            if cached.counts[word] == 0:
+                del cached.counts[word]
+        for word in new_words:
+            cached.counts[word] = cached.counts.get(word, 0) + 1
+        cached.rows[r] = new_words
+    for r in [row for row in cached.rows if row >= len(buf.lines)]:
+        for word in cached.rows.pop(r):
+            cached.counts[word] -= 1
+            if cached.counts[word] == 0:
+                del cached.counts[word]
+    cached.content_version = version
+    cached.row_count = len(buf.lines)
+    return cached.rows
 
 
 def clear_row_word_cache() -> None:
@@ -478,7 +503,9 @@ def buffer_completions(
     for word in candidates:
         if word.lower().startswith(needle) and word != prefix:
             seen.add(word)
-    for word in sorted(seen):
+    # Materialise only the visible top-k: sorting every matching word and
+    # building a Completion for each was O(matches) on every refresh.
+    for word in heapq.nsmallest(MAX_ITEMS, seen):
         items.append(
             Completion(
                 label=word,
@@ -511,4 +538,4 @@ def buffer_completions(
             )
 
     # trim to a sane limit (the popup caps visible rows anyway)
-    return items[:64], prefix, start_col
+    return items[:MAX_ITEMS], prefix, start_col

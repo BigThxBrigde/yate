@@ -26,6 +26,28 @@ from yate.editor_components import completion
 from conftest import wait_until
 
 
+def test_buffer_completions_incremental_cache_matches_full_rescan() -> None:
+    """Dirty-row aggregate counts must equal a cold scan after an edit."""
+    completion.clear_row_word_cache()
+    buf = TextBuffer("al beta\nalpha gamma\n")
+    first = [item.label for item in completion.buffer_completions(buf, 0, 2)[0]]
+    assert first == ["alpha"]
+
+    buf.replace_range((1, 0), (1, 5), "alpine")
+    updated = [item.label for item in completion.buffer_completions(buf, 0, 2)[0]]
+    completion.clear_row_word_cache()
+    fresh = [item.label for item in completion.buffer_completions(buf, 0, 2)[0]]
+    assert updated == fresh == ["alpine"]
+
+    other = TextBuffer("almond other\n")
+    with_other = [
+        item.label
+        for item in completion.buffer_completions(buf, 0, 2, extra_buffers=[other])[0]
+    ]
+    assert "almond" in with_other
+    completion.clear_row_word_cache()
+
+
 def _private(name: str) -> Any:
     """Reach a module-private helper on purpose (they carry the logic)."""
     return getattr(completion, name)

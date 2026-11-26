@@ -41,6 +41,27 @@ type TouchedCursor = Callable[
 ]
 
 
+def test_diff_words_long_line_returns_whole_line_ranges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Beyond the cap the O(n*m) matcher is never entered."""
+
+    def boom(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("long lines must not reach SequenceMatcher")
+
+    monkeypatch.setattr(diff_module.difflib, "SequenceMatcher", boom)
+    a = "a" * (diff_module.MAX_DIFF_WORD_CHARS + 1)
+    b = "b" * (diff_module.MAX_DIFF_WORD_CHARS + 1)
+    assert diff_words(a, b) == ([(0, len(a))], [(0, len(b))])
+
+
+def test_diff_words_short_line_keeps_character_ranges() -> None:
+    """Short lines keep the pre-cap intra-line highlight semantics."""
+    a_ranges, b_ranges = diff_words("hello world", "hello there")
+    assert a_ranges and b_ranges
+    assert a_ranges != [(0, 11)] and b_ranges != [(0, 11)]
+
+
 # --- diff_lines -------------------------------------------------------------
 
 

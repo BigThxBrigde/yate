@@ -72,12 +72,12 @@ HOVER_TIMEOUT_S: float = 2.0
 TRIGGER_INVOKED: int = 1
 TRIGGER_CHARACTER: int = 2
 
-#: Row-span cap for the per-row diagnostic index.  Diagnostics covering
-#: more rows than this (whole-file findings such as "file not formatted")
-#: stay out of the per-row lists -- expanding them would make every
-#: publish rebuild O(document rows) in time and memory -- and are kept in
-#: a small per-uri overflow list that the queries scan as a fallback.
-_ROW_INDEX_SPAN_MAX: int = 1000
+#: Row-span cap for the per-row diagnostic index.  Only short-span findings
+#: are expanded onto their rows (O(1) lookup, at most this many rows each);
+#: whole-file findings go to the per-uri interval fallback instead.  Keeping
+#: the cap small bounds publish cost by O(diagnostics) rather than
+#: O(diagnostics * document height) while preserving the O(1) hot path.
+_ROW_INDEX_SPAN_MAX: int = 8
 
 ClientKey = tuple[str, str]
 
