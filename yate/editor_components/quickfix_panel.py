@@ -19,16 +19,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import override
 
+from rich.cells import chop_cells
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.events import Key
 from textual.widgets import Static
 
-from yate.session import QuickFixList
-
 from yate.editor_components import theme
 from yate.editor_components.scrollbars import apply_scrollbar_theme, apply_slim_scrollbars
+from yate.session import QuickFixList
 
 #: Called with the selected entry index (injected by the dock owner).
 type PickFn = Callable[[int], None]
@@ -97,22 +97,36 @@ class QuickFixPanel(VerticalScroll):
         self._reveal_selection()
 
     def _body_text(self) -> Text:
-        """One line per entry (selected prefixed ``> ``) or the placeholder."""
+        """One line per entry (selected prefixed ``> ``) or the placeholder.
+
+        Each entry is chopped to the content width so it always renders
+        as exactly one physical row; this keeps the logical entry index
+        aligned with the physical scroll rows used by
+        :meth:`_reveal_selection`.  The chop applies to the rendered
+        text only -- ``QuickFixEntry.label`` itself is never trimmed.
+        """
         entries = self._entries.snapshot()
         if not entries:
             return Text("(no results)", style=theme.active().fg_muted)
         t = theme.active()
         text = Text()
+        # Two cells are reserved for the selection marker prefix.  A
+        # not-yet-laid-out widget reports an empty content region, so fall
+        # back to the widget width (same fallback as the view layer).
+        width = self.scrollable_content_region.width or self.size.width
+        inner_width = width - 2
         for index, entry in enumerate(entries):
             selected = index == self._entries.selected
             style = f"bold {t.on_accent} on {t.accent}" if selected else t.fg_bright
             marker = "> " if selected else "  "
             location = f"{entry.path.name}:{entry.row + 1}:{entry.col + 1}"
+            line = f"{entry.provider} | {entry.severity} | {entry.label} @ {location}"
+            if inner_width > 0:
+                # chop_cells yields one or more width-bounded rows; keep
+                # only the first so each entry stays a single physical line.
+                line = chop_cells(line, inner_width)[0]
             text.append(marker, style=style)
-            text.append(
-                f"{entry.provider} | {entry.severity} | {entry.label} @ {location}\n",
-                style=style,
-            )
+            text.append(f"{line}\n", style=style)
         return text
 
     def _reveal_selection(self) -> None:

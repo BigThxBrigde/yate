@@ -389,7 +389,6 @@ def _build_pane_stack(ed: yate.editor.Editor) -> None:
         events=ed.events,
         message=ed.message,
         mounted=lambda: ed.mounted,
-        push_overlay=ed.overlays.push,
         # ``:diagnostics`` publishes its result set into the quickfix list
         # (wave d); the overlay output screen is gone.
         set_quickfix=ed.quickfix_flows.set_results,

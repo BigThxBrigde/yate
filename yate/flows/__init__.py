@@ -23,6 +23,8 @@ from pathlib import Path
 from textual.screen import Screen
 from textual.worker import Worker
 
+from yate.session import QuickFixEntry
+
 #: ``message(text, kind)`` -- write one line on the message line (*kind* is a
 #: :data:`yate.editor_components.commandline.MESSAGE_COLORS` key: ``"info"`` /
 #: ``"error"`` / ``"warn"`` / ``"ok"``); the editor owns the callable.
@@ -45,3 +47,8 @@ type StateQuery = Callable[[], bool]
 #: Open the selected path set handed over by the file manager screen
 #: (files vs directories are resolved by the flows layer, Q2 semantics).
 type OpenSelectedFn = Callable[[list[Path]], None]
+
+#: ``set_quickfix(provider, entries, label)`` -- publish one provider's
+#: quickfix batch to the shared L1 result set (the LspSync diagnostics
+#: publisher and the LspNavigationFlows references publisher share it).
+type SetQuickFixFn = Callable[[str, list[QuickFixEntry], str], None]

@@ -436,8 +436,8 @@ class EditorSession:
         """Record the position a jump leaves behind (the single push contract).
 
         Defaults capture the active document's cursor.  Jump producers --
-        mark jumps, ``:42``/ctrl-g line jumps, and the future LSP
-        goto-definition flow -- call only this; the stacks are L1-internal.
+        mark jumps and ``:42``/ctrl-g line jumps -- call only this; the
+        stacks are L1-internal.
         """
         origin_doc = doc if doc is not None else self.doc
         r = origin_doc.buffer.row if row is None else row

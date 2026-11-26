@@ -143,9 +143,10 @@ def test_enter_opens_and_reveals_match(tmp_path: Path) -> None:
         async with app.run_test(size=(100, 30)) as pilot:
             seen: list[tuple[Path, int, int]] = []
 
-            def reveal(path: Path, row: int, col: int) -> None:
+            def reveal(path: Path, row: int, col: int) -> bool:
                 seen.append((path, row, col))
                 app.editor.session.buffer.set_cursor((row, col + len("needle")))
+                return True
 
             screen, _messages, _notices = _push(app, tmp_path, reveal=reveal)
             await pilot.pause()

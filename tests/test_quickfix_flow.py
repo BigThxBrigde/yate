@@ -12,10 +12,11 @@ from pathlib import Path
 from typing import override
 
 from yate.config import YateConfig
+from yate.editor_components.find_replace import RevealFn
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_core import Document
 from yate.editor_core.project_search import FileMatch, LineMatch
-from yate.flows.quickfix_flows import QuickFixFlows, RevealFn
+from yate.flows.quickfix_flows import QuickFixFlows
 from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
 
@@ -69,10 +70,11 @@ class _Harness:
             refresh=lambda: self.refreshes.append(None),
         )
 
-    def _reveal(self, path: Path, row: int, col: int) -> None:
+    def _reveal(self, path: Path, row: int, col: int) -> bool:
         """Record the reveal and land the cursor like the editor verb."""
         self.reveals.append((path, row, col))
         self.session.doc.buffer.set_cursor((row, col))
+        return True
 
     def _show(self) -> None:
         """Record one visible transition (re-shows while visible are inert)."""
@@ -193,7 +195,7 @@ def test_jump_to_out_of_range_is_ignored() -> None:
 
 def test_failed_reveal_leaves_jump_stacks_untouched() -> None:
     """An unopenable target reports the error without recording a jump."""
-    def refuse(_path: Path, _row: int, _col: int) -> None:
+    def refuse(_path: Path, _row: int, _col: int) -> bool:
         raise OSError("missing target")
 
     h = _Harness(refuse)
@@ -207,3 +209,63 @@ def test_failed_reveal_leaves_jump_stacks_untouched() -> None:
     assert any("cannot open" in message for message in h.messages)
     assert h.refreshes == []
     assert h.visible is True
+
+
+def test_false_reveal_reports_error_and_pushes_nothing() -> None:
+    """A ``False`` reveal result is treated as a failed jump (no push)."""
+    def refuse(_path: Path, _row: int, _col: int) -> bool:
+        return False
+
+    h = _Harness(refuse)
+    h.flow.set_results("diagnostics", [_entry("diagnostics", "d1", 0)], "diags")
+    h.session.doc.buffer.set_cursor((2, 1))
+    before = h.session.jumps.stacks()
+
+    h.flow.next()
+
+    # The reveal was attempted (refuse records nothing) and failed.
+    assert h.reveals == []
+    assert h.session.jumps.stacks() == before
+    assert any("cannot open" in message for message in h.messages)
+    assert h.refreshes == []
+
+
+def test_empty_batch_from_one_provider_keeps_panel_visible() -> None:
+    """An empty batch must not hide a panel other providers still populate."""
+    h = _Harness()
+    h.flow.set_results("diagnostics", [_entry("diagnostics", "d1", 0)], "diags")
+    assert h.visible is True
+    h.flow.set_results("references", [], "refs")
+    assert h.visible is True
+    assert [e.label for e in h.flow.active_entries] == ["d1"]
+    h.flow.set_results("diagnostics", [], "diags")
+    # The whole result set is now empty, so the panel hides.
+    assert h.visible is False
+    assert h.flow.active_entries == ()
+
+
+def test_empty_list_next_and_prev_report_empty_state() -> None:
+    """next/prev on an empty result set only emit the hint message."""
+    h = _Harness()
+    h.flow.next()
+    h.flow.prev()
+    assert h.messages == ["no quickfix entries", "no quickfix entries"]
+    assert h.reveals == []
+    assert h.session.jumps.stacks()[0] == []
+
+
+def test_missing_hit_line_gets_no_preview_label() -> None:
+    """A hit row whose line is absent from ``hit_lines`` gets an explicit
+    ``(no preview)`` label instead of a silent empty one."""
+    h = _Harness()
+    matches = [
+        FileMatch(
+            path=Path("search.py"),
+            matches=[LineMatch(row=1, start=0, end=4)],
+            hit_lines={},
+        )
+    ]
+    h.flow.set_search_results(matches)
+    entries = h.flow.active_entries
+    assert len(entries) == 1
+    assert entries[0].label == "(no preview)"

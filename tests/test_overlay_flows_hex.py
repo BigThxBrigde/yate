@@ -83,7 +83,7 @@ def _make_flows(
         message=lambda text, kind: messages.append((text, kind)),
         mounted=lambda: mounted,
         open_path=lambda path: None,
-        reveal_match=lambda path, row, col: None,
+        reveal_match=lambda path, row, col: True,
         readonly_notice=lambda: None,
         focus_editor=lambda: None,
         execute_action=lambda name: True,

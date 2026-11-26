@@ -552,7 +552,7 @@ class Editor:
         """User feedback for an edit refused on a read-only buffer."""
         _readonly_notice(self)
 
-    def reveal_match(self, path: Path, row: int, col: int) -> None:
+    def reveal_match(self, path: Path, row: int, col: int) -> bool:
         """Open *path* if needed and put the cursor on a project-search hit.
 
         The find & replace screen has already scheduled the async open
@@ -564,13 +564,19 @@ class Editor:
         leaf's view state, so that same worker ``apply_doc`` -- its
         ``is_open`` short-circuits -- restores exactly the revealed
         position instead of clobbering it.
+
+        Returns ``True`` on success; ``False`` when the target is neither
+        already open nor an existing path -- no buffer is created for a
+        nonexistent file.
         """
         doc = self.session.is_open(path)
         if doc is None:
+            if not path.is_file():
+                return False
             self.document_flows.open_path(path)
             doc = self.session.is_open(path)
         if doc is None:
-            return
+            return False
         if doc is not self.session.doc:
             self.document_flows.activate_doc(doc)
         buf = doc.buffer
@@ -589,6 +595,7 @@ class Editor:
             state.scroll_col = view.scroll_col
             state.scroll_row = view.scroll_offset.y
         self.refresh_ui()
+        return True
 
     def insert_char(self, ch: str) -> None:
         """Insert one character at the cursor."""

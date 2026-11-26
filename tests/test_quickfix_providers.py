@@ -60,7 +60,7 @@ def _diag_session(tmp_path: Path) -> tuple[EditorSession, Document]:
 def test_diagnostics_publish_entries_including_severity_and_position(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Two diagnostics become two quickfix entries; no overlay is pushed."""
+    """Two diagnostics become two quickfix entries with severity labels."""
     session, doc = _diag_session(tmp_path)
     lsp = LspManager()
     diags = [
@@ -79,7 +79,6 @@ def test_diagnostics_publish_entries_including_severity_and_position(
     monkeypatch.setattr(
         lsp, "diagnostics_for", _fake_diagnostics, raising=False
     )
-    pushes: list[object] = []
     calls: list[tuple[str, list[QuickFixEntry], str]] = []
     messages: list[str] = []
     sync = LspSync(
@@ -92,7 +91,6 @@ def test_diagnostics_publish_entries_including_severity_and_position(
         events=cast(Any, MagicMock()),
         message=lambda text, kind: messages.append(text),
         mounted=lambda: True,
-        push_overlay=cast(Any, pushes.append),
         set_quickfix=lambda provider, entries, label: calls.append(
             (provider, entries, label)
         ),
@@ -100,7 +98,6 @@ def test_diagnostics_publish_entries_including_severity_and_position(
 
     sync.show_diagnostics()
 
-    assert pushes == []
     assert len(calls) == 1
     provider, entries, label = calls[0]
     assert provider == "diagnostics"
@@ -117,10 +114,9 @@ def test_diagnostics_publish_entries_including_severity_and_position(
 def test_diagnostics_empty_publishes_empty_set_and_message(
     tmp_path: Path,
 ) -> None:
-    """No diagnostics: an explicit empty set plus the message, no overlay."""
+    """No diagnostics: an explicit empty set plus the message."""
     session, _doc = _diag_session(tmp_path)
     lsp = LspManager()
-    pushes: list[object] = []
     calls: list[tuple[str, list[QuickFixEntry], str]] = []
     messages: list[str] = []
     sync = LspSync(
@@ -133,7 +129,6 @@ def test_diagnostics_empty_publishes_empty_set_and_message(
         events=cast(Any, MagicMock()),
         message=lambda text, kind: messages.append(text),
         mounted=lambda: True,
-        push_overlay=cast(Any, pushes.append),
         set_quickfix=lambda provider, entries, label: calls.append(
             (provider, entries, label)
         ),
@@ -141,7 +136,6 @@ def test_diagnostics_empty_publishes_empty_set_and_message(
 
     sync.show_diagnostics()
 
-    assert pushes == []
     assert messages == ["no diagnostics"]
     assert calls == [("diagnostics", [], "no diagnostics")]
 
@@ -194,10 +188,11 @@ def test_project_search_publishes_flat_entries_and_records_jump(
     reveals: list[tuple[Path, int, int]] = []
     back_at_reveal = 0
 
-    def reveal(path: Path, row: int, col: int) -> None:
+    def reveal(path: Path, row: int, col: int) -> bool:
         nonlocal back_at_reveal
         reveals.append((path, row, col))
         back_at_reveal = len(session.jumps.stacks()[0])
+        return True
 
     screen._reveal = reveal
     cast(Any, screen).dismiss = lambda: None

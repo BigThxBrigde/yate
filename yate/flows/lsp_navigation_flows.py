@@ -35,7 +35,7 @@ from yate.editor_lsp.navigation import (
 )
 from yate.editor_lsp.parsing import _from_utf16
 from yate.editor_lsp.protocol import uri_file_name, uri_to_path
-from yate.flows import MessageFn, SpawnFn
+from yate.flows import MessageFn, SetQuickFixFn, SpawnFn
 from yate.logs import tracing
 from yate.session import EditorSession, QuickFixEntry
 
@@ -120,7 +120,7 @@ class LspNavigationFlows:
         refresh: Callable[[], None],
         prompt: PromptBar,
         has_modal_screen: Callable[[], bool],
-        set_quickfix: Callable[[str, list[QuickFixEntry], str], None],
+        set_quickfix: SetQuickFixFn,
     ) -> None:
         # Bound ``App.run_worker``: the background-work verb injected by the
         # editor (this module never holds the App handle itself).
@@ -492,9 +492,11 @@ class LspNavigationFlows:
     def _jump_to_row(self, row: LspRow) -> None:
         """Open the row's target document and land on its position."""
         # Record the jump origin before anything moves the cursor (single
-        # push contract); quickfix panel jumps route through
-        # QuickFixFlows.jump_to instead, so no double push happens.
-        self._session.push_jump()
+        # push contract) but push only after the open succeeded, so a
+        # failed jump never leaves a stale origin on the back stack.
+        # Quickfix panel jumps route through QuickFixFlows.jump_to
+        # instead, so no double push happens.
+        origin = self._session.doc
         path = uri_to_path(row.uri)
         self._open_path(path)
         doc = self._session.is_open(path)
@@ -504,6 +506,7 @@ class LspNavigationFlows:
         buf = doc.buffer
         jump_row = min(row.row, buf.line_count - 1)
         jump_col = min(row.col, len(buf.lines[jump_row]))
+        self._session.push_jump(origin, row=origin.buffer.row, col=origin.buffer.col)
         buf.set_cursor((jump_row, jump_col))
         buf.anchor = None
         for view in self._panes.views_for(doc):

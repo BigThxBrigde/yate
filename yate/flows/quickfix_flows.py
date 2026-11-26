@@ -3,7 +3,7 @@
 The durable state is the shared L1 :class:`~yate.session.QuickFixList`
 (held by this flow and the panel; no widget, document or server
 reference inside it); this module only sequences the verbs: replace a
-provider's result slice, open / close / toggle the docked panel, step
+provider's result slice, open / close the docked panel, step
 the cursor with wrap-around and jump to the selected entry.  Panel
 visibility goes through the injected ``show`` / ``hide`` display
 switches -- the editor owns the widget, no App handle is held here
@@ -13,24 +13,18 @@ switches -- the editor owns the widget, no App handle is held here
 from __future__ import annotations
 
 from collections.abc import Callable
-from pathlib import Path
 
+from yate.editor_components.find_replace import RevealFn
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_core.project_search import FileMatch
 from yate.flows import MessageFn
 from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
-#: ``reveal(path, row, col)`` -- open the target document if needed and
-#: land the cursor on the entry (injected by the editor).
-type RevealFn = Callable[[Path, int, int], None]
-
-#: ``show()`` / ``hide()`` -- the docked panel display switches (R13: the
-#: editor owns the widget and only flips ``display``; no styling here).
-type ShowFn = Callable[[], None]
-type HideFn = Callable[[], None]
-
-#: ``refresh()`` -- the editor repaint verb (injected).
-type RefreshFn = Callable[[], None]
+# ``show()`` / ``hide()`` -- the docked panel display switches (R13: the
+# editor owns the widget and only flips ``display``; no styling here).
+# ``refresh()`` -- the editor repaint verb (injected).  All three share
+# the same zero-argument shape, so they stay inline per the callback-alias
+# rule (single-use named aliases are not warranted).
 
 
 class QuickFixFlows:
@@ -48,10 +42,10 @@ class QuickFixFlows:
         *,
         entries: QuickFixList,
         reveal: RevealFn,
-        show: ShowFn,
-        hide: HideFn,
+        show: Callable[[], None],
+        hide: Callable[[], None],
         message: MessageFn,
-        refresh: RefreshFn,
+        refresh: Callable[[], None],
     ) -> None:
         self._session = session
         self._panel = panel
@@ -73,18 +67,21 @@ class QuickFixFlows:
     ) -> None:
         """Replace *provider*'s slice and open the panel on a non-empty set.
 
-        An empty set keeps a stale panel closed and reports the empty
-        state on the message line.
+        The panel is hidden only when the whole result set is empty -- an
+        empty batch from one provider must not close a panel that other
+        providers still populate.
         """
         self._list.replace(provider, entries, label)
         if entries:
             self.open()
+        elif not self._list.entries:
+            # The whole result set is empty: keep a stale panel from
+            # lingering.  Providers own their explicit empty-state
+            # messages; a silent clear must not overwrite the last
+            # search/replace report.
+            self._hide()
         else:
             self._repaint()
-            # Keep a stale panel from lingering over an emptied list.
-            # Providers own their explicit empty-state messages; a silent
-            # clear must not overwrite the last search/replace report.
-            self._hide()
 
     def set_search_results(self, matches: list[FileMatch]) -> None:
         """Flatten project-search hits into entries and publish them.
@@ -100,7 +97,9 @@ class QuickFixFlows:
                 path=file_match.path,
                 row=hit.row,
                 col=hit.start,
-                label=file_match.hit_lines.get(hit.row, "").rstrip("\r\n"),
+                label=file_match.hit_lines.get(hit.row, "(no preview)").rstrip(
+                    "\r\n"
+                ),
             )
             for file_match in matches
             for hit in file_match.matches
@@ -115,13 +114,6 @@ class QuickFixFlows:
     def close(self) -> None:
         """Hide the panel; the result set stays intact for a later reopen."""
         self._hide()
-
-    def toggle(self) -> None:
-        """Flip the panel between visible and hidden."""
-        if self._panel.display:
-            self.close()
-        else:
-            self.open()
 
     # ------------------------------------------------------------- cursor
 
@@ -158,8 +150,11 @@ class QuickFixFlows:
         row = origin.buffer.row
         col = origin.buffer.col
         try:
-            self._reveal(entry.path, entry.row, entry.col)
+            revealed = self._reveal(entry.path, entry.row, entry.col)
         except OSError:
+            self._message(f"cannot open {entry.path}", "error")
+            return
+        if not revealed:
             self._message(f"cannot open {entry.path}", "error")
             return
         self._session.push_jump(origin, row=row, col=col)

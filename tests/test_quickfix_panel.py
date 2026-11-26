@@ -18,8 +18,8 @@ from textual.events import Key
 from textual.widget import Widget
 from textual.widgets import Static
 
-from yate.editor_components import theme
 import yate.editor_components.quickfix_panel as quickfix_panel
+from yate.editor_components import theme
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.session import QuickFixEntry, QuickFixList
 
@@ -130,6 +130,45 @@ def test_panel_up_down_enter_escape_consume_only_handled_keys() -> None:
             assert qf.selected == 1
         assert picked == [1]
         assert len(closed) == 1
+
+    asyncio.run(scenario())
+
+
+def test_narrow_viewport_renders_one_physical_line_per_entry() -> None:
+    """A long entry in a narrow viewport is chopped to a single row and
+    the selected entry scrolls to its own row."""
+    async def scenario() -> None:
+        qf = QuickFixList()
+        entries = [_entry(f"e{i}") for i in range(30)]
+        entries.append(_entry("x" * 200))
+        qf.replace("diagnostics", entries, "diagnostics")
+        qf.selected = 30
+        picked: list[int] = []
+        closed: list[None] = []
+        panel = _panel(qf, picked, closed)
+        app = _Host(panel)
+        async with app.run_test(size=(40, 8)) as pilot:
+            # The mount-time paint may run before layout reports a width;
+            # the flow always repaints after mount (and so does the theme
+            # attach), so repaint now that the size is known.
+            panel.repaint()
+            await pilot.pause()
+            body = panel.query_one("#quickfix-body", Static)
+            lines = plain_text(body.content).splitlines()
+            # One entry, one physical row -- no wrapped continuation.
+            assert len(lines) == 31
+            assert "boom" not in " ".join(lines[1:])
+            long_line = lines[30]
+            assert long_line.startswith("> ")
+            assert len(long_line) <= 40
+            # The stored label itself is never trimmed.
+            assert len(qf.entries[30].label) == 200
+            # The selected (last) entry scrolled into the viewport: with
+            # one physical row per entry the offset lands the selected
+            # row inside the visible range (clamped to the max scroll).
+            top = panel.scroll_offset.y
+            assert top > 0
+            assert top <= 30 < top + panel.size.height
 
     asyncio.run(scenario())
 

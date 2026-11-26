@@ -52,7 +52,9 @@ SNIPPET_CONTEXT: int = 40
 SCAN_FILE_CAP: int = 5_000
 
 #: Reveal callback: focus (path, row, col) after the document opens.
-type RevealFn = Callable[[Path, int, int], None]
+#: Returns ``True`` on success; ``False`` when the target could not be
+#: opened (never creating a buffer for a nonexistent path).
+type RevealFn = Callable[[Path, int, int], bool]
 
 #: Message-line callback (text + severity kind, as ``Editor.message``).
 type MessageFn = Callable[[str, str], None]
