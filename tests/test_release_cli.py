@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -87,9 +86,15 @@ def _stub_pipeline(
             path.write_text(f"changelog stub: {rel}\n", encoding="utf-8")
         raise failure
 
+    def fake_gate(_repo: Path) -> int:
+        return 0
+
+    def fake_tests(_repo: Path) -> int:
+        return 0
+
     monkeypatch.setattr(cli, "generate_changelog", fake_generate_changelog)
-    monkeypatch.setattr(cli, "gate_check", lambda repo: 0)
-    monkeypatch.setattr(cli, "run_version_tests", lambda repo: 0)
+    monkeypatch.setattr(cli, "gate_check", fake_gate)
+    monkeypatch.setattr(cli, "run_version_tests", fake_tests)
 
 
 @pytest.mark.skipif(shutil.which("git") is None, reason="git executable not available")

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import inspect
 import json
-from collections.abc import Awaitable, Iterator
+from collections.abc import Iterator
 from pathlib import Path
 from typing import cast
 
@@ -248,7 +248,11 @@ def test_run_shard_reseeds_the_worker_process(
     header claimed N.
     """
     seeds: list[int] = []
-    monkeypatch.setattr(harness, "set_seed", lambda value: seeds.append(int(value)))
+
+    def record_seed(value: int) -> None:
+        seeds.append(int(value))
+
+    monkeypatch.setattr(harness, "set_seed", record_seed)
 
     def fake_run_one(scenario: Scenario, tmp_root: Path, options: RunOptions) -> ScenarioResult:
         return ScenarioResult(scenario.name, tags=scenario.tags)

@@ -6,10 +6,12 @@ a mid-save failure never leaves a truncated icon (the pattern
 ``tools/pack/zip_dist.py`` already uses).
 """
 
+# pyright: reportMissingImports=false
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -24,7 +26,7 @@ def source(tmp_path: Path) -> Path:
     from PIL import Image
 
     path = tmp_path / "yate.jpg"
-    Image.new("RGB", (64, 32), "red").save(path, format="JPEG")
+    cast(Any, Image).new("RGB", (64, 32), "red").save(path, format="JPEG")
     return path
 
 
