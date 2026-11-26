@@ -22,9 +22,9 @@ Follow this framework every time.
 
 - `$ARGUMENTS` names a mode and optionally a base ref, e.g.
   `impact main`, `review`, `ask HEAD~3`.
-- No base ref given → diff against the merge-base with `main`
-  (`git diff --stat $(git merge-base HEAD main)...HEAD`, fall back to
-  `master`).
+- No base ref given → diff against the merge-base with `master`
+  (`git diff --stat $(git merge-base HEAD master)...HEAD`, the project's
+  baseline branch).
 - No diff found (detached/unrelated) → ask for a base ref or a file list.
 - **Noise filter** — skip these unless the diff genuinely changes behavior:
   `*.pyc`, `*.lock` / lock files, `*.spec`, binary assets, files under
@@ -81,7 +81,7 @@ truly has nothing to flag.
 Run the self-check list in `../../rules/architecture-boundaries.md` §五
 against the diff. Non-negotiable highlights:
 - Dependency directions R1-R5, R11: no `import yate.app` outside
-  `cli.py`; `editor_view/*` never imports `editor`/`app`; flows modules
+  `cli.py`; `editor_components/*` never imports `editor`/`app`; flows modules
   never hold an App handle
 - No new `Protocol` (frozen whitelist only), no `TYPE_CHECKING`, no `Any`
   / `# type: ignore`, no `*Feature`/`*Host`/`*Ops`/`*Delegate`/`*Controller`
@@ -94,7 +94,7 @@ against the diff. Non-negotiable highlights:
 ### 6. Hard Gates (repo-specific)
 Run these commands and report real exit codes; never guess results:
 ```
-python -m pyright yate/ tests/ tools/
+python -m pyright yate/ tests/ tools/ pack/
 python -m pytest tests/ -q
 ```
 Coverage gate: `pytest --cov --cov-fail-under=75` when test coverage of

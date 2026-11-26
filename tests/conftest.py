@@ -157,7 +157,9 @@ def _format_pump_summary(
     return "\n".join(lines)
 
 
-async def _probe_unresponsive_pumps(pilot: Any, timeout: float = 2.0) -> str:  # noqa: Any - Textual pilot probe; no stubs
+async def _probe_unresponsive_pumps(
+    pilot: Any, timeout: float = 2.0
+) -> str:  # noqa: Any - Textual pilot probe; no stubs
     """Re-arm a callback on every pump of the current screen subtree.
 
     The probe arms one ``call_later`` callback per pump (the same protocol
@@ -287,6 +289,18 @@ def isolated_os_clipboard(
     yield
 
 
+def _theme_state_teardown() -> None:
+    """Restore the process-global theme state to its pristine default.
+
+    Split out of :func:`reset_theme_state` so tests can drive the exact
+    teardown in-process (pytest 9 forbids calling fixtures directly, m24).
+    Clears the subscriber list first (a leaked widget must not observe the
+    reset) and then restores the built-in default without broadcasting.
+    """
+    theme._listeners.clear()  # pyright: ignore[reportPrivateUsage]
+    theme._active = theme.THEMES[theme.DEFAULT_THEME]  # pyright: ignore[reportPrivateUsage]
+
+
 @pytest.fixture(autouse=True)
 def reset_theme_state() -> Iterator[None]:
     """Reset the process-global theme state after every test.
@@ -296,16 +310,14 @@ def reset_theme_state() -> Iterator[None]:
     worker whenever its manual restore line is skipped -- a failed
     assertion before the restore leaks too (observed as flaky
     ``theme.active().dark`` failures in worker-parallel runs).  Teardown
-    clears the subscriber list first (a leaked widget must not observe the
-    reset) and then restores the built-in default without broadcasting.
+    delegates to :func:`_theme_state_teardown`.
 
     The theme *registry* (``THEMES``) is intentionally left untouched:
     ``tests/test_cli.py`` registers a custom theme at module import time and
     later tests assert its presence.
     """
     yield
-    theme._listeners.clear()  # pyright: ignore[reportPrivateUsage]
-    theme._active = theme.THEMES[theme.DEFAULT_THEME]  # pyright: ignore[reportPrivateUsage]
+    _theme_state_teardown()
 
 
 async def wait_until(  # noqa: Any - Textual pilot probe; no stubs

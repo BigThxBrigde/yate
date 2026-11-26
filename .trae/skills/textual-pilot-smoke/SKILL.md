@@ -22,7 +22,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from yate.app import YateApp
-from yate.editor_view import theme
+from yate.editor_components import theme
 
 async def main() -> None:
     with TemporaryDirectory() as tmp:
@@ -171,7 +171,7 @@ Four traps that cost real time when writing scenarios (all hit in the
 # prepend that nodeenv's Scripts so the bundled node is on PATH:
 #   $env:PATH = "$env:LOCALAPPDATA\pyright-python\nodeenv\Scripts;$env:PATH"
 $env:PYTHONDONTWRITEBYTECODE='1'
-.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
 .venv\Scripts\python.exe -m pytest tests -q
 ```
 

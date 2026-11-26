@@ -247,7 +247,8 @@ api.lsp.register_server(
 安装：
 
 ```bash
-# 系统包管理器或从 https://github.com/clangd/clangd/releases 下载
+# 系统包管理器安装，或从以下地址下载：
+# https://github.com/clangd/clangd/releases
 # Debian/Ubuntu: sudo apt install clangd
 # macOS: brew install llvm
 ```

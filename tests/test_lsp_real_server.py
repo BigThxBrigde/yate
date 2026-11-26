@@ -5,8 +5,10 @@ Spawns ``pyright-langserver --stdio`` through the production
 opens a real Python file, applies several buffered edits and asserts that
 only range patches leave the client.  Diagnostics arriving from the server
 double as indirect evidence that the server-side document state did not
-drift.  Skipped when pyright-langserver is not installed or cannot start
-(e.g. no node runtime), so CI without pyright stays green.
+drift.  Skipped only when pyright-langserver is not installed; a present
+server that fails to start or never reaches READY is a hard failure (m25),
+so handshake regressions cannot hide behind a skip on machines that have
+the binary.
 """
 
 from __future__ import annotations
@@ -127,10 +129,10 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
                     mgr.on_document_shown(doc), timeout=_SPAWN_TIMEOUT_S
                 )
             except (asyncio.TimeoutError, OSError) as exc:
-                pytest.skip(f"pyright-langserver failed to start: {exc}")
+                pytest.fail(f"pyright-langserver failed to start: {exc}")
             client = clients[0]
             if client.state is not ServerState.READY:
-                pytest.skip(
+                pytest.fail(
                     "pyright-langserver did not reach READY"
                     " (missing node runtime?);"
                     f" state={client.state.value} error={client.error!r}"
@@ -261,10 +263,10 @@ def test_real_pyright_two_file_definition_references_hover(
                         mgr.on_document_shown(doc), timeout=_SPAWN_TIMEOUT_S
                     )
                 except (asyncio.TimeoutError, OSError) as exc:
-                    pytest.skip(f"pyright-langserver failed to start: {exc}")
+                    pytest.fail(f"pyright-langserver failed to start: {exc}")
             client = clients[0]
             if client.state is not ServerState.READY:
-                pytest.skip(
+                pytest.fail(
                     "pyright-langserver did not reach READY"
                     " (missing node runtime?);"
                     f" state={client.state.value} error={client.error!r}"

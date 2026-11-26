@@ -412,13 +412,13 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
 
    | Exempt file | Lines |
    |---|---|
-   | `keymaps/vim.py` | 1718 |
+   | `keymaps/vim.py` | 1726 |
    | `editor_components/file_manager/screen.py` | 1017 |
    | `editor_components/view.py` | 891 |
    | `editor_core/buffer.py` | 1565 |
    | `editor_syntax/langdefs.py` | 841 |
-   | `editor_lsp/manager.py` | 1248 |
-   | `editor.py` | 848 |
+   | `editor_lsp/manager.py` | 1249 |
+   | `editor.py` | 854 |
 
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
@@ -527,7 +527,7 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
       没有类级 `ScrollBar.renderer` patch、新主题感知组件已订阅
       `theme.subscribe` 自行上色？
 - [ ] 新可滚动组件已调 `apply_slim_scrollbars` + `apply_scrollbar_theme`（R15）？
-- [ ] `python -m pyright yate/ tests/ tools/` 零诊断、`python -m pytest tests/ -q -n auto` 全绿？
+- [ ] `python -m pyright yate/ tests/ tools/ pack/` 零诊断、`python -m pytest tests/ -q -n auto` 全绿？
 
 ## 六、防回归
 

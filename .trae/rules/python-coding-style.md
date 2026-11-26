@@ -34,7 +34,7 @@ scene: python_coding
 | 类型 | 风格 | 示例 |
 |------|------|------|
 | 模块 | `snake_case` | `logs.py`、`editor_core/` |
-| 包 | `snake_case`，单词用下划线分隔、不用 CamelCase | `yate.editor_lsp`、`yate.editor_view` |
+| 包 | `snake_case`，单词用下划线分隔、不用 CamelCase | `yate.editor_lsp`、`yate.editor_components` |
 | 函数/方法 | `snake_case` | `install()`、`get_logger()` |
 | 类 | `PascalCase` | `YateConfig`、`_SessionFileHandler` |
 | 常量 | `UPPER_CASE` | `LOGGER_NAME`、`LEVEL_NAMES` |
@@ -56,7 +56,7 @@ scene: python_coding
 `_TsPoint` / `_TsNode`（`editor_syntax/ts_backend/backend.py`，R2 冻结白名单
 私有结构化类型）、`_from_utf16` / `_to_utf16`（`editor_lsp/parsing.py` 包内
 解析辅助）、`_shared`（`editor_sprites/chars/` 包内私有数据模块）、
-`_WelcomeRow`（`editor_view/welcome.py`，L2 组件内部）。
+`_WelcomeRow`（`editor_components/welcome.py`，L2 组件内部）。
 
 ### 1.3 导入
 
@@ -67,14 +67,14 @@ scene: python_coding
   3. 项目内部（`from yate import ...`）
 - 每组内部按字母序排列
 - **包内一律使用绝对导入**（issue IKKS4C）：同一包内的模块互引也写全限定路径
-  （`from yate.editor_view.icons import CHECK`，而非 `from .icons import CHECK`）；
+  （`from yate.editor_components.icons import CHECK`，而非 `from .icons import CHECK`）；
   `from .X` / `from ..X` 形态禁止出现在 `yate/`、`tools/`、`tests/` 任何位置。
   例外登记：无。
 
 ```python
 # 好：包内互引同样写全限定绝对路径
-from yate.editor_view import theme
-from yate.editor_view.icons import CHECK
+from yate.editor_components import theme
+from yate.editor_components.icons import CHECK
 
 # 坏：相对导入（同包内也不允许）
 from . import theme

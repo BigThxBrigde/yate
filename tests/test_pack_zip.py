@@ -250,7 +250,9 @@ def test_archive_stage_when_stage_name_has_non_ascii_chars_writes_matching_check
     assert rows[0] == f"{result.digest}  {stage.name}.zip".encode("utf-8")
 
 
-def test_archive_stage_when_checksum_row_has_trailing_unicode_space_replaces_it(stage: Path) -> None:
+def test_archive_stage_when_checksum_row_has_trailing_unicode_space_replaces_it(
+    stage: Path,
+) -> None:
     dist = stage.parent
     (dist / "SHA256SUMS.txt").write_bytes(
         b"dead  yate-0.2.18-windows-x64.zip\xe3\x80\x80\nh1  other.zip\n"

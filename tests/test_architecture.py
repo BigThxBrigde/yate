@@ -352,8 +352,9 @@ MAX_SOURCE_LINES: int = 800
 #: ``screen.py`` + ``pane.py``), ``editor_components/view.py`` into ``highlighting.py`` +
 #: ``welcome.py``, ``editor_components/theme.py`` into ``themes.py`` + ``cells.py``
 #: + ``theme_files.py`` (2026-11-03 further subpackaged as ``theme/``:
-#: ``__init__.py`` + ``themes.py`` + ``files.py``), ``editor_term/emulator.py`` into ``palette.py`` +
-#: ``keys.py``, ``editor_lsp/manager.py`` into ``parsing.py`` and
+#: ``__init__.py`` + ``themes.py`` + ``files.py``),
+#: ``editor_term/emulator.py`` into ``palette.py`` + ``keys.py``,
+#: ``editor_lsp/manager.py`` into ``parsing.py`` and
 #: ``yaterc.py`` into ``yaterc_options.py`` -- all dropped from this list.
 #: ``editor_core/buffer.py`` keeps its exemption at its post-split line
 #: count (word motions moved to ``words.py``).
@@ -400,13 +401,13 @@ SIZE_EXEMPT_FILES: frozenset[str] = frozenset({
 #: section 3.7 (2026-11-20 full-repo sweep).  The rule table is the readable
 #: source; this map is the executable half of the two-way sync guard.
 SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
-    "keymaps/vim.py": 1718,
+    "keymaps/vim.py": 1726,
     "editor_components/file_manager/screen.py": 1017,
     "editor_components/view.py": 891,
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
-    "editor_lsp/manager.py": 1248,
-    "editor.py": 848,
+    "editor_lsp/manager.py": 1249,
+    "editor.py": 854,
 }
 
 #: Code points a code comment or docstring must not carry (misc-rules
@@ -1429,15 +1430,78 @@ def test_leaf_package_reexports_carry_exception_note() -> None:
         assert "architecture-boundaries" in text, name
 
 
+def _mouse_gate_and_forward_lines(source: str) -> tuple[int, int]:
+    """Locate the mouse gate and the ``super().on_event`` forward by AST.
+
+    Returns ``(gate_lineno, forward_lineno)`` of the two statements inside
+    ``YateApp.on_event``.  m23: the previous guard compared substring
+    indexes and its first ``support_mouse`` hit landed in the ``on_event``
+    docstring, so the order check was always true; comparing statement
+    line numbers restores its detection power.
+    """
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.ClassDef) and node.name == "YateApp"):
+            continue
+        for item in node.body:
+            if not (
+                isinstance(item, ast.AsyncFunctionDef) and item.name == "on_event"
+            ):
+                continue
+            gate = forward = None
+            for stmt in ast.walk(item):
+                if (
+                    gate is None
+                    and isinstance(stmt, ast.If)
+                    and "support_mouse" in ast.dump(stmt.test)
+                ):
+                    gate = stmt.lineno
+                if (
+                    forward is None
+                    and isinstance(stmt, ast.Expr)
+                    and isinstance(stmt.value, ast.Await)
+                    and isinstance(stmt.value.value, ast.Call)
+                    and isinstance(stmt.value.value.func, ast.Attribute)
+                    and stmt.value.value.func.attr == "on_event"
+                ):
+                    forward = stmt.lineno
+            if gate is not None and forward is not None:
+                return gate, forward
+    raise AssertionError(
+        "YateApp.on_event with a support_mouse gate and a super() forward not found"
+    )
+
+
 def test_support_mouse_gate_lives_in_app_on_event() -> None:
     """``support_mouse = false`` drops mouse events in ``YateApp.on_event``
     before ``super().on_event`` forwards them (issue IKJRFK): the gate
-    must appear before the forward call in the source."""
+    statement must precede the forward statement in the AST."""
     source = (YATE / "app.py").read_text(encoding="utf-8")
-    assert "support_mouse" in source
-    gate = source.index("support_mouse")
-    forward = source.index("await super().on_event(event)")
+    gate, forward = _mouse_gate_and_forward_lines(source)
     assert gate < forward
+
+
+_DRILLED_ON_EVENT_SOURCE: str = '''
+class YateApp:
+    """Negative drill (m23): the mouse gate moved after the forward."""
+
+    async def on_event(self, event):
+        await super().on_event(event)
+        if not self.config.support_mouse and isinstance(event, events.MouseEvent):
+            event.stop()
+            event.prevent_default()
+            return
+'''
+
+
+def test_support_mouse_gate_after_forward_would_fail_the_guard() -> None:
+    """Negative drill: a gate placed after the forward is detected as red.
+
+    Proves the AST guard has detection power against the regression it
+    exists for -- the previous substring-based guard stayed green in this
+    exact scenario."""
+    gate, forward = _mouse_gate_and_forward_lines(_DRILLED_ON_EVENT_SOURCE)
+    assert not (gate < forward)
 
 
 def test_extension_machinery_hides_behind_facade() -> None:

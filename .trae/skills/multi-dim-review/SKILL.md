@@ -113,7 +113,7 @@ registered exemption sets (Step 9) before flagging any of them.
   incrementally
 - Repo-specific: document / pane operations must not scale a full-document
   scan per keystroke; `editor_core/buffer.py` primitives and the
-  `editor_view/*` render path are the benchmark (bisect interval-table
+  `editor_components/*` render path are the benchmark (bisect interval-table
   precedent in `filled_rows`)
 - Severity: a naive higher-complexity choice where a standard
   lower-complexity alternative exists is a finding **by construction** —
@@ -137,15 +137,15 @@ registered exemption sets (Step 9) before flagging any of them.
 ### D6 Architecture Boundaries
 Run the §五 self-check of `../../rules/architecture-boundaries.md` on the
 target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
-- R1: only `cli.py` imports `yate.app`; R3: `editor_view/*` never imports
-  `editor` / `app`; R4: UI-free packages/files never import `editor_view`
+- R1: only `cli.py` imports `yate.app`; R3: `editor_components/*` never imports
+  `editor` / `app`; R4: UI-free packages/files never import `editor_components`
 - R2: no new `Protocol` (frozen whitelist: `PaneRegistry`, `SyntaxBackend`,
   `_TsPoint`, `_TsNode`); R6: zero `TYPE_CHECKING` repo-wide
 - R5/R7: built-in tables direction and shell-only population
 - R9: widget ids frozen — changes must sync `yate/resources/app.tcss`
 - R10: one keypress one dispatch; unrecognized keys fall through, never an
   unconditional swallow (the completion-popup lesson)
-- R11: flows modules import `editor_view` only inside `UI_FROZEN_FILES`;
+- R11: flows modules import `editor_components` only inside `UI_FROZEN_FILES`;
   new imports must be registered there first
 - R12: logs only via `tracing.get_logger(__name__)` with lazy `%` placeholders;
   no `self.log` / `self.app.log`, no devtools channel access
@@ -161,7 +161,7 @@ target. Non-negotiable highlights (any violation is `[BLOCKER]` by definition):
   (mirrors architecture-boundaries §三.7) before flagging; multi-responsibility
   mixing must split, single-responsibility long files may be exempt
 - Package `__init__.py` stays lazy: no re-exports except registered facade
-  exceptions (`editor_view/theme.py`, `services/extensions/` facade,
+  exceptions (`editor_components/theme.py`, `services/extensions/` facade,
   L0 leaf re-exports with exception notes)
 - New flow modules follow the §三.8 checklist: `*_flows.py` / `*Flows`,
   declared on `Editor`, built in `_build_*` factories with injected
@@ -249,7 +249,7 @@ state the exemption explicitly instead of skipping silently.
 
 ## Step 5: Branch-Diff Scope Extras
 
-- Base ref: merge-base with `main` (fall back to `master`) when not given.
+- Base ref: merge-base with `master` when not given.
 - Noise filter: lock files, binaries, `*.pyc`, pure reformatting hunks —
   mention once as skipped, do not review their content.
 - Modes: `review` (default: all dimensions + verdict + action plan),
@@ -284,7 +284,7 @@ For directory / repo audits (precedent:
 ## Step 7: Gate Commands
 
 ```powershell
-.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
 .venv\Scripts\python.exe -m pytest tests/ -q -n auto
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 .venv\Scripts\python.exe -m pytest tests/ --cov=yate --cov-branch -n auto
@@ -378,7 +378,7 @@ the set that absorbed it, so a widening exemption stays visible instead of
 silent:
 
 - `SIZE_EXEMPT_FILES` — files over the 800-line threshold (D7)
-- `UI_FROZEN_FILES` — flows modules allowed to import `editor_view` (D6 R11)
+- `UI_FROZEN_FILES` — flows modules allowed to import `editor_components` (D6 R11)
 - `NON_ASCII_COMMENT_EXEMPT` — frozen; new non-ASCII comments must be
   rewritten, never registered (D9)
 - `PRINT_EXEMPT_SITES` — sanctioned `print()` hosts in `yate/` (D9)

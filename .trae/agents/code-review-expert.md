@@ -54,7 +54,7 @@ model: DeepSeek-V4.1-Flash
 评审 yate 项目代码时，必须先读取 `.trae/rules/` 下的规则文档并逐条对照：
 
 - `.trae/rules/architecture-boundaries.md` — 分层架构边界（权威来源）：
-  - 依赖方向 R1-R13（如 `editor_view/*` 不得 import `yate.editor` / `yate.app`、
+  - 依赖方向 R1-R15（如 `editor_components/*` 不得 import `yate.editor` / `yate.app`、
     禁止 `TYPE_CHECKING` / 新 `Protocol`、日志统一 tracing、组件自持主题）；
   - 新增功能自检清单（§五）逐项核对；
   - 架构测试 `tests/test_architecture.py` 的守卫面——评审发现的架构问题，
@@ -71,7 +71,7 @@ model: DeepSeek-V4.1-Flash
 ## 验证命令（评审结论必须实测背书）
 
 ```powershell
-.venv\Scripts\python.exe -m pyright yate/ tests/ tools/
+.venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
 .venv\Scripts\python.exe -m pytest tests/ -q -n auto
 .venv\Scripts\python.exe -m pytest tests/test_architecture.py -q
 .venv\Scripts\python.exe -m pytest tests --cov=yate --cov-branch --cov-report=term-missing --cov-fail-under=75 -n auto

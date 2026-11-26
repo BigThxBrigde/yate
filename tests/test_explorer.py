@@ -127,6 +127,98 @@ def test_submit_delete_cancelled_does_nothing(tmp_path: Path) -> None:
     assert prompt.writes == [("delete cancelled", "info")]
 
 
+# --- submit_create / submit_rename / submit_delete error branches (m26) -----
+
+
+def test_submit_create_reports_invalid_name(tmp_path: Path) -> None:
+    """An invalid name surfaces as an ``invalid name:`` error message."""
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = tmp_path
+    workspace.create_entry.side_effect = ValueError("name must not be empty")
+
+    tree.submit_create("")
+
+    workspace.create_entry.assert_called_once_with(tmp_path, "", is_dir=False)
+    assert prompt.writes == [("invalid name: name must not be empty", "error")]
+
+
+def test_submit_create_reports_existing_entry(tmp_path: Path) -> None:
+    """An existing target surfaces the workspace's ``FileExistsError`` text."""
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = tmp_path
+    workspace.create_entry.side_effect = FileExistsError("a.py already exists")
+
+    tree.submit_create("a.py")
+
+    assert prompt.writes == [("a.py already exists", "error")]
+
+
+def test_submit_create_reports_os_error(tmp_path: Path) -> None:
+    """A filesystem failure surfaces as a ``create failed:`` error message."""
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = tmp_path
+    workspace.create_entry.side_effect = OSError("disk full")
+
+    tree.submit_create("a.py")
+
+    assert prompt.writes == [("create failed: disk full", "error")]
+
+
+def test_submit_rename_reports_invalid_name(tmp_path: Path) -> None:
+    """An invalid rename name surfaces as an ``invalid name:`` error."""
+    victim = tmp_path / "a.py"
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = victim
+    workspace.rename_entry.side_effect = ValueError("name must not be empty")
+
+    tree.submit_rename("")
+
+    assert prompt.writes == [("invalid name: name must not be empty", "error")]
+
+
+def test_submit_rename_reports_existing_entry(tmp_path: Path) -> None:
+    """A rename collision surfaces the workspace's ``FileExistsError`` text."""
+    victim = tmp_path / "a.py"
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = victim
+    workspace.rename_entry.side_effect = FileExistsError("b.py already exists")
+
+    tree.submit_rename("b.py")
+
+    assert prompt.writes == [("b.py already exists", "error")]
+
+
+def test_submit_rename_reports_os_error(tmp_path: Path) -> None:
+    """A filesystem failure surfaces as a ``rename failed:`` error message."""
+    victim = tmp_path / "a.py"
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = victim
+    workspace.rename_entry.side_effect = OSError("file in use")
+
+    tree.submit_rename("b.py")
+
+    assert prompt.writes == [("rename failed: file in use", "error")]
+
+
+def test_submit_delete_reports_os_error(tmp_path: Path) -> None:
+    """A filesystem failure surfaces as a ``delete failed:`` error message."""
+    victim = tmp_path / "folder"
+    prompt = _FakePrompt()
+    tree, workspace = _make_tree(EditorSession(YateConfig()), prompt)
+    tree._target = victim
+    workspace.remove_entry.side_effect = OSError("directory not empty")
+
+    tree.submit_delete("y")
+
+    assert prompt.writes == [("delete failed: directory not empty", "error")]
+
+
 # --- EditorSession.close_under / LspSync.documents_closed ------------------
 
 

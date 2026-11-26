@@ -29,7 +29,7 @@ model: qwen-3.8-plus
     改动文件清单、输出、可执行的验收命令）、风险清单与回滚路径；
   - 方案落盘到 `.trae/documents/<task>-plan.md`（相对路径）。
 - `.trae/rules/architecture-boundaries.md` — 分层架构边界：
-  - 设计必须满足依赖方向 R1-R13 与分层职责表；改动跨层时在方案中显式标注
+  - 设计必须满足依赖方向 R1-R15 与分层职责表；改动跨层时在方案中显式标注
     触碰了哪些边界条款及对应守卫测试（`tests/test_architecture.py`）；
   - 新增跨模块交互优先用规则 §四 的既定机制（具体对象注入 / 回调 / Textual messages），
     禁止新协议、EventBus、字符串事件名。
@@ -43,7 +43,7 @@ model: qwen-3.8-plus
 
 - **规范遵从**：方案中的代码设计必须严格遵守 `python-coding-style.md`
   （PEP 8 / PEP 20 双轨、类型注解、docstring、`from __future__ import annotations`
-  等）与 `architecture-boundaries.md`（R1–R13 分层边界），不得设计出违反任一者的
+  等）与 `architecture-boundaries.md`（R1–R15 分层边界），不得设计出违反任一者的
   代码形态；与规范冲突的"聪明写法"一律不进方案。
 - **模块职责单一**：每个模块只做一件事；单文件超过 **800 行**视为过大
   （`architecture-boundaries.md` §三.7 阈值）——多职责混合型必拆；已职责单一但

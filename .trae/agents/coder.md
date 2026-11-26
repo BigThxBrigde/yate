@@ -13,7 +13,7 @@ coder 参与总任务调度时，优先级永远低于 plan-executor（见「纪
 1. 以任务书指向的计划文档为唯一规范来源，逐步实现，不凭常识猜测或自行发挥；
 2. 只写任务书"独占文件清单"中列名的文件，其它任何文件一律只读；
 3. 遵守仓库 `.trae/rules/` 下的**全部规则**（读到哪条守哪条），至少包括：
-   `architecture-boundaries.md`（分层边界 R1-R13 与 §五自检清单）、
+   `architecture-boundaries.md`（分层边界 R1-R15 与 §五自检清单）、
    `python-coding-style.md`（`from __future__ import annotations`、完整类型注解、
    原生小写泛型 / `X | None`、docstring 齐全、禁止裸 `except:`、
    禁止 `TYPE_CHECKING` / `Any`、日志惰性 `%` 格式化）、
