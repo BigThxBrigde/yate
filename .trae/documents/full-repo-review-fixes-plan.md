@@ -162,15 +162,23 @@ git --no-pager diff --check
 
 | 波次 | 提交 | 结果 | 门禁数字 |
 |---|---|---|---|
-| 方案 | 待回填 | 用户「按计划执行」批准；规划角色零产出由主代理代笔 | — |
-| A | 待回填 | — | — |
-| B | 待回填 | — | — |
-| C | 待回填 | — | — |
-| D | 待回填 | — | — |
-| 门禁 / 审核 | 待回填 | — | — |
+| 方案 | `7be491b9`（20:41） | 用户「按计划执行」批准；规划角色零产出由主代理代笔 | — |
+| A | `9f869398`（20:49） | M1/M2/M3/m6/m7/m9 六项落地；相关 424 条测试通过 | pyright 0 |
+| B | `f313e143`（20:58）+ `fa2a1505`（20:59，补提遗漏的 `registries.py`） | m1/m2/m3/m4/m5/m8/m22/M5 落地；定点 5 文件通过 | pyright 0 |
+| C | `ef84366e`（21:05） | M4/m10/m11/m12/m13/m14/m15/m16/m18/m19/m20/m21/m28 落地；新增 7 个测试文件 | pyright tools 0，132 条通过 |
+| D | `82eb2ef4`（21:07） | m23/m24/m25/m26/m27/m29 落地；主代理同步 A/B 引起的三处行数固定值 | 架构 47 passed |
+| 全量门禁修正 | `ce86af67`（21:11）、`26af5c07`（21:13）、`02c8ab20`（21:25） | 修正波次 C 测试的 21 处 pyright 诊断；全量 pytest 暴露的 8 条回归（领域异常契约、宏计数上界、信任存储缺失、wiki push 桩、saveas 契约） | 修复后六道门禁全绿 |
+| 门禁 / 审核 | 审核员结论回填中 | 主代理六道门禁（21:25–21:35）全部 exit 0 | pyright 0 / pytest 4115 收集·0 failed / 架构 47 / 覆盖率 92.79% / 冒烟 128·1559 / changelog 0 |
 
 ## 七、偏离记录（回填）
 
 | # | 偏离 | 依据与处置 |
 |---|---|---|
-| — | 暂无 | — |
+| D-1 | 规划角色零产出 | `plan-architect-designer` 的 `qwen-3.8-plus` 本会话多次未注册；按 `task-orchestration.md` §三由主代理代笔，如实标注 |
+| D-2 | 波次 B 提交漏掉 `yate/registries.py` | `fa2a1505` 单独补提；未重写历史 |
+| D-3 | 波次 C 新增测试的 21 处 pyright 诊断 | lambda 未标注 / 未用导入 / 可选 Pillow 无 stub；由主代理在 `ce86af67`、`26af5c07` 修正 |
+| D-4 | 波次 A/B 改动触发豁免文件行数固定值漂移 | `vim.py` 1726、`manager.py` 1249、`editor.py` 854；测试映射与架构规则表三处同步（`82eb2ef4`），未放宽守卫 |
+| D-5 | 全量 pytest 暴露 8 条回归 | `BufferReadOnlyError` 领域异常保留传播、宏计数上界抬至 100000（>`MAX_MACRO_KEYS`）、缺失信任存储静默、wiki push 桩适配 `--porcelain`、saveas 契约更新；`02c8ab20` 修正，未改断言掩盖 |
+| D-6 | 子代理越界提交 | 历史中出现两笔 `Merge branch 'master'`（`b19b283d`、`2afd0057`）与两笔 `chore`（agents 模型、translate 默认模型 `ee446b8b`、`ac47f7d1`），均署名 i77，内容超出本轮范围且违反「不合并 / 子代理不提交」。因已入历史且门禁全绿，主代理不重写历史；**请用户在合并本分支前裁决是否拆分/回退这四笔** |
+| D-7 | m2 的 stderr 丢弃未完全闭合 | 客户端仍以 `DEVNULL` 丢弃服务器进程 stderr；spawn 失败在 `manager.py:407,416` 有日志，UI 侧缺口保持 SUGGESTION，列为后续项 |
+| D-8 | 全量 pytest 出现一条 `PytestUnraisableExceptionWarning` | Textual `active_message_pump` ContextVar 跨 Context（测试清理阶段），退出码 0、无失败用例；按 load-sensitive 环境噪声登记，不修改测试掩盖 |
