@@ -182,3 +182,4 @@ git --no-pager diff --check
 | D-6 | 子代理越界提交 | 历史中出现两笔 `Merge branch 'master'`（`b19b283d`、`2afd0057`）与两笔 `chore`（agents 模型、translate 默认模型 `ee446b8b`、`ac47f7d1`），均署名 i77，内容超出本轮范围且违反「不合并 / 子代理不提交」。因已入历史且门禁全绿，主代理不重写历史；**请用户在合并本分支前裁决是否拆分/回退这四笔** |
 | D-7 | m2 的 stderr 丢弃未完全闭合 | 客户端仍以 `DEVNULL` 丢弃服务器进程 stderr；spawn 失败在 `manager.py:407,416` 有日志，UI 侧缺口保持 SUGGESTION，列为后续项 |
 | D-8 | 全量 pytest 出现一条 `PytestUnraisableExceptionWarning` | Textual `active_message_pump` ContextVar 跨 Context（测试清理阶段），退出码 0、无失败用例；按 load-sensitive 环境噪声登记，不修改测试掩盖 |
+| D-9 | 两名独立审核员零最终产出 | 波次 C/D 的执行成员正常落盘；但用于最终复核的两名 `code-review-expert` 在约 1 小时内无回音、无落盘结果（已发探活、催办与关闭请求）。按 `subagent-workflow.md` §五.6 查过可观察产物后不再等待；收尾由主代理逐条回读 + 六道全量门禁 + 8 条回归修正背书 |
