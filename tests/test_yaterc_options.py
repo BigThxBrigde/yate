@@ -32,6 +32,25 @@ from yate.yaterc_options import (
 )
 
 
+def test_bad_fraction_denominator_keeps_later_extractors_running(
+    tmp_path: Path,
+) -> None:
+    """A doubled sign must report a friendly error, not abort rc loading."""
+    from yate import yaterc
+
+    rc = tmp_path / "yaterc"
+    rc.write_text(
+        'screen_saver = {"dist_lower_bound": "1/--5"}\n'
+        'file_preview = {"enable": False}\n'
+        'large_file = {"threshold": 2097152}\n',
+        encoding="utf-8",
+    )
+    cfg = yaterc.load_config([rc])
+    assert cfg.errors and "screen_saver" in cfg.errors[0]
+    assert cfg.file_preview.enable is False
+    assert cfg.large_file.threshold == 2097152
+
+
 @pytest.fixture()
 def config() -> YateConfig:
     """A fresh default config per test (errors accumulate on it)."""

@@ -25,7 +25,10 @@ from yate.keymaps.keys import (
     key_name,
     parse_key,
 )
+from yate.logs import tracing
 from yate.session import EditorSession
+
+log = tracing.get_logger(__name__)
 
 #: What a direct (name-less) binding calls: the action body itself, handed the
 #: :class:`ActionContext`.  A PEP 695 alias is lazily evaluated, so it may
@@ -83,9 +86,18 @@ class KeyUi:
 class ActionContext:
     """Passed to every action: the document session plus the UI callbacks."""
 
-    def __init__(self, session: EditorSession, ui: KeyUi) -> None:
+    def __init__(
+        self,
+        session: EditorSession,
+        ui: KeyUi,
+        report_error: Callable[[str], None] | None = None,
+    ) -> None:
         self.session = session
         self.ui = ui
+        #: Where an action handler's unexpected failure is reported.  The
+        #: editor injects a user-visible error callback; headless callers and
+        #: tests fall back to the UI's message channel.
+        self.report_error = report_error or ui.message
 
     @property
     def buffer(self) -> TextBuffer:
@@ -194,7 +206,11 @@ class Keymap:
         """
         action = binding.action
         if callable(action):
-            action(ctx)
+            try:
+                action(ctx)
+            except Exception as exc:  # noqa: BLE001 - one handler must not kill the session
+                log.exception("direct key action failed: %s", exc)
+                ctx.report_error(f"key action failed: {type(exc).__name__}: {exc}")
             return True
         if ctx.ui.execute_action(action):
             return True

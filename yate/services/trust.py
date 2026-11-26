@@ -89,7 +89,8 @@ def load_trusted_workspaces(path: Path | None = None) -> set[Path]:
         # bytes decode to U+FFFD instead of raising UnicodeDecodeError, and
         # the surrounding entries still load.
         raw = store.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    except OSError as exc:
+        log.warning("cannot read trust store %s: %s", store, exc)
         return set()
     trusted: set[Path] = set()
     for line in raw.splitlines():

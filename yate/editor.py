@@ -803,7 +803,13 @@ class Editor:
             self.message(f"not an editor command: {name} (try :help)", kind="warn")
             return
         log.debug("command: %s (args=%r)", name, args)
-        entry.func(args)
+        try:
+            entry.func(args)
+        except Exception as exc:  # noqa: BLE001 - one command must not kill the session
+            log.exception("command %s failed", name)
+            self.message(
+                f"command {name} failed: {type(exc).__name__}: {exc}", kind="error"
+            )
 
     def quit(self, force: bool = False) -> None:
         """``:q``: leave yate (blocked while a buffer is modified)."""

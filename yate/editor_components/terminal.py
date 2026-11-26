@@ -256,6 +256,9 @@ class TerminalView(Widget):
             if self.is_attached and self.size.width and self.size.height:
                 return
             await asyncio.sleep(0.02)
+        log.warning(
+            "terminal has no laid-out size after %.1fs; using 80x24", timeout
+        )
 
     def _grid_size(self) -> tuple[int, int]:
         width = int(self.size.width) if self.size.width else 80

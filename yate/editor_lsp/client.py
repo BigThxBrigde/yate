@@ -561,7 +561,20 @@ class LspClient:
         result: Any = None
         ok = True
         if method == "workspace/configuration":
-            result = [self.config.settings or {}]
+            # LSP requires one response entry per requested item; a server
+            # asking for several sections must not read a short array.
+            params = message.get("params")
+            items = (
+                cast(dict[str, Any], params).get("items")
+                if isinstance(params, dict)
+                else None
+            )
+            settings = cast(dict[str, Any], self.config.settings or {})
+            result = (
+                [dict(settings) for _ in cast(list[object], items)]
+                if isinstance(items, list) and items
+                else [settings]
+            )
         elif method in (
             "window/workDoneProgress/create",
             "client/registerCapability",

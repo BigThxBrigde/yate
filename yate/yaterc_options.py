@@ -190,16 +190,16 @@ def _parse_journey_fraction(  # noqa: Any - raw yaterc value, parsed and validat
             and numerator.strip().lstrip("-").isdecimal()
             and denominator.strip().lstrip("-").isdecimal()
         ):
-            bottom = int(denominator)
-            if bottom != 0:
-                try:
+            try:
+                bottom = int(denominator)
+                if bottom != 0:
                     parsed = int(numerator) / bottom
-                except ValueError:
-                    # "0.0 < parsed < 1.0" below then reports the value.
-                    # Reachable despite the isdecimal() guard: "--5" (a
-                    # doubled sign) strips to a decimal "5" but int()
-                    # rejects it.
-                    parsed = None
+            except ValueError:
+                # "0.0 < parsed < 1.0" below then reports the value.
+                # Reachable despite the isdecimal() guard: "--5" (a
+                # doubled sign) strips to a decimal "5" but int() rejects
+                # it -- on either side of the fraction.
+                parsed = None
     if parsed is None or not 0.0 < parsed < 1.0:
         config.errors.append(
             f"screen_saver {key} must be a float in (0, 1) or a fraction "

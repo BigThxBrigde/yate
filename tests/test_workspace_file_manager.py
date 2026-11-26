@@ -24,6 +24,21 @@ def make_source_file(directory: Path) -> Path:
     return target
 
 
+def test_validate_name_rejects_windows_reserved_names_and_trailing_dot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Windows device names and trailing dots must fail validation clearly."""
+    import yate.services.workspace as workspace_module
+
+    monkeypatch.setattr(workspace_module.os, "name", "nt")
+    with pytest.raises(ValueError, match="reserved"):
+        Workspace.validate_name("aux")
+    with pytest.raises(ValueError, match="dot or space"):
+        Workspace.validate_name("foo.")
+    monkeypatch.undo()
+    assert Workspace.validate_name("plain.txt") == "plain.txt"
+
+
 def test_stat_entry_returns_size_mtime_and_posix_fields(tmp_path: Path) -> None:
     """A 2048-byte file reports its size, a live mtime, and owner fields."""
     target = tmp_path / "blob.bin"

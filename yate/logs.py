@@ -372,6 +372,7 @@ class CrashService:
                 faulthandler.enable(file=sys.stderr, all_threads=True)
             except Exception:  # noqa: BLE001 - faulthandler fallback is best-effort
                 pass
+            warn("crash diagnostics disabled: cannot open a crash log")
             return
 
         self._err_file = handle

@@ -21,6 +21,15 @@ from yate.services.workspace_ignores import (
     _parse_ignore as _parse_ignore_impl,
 )
 
+#: Windows device names: ``Path.exists()`` answers True for them anywhere,
+#: which made create/rename report "already exists" instead of a validation
+#: error.  Only checked on Windows, where the names are actually reserved.
+_WIN_RESERVED_NAMES: frozenset[str] = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)}
+)
+
 #: How long a :meth:`Workspace.walk_files` result stays fresh.  Quick open
 #: (ctrl+p) and full-project search each trigger a full-tree walk; within
 #: this window they share one traversal instead of repeating it.  A file
@@ -352,6 +361,10 @@ class Workspace:
         name = name.strip()
         if not name or name in (".", ".."):
             raise ValueError("empty name")
+        if name.rstrip(" .") != name:
+            raise ValueError("name must not end with a dot or space")
+        if os.name == "nt" and name.split(".", 1)[0].upper() in _WIN_RESERVED_NAMES:
+            raise ValueError(f"{name!r} is a reserved name on Windows")
         for sep in ("/", "\\", ":"):
             if sep in name:
                 raise ValueError(f"name must not contain {sep!r}")

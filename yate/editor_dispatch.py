@@ -14,6 +14,8 @@ at the end of this file so either import order stays safe.
 
 from __future__ import annotations
 
+from functools import partial
+
 from textual.events import Key, MouseEvent
 
 from yate.editor_components.terminal import TOGGLE_KEYS
@@ -214,7 +216,10 @@ def _handle_raw_key(ed: yate.editor.Editor, raw: str) -> bool:
         return True
     try:
         handled = ed.keymaps.active.handle_key(
-            ActionContext(ed.session, ed.key_ui), raw
+            ActionContext(
+                ed.session, ed.key_ui, partial(ed.message, kind="error")
+            ),
+            raw,
         )
     except BufferReadOnlyError:
         # Typing / vim operators / edit actions on a read-only buffer:
@@ -263,7 +268,8 @@ def _execute_action(ed: yate.editor.Editor, name: str) -> bool:
     """
     try:
         handled = ed.actions.execute(
-            name, ActionContext(ed.session, ed.key_ui)
+            name,
+            ActionContext(ed.session, ed.key_ui, partial(ed.message, kind="error")),
         )
         if not handled:
             log.debug("action not found: %s", name)

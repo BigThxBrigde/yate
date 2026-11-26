@@ -34,6 +34,40 @@ def _context() -> ActionContext:
     return ActionContext(session, ui)
 
 
+def test_action_handler_failure_is_reported_without_propagation() -> None:
+    """One broken handler must not tear down the whole editor session."""
+    from typing import cast
+
+    from yate.editor import Editor
+
+    registry = ActionRegistry()
+    messages: list[str] = []
+    ctx = _context()
+    ctx.report_error = messages.append
+
+    def boom(_ctx: ActionContext) -> None:
+        raise RuntimeError("handler bug")
+
+    registry.register("boom", boom, "boom")
+    assert registry.execute("boom", ctx) is True
+    assert messages and "handler bug" in messages[0]
+
+    ed = cast(Any, object.__new__(Editor))
+    command_messages: list[tuple[str, str]] = []
+    ed.commands = CommandRegistry()
+
+    def record_message(text: str, kind: str = "info") -> None:
+        command_messages.append((text, kind))
+
+    ed.message = record_message
+    ed.commands.register(
+        "boom", lambda _args: (_ for _ in ()).throw(RuntimeError("bad args")), "boom"
+    )
+    Editor.run_command(ed, "boom")
+    assert command_messages and command_messages[0][1] == "error"
+    assert "bad args" in command_messages[0][0]
+
+
 # --- ActionRegistry ---------------------------------------------------------
 
 

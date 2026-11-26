@@ -663,7 +663,8 @@ class LspManager:
             # Cancellation is control flow, not "no completions": the
             # awaiting caller (Task.cancel / wait_for) must observe it.
             raise
-        except (LspError, OSError):
+        except (LspError, OSError) as exc:
+            log.debug("completion request failed: %s", exc)
             return []
         # A malformed server response must not kill the completion worker:
         # it runs with exit_on_error=False, so an exception here would be

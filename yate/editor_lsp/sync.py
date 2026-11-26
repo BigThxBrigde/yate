@@ -31,6 +31,9 @@ from yate.editor_core.document import Document
 
 from yate.editor_lsp.client import SYNC_INCREMENTAL, LspClient, LspError
 from yate.editor_lsp.diff import build_content_changes
+from yate.logs import tracing
+
+log = tracing.get_logger(__name__)
 
 
 @dataclass
@@ -87,10 +90,10 @@ async def dispatch_change(
     *open_docs* is the manager's live ``_open`` table and
     *is_shutting_down* its shutdown probe; both are re-consulted before
     the notify and again after it so a document closed mid-flight never
-    advances stale state.  The lock entry is dropped once its uri no
-    longer maps to this *state* (closed or reopened), so the table
-    cannot grow without bound and a reopened document never reuses a
-    stale lock (review R3 N5).
+    advances stale state.  Lock entries are retired centrally by the
+    manager's ``on_document_closed``: popping one here while a reopened
+    document's senders still hold the old lock reference let a second lock
+    run concurrently for the same uri (review 2026-11-26 m4).
     """
     lock = change_locks.get(uri)
     if lock is None:
@@ -101,8 +104,6 @@ async def dispatch_change(
             open_docs, is_shutting_down, client, uri, state,
             new_lines, buffer_version,
         )
-        if open_docs.get(uri) is not state:
-            change_locks.pop(uri, None)
 
 
 async def _send_change(
@@ -145,7 +146,8 @@ async def _send_change(
             "textDocument": {"uri": uri, "version": version},
             "contentChanges": content_changes,
         })
-    except (LspError, OSError):
+    except (LspError, OSError) as exc:
+        log.debug("didChange failed for %s: %s", uri, exc)
         return
     # Re-check the document hasn't been closed while we awaited.
     if open_docs.get(uri) is state and not is_shutting_down():

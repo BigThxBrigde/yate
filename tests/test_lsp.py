@@ -1099,6 +1099,38 @@ def test_diagnostic_at_prefers_most_severe_on_same_row(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_configuration_response_has_one_entry_per_requested_item() -> None:
+    """A multi-item workspace/configuration request cannot get a short reply."""
+    from types import SimpleNamespace
+    from typing import cast
+
+    from yate.editor_lsp.client import LspClient
+
+    async def scenario() -> None:
+        client = cast(Any, object.__new__(LspClient))
+        client.config = SimpleNamespace(settings={"x": 1})
+        sent: list[dict[str, Any]] = []
+
+        async def fake_write(payload: dict[str, Any]) -> None:
+            sent.append(payload)
+
+        def spawn(coro: Any) -> None:
+            asyncio.create_task(coro)
+
+        client._write_raw = fake_write
+        client._spawn_bg = spawn
+        client._handle_server_request({
+            "id": 11,
+            "method": "workspace/configuration",
+            "params": {"items": [{}, {}, {}]},
+        })
+        await asyncio.sleep(0)
+        assert len(sent) == 1
+        assert len(sent[0]["result"]) == 3
+
+    asyncio.run(scenario())
+
+
 def test_diagnostic_index_bounds_wide_span_fanout(tmp_path: Path) -> None:
     """Short spans stay row-indexed; a whole-file span uses the interval fallback."""
 

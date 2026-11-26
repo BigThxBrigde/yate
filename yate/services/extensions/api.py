@@ -129,7 +129,8 @@ def _coerce_completer_result(raw: object) -> list[str]:
             return []
         try:
             length_value = length_fn()
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            log.debug("cannot take Lua table length: %s", exc)
             return []
         # Lua ``#t`` is always an integer; anything else degrades to [].
         if not isinstance(length_value, int):

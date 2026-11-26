@@ -518,6 +518,8 @@ def _format_signature_card(
     """
     parameters_raw = signature.get("parameters")
     marker: str | None = None
+    start = -1
+    end = -1
     if isinstance(parameters_raw, list):
         params = [
             cast(dict[str, object], p)
@@ -528,6 +530,9 @@ def _format_signature_card(
             param_label = params[active_param].get("label")
             if isinstance(param_label, str) and param_label:
                 marker = param_label
+                found = label.find(marker)
+                if found >= 0:
+                    start, end = found, found + len(marker)
             elif (
                 isinstance(param_label, list)
                 and len(cast(list[object], param_label)) == 2
@@ -539,6 +544,6 @@ def _format_signature_card(
                 start, end = cast(list[int], param_label)
                 if 0 <= start <= end <= len(label):
                     marker = label[start:end]
-    if not marker:
+    if not marker or start < 0:
         return label
-    return label.replace(marker, f"**{marker}**", 1)
+    return label[:start] + f"**{marker}**" + label[end:]

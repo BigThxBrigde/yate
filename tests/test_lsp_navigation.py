@@ -152,6 +152,19 @@ class _Harness:
 # ---------------------------------------------------------------- protocol
 
 
+def test_signature_card_bolds_exact_active_span() -> None:
+    """A repeated parameter name must bold the offset-selected occurrence."""
+    from yate.editor_lsp.navigation import _format_signature_card
+
+    params = [{"label": "a"}, {"label": [5, 6]}]
+    card = _format_signature_card({"parameters": params}, "f(a, a)", 1)
+    assert card == "f(a, **a**)"
+    string_form = _format_signature_card(
+        {"parameters": [{"label": "a"}]}, "f(a, a)", 0
+    )
+    assert string_form == "f(**a**, a)"
+
+
 def test_canonical_uri_maps_drive_escaped_and_plain_forms_to_one() -> None:
     """pyright's drive-escaped echo and the plain form normalize equal."""
     escaped = canonical_uri("file:///d%3A/x.py")
