@@ -215,6 +215,7 @@ class LspClient:
         self._writer: Any = None
         self._proc: Any = None
         self._read_task: asyncio.Task[None] | None = None
+        self._stderr_task: asyncio.Task[None] | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
         self._write_lock = asyncio.Lock()
         self._next_id = 1
@@ -293,10 +294,11 @@ class LspClient:
                 *self.config.args,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(self.root_path),
                 env=env,
             )
+            self._start_stderr_drain(getattr(proc, "stderr", None))
             reader, writer = proc.stdout, proc.stdin
         if self._stopping:
             # stop()/shutdown_all() ran while the spawn was still in flight:
@@ -359,6 +361,10 @@ class LspClient:
             read_task, self._read_task = self._read_task, None
             read_task.cancel()
             await asyncio.gather(read_task, return_exceptions=True)
+        if self._stderr_task is not None:
+            stderr_task, self._stderr_task = self._stderr_task, None
+            stderr_task.cancel()
+            await asyncio.gather(stderr_task, return_exceptions=True)
         for future in self._pending.values():
             if not future.done():
                 future.set_exception(LspConnectionError("connection closed"))
@@ -386,6 +392,35 @@ class LspClient:
             except (OSError, ConnectionError):
                 pass
         self._reader = None
+
+    def _start_stderr_drain(self, stream: Any) -> None:  # noqa: Any - asyncio stream
+        """Forward a server's stderr into the trace log instead of dropping it.
+
+        The drain runs as a tracked background task so the pipe can never fill
+        up and stall the server; teardown cancels it in :meth:`_cleanup`.
+        """
+        if stream is None or not hasattr(stream, "readline"):
+            return
+
+        async def drain() -> None:
+            try:
+                while True:
+                    raw = await stream.readline()
+                    if not raw:
+                        return
+                    text = (
+                        raw.decode("utf-8", errors="replace")
+                        if isinstance(raw, bytes)
+                        else str(raw)
+                    ).rstrip("\r\n")
+                    if text:
+                        log.warning("lsp server stderr (%s): %s", self.config.name, text)
+            except asyncio.CancelledError:
+                raise
+            except (OSError, ConnectionError, ValueError) as exc:
+                log.debug("lsp stderr drain ended (%s): %s", self.config.name, exc)
+
+        self._stderr_task = asyncio.create_task(drain())
 
     def _spawn_bg(self, coro: Any) -> None:
         """Track a fire-and-forget task so teardown can cancel it."""

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import gc
+import inspect
 import json
 import logging
 import sys
@@ -1098,6 +1099,39 @@ def test_diagnostic_at_prefers_most_severe_on_same_row(tmp_path: Path) -> None:
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
+
+
+def test_server_stderr_is_drained_into_the_trace_log(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Server stderr is piped and logged, never discarded (D-7)."""
+    monkeypatch.setattr(logging.getLogger("yate"), "propagate", True)
+    assert "stderr=asyncio.subprocess.PIPE" in inspect.getsource(LspClient._connect)
+
+    class _Stream:
+        def __init__(self) -> None:
+            self.pending = True
+
+        async def readline(self) -> bytes:
+            if self.pending:
+                self.pending = False
+                return b"server diagnostic line\n"
+            await asyncio.sleep(3600)
+            return b""
+
+    async def scenario() -> None:
+        client = LspClient(ServerConfig(name="fake", command="x"), Path("."))
+        client._start_stderr_drain(_Stream())
+        task = client._stderr_task
+        assert task is not None
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert any("server diagnostic line" in r.message for r in caplog.records)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level(logging.WARNING, logger="yate"):
+        asyncio.run(scenario())
 
 
 def test_configuration_response_has_one_entry_per_requested_item() -> None:
