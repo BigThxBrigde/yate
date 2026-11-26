@@ -12,7 +12,9 @@ chunk) with the textual style guards the repository applies to Python:
   crlf          LF line endings only
   eof-newline   exactly one trailing newline
   banned-call   no print() / io. / os.execute / os.exit / dofile / loadfile
-  global-leak   no bare top-level global assignment or global function
+                (string literal contents are masked out first)
+  global-leak   no bare global assignment or global function, top level or
+                indented block
   require       require() only names "yate" or a bundled lib/*.lua module
 
 Usage::
@@ -62,15 +64,24 @@ BANNED_CALLS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bloadfile\s*\("),
 )
 
-#: A bare top-level assignment: ``name = ...`` (not ``==``, not a local).
-_GLOBAL_ASSIGN_RE = re.compile(r"^([A-Za-z_]\w*)\s*=(?!=)")
+#: A bare assignment: ``name = ...`` (not ``==``, not a local); leading
+#: whitespace is allowed so a global leaked inside an indented block is caught.
+_GLOBAL_ASSIGN_RE = re.compile(r"^\s*([A-Za-z_]\w*)\s*=(?!=)")
 
-#: A bare top-level function definition (module-table methods have a dot).
-_GLOBAL_FUNC_RE = re.compile(r"^function\s+([A-Za-z_]\w*)\s*\(")
+#: A bare function definition (module-table methods have a dot); leading
+#: whitespace allowed, same rationale as :data:`_GLOBAL_ASSIGN_RE`.
+_GLOBAL_FUNC_RE = re.compile(r"^\s*function\s+([A-Za-z_]\w*)\s*\(")
+
+#: Long-bracket string opener, e.g. ``[[`` or ``[==[``.
+_LONG_STRING_OPEN_RE = re.compile(r"\[(=*)\[")
 
 #: ``local name`` / ``local name = ...`` declarations (forward declarations
 #: included: ``local spawn_piece`` followed by ``spawn_piece = function()``).
 _LOCAL_DECL_RE = re.compile(r"\blocal\s+([A-Za-z_]\w*)\s*(?:=|$)")
+
+#: Parameter list of a function definition (``function foo(a, b)`` and the
+#: anonymous form): parameters are locals, reassigning them is not a leak.
+_FUNCTION_PARAMS_RE = re.compile(r"\bfunction[\w.:'\s]*\(([^)]*)\)")
 
 #: ``require("name")`` / ``require('name')``.
 _REQUIRE_RE = re.compile(r"\brequire\s*\(\s*[\"']([^\"']+)[\"']\s*\)")
@@ -154,6 +165,64 @@ def strip_comments(source: str) -> list[str]:
     return stripped
 
 
+def mask_strings(source: str) -> str:
+    """Blank out string literal contents with spaces, keeping line structure.
+
+    Quoted (``"..."`` / ``'...'``) and long-bracket (``[[...]]``) literals
+    have their contents replaced by spaces (quotes and brackets kept), so
+    the banned-call patterns can never match text inside a string while
+    every rule still sees one output line per input line.  Line numbers are
+    preserved: the same number indexes :func:`strip_comments` output.
+    """
+    out: list[str] = []
+    in_long = False
+    long_eq = ""
+    for line in source.split("\n"):
+        masked: list[str] = []
+        i = 0
+        n = len(line)
+        while i < n:
+            if in_long:
+                close = f"]{long_eq}]"
+                idx = line.find(close, i)
+                if idx == -1:
+                    masked.append(" " * (n - i))
+                    i = n
+                    continue
+                masked.append(" " * (idx - i))
+                masked.append(close)
+                i = idx + len(close)
+                in_long = False
+                continue
+            opener = _LONG_STRING_OPEN_RE.match(line, i)
+            if opener is not None:
+                long_eq = opener.group(1)
+                masked.append(opener.group(0))
+                i = opener.end()
+                in_long = True
+                continue
+            char = line[i]
+            if char in "\"'":
+                masked.append(char)
+                i += 1
+                while i < n:
+                    if line[i] == "\\" and i + 1 < n:
+                        masked.append("  ")  # keep escaped chars aligned
+                        i += 2
+                        continue
+                    if line[i] == char:
+                        masked.append(char)
+                        i += 1
+                        break
+                    masked.append(" ")
+                    i += 1
+                continue
+            masked.append(char)
+            i += 1
+        out.append("".join(masked))
+    return "\n".join(out)
+
+
 def check_source(
     path: Path,
     source: str,
@@ -199,41 +268,59 @@ def check_source(
     locals_declared: set[str] = set()
     for code in code_lines:
         locals_declared.update(_LOCAL_DECL_RE.findall(code))
+        for params in _FUNCTION_PARAMS_RE.findall(code):
+            locals_declared.update(
+                {param.strip() for param in params.split(",") if param.strip()}
+            )
 
-    for number, code in enumerate(code_lines, start=1):
+    # One masked text for all lines: the long-bracket state must survive
+    # line breaks, and the brace depth below reads the same masked text.
+    masked_lines = mask_strings("\n".join(code_lines)).split("\n")
+    depth = 0
+    for number, (code, masked) in enumerate(zip(code_lines, masked_lines), start=1):
+        # Banned calls scan string-masked text so a literal like
+        # ``"call print(1)"`` cannot trip them; require() must keep the
+        # string contents, so it reads the unmasked line.
         for pattern in BANNED_CALLS:
-            if pattern.search(code):
+            if pattern.search(masked):
                 issues.append(
                     Issue(path, number, "banned-call", f"forbidden call: {pattern.pattern}")
                 )
-        assign = _GLOBAL_ASSIGN_RE.match(code)
-        if (
-            assign is not None
-            and assign.group(1) not in ALLOWED_GLOBALS
-            and assign.group(1) not in locals_declared
-        ):
-            issues.append(
-                Issue(path, number, "global-leak", f"global assignment: {assign.group(1)}")
-            )
-        function = _GLOBAL_FUNC_RE.match(code)
-        if (
-            function is not None
-            and function.group(1) not in ALLOWED_GLOBALS
-            and function.group(1) not in locals_declared
-        ):
-            issues.append(
-                Issue(
-                    path,
-                    number,
-                    "global-leak",
-                    f"global function: {function.group(1)}",
+        # Global-leak checks only apply outside braces/parens (depth 0):
+        # inside a table constructor or call, ``name = value`` is a field,
+        # not a leaked global.  Outside them, leading indentation is fine
+        # -- a leak inside an indented block is still a leak.
+        if depth == 0:
+            assign = _GLOBAL_ASSIGN_RE.match(masked)
+            if (
+                assign is not None
+                and assign.group(1) not in ALLOWED_GLOBALS
+                and assign.group(1) not in locals_declared
+            ):
+                issues.append(
+                    Issue(path, number, "global-leak", f"global assignment: {assign.group(1)}")
                 )
-            )
+            function = _GLOBAL_FUNC_RE.match(masked)
+            if (
+                function is not None
+                and function.group(1) not in ALLOWED_GLOBALS
+                and function.group(1) not in locals_declared
+            ):
+                issues.append(
+                    Issue(
+                        path,
+                        number,
+                        "global-leak",
+                        f"global function: {function.group(1)}",
+                    )
+                )
         for module in _REQUIRE_RE.findall(code):
             if module not in modules:
                 issues.append(
                     Issue(path, number, "require", f"unknown module: {module}")
                 )
+        depth += masked.count("{") - masked.count("}")
+        depth += masked.count("(") - masked.count(")")
     return issues
 
 

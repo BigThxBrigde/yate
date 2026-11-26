@@ -190,7 +190,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         with tempfile.TemporaryDirectory(prefix="wiki-translate-") as tmp:
             temp_path = Path(tmp) / "stdin.md"
-            temp_path.write_text(source_text, encoding="utf-8")
+            try:
+                temp_path.write_text(source_text, encoding="utf-8")
+            except OSError as exc:
+                print(f"wiki-translate: cannot write {temp_path}: {exc}", file=sys.stderr)
+                return 1
             return _translate_file(temp_path, source_text, options)
     except KeyboardInterrupt:
         print("\nwiki-translate: interrupted", file=sys.stderr)

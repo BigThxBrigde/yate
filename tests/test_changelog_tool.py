@@ -279,6 +279,22 @@ def test_breaking_changes_come_first(
     assert doc.index("BREAKING CHANGES") < doc.index("### Features")
 
 
+def test_split_sections_rejects_duplicate_heading() -> None:
+    """A duplicated version heading fails loudly instead of silently winning (m11)."""
+    doc = (
+        "# Changelog\n"
+        "\n"
+        "## [1.0.0] - 2026-01-01\n"
+        "first\n"
+        "\n"
+        "## [1.0.0] - 2026-01-01\n"
+        "second\n"
+    )
+
+    with pytest.raises(ValueError, match="duplicate changelog heading"):
+        render.split_sections(doc)
+
+
 def test_chinese_document_with_overrides(
     breaking_segments: list[segments.ReleaseSegment],
 ) -> None:

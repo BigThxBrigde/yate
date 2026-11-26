@@ -19,13 +19,23 @@ actually executed, to prove the ``exit 0`` path end to end.
 
 from __future__ import annotations
 
+import inspect
 import json
-from collections.abc import Iterator
+from collections.abc import Awaitable, Iterator
 from pathlib import Path
+from typing import cast
 
 import pytest
+from tools.smoke_test import harness
 from tools.smoke_test.cli import _worse, _write_json, build_parser, main
-from tools.smoke_test.harness import Check, Coverage, ScenarioResult
+from tools.smoke_test.harness import (
+    Check,
+    Coverage,
+    RunOptions,
+    Scenario,
+    ScenarioResult,
+)
+from yate.app import YateApp
 from yate.editor_components import theme
 
 #: A shipped scenario that builds no file palette and no screenshot, so the
@@ -222,3 +232,70 @@ def test_main_returns_two_when_jobs_is_below_one() -> None:
         "--quiet", "--no-color",
     ])
     assert code == 2
+
+
+# --- run_shard seed propagation and the full-app invariant sweep (m12/m13) ----
+
+
+def test_run_shard_reseeds_the_worker_process(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A spawned shard is re-seeded with the requested seed (m12).
+
+    Workers are fresh processes whose module state starts at the default
+    seed, so ``run_shard`` must call ``set_seed`` itself: ``run --jobs 4
+    --seed N`` previously ran the fuzz scenarios on 1337 while the report
+    header claimed N.
+    """
+    seeds: list[int] = []
+    monkeypatch.setattr(harness, "set_seed", lambda value: seeds.append(int(value)))
+
+    def fake_run_one(scenario: Scenario, tmp_root: Path, options: RunOptions) -> ScenarioResult:
+        return ScenarioResult(scenario.name, tags=scenario.tags)
+
+    monkeypatch.setattr(harness, "_run_one", fake_run_one)
+
+    results, _ = harness.run_shard(
+        (_LIGHT_SCENARIO,), str(tmp_path), svg=False, invariants=False, timeout=60,
+        seed=4242,
+    )
+
+    assert seeds == [4242]
+    assert [result.name for result in results] == [_LIGHT_SCENARIO]
+
+
+def test_parallel_runner_forwards_the_fuzz_seed_to_shards() -> None:
+    """Both the worker submit and the in-process retry carry the seed (m12).
+
+    A functional probe would need a real spawned worker whose observable
+    state is the child's module global, so the wiring is pinned on the
+    source text (the same textual-pin convention tests/test_keyproto.py
+    uses for process-bound code).
+    """
+    source = inspect.getsource(harness.run_scenarios_parallel)
+    assert source.count("seed=get_seed()") == 2
+
+
+def test_run_one_sweeps_invariants_over_every_tracked_app(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The invariant sweep sees all apps a scenario tracked, not just the last (m13)."""
+    first, second = object(), object()
+    swept: list[object] = []
+
+    def recording_invariants(app: object, *, theme_before: str) -> list[Check]:
+        swept.append(app)
+        return [Check(f"invariant:{len(swept)}", True, True, invariant=True, ok_override=True)]
+
+    async def fake_run(tmp: Path) -> ScenarioResult:
+        harness.track(cast(YateApp, first))
+        harness.track(cast(YateApp, second))
+        return ScenarioResult("seed_probe")
+
+    monkeypatch.setattr(harness, "invariant_checks", recording_invariants)
+    scenario = Scenario(name="seed_probe", run=fake_run, tags=("regression",))
+
+    result = harness._run_one(scenario, tmp_path, RunOptions(invariants=True))
+
+    assert swept == [first, second]
+    assert [check.label for check in result.checks] == ["invariant:1", "invariant:2"]

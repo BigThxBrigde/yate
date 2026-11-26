@@ -307,13 +307,22 @@ def push_wiki(target: Path, *, github_url: str = GITHUB_WIKI_URL) -> int:
         detail = (added.stderr or added.stdout).strip()
         errors.report(PackError(Code.WIKI_GIT_FAILED, f"git add failed: {detail}"))
         return 1
-    commit = _wiki_facade.run_git(target, "commit", "-m", COMMIT_MESSAGE)
-    if commit.returncode != 0:
+    # Decide "nothing to commit" from ``git status --porcelain`` (locale
+    # independent) instead of matching localized commit-output text.
+    status = _wiki_facade.run_git(target, "status", "--porcelain")
+    if status.returncode != 0:
+        detail = (status.stderr or status.stdout).strip()
+        errors.report(PackError(Code.WIKI_GIT_FAILED, f"git status failed: {detail}"))
+        return 1
+    if status.stdout.strip():
+        commit = _wiki_facade.run_git(target, "commit", "-m", COMMIT_MESSAGE)
         out = f"{commit.stdout}{commit.stderr}".strip()
-        if "nothing to commit" not in out and "nothing added to commit" not in out:
+        if commit.returncode != 0:
             errors.report(PackError(Code.WIKI_GIT_FAILED, f"commit failed: {out}"))
             return 1
         print(f"wiki: commit: {out}")
+    else:
+        print("wiki: commit: nothing to commit")
     remotes = ["origin"]
     if github_url:
         if _wiki_facade.run_git(target, "remote", "get-url", "github").returncode != 0:

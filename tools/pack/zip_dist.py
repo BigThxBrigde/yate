@@ -250,14 +250,25 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
             os.replace(zip_path, archive)
             os.replace(sums_path_tmp, sums_path)
         except OSError:
+            kept_backup: Path | None = None
             try:
                 if backup is not None:
                     os.replace(backup, archive)
                     backup = None
                 else:
                     archive.unlink(missing_ok=True)
-            except OSError:  # a failed rollback must not hide the swap error
-                pass
+            except OSError as rollback_exc:
+                if backup is not None:
+                    # A failed rollback must not hide the swap error -- and
+                    # the backup of the previous archive is now the only
+                    # copy, so keep it on disk for manual recovery.
+                    kept_backup = backup
+                    backup = None
+                    print(
+                        f"zip_dist: rollback failed ({rollback_exc}); the "
+                        f"backup of the previous archive is kept at {kept_backup}",
+                        file=sys.stderr,
+                    )
             raise
     finally:
         # Cleanup failures must neither mask the original error nor skip the
@@ -267,8 +278,12 @@ def archive_stage(stage: Path, dist_root: Path, *, posix: bool | None = None) ->
             if temporary is not None:
                 try:
                     temporary.unlink(missing_ok=True)
-                except OSError:  # cleanup is best effort; keep the original error
-                    pass
+                except OSError as cleanup_exc:
+                    print(
+                        f"zip_dist: could not remove temporary file "
+                        f"{temporary}: {cleanup_exc}",
+                        file=sys.stderr,
+                    )
         try:
             lock_path.unlink(missing_ok=True)
         except OSError:  # a busy lock must not hide the original error

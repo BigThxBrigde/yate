@@ -28,7 +28,8 @@ Selection flags (all commands)
 ``--skip-slow``       drop the P2 scenarios (shell / terminal / huge files)
 
 Tags: ``edit``, ``select``, ``search``, ``files``, ``panes``, ``explorer``,
-``command``, ``view``, ``integration``, ``regression``, ``stress``.
+``command``, ``hover``, ``lsp-navigation``, ``view``, ``integration``,
+``regression``, ``stress``.
 
 Report flags (all commands)
 ---------------------------

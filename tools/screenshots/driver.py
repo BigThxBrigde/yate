@@ -44,6 +44,11 @@ type DriverFn = Callable[
     Coroutine[Any, Any, None],
 ]
 
+#: Wall clock budget for the ``fontTools.subset`` subprocess (seconds): a
+#: subset of the bundled icon font completes well under a second, so a hang
+#: means the subprocess is stuck and must fail loudly, not stall forever.
+_FONT_SUBSET_TIMEOUT_S: float = 60.0
+
 
 def repo_root() -> Path:
     """Return the repository root (three levels above this file)."""
@@ -198,6 +203,9 @@ def embed_icon_font(svg_path: Path) -> None:
             ],
             capture_output=True,
             check=False,
+            # A hung font subsetting subprocess must not stall the whole
+            # screenshot run: fail loudly after the budget instead.
+            timeout=_FONT_SUBSET_TIMEOUT_S,
         )
         payload_bytes = subset_path.read_bytes() if subset_path.exists() else b""
     if proc.returncode != 0 or not payload_bytes:

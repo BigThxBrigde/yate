@@ -331,7 +331,7 @@ def _run_steps(
 
 def _abort_with_rollback(
     repo: Path,
-    exc: RuntimeError,
+    exc: RuntimeError | OSError | KeyboardInterrupt,
     version: str,
     push_branch: str,
     orig_head: str,
@@ -433,8 +433,10 @@ def release(
             repo, version, push_branch, no_push=no_push, dry_run=False,
             state=state,
         )
-    except RuntimeError as exc:
-        # GitError subclasses RuntimeError, so fetch/push failures land here.
+    except (RuntimeError, OSError, KeyboardInterrupt) as exc:
+        # GitError subclasses RuntimeError, so fetch/push failures land here;
+        # changelog write failures raise OSError and a mid-run Ctrl+C raises
+        # KeyboardInterrupt -- every one of them must trigger the rollback.
         return _abort_with_rollback(
             repo, exc, version, push_branch, orig_head, snapshots, state
         )

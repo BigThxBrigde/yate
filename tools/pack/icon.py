@@ -17,6 +17,8 @@ it.
 from __future__ import annotations
 
 import importlib
+import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -67,8 +69,17 @@ def build_icon(
     if not sizes:
         raise ValueError("at least one icon size is required")
     target.parent.mkdir(parents=True, exist_ok=True)
-    with pillow.open(source) as image:
-        image.load()
-        # Pillow wants one (width, height) pair per icon entry.
-        square(image).save(target, format="ICO", sizes=[(s, s) for s in sizes])
+    # Same-directory temporary file + os.replace: a mid-write failure can
+    # never leave a truncated icon in the committed pack/yate.ico.
+    fd, raw = tempfile.mkstemp(prefix=".yate.ico.", suffix=".tmp", dir=target.parent)
+    os.close(fd)
+    tmp_path = Path(raw)
+    try:
+        with pillow.open(source) as image:
+            image.load()
+            # Pillow wants one (width, height) pair per icon entry.
+            square(image).save(tmp_path, format="ICO", sizes=[(s, s) for s in sizes])
+        os.replace(tmp_path, target)
+    finally:
+        tmp_path.unlink(missing_ok=True)
     return target

@@ -507,8 +507,12 @@ def _run_one(
     result.tags = scenario.tags
     if not options.svg:
         result.svg_rows = {}
-    if options.invariants and (app := current_app()) is not None:
-        result.checks.extend(invariant_checks(app, theme_before=theme_before))
+    if options.invariants:
+        # Sweep every app the scenario created (new_app / track), not only
+        # the last one: residue on an earlier app (a modal left open, a
+        # worker left uncancelled) must fail the scenario too.
+        for app in _apps:
+            result.checks.extend(invariant_checks(app, theme_before=theme_before))
     # Hygiene: restore the process-global theme even when a scenario drifted,
     # so the *next* scenario starts from a known state (the check above
     # already recorded the drift).
@@ -595,15 +599,20 @@ def run_shard(
     svg: bool,
     invariants: bool,
     timeout: float,
+    seed: int = _DEFAULT_SEED,
 ) -> tuple[list[ScenarioResult], Coverage]:
     """Run the named scenarios here and return their results plus coverage.
 
     Module level and name-only on purpose: workers are spawned processes
     (Windows has no fork), so every argument has to be picklable and the
     parent's progress callback -- which lives in :class:`RunOptions` -- cannot
-    travel with the call.  The scenario registry is imported inside the
-    function because ``tools.smoke_test.scenarios`` imports this module.
+    travel with the call.  *seed* travels the same way: a spawned worker has
+    a fresh module state, so the fuzz scenarios must be re-seeded here to
+    match the seed the operator requested on the parent process.  The
+    scenario registry is imported inside the function because
+    ``tools.smoke_test.scenarios`` imports this module.
     """
+    set_seed(seed)
     from tools.smoke_test.scenarios import SCENARIOS
 
     selected = select_scenarios(SCENARIOS, names=list(names))
@@ -659,6 +668,7 @@ def run_scenarios_parallel(
                 svg=options.svg,
                 invariants=options.invariants,
                 timeout=options.timeout,
+                seed=get_seed(),
             ): name
             for name in names
         }
@@ -688,6 +698,7 @@ def run_scenarios_parallel(
                 svg=options.svg,
                 invariants=options.invariants,
                 timeout=options.timeout,
+                seed=get_seed(),
             )
         except Exception as exc:  # noqa: BLE001 - a dead retry is a failed scenario
             for name in fallback:

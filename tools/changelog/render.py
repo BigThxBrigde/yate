@@ -115,7 +115,9 @@ def split_sections(doc: str) -> dict[str, str]:
     Returns ``{heading line: section text}`` where each section spans from
     its heading to just before the next heading.  The file header (before
     the first ``## ``) is not part of any section and is dropped.  CRLF line
-    endings are normalized first so headings match across platforms.
+    endings are normalized first so headings match across platforms.  A
+    duplicate heading raises :class:`ValueError` -- the ``check`` gate must
+    fail loudly instead of silently comparing only the last copy.
     """
     doc = doc.replace("\r\n", "\n")
     sections: dict[str, str] = {}
@@ -125,6 +127,8 @@ def split_sections(doc: str) -> dict[str, str]:
         if line.startswith("## "):
             if heading is not None:
                 sections[heading] = "\n".join(body)
+            if line in sections:
+                raise ValueError(f"duplicate changelog heading: {line}")
             heading = line
             body = []
         elif heading is not None:

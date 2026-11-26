@@ -104,6 +104,11 @@ def _run_one(scenario: Scenario, svg_path: Path) -> None:
             await asyncio.wait_for(
                 scenario.driver(svg_path, fixtures), timeout=timeout
             )
+            # Inside the same wait_for budget: embed_icon_font spawns a
+            # fontTools.subset subprocess that must never stall the run
+            # indefinitely (its own subprocess.run carries a timeout too).
+            await asyncio.to_thread(scrub_svg, svg_path)
+            await asyncio.to_thread(embed_icon_font, svg_path)
 
         asyncio.run(_drive())
     if not svg_path.is_file():
@@ -111,8 +116,6 @@ def _run_one(scenario: Scenario, svg_path: Path) -> None:
     text = svg_path.read_text(encoding="utf-8")
     if not text.lstrip().startswith("<svg"):
         raise RuntimeError("no image written")
-    scrub_svg(svg_path)
-    embed_icon_font(svg_path)
 
 
 def main(argv: list[str] | None = None) -> int:

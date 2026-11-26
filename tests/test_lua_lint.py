@@ -158,6 +158,50 @@ def test_global_leak_is_reported_and_whitelisted_names_pass(
 
 
 @requires_lupa
+def test_banned_call_inside_string_literal_is_not_reported(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """String literal contents never trip the banned-call rule (m10)."""
+    source = 'local msg = "call print(1) here"\nlocal doc = [[io.open is doc]]\n'
+
+    issues = _lint(tmp_path, source, compiler, modules)
+
+    assert [issue.rule for issue in issues] == []
+
+
+@requires_lupa
+def test_indented_global_leak_is_reported(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """A global assignment or function leaked inside an indented block fails (m10)."""
+    source = "if true then\n  leak = 1\n  function leakfn() end\nend\n"
+
+    issues = _lint(tmp_path, source, compiler, modules)
+
+    assert {issue.message for issue in issues if issue.rule == "global-leak"} == {
+        "global assignment: leak",
+        "global function: leakfn",
+    }
+
+
+@requires_lupa
+def test_table_fields_are_not_global_leaks(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """``name = value`` inside braces is a table field, not a leaked global."""
+    source = (
+        "local _NAMES = {\n"
+        '  document_saved = "DOCUMENT_SAVED",\n'
+        "  other = 1\n"
+        "}\n"
+    )
+
+    issues = _lint(tmp_path, source, compiler, modules)
+
+    assert [issue.rule for issue in issues] == []
+
+
+@requires_lupa
 def test_unknown_require_is_reported(
     tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
 ) -> None:

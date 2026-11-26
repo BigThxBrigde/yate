@@ -224,7 +224,12 @@ def ensure_english_layout(hwnd: int) -> bool:
 
 
 def marker_process_count() -> int:
-    """Count live yate processes spawned for this run (0 = app exited)."""
+    """Count live yate processes spawned for this run.
+
+    Returns ``0`` when the app exited, ``-1`` when the query itself failed
+    (non-zero exit, empty or unparsable output): a failed lookup must never
+    be mistaken for "the process is gone".
+    """
     result = subprocess.run(
         [
             "powershell",
@@ -237,8 +242,10 @@ def marker_process_count() -> int:
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        return -1
     try:
-        return int(result.stdout.strip() or "0")
+        return int(result.stdout.strip())
     except ValueError:
         return -1
 
