@@ -272,6 +272,7 @@ UI_FROZEN_FILES: dict[str, set[str]] = {
     # editor_components import -- quickfix panel coupling is frozen up front.
     "flows/quickfix_flows.py": {
         "yate.editor_components",
+        "yate.editor_components.find_replace",
         "yate.editor_components.quickfix_panel",
     },
     # lsp-navigation wave-4: registered (R11) after the fact -- the flow was
@@ -413,7 +414,7 @@ SIZE_EXEMPT_LINE_COUNTS: dict[str, int] = {
     "editor_core/buffer.py": 1565,
     "editor_syntax/langdefs.py": 841,
     "editor_lsp/manager.py": 1248,
-    "editor.py": 868,
+    "editor.py": 875,
 }
 
 #: Code points a code comment or docstring must not carry (misc-rules

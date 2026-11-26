@@ -29,7 +29,9 @@ L3 调度：editor.py（Editor）/ editor_compose.py（Editor 组装工厂，202
          lsp_navigation_flows.py（2026-11-22 lsp-navigation wave-4 接入，
          import editor_components，已登记 UI_FROZEN_FILES）/
          quickfix_flows.py（quickfix-nav wave-c 接入，import
-         editor_components.quickfix_panel，已登记 UI_FROZEN_FILES））/
+         editor_components.quickfix_panel，pr-review 修复波补登
+         editor_components.find_replace 的 RevealFn 别名，已登记
+         UI_FROZEN_FILES））/
          diagnostics.py（2026-11-20 full-repo sweep：改消费 L4 cli.py 注入的只读
          `DiagnosticsInput` 快照，不再反向 import `yate.editor`）/
          services/extensions/（子包：门面 __init__ + api / bridges / loader / lua 子模块；
@@ -177,7 +179,9 @@ flowchart TD
   `quickfix_flows.py` 于 quickfix-nav wave-c 先登记后 import：
   `tests/test_architecture.py` 的 `UI_FROZEN_FILES` 新键
   `flows/quickfix_flows.py`（`editor_components` /
-  `editor_components.quickfix_panel`）先落盘，flow 才引入面板 import。
+  `editor_components.quickfix_panel`）先落盘，flow 才引入面板 import；
+  pr-review 修复波为复用 `RevealFn` 新增
+  `editor_components.find_replace` 导入，同批补登到该白名单。
 - **R7 — 外壳装载内置表**：`YateApp.__init__` 调 `populate(editor.actions, editor)` 与
   `register_commands(editor.commands, editor)`。
 - **R8 — 共享模型用具体对象**：跨层传递 `EditorSession` / `KeymapSet` / `ActionRegistry` /
@@ -427,7 +431,7 @@ wrap 渲染属其渲染职责，拆出 mixin 会与 render_line / mouse / cursor
    | `editor_core/buffer.py` | 1565 |
    | `editor_syntax/langdefs.py` | 841 |
    | `editor_lsp/manager.py` | 1248 |
-   | `editor.py` | 868 |
+   | `editor.py` | 875 |
 
    - 2026-10-09 复核口径修正：`Measure-Object -Line` 不计空行，
      实际行数以 `splitlines()`（守卫口径）为准——`buffer.py` 据此复测
