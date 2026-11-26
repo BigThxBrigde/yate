@@ -36,9 +36,9 @@ type RefreshFn = Callable[[], None]
 class QuickFixFlows:
     """Quickfix list orchestration over the shared L1 result set.
 
-    One jump pushes exactly one jump-list entry (``push_jump`` fires
-    immediately before the reveal, D7 shape); empty result sets keep a
-    stale panel closed with an explicit message.
+    One jump pushes exactly one jump-list entry (the origin is captured
+    before the reveal and pushed only on success, D7 shape); empty result
+    sets keep a stale panel closed.
     """
 
     def __init__(
@@ -142,24 +142,27 @@ class QuickFixFlows:
         self.jump_to(self._list.selected)
 
     def jump_to(self, index: int) -> None:
-        """Jump to the entry at *index* (one ``push_jump``, then reveal).
+        """Jump to *index*, pushing one jump-list entry only on success.
 
-        Out-of-range indices are ignored with a message; a target file
-        that cannot be opened reports the failure instead of raising.
+        The origin is captured before the reveal but pushed afterward with
+        an explicit document/position, so a failed ``reveal`` leaves both
+        jump stacks untouched.  Out-of-range indices are ignored with a
+        message; an unopenable target reports the error instead of raising.
         """
         entry = self._list.at(index)
         if entry is None:
             self._message(f"no quickfix entry at index {index}", "warn")
             return
         self._list.selected = index
-        # Single push contract: record the origin immediately before the
-        # reveal lands the cursor elsewhere.
-        self._session.push_jump()
+        origin = self._session.doc
+        row = origin.buffer.row
+        col = origin.buffer.col
         try:
             self._reveal(entry.path, entry.row, entry.col)
         except OSError:
             self._message(f"cannot open {entry.path}", "error")
             return
+        self._session.push_jump(origin, row=row, col=col)
         self._repaint()
         self._refresh()
         self._message(f"jumped to {entry.path}:{entry.row + 1}", "info")

@@ -15,7 +15,7 @@ from yate.config import YateConfig
 from yate.editor_components.quickfix_panel import QuickFixPanel
 from yate.editor_core import Document
 from yate.editor_core.project_search import FileMatch, LineMatch
-from yate.flows.quickfix_flows import QuickFixFlows
+from yate.flows.quickfix_flows import QuickFixFlows, RevealFn
 from yate.session import EditorSession, QuickFixEntry, QuickFixList
 
 
@@ -41,7 +41,7 @@ class _RecordingPanel(QuickFixPanel):
 class _Harness:
     """Wires a real session, a recording panel and recording callbacks."""
 
-    def __init__(self) -> None:
+    def __init__(self, reveal: RevealFn | None = None) -> None:
         self.session = EditorSession(YateConfig())
         self.session.new_buffer()
         self.session.docs[self.session.index] = Document(
@@ -62,7 +62,7 @@ class _Harness:
             self.session,
             self.panel,
             entries=self.entries,
-            reveal=self._reveal,
+            reveal=reveal if reveal is not None else self._reveal,
             show=self._show,
             hide=self._hide,
             message=lambda text, kind: self.messages.append(text),
@@ -146,7 +146,8 @@ def test_next_and_prev_wrap_and_jump_records_one_push() -> None:
     # next() three times: 1 -> 2 -> 0 (wrap); reveal matches each entry.
     assert [p.name for p, _r, _c in h.reveals] == ["d2.py", "d3.py", "d1.py"]
     assert [_r for _p, _r, _c in h.reveals] == [1, 2, 0]
-    assert len(h.session.jumps.stacks()[0]) == 3
+    back, _forward = h.session.jumps.stacks()
+    assert [(e.row, e.col) for e in back] == [(0, 0), (1, 0), (2, 0)]
     h.flow.prev()
     h.flow.prev()
     assert [_r for _p, _r, _c in h.reveals] == [1, 2, 0, 2, 1]
@@ -188,3 +189,21 @@ def test_jump_to_out_of_range_is_ignored() -> None:
     assert h.reveals == []
     assert len(h.session.jumps.stacks()[0]) == 0
     assert h.messages and "index" in h.messages[-1]
+
+
+def test_failed_reveal_leaves_jump_stacks_untouched() -> None:
+    """An unopenable target reports the error without recording a jump."""
+    def refuse(_path: Path, _row: int, _col: int) -> None:
+        raise OSError("missing target")
+
+    h = _Harness(refuse)
+    h.flow.set_results("diagnostics", [_entry("diagnostics", "d1", 0)], "diags")
+    h.session.doc.buffer.set_cursor((2, 1))
+    before = h.session.jumps.stacks()
+
+    h.flow.next()
+
+    assert h.session.jumps.stacks() == before
+    assert any("cannot open" in message for message in h.messages)
+    assert h.refreshes == []
+    assert h.visible is True
