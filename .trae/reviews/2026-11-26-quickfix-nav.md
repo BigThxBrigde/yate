@@ -16,14 +16,14 @@
 | MAJOR | 搜索空批次注释与实现矛盾 | 注释对齐“清空但静默”；R15 流程不再发通用空消息，避免覆盖 replace 报告；已闭环 |
 | MAJOR | `set_quickfix` 可选注入偏离方案且掩盖漏注入 | 两个 flow 改为必填 keyword-only；`test_events` / `test_lsp_navigation_flows` 夹具显式注入；已闭环 |
 | MINOR | `QuickFixList.clear()` 不清 label | 同步清 label 并补断言；已闭环 |
-| MINOR | `jump_to` 在 reveal 失败时已推 jump-list | 保留为后续小步：需新增 `pop_back` 或可回滚 push 契约，本分支不扩大 session API |
+| MINOR | `jump_to` 在 reveal 失败时已推 jump-list | 提交 `983b1e77` 闭环：原点在 reveal 前捕获、成功后显式 push；负向演练先红后绿；已闭环 |
 | MINOR | `editor_compose` 过时“provider 后续波次注入”注释 | 改为 late-bound adapter 说明；已闭环 |
 | MINOR | 方案文档真实绝对路径 | 自我批判撤回：文档内为可移植命令与 worktree 名，无盘符路径 |
 | MINOR | 提交带 `Co-authored-by` trailer | 规则未禁止，仅与基线惯例不一致；登记不阻塞 |
 
 ## 2. 迭代结论
 
-修复提交 `6808e062` 后，初评 BLOCKER / MAJOR 全部关闭；3 个有效 MINOR 当轮修复，1 个 MINOR 登记后续小步，1 个 MINOR 误报撤回，1 个 MINOR 仅作惯例提示。主代理复核后结论：**APPROVE（后续小步 1 条）**。
+修复提交 `6808e062` 后，初评 BLOCKER / MAJOR 全部关闭；3 个有效 MINOR 当轮修复，1 个 MINOR 误报撤回，1 个 MINOR 仅作惯例提示。剩余 1 条 jump-list 边界 MINOR 由 `983b1e77` 后续闭环（负向演练先红后绿），无遗留功能缺口。主代理复核后结论：**APPROVE**。
 
 ## 3. 主代理亲跑门禁（最终态，全部 exit 0）
 
@@ -32,7 +32,7 @@
 | `python -m pyright yate/ tests/ tools/ pack/` | 0 errors / 0 warnings / 0 informations |
 | `python -m pytest tests/ -q -n auto` | 退出码 0 |
 | `python -m pytest tests/test_architecture.py -q` | 48 passed |
-| `python -m pytest tests/ --cov=yate --cov-branch -n auto` | 4075 passed / 10 skipped；TOTAL 93%、`fail_under=75` 实测 92.79% |
+| `python -m pytest tests/ --cov=yate --cov-branch -n auto` | 4084 passed / 10 skipped；TOTAL 93%、`fail_under=75` 实测 92.83% |
 | `python -m tools.smoke_test run --jobs 4` | 129/129 scenarios、1575/1575 checks |
 | `python -m tools.changelog check` | released 段最新，退出码 0（未发布段滞后 2 commits 属生成器机制） |
 

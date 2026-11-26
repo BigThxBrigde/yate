@@ -132,10 +132,12 @@ Completed waves and commits (all local, no push/merge):
 | `69016a84` | fix — silent empty-batch clearing |
 | `1fa21773` | wave 4 — bilingual docs/manual, smoke, changelog |
 | `6808e062` | review fixes — 3 blockers and 6 majors closed |
+| `19d55e05` | review record, index and execution-result backfill |
+| `983b1e77` | follow-up minor — failed reveals no longer pollute the jump list |
 
 Review record: [`../reviews/2026-11-26-quickfix-nav.md`](../reviews/2026-11-26-quickfix-nav.md) — APPROVE after iteration.
 
-Final gate results (main agent, all exit 0): `pyright` 0 diagnostics; `pytest -n auto` 4075 passed / 10 skipped; architecture 48 passed; branch coverage 92.79% (`fail_under=75`); smoke 129/129 scenarios · 1575/1575 checks; `tools.changelog check` 0.
+Final gate results (main agent, all exit 0, rerun after `983b1e77`): `pyright` 0 diagnostics; `pytest -n auto` 4084 passed / 10 skipped; architecture 48 passed; branch coverage 92.83% (`fail_under=75`); smoke 129/129 scenarios · 1575/1575 checks; `tools.changelog check` 0.
 
 Additional deviations from the original subplans, all evidence-backed:
 
@@ -147,4 +149,4 @@ Additional deviations from the original subplans, all evidence-backed:
 - `set_quickfix` is a required keyword-only injection in both LSP flows; test harnesses inject recording stubs explicitly.
 - Smoke next/prev landing order follows the actual references entry order (definition first, call site second), verified by observable state.
 
-One non-blocking follow-up remains: `QuickFixFlows.jump_to` pushes the jump-list origin before `reveal`; on an `OSError` the origin entry stays on the back stack. Fixing it cleanly requires a rollback-capable push API in `session.py` and is intentionally left out of this scope.
+The jump-list edge case is closed: `QuickFixFlows.jump_to` captures the origin before `reveal` and calls `push_jump(origin, row=..., col=...)` only after a successful reveal, so an `OSError` leaves both jump stacks untouched. The negative test was verified red against the old implementation and green after the fix; no `session.py` API expansion was needed.
