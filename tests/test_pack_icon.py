@@ -11,7 +11,7 @@ a mid-save failure never leaves a truncated icon (the pattern
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -23,10 +23,9 @@ pytest.importorskip("PIL", reason="Pillow is an optional [build] dependency")
 @pytest.fixture
 def source(tmp_path: Path) -> Path:
     """A small non-square JPEG so the crop path is exercised too."""
-    from PIL import Image
-
+    image_module = pytest.importorskip("PIL")
     path = tmp_path / "yate.jpg"
-    cast(Any, Image).new("RGB", (64, 32), "red").save(path, format="JPEG")
+    image_module.Image.new("RGB", (64, 32), "red").save(path, format="JPEG")
     return path
 
 
