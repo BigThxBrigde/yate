@@ -106,8 +106,7 @@ def test_real_pyright_negotiates_incremental_and_receives_range_patches(
                     recorder.sent.append((method, params))
                 await inner(method, params)
 
-            # noqa: Any - test seam: intercept the client wire boundary.
-            cast(Any, client).notify = recording_notify
+            cast(Any, client).notify = recording_notify  # noqa: Any - test seam: intercept the client wire boundary.
             clients.append(client)
             return client
 

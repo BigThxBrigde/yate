@@ -12,6 +12,7 @@ import json
 import logging
 import sys
 import warnings
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast, override
@@ -176,11 +177,21 @@ class FakeProc:
 class ServerHarness:
     """A loopback TCP server speaking enough JSON-RPC for client tests."""
 
-    def __init__(self, *, completion_result: Any = None) -> None:
+    def __init__(
+        self,
+        *,
+        completion_result: Any = None,
+        server_capabilities: dict[str, Any] | None = None,
+    ) -> None:
         self.completion_result: Any = (
             completion_result
             if completion_result is not None
             else [{"label": "abc", "kind": 3}]
+        )
+        self.server_capabilities: dict[str, Any] = (
+            {"completionProvider": {"triggerCharacters": [".", "["]}}
+            if server_capabilities is None
+            else server_capabilities
         )
         self.messages: list[dict[str, Any]] = []
         self.init_params: dict[str, Any] = {}
@@ -202,9 +213,7 @@ class ServerHarness:
                 self.init_params = init
                 writer.write(protocol.encode_message(protocol.build_response(
                     init["id"],
-                    {"capabilities": {
-                        "completionProvider": {"triggerCharacters": [".", "["]},
-                    }},
+                    {"capabilities": self.server_capabilities},
                 )))
                 await writer.drain()
                 while True:
@@ -261,6 +270,19 @@ class ServerHarness:
         if self.server is not None:
             self.server.close()
             await self.server.wait_closed()
+
+
+def _capture_wire_frames(client: LspClient) -> list[bytes]:
+    """Wrap *client*'s ``_write_raw`` to capture every raw outgoing frame."""
+    frames: list[bytes] = []
+    inner = client._write_raw
+
+    async def capture(payload: dict[str, Any]) -> None:
+        frames.append(protocol.encode_message(payload))
+        await inner(payload)
+
+    cast(Any, client)._write_raw = capture  # noqa: Any - test seam: wrap the production encoder boundary.
+    return frames
 
 
 def test_handshake_triggers_and_stops() -> None:
@@ -2045,53 +2067,89 @@ def test_incremental_sync_sends_range_patches_not_full_text(tmp_path: Path) -> N
     asyncio.run(scenario())
 
 
+async def _assert_replay_matches_full(
+    tmp_path: Path,
+    initial: str,
+    edits: Sequence[tuple[tuple[int, int] | None, str]],
+    *,
+    on_changes: Callable[[list[dict[str, Any]]], None] | None = None,
+) -> None:
+    """Drive inc/full managers through *edits* and assert wire replay parity.
+
+    ``None`` in an edit keeps the buffer's current cursor (the original
+    sequential-insert guard); an explicit ``Pos`` exercises a known UTF-16
+    anchor.  ``on_changes`` receives every captured incremental didChange
+    for case-specific range/version assertions.
+    """
+    inc = _sync_session(tmp_path / "inc", 2, initial)
+    full = _sync_session(tmp_path / "full", 1, initial)
+    inc_mgr, inc_fakes, inc_doc, inc_int = inc
+    full_mgr, full_fakes, full_doc, full_int = full
+    await inc_mgr.on_document_shown(inc_doc)
+    await full_mgr.on_document_shown(full_doc)
+    server_lines = initial.split("\n")
+    try:
+        for index, (cursor, text) in enumerate(edits, start=1):
+            if cursor is not None:
+                inc_doc.buffer.set_cursor(cursor)
+                full_doc.buffer.set_cursor(cursor)
+            inc_doc.buffer.insert_text(text)
+            full_doc.buffer.insert_text(text)
+            inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
+            full_int._flush_change(full_doc, full_int._uri(full_doc))
+            await asyncio.sleep(0)
+            inc_changes = _did_changes(inc_fakes[0])
+            full_changes = _did_changes(full_fakes[0])
+            assert len(inc_changes) == index
+            assert len(full_changes) == index
+            server_lines = apply_changes(
+                server_lines, inc_changes[-1]["contentChanges"]
+            )
+            assert (
+                "\n".join(server_lines)
+                == inc_doc.buffer.get_text()
+                == full_doc.buffer.get_text()
+            )
+            assert full_changes[-1]["contentChanges"] == [
+                {"text": full_doc.buffer.get_text()}
+            ]
+        if on_changes is not None:
+            on_changes(_did_changes(inc_fakes[0]))
+    finally:
+        await inc_mgr.shutdown_all()
+        await full_mgr.shutdown_all()
+
+
 def test_incremental_replay_matches_full_mode_byte_for_byte(tmp_path: Path) -> None:
     """Manager-level differential guard: the same edit sequence replayed
     through the server simulator after incremental patches lands on the
     exact full text the Full-mode manager sends."""
+
     async def scenario() -> None:
-        inc = _sync_session(tmp_path / "inc", 2, "alpha\nbeta\ngamma\n")
-        full = _sync_session(tmp_path / "full", 1, "alpha\nbeta\ngamma\n")
-        await inc[0].on_document_shown(inc[2])
-        await full[0].on_document_shown(full[2])
-        inc_doc, full_doc = inc[2], full[2]
-        inc_int, full_int = inc[3], full[3]
-        # A trailing newline is one more (empty) row for the server, same
-        # as the buffer's line model that didOpen snapshotted.
-        server_lines: list[str] = ["alpha", "beta", "gamma", ""]
-        sent = 0
-        for edit in ("X", "Y\n", "Z"):
-            inc_doc.buffer.insert_text(edit)
-            full_doc.buffer.insert_text(edit)
-            inc_int._flush_change(inc_doc, inc_int._uri(inc_doc))
-            full_int._flush_change(full_doc, full_int._uri(full_doc))
-            await asyncio.sleep(0)
-            inc_changes = _did_changes(inc[1][0])
-            full_changes = _did_changes(full[1][0])
-            assert len(inc_changes) == sent + 1
-            assert len(full_changes) == sent + 1
-            sent += 1
-            # Replay each incremental patch set server-style (test_lsp_diff
-            # semantics), then compare against the Full-mode full text.
-            server_lines = apply_changes(
-                server_lines, inc_changes[-1]["contentChanges"]
-            )
-            assert "\n".join(server_lines) == (
-                full_changes[-1]["contentChanges"][0]["text"]
-            )
-        # Final states agree with the live buffers too.
-        assert "\n".join(server_lines) == inc_doc.buffer.get_text()
-        await inc[0].shutdown_all()
-        await full[0].shutdown_all()
+        await _assert_replay_matches_full(
+            tmp_path,
+            "alpha\nbeta\ngamma\n",
+            [(None, "X"), (None, "Y\n"), (None, "Z")],
+        )
 
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(OSError("pipe closed"), id="os-error"),
+        pytest.param(LspError("notify failed"), id="lsp-error"),
+    ],
+)
 def test_incremental_send_failure_keeps_snapshot_and_retries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
 ) -> None:
-    """A failed didChange notify leaves ``last_synced_lines`` stale; the
-    next flush retries and advances the state only after success."""
+    """Both branches of ``except (LspError, OSError)`` leave the didOpen
+    snapshot stale; the next flush retries and advances only on success."""
+
     async def scenario() -> None:
         mgr, fakes, doc, internals = _sync_session(tmp_path, 2, "abc\n")
         await mgr.on_document_shown(doc)
@@ -2102,7 +2160,7 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
         async def flaky(method: str, params: Any) -> None:
             if method == "textDocument/didChange" and failures["left"] > 0:
                 failures["left"] -= 1
-                raise OSError("pipe closed")
+                raise error
             await real_notify(method, params)
 
         monkeypatch.setattr(client, "notify", flaky)
@@ -2121,6 +2179,7 @@ def test_incremental_send_failure_keeps_snapshot_and_retries(
         await asyncio.sleep(0)
         changed = _did_changes(client)
         assert len(changed) == 1
+        assert changed[0]["textDocument"]["version"] == 2
         assert state.version == 2
         assert state.last_synced_lines == tuple(doc.buffer.lines)
         assert state.last_synced_version == doc.buffer.content_version
@@ -2295,6 +2354,139 @@ def test_no_did_change_after_did_open_without_edits(tmp_path: Path) -> None:
         internals._flush_change(doc, internals._uri(doc))
         await asyncio.sleep(0)
         assert _did_changes(fakes[0]) == []
+        await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+def test_large_file_single_key_edit_payload_is_decoupled_from_document_length(
+    tmp_path: Path,
+) -> None:
+    """The same single-key edit produces byte-identical didChange frames
+    on a 200-row and a 4000-row document: the wire payload stays under
+    1 KiB and at least two orders of magnitude below the full text."""
+    small = "x = 1\n" + ("a" * 80 + "\n") * 200
+    large = "x = 1\n" + ("a" * 80 + "\n") * 4000
+
+    async def one_session(text: str) -> dict[str, Any]:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 2, text)
+        try:
+            await mgr.on_document_shown(doc)
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            await asyncio.sleep(0)
+            changed = _did_changes(fakes[0])
+            assert len(changed) == 1
+            return changed[0]
+        finally:
+            await mgr.shutdown_all()
+
+    async def scenario() -> None:
+        # Both sessions share the same URI: _sync_session always writes
+        # mod.py under tmp_path.
+        small_params = await one_session(small)
+        large_params = await one_session(large)
+        assert small_params["contentChanges"] == large_params["contentChanges"]
+        change = large_params["contentChanges"][0]
+        assert change["text"] == "X"
+        assert change["range"]["start"] == {"line": 0, "character": 0}
+        small_frame = protocol.encode_message(
+            protocol.build_notification("textDocument/didChange", small_params)
+        )
+        large_frame = protocol.encode_message(
+            protocol.build_notification("textDocument/didChange", large_params)
+        )
+        assert len(small_frame) == len(large_frame) < 1024
+        assert len(large.encode("utf-8")) > 100 * len(large_frame)
+        assert "a" * 80 not in json.dumps(large_params)
+        assert large_frame.startswith(b"Content-Length: ")
+        assert await protocol.read_message(FakeReader(large_frame)) is not None
+
+    asyncio.run(scenario())
+
+
+def test_incremental_wire_replay_matches_full_mode_for_astral_and_cross_line_edits(
+    tmp_path: Path,
+) -> None:
+    """Incremental patches carrying emoji (UTF-16 column), CJK rows and
+    astral/cross-line splices replay through the server simulator onto the
+    exact text the Full-mode manager sends, byte for byte."""
+
+    def assert_wire_shape(changes: list[dict[str, Any]]) -> None:
+        assert [
+            params["textDocument"]["version"] for params in changes
+        ] == [2, 3, 4]
+        first = changes[0]["contentChanges"][0]
+        assert first["range"]["start"] == {"line": 0, "character": 3}
+        assert first["range"]["end"] == {"line": 0, "character": 3}
+        assert first["rangeLength"] == 0
+        assert first["text"] == "X"
+        second = changes[1]["contentChanges"][0]
+        assert "\n" in second["text"]
+        # A pure row insertion anchors a zero-width range at the end of
+        # the previous row; the cross-line splice rides in the text.
+        assert second["range"]["start"] == {"line": 1, "character": 2}
+        assert second["range"]["end"] == {"line": 1, "character": 2}
+        assert second["rangeLength"] == 0
+        assert second["text"] == "\nZ"
+
+    async def scenario() -> None:
+        await _assert_replay_matches_full(
+            tmp_path,
+            "a\U0001F600b\n你好\nc\n",
+            [
+                ((0, 2), "X"),
+                ((1, 2), "\nZ"),
+                ((3, 0), "\U0001F40D"),
+            ],
+            on_changes=assert_wire_shape,
+        )
+
+    asyncio.run(scenario())
+
+
+def test_full_mode_did_change_race_with_did_close_sends_nothing_after_close(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With Full sync, a didChange queued behind an in-flight send is
+    dropped when the document is closed while the first send hangs: only
+    the pre-close whole-document payload reaches the server."""
+    async def scenario() -> None:
+        mgr, fakes, doc, internals = _sync_session(tmp_path, 1, "abc\n")
+        await mgr.on_document_shown(doc)
+        client = fakes[0]
+        release = asyncio.Event()
+        real_notify = client.notify
+
+        async def hanging(method: str, params: Any) -> None:
+            if method == "textDocument/didChange":
+                await release.wait()
+            await real_notify(method, params)
+
+        monkeypatch.setattr(client, "notify", hanging)
+        uri = internals._uri(doc)
+        doc.buffer.insert_text("X")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        # Queue a second send while the first hangs, then close the
+        # document; the waiter's pre-notify re-check must bail out.
+        doc.buffer.insert_text("Y")
+        internals._flush_change(doc, uri)
+        await asyncio.sleep(0)
+        await mgr.on_document_closed(doc)
+        release.set()
+        for _ in range(10):
+            await asyncio.sleep(0)
+        changed = _did_changes(client)
+        assert len(changed) == 1
+        # Only the first didChange (sent before the close) is on the wire;
+        # the post-close edit never reaches the server.
+        assert changed[0]["contentChanges"] == [{"text": "Xabc\n"}]
+        assert "textDocument/didClose" in [m for m, _ in client.sent]
+        assert internals._open.get(uri) is None
+        assert uri not in internals._change_locks
+        # Full branch shape: no range field anywhere in the params.
+        assert "range" not in json.dumps(changed[0])
         await mgr.shutdown_all()
 
     asyncio.run(scenario())
@@ -2775,5 +2967,131 @@ def test_on_document_closed_during_didopen_notify_leaves_no_open_state(
         assert cast(Any, mgr)._opening == set()
         assert mgr.is_open(doc) is False
         await mgr.shutdown_all()
+
+    asyncio.run(scenario())
+
+
+# -------------------------------------------------- wire-level frame capture
+
+
+async def _drive_manager_with_harness(
+    harness: ServerHarness, tmp_path: Path, text: str
+) -> tuple[LspManager, LspClient, Document, Any, list[bytes]]:
+    """Start *harness*, capture its wire frames and open a document."""
+    client = await harness.start()
+    frames = _capture_wire_frames(client)
+
+    def factory(config: ServerConfig, root: Path) -> LspClient:
+        return client
+
+    mgr = LspManager(
+        workspace_root=lambda: tmp_path,
+        client_factory=cast(Any, factory),
+    )
+    mgr.register_server(PY_CONFIG)
+    doc = make_python_doc(str(tmp_path), text)
+    await mgr.on_document_shown(doc)
+    internals = cast(Any, mgr)
+    return mgr, client, doc, internals, frames
+
+
+async def _wait_for_wire_frames(
+    frames: list[bytes], method: str
+) -> list[tuple[bytes, dict[str, Any]]]:
+    """Boundedly poll *frames* until at least one encodes *method*."""
+    async with asyncio.timeout(2.0):
+        while True:
+            captured: list[tuple[bytes, dict[str, Any]]] = []
+            for raw in frames:
+                msg = await protocol.read_message(FakeReader(raw))
+                assert msg is not None
+                if msg.get("method") == method:
+                    captured.append((raw, msg))
+            if captured:
+                return captured
+            await asyncio.sleep(0.02)
+
+
+def test_did_change_wire_capture_carries_only_changed_range(tmp_path: Path) -> None:
+    """A sync-kind-2 server receives a real didChange frame whose
+    contentChanges carry only the changed range with UTF-16 columns, never
+    the full document text."""
+    async def scenario() -> None:
+        harness = ServerHarness(server_capabilities={
+            "textDocumentSync": {"openClose": True, "change": 2, "save": True},
+        })
+        mgr: LspManager | None = None
+        try:
+            mgr, client, doc, internals, frames = await _drive_manager_with_harness(
+                harness, tmp_path, "a\U0001F600b\ncd\n"
+            )
+            assert client.sync_kind == 2
+            # Column 2 counts code points on the row; the emoji counts as two
+            # UTF-16 units on the wire, so the insert lands at column 3.
+            doc.buffer.set_cursor((0, 2))
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            captured = await _wait_for_wire_frames(frames, "textDocument/didChange")
+            assert len(captured) == 1
+            raw, msg = captured[0]
+            params = msg["params"]
+            assert params["textDocument"]["version"] == 2
+            assert len(params["contentChanges"]) == 1
+            change = params["contentChanges"][0]
+            assert set(change) == {"range", "rangeLength", "text"}
+            assert change["range"]["start"] == {"line": 0, "character": 3}
+            assert change["range"]["end"] == {"line": 0, "character": 3}
+            assert change["rangeLength"] == 0
+            assert change["text"] == "X"
+            # The patch is a fragment: the wire JSON must not carry the row
+            # prefix that only the full document would contain.
+            assert "a\U0001F600b" not in json.dumps(msg, ensure_ascii=False)
+            assert raw.startswith(b"Content-Length: ")
+            assert len(raw) < 1024
+        finally:
+            if mgr is not None:
+                await mgr.shutdown_all()
+            await harness.close()
+
+    asyncio.run(scenario())
+
+
+def test_full_only_server_wire_capture_sends_whole_document(tmp_path: Path) -> None:
+    """A negotiated Full-sync (kind 1) server receives the whole document
+    text in one contentChange, never a range patch."""
+    async def scenario() -> None:
+        harness = ServerHarness(server_capabilities={
+            "textDocumentSync": {"openClose": True, "change": 1, "save": True},
+        })
+        mgr: LspManager | None = None
+        try:
+            mgr, client, doc, internals, frames = await _drive_manager_with_harness(
+                harness, tmp_path, "abc\ndef\n"
+            )
+            assert client.sync_kind == 1
+            doc.buffer.set_cursor((0, 1))
+            doc.buffer.insert_text("X")
+            internals._flush_change(doc, internals._uri(doc))
+            changed = await _wait_for_wire_frames(frames, "textDocument/didChange")
+            assert len(changed) == 1
+            raw, msg = changed[0]
+            params = msg["params"]
+            assert params["textDocument"]["version"] == 2
+            assert len(params["contentChanges"]) == 1
+            change = params["contentChanges"][0]
+            assert set(change) == {"text"}
+            assert change["text"] == doc.buffer.get_text() == "aXbc\ndef\n"
+            # The raw frame round-trips through the production decoder,
+            # proving Content-Length and the JSON body are intact.
+            assert await protocol.read_message(FakeReader(raw)) == msg
+            await mgr.on_document_closed(doc)
+            closed = await _wait_for_wire_frames(frames, "textDocument/didClose")
+            assert closed[0][1]["params"]["textDocument"]["uri"] == (
+                params["textDocument"]["uri"]
+            )
+        finally:
+            if mgr is not None:
+                await mgr.shutdown_all()
+            await harness.close()
 
     asyncio.run(scenario())
