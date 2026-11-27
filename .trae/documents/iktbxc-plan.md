@@ -1,105 +1,62 @@
-# IKTBXC naming hygiene plan
+# IKTBXC 命名卫生计划
 
-Status: **approved** -- unattended session (user instruction 2026-11-07: no
-questions, no approvals). Per workspace rule §二.5, approvals are treated as
-granted while rule loading and the closing gate remain mandatory.
-Base: `master@3e92532`; worktree `yate-naming-hygiene`; branch
-`ref/naming-hygiene`; independent `.venv` verified by
-`.venv/Scripts/python.exe -c "import yate; print(yate.__file__)"` resolving
-inside this worktree (renamed on 2026-11-07; see §9.7).
+状态：**approved** —— 无人值守会话（用户指令 2026-11-07：不提问、不审批）。依据工作区规则 §二.5，审批视为已授予，但规则加载与收尾门禁仍为强制。基线：`master@3e92532`；worktree `yate-naming-hygiene`；分支 `ref/naming-hygiene`；独立 `.venv` 经 `.venv/Scripts/python.exe -c "import yate; print(yate.__file__)"` 验证解析到本 worktree 内（2026-11-07 重命名；见 §9.7）。
 
-## 1. Inputs (single source of truth)
+## 1. 输入（唯一事实来源）
 
-- [iktbxc-issue-notes.md](iktbxc-issue-notes.md) -- verbatim issue material.
-- [iktbxc-reference-inventory.md](iktbxc-reference-inventory.md) -- file:line
-  read-only inventory of all three old path surfaces, guard constants, and the
-  discrepancies between issue claims and repository facts.
-- Rules: [architecture-boundaries.md](../rules/architecture-boundaries.md),
-  [python-coding-style.md](../rules/python-coding-style.md),
-  [subagent-workflow.md](../rules/subagent-workflow.md),
-  [doc-conventions.md](../rules/doc-conventions.md),
-  [task-orchestration.md](../rules/task-orchestration.md).
-- Sub-plan index: [iktbxc-plans/overview.md](iktbxc-plans/overview.md).
+- [iktbxc-issue-notes.md](iktbxc-issue-notes.md) —— 逐字 issue 素材。
+- [iktbxc-reference-inventory.md](iktbxc-reference-inventory.md) —— 三处旧路径面、守卫常量，以及 issue 主张与仓库事实之间差异的 file:line 只读清单。
+- 规则：[architecture-boundaries.md](../rules/architecture-boundaries.md)、[python-coding-style.md](../rules/python-coding-style.md)、[subagent-workflow.md](../rules/subagent-workflow.md)、[doc-conventions.md](../rules/doc-conventions.md)、[task-orchestration.md](../rules/task-orchestration.md)。
+- 子计划索引：[iktbxc-plans/overview.md](iktbxc-plans/overview.md)。
 
-## 2. Goals and non-goals
+## 2. 目标与非目标
 
-Goals: remove name/role mismatches, move the pure completion function out of
-the L3 flows layer, and keep naming consistent for the same concept.
+目标：消除名称/角色不匹配，把纯补全函数移出 L3 flows 层，并让同一概念保持命名一致。
 
-Hard non-goals (issue §五, no scope creep):
+硬性非目标（issue §五，不扩大范围）：
 
-- zero runtime behavior change, zero new dependency direction; diff = `git mv`
-  + import lines / path strings / docstrings / rule docs / test names only;
-- no class renames (`EditorView`, `PaneRegistry`, `PaletteScreen`, `LspSync`);
-- no plugin public API change, no user-facing directory convention change;
-- no back-edits to `CHANGELOG*`, `tools/changelog/zh_overrides.json`,
-  `.trae/documents/**` historical plans, or `.trae/reviews/**` read-only records;
-- no opportunistic file splitting, no `SIZE_EXEMPT_FILES` changes;
-- P2 items (editor_sprites characters/chars, palette tri-homonym) are out of
-  this issue's gate batch;
-- `editor_view.py` is explicitly forbidden as the new L2 module name (it is the
-  old package name retired on 2026-11-02).
+- 零运行时行为变更、零新增依赖方向；diff 仅为 `git mv` + import 行 / 路径字符串 / docstring / 规则文档 / 测试名；
+- 不重命名类（`EditorView`、`PaneRegistry`、`PaletteScreen`、`LspSync`）；
+- 不改变插件公共 API，不改变面向用户的目录约定；
+- 不回改 `CHANGELOG*`、`tools/changelog/zh_overrides.json`、`.trae/documents/**` 历史计划或 `.trae/reviews/**` 只读记录；
+- 不借机拆分文件，不修改 `SIZE_EXEMPT_FILES`；
+- P2 项（editor_sprites characters/chars、palette 一词三义）不在本 issue 的门禁批次内；
+- 明确禁止 `editor_view.py` 作为新的 L2 模块名（它是 2026-11-02 退役的旧包名）。
 
-## 3. Alternatives and veto reasons
+## 3. 备选方案与否决理由
 
-| # | Option | Decision / reason |
+| # | 方案 | 决定 / 理由 |
 |---|---|---|
-| A1 | Keep `keyproto/legacy.py`, only edit the docstring | Vetoed: issue P0-1 requires the module name to match its role; the word `legacy` is read as "awaiting deletion" while this is the only active codec. |
-| A2 | `git mv` to `yate/keyproto/key_codec.py`, rewrite first docstring line | **Chosen**: 1 file + 9 active references + 1 rule line + 3 wiki lines; name states the role. |
-| B1 | Rename L2 module to `editor_view.py` / `text_view.py` | `editor_view.py` vetoed by issue (old package name regression); `text_view.py` vetoed as longer without adding information -- the class is `EditorView`, so `view.py` is the shortest non-ambiguous name. |
-| B2 | `git mv` to `yate/editor_components/view.py` | **Chosen**: removes the L2/L3 `editor.py` duplicate, aligns with `EditorView`, no existing `view.py` in that package (verified by directory listing). |
-| C1 | Keep `yate/flows/cmdline_completions.py`, only fix docs | Vetoed: P1-3 explicitly requires layer relocation; the module owns no state, imports no UI and does no flow orchestration (wiring is `editor_compose.py:127-137` injecting a `partial` into `PromptBar`). |
-| C2 | `yate/services/cmdline_completions.py` with no rank registration | Vetoed by measurement: `cmdline_completions.py:12-14` imports `yate.registries` and `yate.session` (rank 1) plus `yate.services.workspace` (rank 0). `_layer_rank()` defaults unregistered paths to 0 and `UPWARD_EDGES_FROZEN` is empty, so `test_no_unregistered_upward_imports` would report two unregistered upward edges. |
-| C3 | `yate/services/cmdline_completions.py` + `_LAYER_RANKS` rank 1 | Vetoed: puts an L1 single file inside the L0 `services/*` leaf package, widening the exact L0/L3 historical compromise the issue lists under "explicitly not changed"; also collides with R4's UI-free package wording. |
-| C4 | `yate/cmdline_completions.py` + `_LAYER_RANKS` entry `("cmdline_completions.py", 1)` | **Chosen**: one of the issue's two suggested targets; root-level single file like `config.py` / `diagnostics.py`; rank 1 matches its two L1 imports, so all existing edges stay downward or same-layer; no upward edge, no new package exception. Both `README.md:272` and `README.zh.md:290` already list the bare filename in the root `yate/` tree, so the docs become accurate without edits. |
-| C5 | Drop the L1 imports by injecting callables instead of `CommandRegistry` / `EditorSession` | Vetoed: changes signatures and runtime wiring, violating the zero-behavior-change non-goal. |
-| C6 | Register the two edges in `UPWARD_EDGES_FROZEN` instead of a rank entry | Vetoed: the rule text and the guard both state the exception set is empty (zero upward edges since 2026-10-20); re-opening it contradicts "zero dependency-direction change". |
+| A1 | 保留 `keyproto/legacy.py`，只修改 docstring | 否决：issue P0-1 要求模块名与角色匹配；`legacy` 一词被读作"待删除"，而这是唯一活跃的编解码器。 |
+| A2 | `git mv` 到 `yate/keyproto/key_codec.py`，重写第一行 docstring | **选定**：1 个文件 + 9 处活跃引用 + 1 行规则 + 3 行 wiki；名称表明角色。 |
+| B1 | 把 L2 模块重命名为 `editor_view.py` / `text_view.py` | `editor_view.py` 被 issue 否决（旧包名回归）；`text_view.py` 因更长却未增加信息而被否决——类是 `EditorView`，所以 `view.py` 是最短且无歧义的名称。 |
+| B2 | `git mv` 到 `yate/editor_components/view.py` | **选定**：消除 L2/L3 的 `editor.py` 重名，与 `EditorView` 对齐，该包中无现存 `view.py`（经目录列举验证）。 |
+| C1 | 保留 `yate/flows/cmdline_completions.py`，只修文档 | 否决：P1-3 明确要求层级迁移；该模块不持有状态、不 import UI、不做流程编排（接线位于 `editor_compose.py:127-137`，向 `PromptBar` 注入一个 `partial`）。 |
+| C2 | `yate/services/cmdline_completions.py` 且不注册 rank | 经实测否决：`cmdline_completions.py:12-14` import 了 `yate.registries` 和 `yate.session`（rank 1）以及 `yate.services.workspace`（rank 0）。`_layer_rank()` 对未注册路径默认取 0，且 `UPWARD_EDGES_FROZEN` 为空，因此 `test_no_unregistered_upward_imports` 会报告两条未注册的向上边。 |
+| C3 | `yate/services/cmdline_completions.py` + `_LAYER_RANKS` rank 1 | 否决：把一个 L1 单文件放进 L0 的 `services/*` 叶子包，扩大了 issue 列为"明确不改"的那处 L0/L3 历史妥协；同时与 R4 中无 UI 包的措辞冲突。 |
+| C4 | `yate/cmdline_completions.py` + `_LAYER_RANKS` 条目 `("cmdline_completions.py", 1)` | **选定**：issue 两个建议目标之一；像 `config.py` / `diagnostics.py` 那样的根级单文件；rank 1 匹配其两处 L1 import，因此所有既有边保持向下或同层；无向上边、无新增包例外。`README.md:272` 与 `README.zh.md:290` 都已在根 `yate/` 树中列出裸文件名，因此文档无需编辑即准确。 |
+| C5 | 通过注入 callable 而非 `CommandRegistry` / `EditorSession` 来去掉 L1 import | 否决：改变签名与运行时接线，违反零行为变更的非目标。 |
+| C6 | 在 `UPWARD_EDGES_FROZEN` 中登记两条边而非 rank 条目 | 否决：规则文本与守卫都声明例外集为空（自 2026-10-20 起零向上边）；重新开放它与"零依赖方向变更"矛盾。 |
 
-Deviation to record: issue §一.3 suggests `services/` **L0 leaf** as the first
-choice. Chosen C4 is its second suggested target with an explicit L1 rank
-registration. Evidence: `tests/test_architecture.py:520-525` (`_layer_rank`
-defaults to 0), `:765-793` (guard), `:165` (empty exception set), and
-`yate/flows/cmdline_completions.py:12-14` (the three imports). The rank entry is
-verified by the wave-3 negative drill.
+需记录的偏离：issue §一.3 建议将 `services/` **L0 叶子**作为首选。选定的 C4 是其第二个建议目标，并带有显式的 L1 rank 注册。证据：`tests/test_architecture.py:520-525`（`_layer_rank` 默认取 0）、`:765-793`（守卫）、`:165`（空例外集），以及 `yate/flows/cmdline_completions.py:12-14`（三处 import）。该 rank 条目由 wave-3 的负向演练验证。
 
-## 4. Architecture impact
+## 4. 架构影响
 
-- R2 / `ALLOWED_PROTOCOLS`: the `PaneRegistry` whitelist key is path-based
-  (`tests/test_architecture.py:130`), so wave 2 must move the key from
-  `editor_components/editor.py` to `editor_components/view.py` or
-  `test_no_new_protocols` turns red.
-- R11 / `UI_FROZEN_FILES`: the two allowed-set values at
-  `tests/test_architecture.py:213` and `:225` are old module strings; wave 2
-  must change them to `yate.editor_components.view`, or
-  `test_collaborators_keep_widget_coupling_frozen` turns red.
-- Layer ranks: `_LAYER_RANKS` (`:141-158`) is prefix based; wave 3 adds one L1
-  entry. `test_no_unregistered_upward_imports`, `test_flow_modules_hold_no_app_handle`
-  (`:1306-1320`, top-level `yate/*.py` is already scanned) and
-  `test_no_relative_imports` cover the relocated root module automatically.
-- R4 (UI-free packages/files): no change; the new root module imports no
-  `editor_components`.
-- Naming guard (`test_no_banned_identifier_names:869-878`): scans the whole
-  tree; wave 1's negative drill proves new paths are still covered.
-- Rule text wave-3 sync points: `architecture-boundaries.md` §一 L3 inventory
-  (`:25`), L1 inventory (`:31-37`), R11 enumeration (`:133`, `:139-142`),
-  §二 responsibility table (`:268`), §三.6 pure-computation list (`:297`),
-  §六 R11 guard list (`:457`); plus `tests/test_architecture.py:25` docstring.
-- No new `Protocol`, `TYPE_CHECKING`, `Any`, `# type: ignore`, logging change,
-  theme change, scrollable widget, or new widget id.
+- R2 / `ALLOWED_PROTOCOLS`：`PaneRegistry` 白名单键基于路径（`tests/test_architecture.py:130`），因此 wave 2 必须把键从 `editor_components/editor.py` 移到 `editor_components/view.py`，否则 `test_no_new_protocols` 变红。
+- R11 / `UI_FROZEN_FILES`：`tests/test_architecture.py:213` 与 `:225` 的两个允许集值是旧模块字符串；wave 2 必须把它们改为 `yate.editor_components.view`，否则 `test_collaborators_keep_widget_coupling_frozen` 变红。
+- 层级 rank：`_LAYER_RANKS`（`:141-158`）基于前缀；wave 3 新增一个 L1 条目。`test_no_unregistered_upward_imports`、`test_flow_modules_hold_no_app_handle`（`:1306-1320`，已扫描顶层 `yate/*.py`）与 `test_no_relative_imports` 自动覆盖迁移后的根模块。
+- R4（无 UI 的包/文件）：无变化；新根模块不 import `editor_components`。
+- 命名守卫（`test_no_banned_identifier_names:869-878`）：扫描整棵树；wave 1 的负向演练证明新路径仍在覆盖范围内。
+- 规则文本 wave-3 同步点：`architecture-boundaries.md` §一 L3 清单（`:25`）、L1 清单（`:31-37`）、R11 枚举（`:133`、`:139-142`）、§二 职责表（`:268`）、§三.6 纯计算清单（`:297`）、§六 R11 守卫清单（`:457`）；外加 `tests/test_architecture.py:25` docstring。
+- 不新增 `Protocol`、`TYPE_CHECKING`、`Any`、`# type: ignore`、日志改动、主题改动、可滚动 widget 或新 widget id。
 
-## 5. Waves
+## 5. 波次
 
-Three strictly serial waves (see [overview.md](iktbxc-plans/overview.md)):
-wave-1 [plan-a](iktbxc-plans/iktbxc-key-codec-plan-a.md),
-wave-2 [plan-b](iktbxc-plans/iktbxc-view-plan-b.md),
-wave-3 [plan-c](iktbxc-plans/iktbxc-cmdline-relocation-plan-c.md).
-They overlap on `tests/test_architecture.py` and
-`.trae/rules/architecture-boundaries.md`, therefore they CANNOT be parallelized;
-each wave ends with one independent commit preserving `git mv` rename tracking.
+三个严格串行的波次（见 [overview.md](iktbxc-plans/overview.md)）：wave-1 [plan-a](iktbxc-plans/iktbxc-key-codec-plan-a.md)、wave-2 [plan-b](iktbxc-plans/iktbxc-view-plan-b.md)、wave-3 [plan-c](iktbxc-plans/iktbxc-cmdline-relocation-plan-c.md)。它们都涉及 `tests/test_architecture.py` 与 `.trae/rules/architecture-boundaries.md`，因此不能并行；每个波次以一次独立提交收尾，保留 `git mv` 重命名跟踪。
 
-## 6. Acceptance
+## 6. 验收
 
-Per-wave commands are in each sub-plan. Closing gate (main agent only):
+每波命令见各子计划。收尾门禁（仅主代理）：
 
 ```powershell
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
@@ -110,214 +67,107 @@ Per-wave commands are in each sub-plan. Closing gate (main agent only):
 .venv\Scripts\python.exe -m yate --help
 ```
 
-Residual grep (expect 0 hits) over the source face `yate/ tests/ tools/ pack/
-pyproject.toml .trae/rules/ .trae/wikis/ README.md README.zh.md`:
+残余 grep（预期 0 命中），范围 `yate/ tests/ tools/ pack/ pyproject.toml .trae/rules/ .trae/wikis/ README.md README.zh.md`：
 
 ```powershell
 git grep -n -E "keyproto\.legacy|editor_components\.editor|flows\.cmdline_completions" -- yate tests tools pack pyproject.toml .trae/rules .trae/wikis README.md README.zh.md
 git grep -n -E "keyproto/legacy|editor_components/editor|flows/cmdline_completions" -- yate tests tools pack pyproject.toml .trae/rules .trae/wikis README.md README.zh.md
 ```
 
-Exempt: `.trae/documents/**` (historical plans + this task's notes/plan),
-`.trae/reviews/**` (read-only fact records), `CHANGELOG*`,
-`tools/changelog/zh_overrides.json`. Both README files contain only the bare
-filename `cmdline_completions.py` in the root tree, which is accurate after the
-move, so bilingual sync is not triggered.
+豁免：`.trae/documents/**`（历史计划 + 本任务的 notes/plan）、`.trae/reviews/**`（只读事实记录）、`CHANGELOG*`、`tools/changelog/zh_overrides.json`。两个 README 文件在根树中只含裸文件名 `cmdline_completions.py`，迁移后即准确，因此不触发双语同步。
 
-Negative drills (one per changed scan-path guard, plus one extra):
+负向演练（每个改动的扫描路径守卫各一次，外加一次）：
 
-1. wave-1 naming guard: temporarily add a `class RenameProbeController` to the
-   new codec module -> `test_no_banned_identifier_names` must fail -> restore ->
-   green.
-2. wave-2 R2 path guard: temporarily restore the old `ALLOWED_PROTOCOLS` key ->
-   `test_no_new_protocols` must fail -> restore -> green.
-3. wave-2 R11 frozen surface: temporarily restore one old allowed-set value ->
-   `test_collaborators_keep_widget_coupling_frozen` must fail -> restore -> green.
-4. wave-3 layer rank: temporarily remove the new `_LAYER_RANKS` entry ->
-   `test_no_unregistered_upward_imports` must fail with the two upward edges ->
-   restore -> green.
+1. wave-1 命名守卫：临时向新编解码器模块添加 `class RenameProbeController` → `test_no_banned_identifier_names` 必须失败 → 还原 → 转绿。
+2. wave-2 R2 路径守卫：临时恢复旧的 `ALLOWED_PROTOCOLS` 键 → `test_no_new_protocols` 必须失败 → 还原 → 转绿。
+3. wave-2 R11 冻结面：临时恢复一个旧的允许集值 → `test_collaborators_keep_widget_coupling_frozen` 必须失败 → 还原 → 转绿。
+4. wave-3 层级 rank：临时移除新的 `_LAYER_RANKS` 条目 → `test_no_unregistered_upward_imports` 必须因两条向上边而失败 → 还原 → 转绿。
 
-Each drill: verify the file content on disk after every edit, clear
-`__pycache__` of the touched package/test directory before re-running (pyc
-timing artifact observed in prior sessions), and finish with
-`git status --short` clean for that file.
+每次演练：每次编辑后核对磁盘上的文件内容，重跑前清理所涉包/测试目录的 `__pycache__`（既往会话中观察到 pyc 时序伪影），并以该文件的 `git status --short` 干净收尾。
 
-## 7. Risks and rollback
+## 7. 风险与回滚
 
-| Risk | Mitigation |
+| 风险 | 缓解措施 |
 |---|---|
-| Missed path string / docstring | two residual greps + `git grep` manual triage (no blind global replace) + pyright + full pytest |
-| Guard goes deaf after path change | four negative drills with restore-and-green |
-| `git mv` rename tracking lost | strict `git mv`, `git log --follow -- <new path>` spot-check after each commit |
-| Plugin / smoke scenario imports old path | 121-scenario smoke + `python -m yate --help` |
-| Rule/code drift | `architecture-boundaries.md`, `tests/test_architecture.py`, `.trae/wikis/yate-architecture.md` and root docs synced in the same wave as the code |
+| 遗漏路径字符串 / docstring | 两次残余 grep + `git grep` 人工分诊（不做盲目全局替换）+ pyright + 全量 pytest |
+| 路径改动后守卫变聋 | 四次负向演练，配还原并转绿 |
+| `git mv` 重命名跟踪丢失 | 严格 `git mv`，每次提交后 `git log --follow -- <new path>` 抽查 |
+| 插件 / 冒烟场景 import 旧路径 | 121 场景冒烟 + `python -m yate --help` |
+| 规则/代码漂移 | `architecture-boundaries.md`、`tests/test_architecture.py`、`.trae/wikis/yate-architecture.md` 与根文档在代码同一波同步 |
 
-Rollback: three independent commits, `git revert` per commit; worktree sandbox
-isolates the main repo.
+回滚：三个独立提交，逐提交 `git revert`；worktree 沙箱隔离主仓。
 
-## 8. Execution contract and deviations
+## 8. 执行契约与偏离
 
-- Unattended: approval bypass, subagents spawn with `bypassPermissions`; closing
-  gate is NOT exempt.
-- `subagent-workflow.md` §一.3 forbids subagents editing product source
-  (`yate/`). All three waves are executed by the MAIN AGENT under the
-  `plan-executor` script with this plan as the single spec. The review step is
-  delegated to `code-review-expert` (bypassPermissions, full window before any
-  death judgment per prior feedback).
-- `plan-architect-designer` was spawned twice (both with `bypassPermissions`,
-  model `Hy4 preview` per `task-orchestration.md` §一.3) and failed both times
-  with `Model "qwen-3.7-plus" not found` (the definition file's static model is
-  not registered in this runtime). Per `task-orchestration.md` §一.3.5 / §三,
-  the main agent produced this plan itself -- **subagent zero output for the
-  planning role**, recorded here as a fact.
-- Issue-claim discrepancies (measured, see inventory §G): `:213/:225` are
-  allowed-set values not keys; P0-2 has 36 lines not 22 and `editor_compose.py`
-  has no such reference; P0-1's "9 active references" excludes 109 `.trae`
-  lines; `yate/docs` has 0 hits; there is no `FLOWS` constant and no
-  `test_banned_identifier_names`. Execution follows the measured inventory, not
-  the stale claims.
-- No new behavior tests: the task changes no runtime behavior; guard coverage is
-  proven by the four negative drills plus the full 37-case architecture suite.
+- 无人值守：审批 bypass，子代理带 `bypassPermissions` spawn；收尾门禁不豁免。
+- `subagent-workflow.md` §一.3 禁止子代理编辑产品源码（`yate/`）。三个波次全部由主代理在 `plan-executor` 脚本下执行，以本计划为唯一规范。评审步骤委托给 `code-review-expert`（bypassPermissions，按既往反馈在判死前给足完整窗口）。
+- `plan-architect-designer` 被 spawn 两次（均带 `bypassPermissions`，按 `task-orchestration.md` §一.3 用模型 `Hy4 preview`）且两次失败，报 `Model "qwen-3.7-plus" not found`（定义文件的静态模型在本运行时未注册）。依据 `task-orchestration.md` §一.3.5 / §三，主代理亲自产出本计划——**规划角色子代理零产出**，此处作为事实记录。
+- issue 主张差异（实测，见 inventory §G）：`:213/:225` 是允许集值而非键；P0-2 有 36 行而非 22 行且 `editor_compose.py` 无此引用；P0-1 的"9 处活跃引用"不含 109 行 `.trae`；`yate/docs` 0 命中；不存在 `FLOWS` 常量，也不存在 `test_banned_identifier_names`。执行依据实测清单，而非过时主张。
+- 无新增行为测试：本任务不改变运行时行为；守卫覆盖由四次负向演练加完整 37 例架构套件证明。
 
-## 9. Closing backfill (2026-11-07, main agent)
+## 9. 收尾回填（2026-11-07，主代理）
 
-### 9.1 Wave acceptance (real results)
+### 9.1 各波验收（真实结果）
 
-| Wave | pyright | arch | focused | full pytest | smoke | residual grep | commit |
+| 波次 | pyright | 架构 | 聚焦 | 全量 pytest | 冒烟 | 残余 grep | 提交 |
 |---|---|---|---|---|---|---|---|
-| 1 | 0 errors | 37 dots / exit 0 | 80 tests / exit 0 | exit 0 | n/a | 0 hits (exit 1) | `3e615a9` (rename 93%) |
-| 2 | 0 errors | 37 dots / exit 0 | 74 tests / exit 0 | exit 0 | 121/121 · 1463/1463 / exit 0 | 0 hits (exit 1) | `55aee7e` (rename 100%) |
-| 3 | 0 errors | 37 dots / exit 0 | 4 files / exit 0 | exit 0 | 121/121 · 1463/1463 / exit 0 | 0 hits (exit 1) | `f3299a1` (rename 100%) |
+| 1 | 0 errors | 37 点 / 退出 0 | 80 测试 / 退出 0 | 退出 0 | n/a | 0 命中（退出 1） | `3e615a9`（重命名 93%） |
+| 2 | 0 errors | 37 点 / 退出 0 | 74 测试 / 退出 0 | 退出 0 | 121/121 · 1463/1463 / 退出 0 | 0 命中（退出 1） | `55aee7e`（重命名 100%） |
+| 3 | 0 errors | 37 点 / 退出 0 | 4 文件 / 退出 0 | 退出 0 | 121/121 · 1463/1463 / 退出 0 | 0 命中（退出 1） | `f3299a1`（重命名 100%） |
 
-Negative drills: drill-1 naming guard RED exit 1 -> GREEN exit 0; drill-2a
-`ALLOWED_PROTOCOLS` RED 1 -> GREEN 0; drill-2b `UI_FROZEN_FILES` RED 1 -> GREEN 0;
-drill-3 rank RED 1 (both `-> yate.registries` / `-> yate.session` edges observed)
--> GREEN 0. Every drill verified on-disk restore + `__pycache__` cleanup.
+负向演练：drill-1 命名守卫 红 退出 1 → 绿 退出 0；drill-2a `ALLOWED_PROTOCOLS` 红 1 → 绿 0；drill-2b `UI_FROZEN_FILES` 红 1 → 绿 0；drill-3 rank 红 1（观察到两条 `-> yate.registries` / `-> yate.session` 边）→ 绿 0。每次演练均核对磁盘还原 + `__pycache__` 清理。
 
-Two execution anomalies, both recorded:
+两处执行异常，均已记录：
 
-- The wave-1 baseline command was run twice by the shell wrapper; the second
-  pass saw the renamed intermediate state (pytest exit 4, `git mv` "bad source").
-  The pre-change baseline was re-measured in the clean main repo: 37 passed,
-  exit 0. No product change was affected.
-- The wave-3 applier stopped at edit 17/22 because the §二 table phrase used
-  inline backticks; the first 16 edits were already on disk. A resume applier
-  applied the remaining 6 with the same per-edit uniqueness assertions; both
-  path forms then grep-clean.
+- wave-1 基线命令被 shell 包装器执行了两次；第二趟看到重命名后的中间状态（pytest 退出 4，`git mv` "bad source"）。变更前基线在干净的主仓重新实测：37 passed，退出 0。未影响任何产品改动。
+- wave-3 applier 在第 17/22 次编辑处停止，因为 §二 表格短语用了行内反引号；前 16 次编辑已落盘。一个续接 applier 用同样的逐编辑唯一性断言应用了剩余 6 处；随后两种路径形式均 grep 干净。
 
-### 9.2 Review and iteration
+### 9.2 评审与迭代
 
-`code-review-expert` (`bypassPermissions`, DeepSeek-V4.1-Flash) delivered
-**0 blocker / 1 major / 3 minor** at
-[2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md)
-(reviewer had no write tool; the main agent persisted the record verbatim and
-registered index #59, renumbered to #62 by the 2026-11-07 pr-review). M1
-(7 one-shot scripts) removed, m2/m3 rule text
-clarified, m1 registered as deferred; the smoke timing flake was fixed per
-`task-orchestration.md` §二.7. Iteration re-verification: pyright 0, arch 37,
-`--repeat 5 --jobs 4` stress 12/12, full smoke 121/121 · 1463/1463.
+`code-review-expert`（`bypassPermissions`，DeepSeek-V4.1-Flash）在 [2026-11-07-iktbxc-naming-refactor.md](../reviews/2026-11-07-iktbxc-naming-refactor.md) 交付了 **0 阻塞项 / 1 严重 / 3 次要**（评审者无写工具；主代理逐字持久化记录并登记索引 #59，2026-11-07 pr-review 重编号为 #62）。M1（7 个一次性脚本）已移除，m2/m3 规则文本已澄清，m1 登记为延期；冒烟时序 flake 依据 `task-orchestration.md` §二.7 修复。迭代复验：pyright 0、架构 37、`--repeat 5 --jobs 4` 压力 12/12、全量冒烟 121/121 · 1463/1463。
 
-### 9.3 Deviations (with evidence)
+### 9.3 偏离（附证据）
 
-1. `cmdline_completions` landed at root L1 (issue's second suggested target)
-   with `("cmdline_completions.py", 1)` in `_LAYER_RANKS`, not at `services/`
-   L0 -- drill-3 proved the rank entry load-bearing (§3/C4).
-2. `tools/smoke_test/scenarios/stress.py` convergence fix is outside issue §五's
-   diff scope, but §二.7 requires fixing a timing flake after `-n 1` /
-   `--jobs 1` re-check; isolated in commit `c9f5589`, never mixed into the three
-   implementation commits (see
-   [iktbxc-review-fixes-plan.md](iktbxc-review-fixes-plan.md) §四).
-3. `plan-architect-designer` spawned twice, both failed with model-not-registered;
-   main agent produced the plan (§8, subagent zero output for planning).
-4. All three waves executed by the main agent: `subagent-workflow.md` §一.3
-   forbids subagent edits to `yate/`.
-5. Unattended §二.5 record: 7 untracked one-shot tools were deleted after the
-   deletion list was written to disk (review fixes plan §三):
-   `.iktbxc_wave1.py`, `.iktbxc_wave2.py`, `.iktbxc_wave3.py`,
-   `.iktbxc_wave3b.py`, `.iktbxc_drill1.py`, `.iktbxc_drill2.py`,
-   `.iktbxc_drill3.py`. Final `git status --short` is empty.
+1. `cmdline_completions` 落在根级 L1（issue 第二建议目标），在 `_LAYER_RANKS` 中带 `("cmdline_completions.py", 1)`，而非 `services/` L0 —— drill-3 证明该 rank 条目承载关键（§3/C4）。
+2. `tools/smoke_test/scenarios/stress.py` 收敛修复超出 issue §五 的 diff 范围，但 §二.7 要求在 `-n 1` / `--jobs 1` 复核后修复时序 flake；孤立在提交 `c9f5589` 中，从未混入三个实现提交（见 [iktbxc-review-fixes-plan.md](iktbxc-review-fixes-plan.md) §四）。
+3. `plan-architect-designer` spawn 两次，均因模型未注册失败；主代理产出计划（§8，规划角色子代理零产出）。
+4. 三个波次全部由主代理执行：`subagent-workflow.md` §一.3 禁止子代理编辑 `yate/`。
+5. 无人值守 §二.5 记录：7 个未跟踪的一次性工具在删除清单落盘后删除（review fixes plan §三）：`.iktbxc_wave1.py`、`.iktbxc_wave2.py`、`.iktbxc_wave3.py`、`.iktbxc_wave3b.py`、`.iktbxc_drill1.py`、`.iktbxc_drill2.py`、`.iktbxc_drill3.py`。最终 `git status --short` 为空。
 
-### 9.4 Closing gate (main agent, all exit code 0 unless noted)
+### 9.4 收尾门禁（主代理，除注明外均退出码 0）
 
-| Command | Real result |
+| 命令 | 真实结果 |
 |---|---|
-| `pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations`, exit 0 |
-| `pytest tests/ -q -n auto` | exit 0 |
-| `pytest tests/test_architecture.py -q` | 37 dots, exit 0 |
-| `pytest tests/ --cov=yate --cov-branch -n auto --cov-fail-under=75` | `TOTAL 19392 / 1100 miss / 6190 branch / 573 partial = 93%`; `Required test coverage of 75% reached. Total coverage: 92.84%`; `3395 passed, 10 skipped in 165.91s`, exit 0 |
-| `tools.smoke_test run --jobs 4` | `1463/1463 checks (100%)`, `121/121 scenarios passed 78.38s`, exit 0 |
-| `python -m yate --help` | exit 0 |
-| combined residual grep (dotted + slashed forms) | 0 hits, exit 1 (expected green) |
+| `pyright yate/ tests/ tools/ pack/` | `0 errors, 0 warnings, 0 informations`，退出 0 |
+| `pytest tests/ -q -n auto` | 退出 0 |
+| `pytest tests/test_architecture.py -q` | 37 点，退出 0 |
+| `pytest tests/ --cov=yate --cov-branch -n auto --cov-fail-under=75` | `TOTAL 19392 / 1100 miss / 6190 branch / 573 partial = 93%`；`Required test coverage of 75% reached. Total coverage: 92.84%`；`3395 passed, 10 skipped in 165.91s`，退出 0 |
+| `tools.smoke_test run --jobs 4` | `1463/1463 checks (100%)`，`121/121 scenarios passed 78.38s`，退出 0 |
+| `python -m yate --help` | 退出 0 |
+| 合并的残余 grep（点号形式 + 斜杠形式） | 0 命中，退出 1（预期为绿） |
 
-### 9.5 Final commits (9 implementation/review commits + 1 backfill, no `git push`)
+### 9.5 最终提交（9 笔实现/评审提交 + 1 笔回填，无 `git push`）
 
-`efd4551` issue notes -> `6539b90` reference inventory -> `e7c2d67` plan +
-sub-plans -> `3e615a9` wave-1 -> `55aee7e` wave-2 -> `f3299a1` wave-3 ->
-`506b38c` review archive -> `adca72b` review fixes plan + rule clarifications ->
-`c9f5589` smoke flake fix. This backfill is the closing docs commit.
+`efd4551` issue notes → `6539b90` 参考清单 → `e7c2d67` 计划 + 子计划 → `3e615a9` wave-1 → `55aee7e` wave-2 → `f3299a1` wave-3 → `506b38c` 评审归档 → `adca72b` 评审修复计划 + 规则澄清 → `c9f5589` 冒烟 flake 修复。本次回填是收尾文档提交。
 
-### 9.6 Deferred / out-of-scope registrations
+### 9.6 延期 / 范围外登记
 
-- m1: three commit bodies are empty; wave-1's docstring rewrite is documented
-  here instead of rewriting history. Future same-kind commits should add a body
-  line.
-- Review observations: R11 docstring/guard enumerations vs `UI_FROZEN_FILES`
-  10-key drift (pre-existing); `key_codec.py` first line still contains the word
-  "legacy" (semantically correct per §一 P0-1); full `--follow` archaeology of
-  the 2026-11-02 package-level rename not performed.
-- P2-4 (editor_sprites characters/chars) and P2-5 (palette tri-homonym) remain
-  separate review topics per the issue.
+- m1：三个提交正文为空；wave-1 的 docstring 改写记录在此处，而非重写历史。未来同类提交应加一行正文。
+- 评审观察：R11 docstring/守卫枚举与 `UI_FROZEN_FILES` 10 键漂移（既有）；`key_codec.py` 首行仍含 "legacy" 一词（按 §一 P0-1 语义正确）；未对 2026-11-02 包级重命名做完整 `--follow` 考古。
+- P2-4（editor_sprites characters/chars）与 P2-5（palette 一词三义）按 issue 仍为独立评审主题。
 
-### 9.7 Branch / worktree rename (2026-11-07 follow-up)
+### 9.7 分支 / worktree 重命名（2026-11-07 后续）
 
-User correction: an issue id must not be used as a branch name; the branch needs
-a meaningful name. The original issue-id branch was renamed via `git branch -m`
-to `ref/naming-hygiene`, and the worktree directory to `yate-naming-hygiene`.
+用户更正：issue id 不得用作分支名；分支需要有意义的名称。原 issue-id 分支通过 `git branch -m` 重命名为 `ref/naming-hygiene`，worktree 目录改为 `yate-naming-hygiene`。
 
-`git worktree move` failed twice on Windows with `Permission denied` (the old
-directory was held by another process; the orphan pytest worker PID 14680 was
-terminated without releasing the handle). Per unattended §二.5, the removal of
-the old untracked worktree was recorded in memory before execution, then
-`git worktree remove --force` plus `git worktree add ... ref/naming-hygiene`
-rebuilt the worktree at `80ad791`. All 10 commits live on the branch; the
-ignored `.venv` was rebuilt from scratch. Verified: registry key
-`yate-naming-hygiene`, no issue-id branch left, old directory absent, venv
-contains 0 old-path strings, `yate.__file__` resolves inside the new worktree,
-`git status --short` empty.
+`git worktree move` 在 Windows 上两次失败，报 `Permission denied`（旧目录被另一进程占用；孤儿 pytest worker PID 14680 被终止但未释放句柄）。依据无人值守 §二.5，旧未跟踪 worktree 的移除在执行前已记入记忆，随后 `git worktree remove --force` 加 `git worktree add ... ref/naming-hygiene` 在 `80ad791` 重建 worktree。全部 10 笔提交都在分支上；被忽略的 `.venv` 从头重建。已验证：注册表键 `yate-naming-hygiene`，无 issue-id 分支残留，旧目录不存在，venv 含 0 个旧路径字符串，`yate.__file__` 解析到新 worktree 内，`git status --short` 为空。
 
-All 9 in-repo references to the old names were synced in this commit (issue
-notes, main plan, reference inventory, review record metadata, review index);
-review conclusions and measured numbers are unchanged. A whole-repo grep for
-the old names (including `.trae/documents` and `.trae/reviews`) now has 0 hits.
+旧名称的 9 处仓内引用均在本提交同步（issue notes、主计划、参考清单、评审记录元数据、评审索引）；评审结论与实测数字未变。旧名称的全仓 grep（含 `.trae/documents` 与 `.trae/reviews`）现为 0 命中。
 
-Closing gate re-run by the main agent in the new worktree (all exit 0):
-pyright `0 errors, 0 warnings`; `pytest -q -n auto` 0; architecture 37 dots 0;
-coverage `TOTAL 19392/1101/6190/574 = 93%`, `Total coverage: 92.83%`,
-`3395 passed, 10 skipped`, 0; smoke `1463/1463 checks`, `121/121 scenarios`,
-0; `python -m yate --help` 0; source-face residual grep 0 hits (exit 1);
-old-name grep 0 hits (exit 1); `git status --short` empty. The branch now has
-12 commits (10 original + `f0f0997` name sync + this backfill). No push.
+主代理在新 worktree 重跑收尾门禁（均退出 0）：pyright `0 errors, 0 warnings`；`pytest -q -n auto` 0；架构 37 点 0；覆盖率 `TOTAL 19392/1101/6190/574 = 93%`、`Total coverage: 92.83%`、`3395 passed, 10 skipped`，0；冒烟 `1463/1463 checks`、`121/121 scenarios`，0；`python -m yate --help` 0；源面残余 grep 0 命中（退出 1）；旧名称 grep 0 命中（退出 1）；`git status --short` 为空。分支现含 12 笔提交（10 笔原始 + `f0f0997` 名称同步 + 本次回填）。无 push。
 
-### 9.8 Merge-ready PR review (2026-11-07, closed)
+### 9.8 合并就绪 PR 评审（2026-11-07，已关闭）
 
-`pr-review` skill, `review` mode: 3 read-only reviewers (A functionality /
-architecture, B documentation / merge surface, C security / performance / gate
-scope) plus main-agent adjudication and personally-run gates. Baseline verdicts
-A `APPROVE` / B `BLOCKED` / C `REQUEST_CHANGES`; adjudicated
-**0 BLOCKER / 3 MAJOR / 9 MINOR**: index #59 colliding with master #59-#61
-plus a real 3-way merge conflict, three drive-letter paths in new documents,
-and a distorted first-review scope / conclusion. All 3 MAJOR closed; 6 MINOR
-fixed, 3 deferred (branch-naming drift, `iktbxc-*` document stem, discarded
-`wait_until` return). Final verdict **APPROVE**. Report:
-[2026-11-07-pr-review-naming-hygiene.md](../reviews/2026-11-07-pr-review-naming-hygiene.md);
-iteration plan: [naming-hygiene-pr-review-plan.md](naming-hygiene-pr-review-plan.md).
+`pr-review` skill，`review` 模式：3 名只读评审者（A 功能/架构、B 文档/合并面、C 安全/性能/门禁范围）加主代理裁决与亲自跑门禁。基线判定 A `APPROVE` / B `BLOCKED` / C `REQUEST_CHANGES`；裁决为 **0 阻塞项 / 3 严重 / 9 次要**：索引 #59 与 master #59-#61 冲突并存在真实三方合并冲突，新文档中三处盘符路径，以及一处被扭曲的首轮评审范围/结论。3 个严重项全部关闭；6 个次要项修复，3 个延期（分支命名漂移、`iktbxc-*` 文档词干、丢弃的 `wait_until` 返回值）。最终判定 **APPROVE**。报告：[2026-11-07-pr-review-naming-hygiene.md](../reviews/2026-11-07-pr-review-naming-hygiene.md)；迭代计划：[naming-hygiene-pr-review-plan.md](naming-hygiene-pr-review-plan.md)。
 
-Main-agent gates after fixes (all exit 0): pyright `0 errors, 0 warnings`;
-`pytest tests/ -q -n auto` 0; architecture `37 dots` 0; coverage `92.88%`
-(`3395 passed, 10 skipped`, `--cov-fail-under=75` reached); smoke
-`121/121 scenarios · 1463/1463 checks` (95.16s) 0; changelog check 0;
-`python -m yate --help` 0; `git diff --check` 0; source-face residual grep
-0 hits (exit 1); drive-letter scan 0 hits; old branch/worktree name grep
-0 hits (exit 1); `git merge-tree 3e92532 master HEAD` 0 conflict markers;
-`git status --short` empty. Review index: first review #62, pr-review #63.
-No push.
+修复后主代理门禁（均退出 0）：pyright `0 errors, 0 warnings`；`pytest tests/ -q -n auto` 0；架构 `37 dots` 0；覆盖率 `92.88%`（`3395 passed, 10 skipped`，达到 `--cov-fail-under=75`）；冒烟 `121/121 scenarios · 1463/1463 checks`（95.16s）0；changelog check 0；`python -m yate --help` 0；`git diff --check` 0；源面残余 grep 0 命中（退出 1）；盘符扫描 0 命中；旧分支/worktree 名称 grep 0 命中（退出 1）；`git merge-tree 3e92532 master HEAD` 0 冲突标记；`git status --short` 为空。评审索引：首轮评审 #62，pr-review #63。无 push。

@@ -1,80 +1,55 @@
-# Descriptive naming migration plan — `enew-args-lsp-attach`
+# 描述性命名迁移计划 —— `enew-args-lsp-attach`
 
-Issue: <https://gitee.com/jermaine/yate/issues/IKSFS7> (kept as the provenance
-link; the issue number is **not** used as a name any more).
-Worktree before: `../yate-iksfs7` · branch before: `fix/iksfs7`.
+Issue: <https://gitee.com/jermaine/yate/issues/IKSFS7>（保留为来源链接；issue 编号**不再**用作名称）。
+迁移前 worktree：`../yate-iksfs7` · 迁移前分支：`fix/iksfs7`。
 
-## 0. Classification and process state
+## 0. 分类与流程状态
 
-Continuation task (no new worktree/branch per `task-orchestration.md` §二.1:
-`git worktree list` shows the existing worktree and its `.venv` is reused).
-It is non-trivial (≥3 files, `plan-before-execute.md` §一.1) so the closed loop
-applies; it is a **pure document/rename change**, so `misc-rules.md` §三 waives
-the test gate (pyright / pytest / coverage / smoke) — but not the rule loading,
-naming, relative-path, commit-format and honest-reporting requirements.
+续作任务（按 `task-orchestration.md` §二.1 不新建 worktree/分支：`git worktree list` 显示既有 worktree，其 `.venv` 被复用）。它属于非平凡任务（≥3 个文件，`plan-before-execute.md` §一.1），因此适用闭环；它是**纯文档/重命名变更**，所以 `misc-rules.md` §三豁免测试门禁（pyright / pytest / coverage / smoke）—— 但不豁免规则加载、命名、相对路径、提交格式和如实汇报的要求。
 
-| Step | State |
+| 步骤 | 状态 |
 |---|---|
-| 1 领会 | done: 8 rules reloaded, `git worktree list` / branch / status probed, all `iksfs7` tokens collected |
-| 2 方案 | done: this document |
-| 3 批准 | waived: the user's standing unattended instruction ("进入无人值守模式，所有问题无须过问") plus this message's "取个有意义的名字" delegate the naming decision; no question/approval is raised (always-applied workspace loader §二.5, unattended bypass — not a `.trae/rules/` clause) |
-| 4 执行 | done: §3 (commits `9c90c8d`, `06e6743`; 10 renames detected at 86-96% similarity) |
-| 5 审核 | done: round 1 **0 blocker / 4 major / 2 minor** → round 2 **0 blocker / 1 major / 0 minor** (dangling deviation #7) → round 3 **0 blocker / 0 major / 2 minor** (both non-blocking wording/count notes); all three read-only consistency reviews under the `misc-rules.md` §三 pure-document exemption |
-| 6 迭代 | done: §6 iteration design (`4ea44fc`), M1/M2/M3 fixes (`1123856`), §4 deviation #7/#8 backfill (`9d3721b`) |
-| 7 收尾 | done: §4 measured results backfilled, round-3 verdict recorded, per-step commits, `git status --short` empty, no push |
+| 1 领会 | 完成：重载 8 项规则，探查 `git worktree list` / 分支 / 状态，收集所有 `iksfs7` 令牌 |
+| 2 方案 | 完成：本文档 |
+| 3 批准 | 已豁免：用户的长期无人值守指令（"进入无人值守模式，所有问题无须过问"）加上本条消息的"取个有意义的名字"委派了命名决策；不发起任何询问/批准（always-applied 工作区加载器 §二.5，无人值守 bypass —— 并非 `.trae/rules/` 条款） |
+| 4 执行 | 完成：§3（提交 `9c90c8d`、`06e6743`；检测到 10 处重命名，相似度 86%-96%） |
+| 5 审核 | 完成：第 1 轮 **0 blocker / 4 major / 2 minor** → 第 2 轮 **0 blocker / 1 major / 0 minor**（悬置的偏离 #7）→ 第 3 轮 **0 blocker / 0 major / 2 minor**（均为非阻塞的措辞/计数说明）；三轮均为只读一致性评审，适用 `misc-rules.md` §三 纯文档豁免 |
+| 6 迭代 | 完成：§6 迭代设计（`4ea44fc`）、M1/M2/M3 修复（`1123856`）、§4 偏离 #7/#8 回填（`9d3721b`） |
+| 7 收尾 | 完成：回填 §4 实测结果，记录第 3 轮结论，按步骤提交，`git status --short` 为空，未 push |
 
-Sub-agents: not dispatched for the mechanical rename because the files are
-**not independently verifiable** — every document's links depend on the other
-documents' new names, so the `subagent-workflow.md` §一.1 "disjoint files and
-independent verification" split criterion is not met. The main agent executes
-atomically (§三 fallback).
+子代理：机械式重命名未派发给子代理，因为文件**不可独立验证** —— 每篇文档的链接都依赖其他文档的新名称，因此不满足 `subagent-workflow.md` §一.1 的"disjoint files and independent verification"拆分判据。由主代理原子执行（§三 兜底）。
 
-## 1. Goals / non-goals
+## 1. 目标 / 非目标
 
-Goals:
+目标：
 
-1. Rename the branch to `fix/enew-args-lsp-attach` and the worktree directory to
-   `../yate-enew-args-lsp-attach`, so the local sandbox path is descriptive too.
-2. Rename all plan / issue-notes / sub-plan / review documents to
-   `doc-conventions.md` §一/§二 compliant descriptive names built on the same
-   task stem `enew-args-lsp-attach`.
-3. Rewrite every in-repo reference (relative links, branch/worktree mentions,
-   review index entries, the one test docstring) so no dangling link remains.
-4. Keep the sandbox self-proving after the worktree move, and keep git history
-   intact (12 commits, no amend / rebase / force).
+1. 将分支重命名为 `fix/enew-args-lsp-attach`，将 worktree 目录重命名为 `../yate-enew-args-lsp-attach`，使本地沙箱路径也具有描述性。
+2. 将所有 plan / issue-notes / 子计划 / 评审文档重命名为符合 `doc-conventions.md` §一/§二 的描述性名称，统一基于同一任务词干 `enew-args-lsp-attach`。
+3. 重写仓库内所有引用（相对链接、分支/worktree 提及、评审索引条目、那一处测试 docstring），使不再有悬空链接。
+4. 在 worktree 移动后保持沙箱可自证，并保持 git 历史完整（12 笔提交，无 amend / rebase / force）。
 
-Non-goals:
+非目标：
 
-- No product code, test, manual, baseline or rule change other than the single
-  docstring token in `tests/test_document_flows_saveas.py`.
-- No commit-message rewrite. The 12 existing subjects are descriptive and all
-  follow `type(scope): subject`, but **6 of them still cite the issue id in the
-  subject line** (`7011ff2`, `68a1ada`, `2c6989b`, `20e6b9c`, `6ec91ec`,
-  `0619086`). This is a known, accepted deviation (see #9 in §4): subjects are
-  immutable here (no amend / rebase), so the issue id survives in history while
-  every file name, document title, branch and worktree name uses the
-  descriptive stem.
-- No `git push`, no merge.
-- No removal of the Gitee issue URL or the `IKSFS7` issue number where it is
-  used **as a source citation** inside prose (see §2 rejected alternative C).
+- 除 `tests/test_document_flows_saveas.py` 中单个 docstring 令牌外，不改动产品代码、测试、手册、基线或规则。
+- 不重写提交信息。现有 12 个主题都是描述性的且都遵循 `type(scope): subject`，但**其中 6 个仍在主题行引用 issue 编号**（`7011ff2`、`68a1ada`、`2c6989b`、`20e6b9c`、`6ec91ec`、`0619086`）。这是一个已知且被接受的偏离（见 §4 的 #9）：此处主题不可变（无 amend / rebase），因此 issue 编号残留在历史中，而每个文件名、文档标题、分支和 worktree 名称都使用描述性词干。
+- 不执行 `git push`，不合并。
+- 不移除 Gitee issue URL，也不移除在正文中**作为来源引用**使用的 `IKSFS7` issue 编号（见 §2 否决方案 C）。
 
-## 2. Naming decision, alternatives and rejection reasons
+## 2. 命名决策、备选方案与否决理由
 
-Chosen stem: `enew-args-lsp-attach` — it names both user-visible fixes of the
-issue (`:enew` argument guard and LSP attach for unnamed buffers after
-`:saveas`) in lowercase hyphenated ASCII (`doc-conventions.md` §一, §六).
+选定词干：`enew-args-lsp-attach` —— 它以小写连字符 ASCII 形式（`doc-conventions.md` §一、§六）命名了该 issue 的两个用户可见修复（`:enew` 参数守卫和 `:saveas` 后无路径 buffer 的 LSP attach）。
 
-| Rejected | Reason |
+| 否决方案 | 理由 |
 |---|---|
-| A. `unnamed-buffer-lsp` / `enew-arg-guard` (single-symptom names) | Each covers only half of the delivered change; the branch and documents must describe the whole task. |
-| B. `issue-IKSFS7` / `iksfs7-*` with a descriptive subtitle | The user explicitly rejects the issue number as a name; a subtitle does not fix the file/branch name. |
-| C. Delete every `IKSFS7` token, including the issue URL and prose citations | Loses provenance and breaks the repository convention of citing issues by id (`issue IKRZ41`, `issue IKSFMQ`…). Only **names and titles** are renamed; the URL and prose citations stay. Review-index paragraph headings count as **names/titles** and therefore use the task name; the issue id is kept only in the Gitee URL at the top of the issue notes and the main plan. |
-| D. Keep `../yate-iksfs7` as the sandbox directory | Leaves a meaningless local name and makes the worktree path in the documents inconsistent with the branch name; `git worktree move` is a native, reversible operation. |
-| E. `git push` the renamed branch | Closed loop forbids pushing (§二 提交纪律); the user did not ask for it. |
+| A. `unnamed-buffer-lsp` / `enew-arg-guard`（单一症状名称） | 每个只覆盖所交付变更的一半；分支和文档必须描述整个任务。 |
+| B. `issue-IKSFS7` / `iksfs7-*` 加描述性副标题 | 用户明确否决以 issue 编号作为名称；副标题并不能修正文件/分支名。 |
+| C. 删除每一个 `IKSFS7` 令牌，包括 issue URL 和正文引用 | 会丢失来源信息，并破坏仓库按编号引用 issue 的惯例（`issue IKRZ41`、`issue IKSFMQ`…）。只重命名**名称和标题**；URL 和正文引用保留。评审索引的段落标题算作**名称/标题**，因此使用任务名；issue 编号仅保留在 issue 笔记和主计划顶部的 Gitee URL 中。 |
+| D. 保留 `../yate-iksfs7` 作为沙箱目录 | 会留下无意义的本地名称，并使文档中的 worktree 路径与分支名不一致；`git worktree move` 是原生的可逆操作。 |
+| E. `git push` 重命名后的分支 | 闭环禁止 push（§二 提交纪律）；用户也未要求。 |
 
-### Exact rename map
+### 精确重命名映射
 
-| Old | New |
+| 旧 | 新 |
 |---|---|
 | `fix/iksfs7` | `fix/enew-args-lsp-attach` |
 | `../yate-iksfs7` | `../yate-enew-args-lsp-attach` |
@@ -89,39 +64,21 @@ issue (`:enew` argument guard and LSP attach for unnamed buffers after
 | `2026-11-06-iksfs7-review-round1.md` | `2026-11-06-enew-args-lsp-attach-review.md` |
 | `2026-11-06-iksfs7-review-round2.md` | `2026-11-06-enew-args-lsp-attach-iteration-review.md` |
 
-Review-record names follow `doc-conventions.md` §二.1 (`YYYY-MM-DD-<topic>.md`,
-same-day reviews distinguished by topic, not `-2`/`-v2` suffixes). Sub-plan
-names keep `<task>-<subtask>-plan-<letter>.md`; the directory remains
-`<task>-plans/` with `overview.md`.
+评审记录名称遵循 `doc-conventions.md` §二.1（`YYYY-MM-DD-<topic>.md`，同一天的评审以主题区分，而非 `-2`/`-v2` 后缀）。子计划名称保持 `<task>-<subtask>-plan-<letter>.md`；目录保持为 `<task>-plans/`，含 `overview.md`。
 
-Document titles become descriptive: `Unnamed-buffer LSP attach fix plan — …`,
-`Issue source notes — …`, `… sub-plan overview — …`, `plan-a — …` etc., and the
-review records / review-index paragraphs use the descriptive task phrase. The
-machine-local memory file `project_iksfs7_status.md` is renamed to
-`project_enew_args_lsp_attach_status.md` and its `MEMORY.md` index line is
-updated (machine-local data, not a repository commit).
+文档标题改为描述性：`Unnamed-buffer LSP attach fix plan — …`、`Issue source notes — …`、`… sub-plan overview — …`、`plan-a — …` 等，评审记录 / 评审索引段落使用描述性任务短语。机器本地的记忆文件 `project_iksfs7_status.md` 重命名为 `project_enew_args_lsp_attach_status.md`，其 `MEMORY.md` 索引行也更新（机器本地数据，不是仓库提交）。
 
-One environment leak is removed while the line is touched: the sandbox
-self-proof in the main plan currently embeds `D:\Programming\yate-iksfs7\...`;
-`doc-conventions.md` §五 requires portable wording, so that **single evidence
-line** becomes "the worktree-local `yate` package". The promise is deliberately
-scoped to that line: this plan must still name the old/new worktree directories
-(rename map, measured output evidence and the executable §6 commands), which
-are the migration's own target artifacts rather than references to repository
-files. See [the pr-review iteration design](enew-args-lsp-attach-pr-review-plan.md)
-for the standing ruling on that distinction.
+趁修改该行之际，顺带消除一处环境信息泄露：主计划中的沙箱自证目前内嵌了 `D:\Programming\yate-iksfs7\...`；`doc-conventions.md` §五 要求可移植的措辞，因此该**单行证据**改为 "the worktree-local `yate` package"。这一承诺刻意限定在该行：本计划仍必须写出新旧 worktree 目录（重命名映射、实测输出证据和可执行的 §6 命令），因为它们是迁移自身的目标产物，而非对仓库文件的引用。关于该区分的长期裁决见 [pr-review 迭代设计](enew-args-lsp-attach-pr-review-plan.md)。
 
-## 3. Implementation steps
+## 3. 实施步骤
 
-### Step 1 — plan (this document)
+### Step 1 —— 计划（本文档）
 
-Input: rule set + token inventory. Output: this file. Acceptance:
-`git status --short` shows only this new untracked file; commit
-`docs(plan): add naming migration plan for unnamed-buffer LSP attach`.
+输入：规则集 + 令牌清单。输出：本文件。验收：`git status --short` 只显示这个新的未跟踪文件；提交 `docs(plan): add naming migration plan for unnamed-buffer LSP attach`。
 
-### Step 2 — branch and worktree
+### Step 2 —— 分支与 worktree
 
-Input: clean worktree. Commands (main repo / worktree):
+输入：干净的 worktree。命令（主仓库 / worktree）：
 
 ```powershell
 # From the main repository root:
@@ -132,23 +89,13 @@ git branch -m fix/enew-args-lsp-attach
 .venv\Scripts\python.exe -c "import yate; print(yate.__file__)"
 ```
 
-Output: branch `fix/enew-args-lsp-attach`, worktree
-`D:/Programming/yate-enew-args-lsp-attach`, sandbox import pointing at the new
-path. Acceptance: `git branch --show-current`, `git worktree list`, and the
-self-proof output all match. `pip install -e . --no-deps` refreshes the
-editable `.pth` that still points at the old directory; no dependency download.
+输出：分支 `fix/enew-args-lsp-attach`，worktree `D:/Programming/yate-enew-args-lsp-attach`，沙箱导入指向新路径。验收：`git branch --show-current`、`git worktree list` 和自证输出三者一致。`pip install -e . --no-deps` 刷新仍指向旧目录的可编辑 `.pth`；不下载依赖。
 
-### Step 3 — documents and references (one atomic commit)
+### Step 3 —— 文档与引用（一次原子提交）
 
-Input: the rename map in §2. Files: 10 `git mv` operations, all `.md` under
-`.trae/documents/` and `.trae/reviews/`, `.trae/reviews/README.md`, and
-`tests/test_document_flows_saveas.py` (docstring token only).
-Implementation: `git mv` + a one-shot Python replacement over the affected
-Markdown files (URL protected with a placeholder first, restored last), then
-targeted `replace_in_file` edits for titles, index paragraphs, the sandbox
-self-proof line and the test docstring.
+输入：§2 的重命名映射。文件：10 次 `git mv` 操作，`.trae/documents/` 和 `.trae/reviews/` 下的所有 `.md`、`.trae/reviews/README.md`，以及 `tests/test_document_flows_saveas.py`（仅 docstring 令牌）。实施：`git mv` + 对受影响的 Markdown 文件做一次性 Python 替换（先用占位符保护 URL，最后恢复），然后针对标题、索引段落、沙箱自证行和测试 docstring 做定点 `replace_in_file` 编辑。
 
-Acceptance commands (from the new worktree root):
+验收命令（从新 worktree 根目录执行）：
 
 ```powershell
 git branch --show-current
@@ -162,152 +109,72 @@ Get-ChildItem .trae -Recurse -Filter *.md | Where-Object { $_.Name -like 'enew-a
 .venv\Scripts\python.exe -c "import yate; print(yate.__file__)"
 ```
 
-Pass criteria: branch/worktree names match §2; lowercase `iksfs7` count is 0
-**excluding this plan's rename map**, which keeps the old names as migration
-evidence (see §2); no `MISSING:` link in the scoped check — a full `.trae` sweep
-is not a valid check because historical documents contain `file:///` URLs and
-`#Lxx` line fragments; `git diff --check` exit 0; sandbox self-proof prints the
-new worktree path. Measured results and the exact scoped command are recorded
-in §4. Commit: `docs(plan): rename issue-numbered artifacts to descriptive task name`.
+通过标准：分支/worktree 名称与 §2 一致；小写 `iksfs7` 计数为 0（**排除本计划的重命名映射**，该映射保留旧名称作为迁移证据，见 §2）；范围内的检查中没有 `MISSING:` 链接 —— 全量扫描 `.trae` 不是有效检查，因为历史文档含 `file:///` URL 和 `#Lxx` 行片段；`git diff --check` 退出码 0；沙箱自证打印新 worktree 路径。实测结果和精确的范围命令记录在 §4。提交：`docs(plan): rename issue-numbered artifacts to descriptive task name`。
 
-### Step 4 — review, backfill, close
+### Step 4 —— 评审、回填、收尾
 
-Input: step-3 diff. Read-only consistency review (naming convention, relative
-links, review index #59/#60 entries, git rename detection, no code change).
-Pure-document exemption (`misc-rules.md` §三) means no pytest/pyright/coverage/
-smoke run; the sandbox self-proof and link/token checks above are the gate.
-Backfill §4 with measured results, commit
-`docs(plan): backfill naming migration results`, final `git status --short`
-empty, no push.
+输入：step-3 的 diff。只读一致性评审（命名规范、相对链接、评审索引 #59/#60 条目、git 重命名检测、无代码改动）。纯文档豁免（`misc-rules.md` §三）意味着不运行 pytest/pyright/coverage/smoke；上述沙箱自证和链接/令牌检查即为门禁。用实测结果回填 §4，提交 `docs(plan): backfill naming migration results`，最终 `git status --short` 为空，不 push。
 
-## 4. Execution record (fill in with real numbers)
+## 4. 执行记录（填入真实数字）
 
-| Command | Result | Exit code |
+| 命令 | 结果 | 退出码 |
 |---|---|---|
-| `git worktree move` | `fatal: failed to move ...: Permission denied` (Windows); superseded by `Move-Item` + `repair`, see deviation #1/#3 | 1 (failed by design) |
-| `git branch -m` | `git branch --show-current` = `fix/enew-args-lsp-attach`; `git worktree list` shows the new path on that branch; no upstream configured | 0 |
-| `pip install -e . --no-deps` + sandbox self-proof | `.pth` = `D:\Programming\yate-enew-args-lsp-attach`; `sys.prefix` = that `.venv`; `import yate` = `...\yate-enew-args-lsp-attach\yate\__init__.py`; `pip show yate` editable location matches | 0 |
-| lowercase `iksfs7` token count after replacement | **0** in `.trae` + `tests` excluding this plan's rename map (`Get-ChildItem ... -CaseSensitive`); `git grep -n 'iksfs7'` excluding this plan = no match; uppercase `IKSFS7` = exactly 2 Gitee URLs | 0 (grep: 1 = no match) |
-| relative-link check | **0 `MISSING`** with the scoped §3 step 3 command (141 links in that口径); round-1's 11-document口径 also 0/40 | 0 |
-| `git diff --check` | empty (no whitespace errors / conflict markers) | 0 |
-| `git status --short` at close | empty after every per-step commit; re-run in the step-7 final gate | 0 |
-| `git diff 0619086..HEAD -M --summary` | **10 renames** at 86%-96% similarity + 1 `create mode` (this plan); code diff = 1 line docstring in `tests/test_document_flows_saveas.py` | 0 |
-| worktree metadata / venv probes | `.git` `gitdir:` + admin key both use the new name; `git worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` = 0 with no stale or `locked` entry; `.venv` recursive scan of 8244 text files at the time of measurement = **0** `yate-iksfs7` (a later re-scan counted 8248 due to probe-generated `.pyc` files, still 0 hits); `activate.bat` `VIRTUAL_ENV` path exists | 0 |
+| `git worktree move` | `fatal: failed to move ...: Permission denied`（Windows）；由 `Move-Item` + `repair` 取代，见偏离 #1/#3 | 1（按设计失败） |
+| `git branch -m` | `git branch --show-current` = `fix/enew-args-lsp-attach`；`git worktree list` 显示该分支上的新路径；未配置 upstream | 0 |
+| `pip install -e . --no-deps` + 沙箱自证 | `.pth` = `D:\Programming\yate-enew-args-lsp-attach`；`sys.prefix` = 该 `.venv`；`import yate` = `...\yate-enew-args-lsp-attach\yate\__init__.py`；`pip show yate` 的可编辑位置一致 | 0 |
+| 替换后小写 `iksfs7` 令牌计数 | 在 `.trae` + `tests` 中（排除本计划的重命名映射）为 **0**（`Get-ChildItem ... -CaseSensitive`）；`git grep -n 'iksfs7'` 排除本计划 = 无匹配；大写 `IKSFS7` = 恰好 2 个 Gitee URL | 0（grep：1 = 无匹配） |
+| 相对链接检查 | 用 §3 step 3 的范围命令为 **0 个 `MISSING`**（该口径下 141 条链接）；第 1 轮的 11 文档口径也是 0/40 | 0 |
+| `git diff --check` | 空（无空白错误 / 冲突标记） | 0 |
+| 收尾时的 `git status --short` | 每次按步骤提交后均为空；在 step-7 最终门禁中重跑 | 0 |
+| `git diff 0619086..HEAD -M --summary` | **10 处重命名**，相似度 86%-96% + 1 个 `create mode`（本计划）；代码 diff = `tests/test_document_flows_saveas.py` 中 1 行 docstring | 0 |
+| worktree 元数据 / venv 探查 | `.git` 的 `gitdir:` 和 admin key 均使用新名称；`git worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` = 0，无陈旧或 `locked` 条目；测量时对 `.venv` 中 8244 个文本文件的递归扫描 = **0** 个 `yate-iksfs7`（后来因探查产生的 `.pyc` 文件重新扫描计为 8248 个，仍为 0 命中）；`activate.bat` 的 `VIRTUAL_ENV` 路径存在 | 0 |
 
-Deviations (recorded per §5; all with measured evidence):
+偏离（按 §5 记录；均有实测证据）：
 
-1. **Native `git worktree move` failed**: `git worktree move ../yate-iksfs7
-   ../yate-enew-args-lsp-attach` printed `fatal: failed to move ...: Permission
-   denied` on Windows. The design's step-2 command did not complete.
-2. **Three follow-up commands ran in the main repo**: because the `cd` into the
-   not-yet-created worktree failed, `git branch -m fix/enew-args-lsp-attach`
-   renamed the **main repo's `master`** to that name, and
-   `pip install -e . --no-deps` reinstalled the main repo's editable package.
-   Recovery evidence: `git branch -m master` restored the main repo
-   (`git branch --show-current` = `master`, `git reflog show master` shows a
-   matched rename-out/rename-back pair, `git status --short` empty,
-   `git worktree list` shows `D:/Programming/yate [master]`); main repo
-   `import yate` resolves to `D:\Programming\yate\yate\__init__.py` and its
-   editable `.pth` points at `D:\Programming\yate`, so no residual damage.
-3. **Worktree move method changed**: `Move-Item -Path yate-iksfs7
-   -Destination yate-enew-args-lsp-attach` + `git worktree repair` from the
-   moved worktree. `repair` printed `repair: gitdir incorrect: ...` and rewrote
-   the `gitdir` pointer; `git worktree list` then showed
-   `D:/Programming/yate-enew-args-lsp-attach [fix/iksfs7]` (branch still old at
-   that moment). `git branch -m` was then re-run **from inside the worktree**,
-   yielding `[fix/enew-args-lsp-attach]`; no upstream is configured.
-4. **Editable install refreshed twice**: once accidentally in the main repo
-   (see #2), then correctly in the moved worktree with
-   `pip install -e . --no-deps`; self-proof `import yate` resolved to
-   `D:\Programming\yate-enew-args-lsp-attach\yate\__init__.py` (exit 0).
-5. **Portable-wording promise only partially delivered in `06e6743`**: step-2
-   design promised "the worktree-local `yate` package" but the first pass
-   substituted `../../yate/__init__.py`, a relative path that still assumes the
-   worktree sits beside the main repo. Fixed in the §6 iteration wave.
-6. **Full-sweep checks were not usable**: the original token/link commands in
-   §3 step 3 produce false positives (this plan's rename map; historical
-   `file:///` and `#Lxx` links). The scoped, measured commands now written in
-   §3 step 3 were used instead (see §4 table and review round 1 item 11).
-7. **Iteration wave was environment-only and initially unrecorded**: M1
-   renamed the main repo's git admin key `.git/worktrees/yate-iksfs7` to
-   `yate-enew-args-lsp-attach` (bracketed by `git worktree lock` / `unlock`),
-   and M2 rewrote the four venv text files that carried the token
-   (`activate`, `activate.bat`, `activate.fish`, `pyvenv.cfg`) in place out of
-   five candidates checked (`Activate.ps1` carried no hit). Neither
-   produces a tracked diff or a commit — `.venv` is gitignored and `.git`
-   metadata is machine-local — so `git status --short` stayed empty.
-   `git worktree repair` **first returned exit 1** with `error: unable to
-   locate repository; .git file does not reference a repository` while still
-   rewriting the worktree `.git` pointer; a second `repair` returned exit 0.
-   Verified: `.git` = `gitdir: .../worktrees/yate-enew-args-lsp-attach`, old
-   admin key absent, `git status` / `worktree list` / `rev-parse --git-dir` /
-   `prune --dry-run -v` all exit 0 with no stale or `locked` residue, `.venv`
-   recursive residual 0, sandbox self-proof still resolves the worktree.
-   Round 2 flagged the missing #7 as its single major; this entry closes it.
-8. **Self-proof measurement scope**: running `.venv\Scripts\python.exe -c
-   "import yate; ..."` from the main repo cwd prints the main repo's
-   `yate\__init__.py` because `sys.path[0]` shadows the editable install;
-   from the worktree root it prints the worktree package. This is a
-   measurement-scope issue, not a sandbox defect, so the §3 step 3 self-proof
-   command must be run from the worktree root.
-9. **Issue id remains in 6 commit subjects**: the naming migration renamed the
-   branch, worktree, 10 documents, review-index headings and one test docstring,
-   but did not rewrite history. `git log --format=%s 8e60598..9c90c8d` shows 6 of
-   12 subjects still cite `IKSFS7` (`7011ff2`, `68a1ada`, `2c6989b`, `20e6b9c`,
-   `6ec91ec`, `0619086`). §1 originally asserted the opposite ("contain no
-   issue-number name"); the 2026-11-07 pre-merge PR review confirmed the mismatch
-   and §1 is now corrected with the measured hashes. Rationale: subjects are
-   immutable under the no-history-rewrite constraint, so the issue id survives
-   only in commit history while every name/title/file uses the descriptive stem.
+1. **原生 `git worktree move` 失败**：`git worktree move ../yate-iksfs7
+   ../yate-enew-args-lsp-attach` 在 Windows 上打印 `fatal: failed to move ...: Permission denied`。设计的 step-2 命令未完成。
+2. **三条后续命令在主仓库中执行**：因为 `cd` 进入尚未创建的 worktree 失败，`git branch -m fix/enew-args-lsp-attach` 把**主仓库的 `master`** 重命名为该名称，且 `pip install -e . --no-deps` 重新安装了主仓库的可编辑包。恢复证据：`git branch -m master` 恢复了主仓库（`git branch --show-current` = `master`，`git reflog show master` 显示一对匹配的 rename-out/rename-back，`git status --short` 为空，`git worktree list` 显示 `D:/Programming/yate [master]`）；主仓库的 `import yate` 解析到 `D:\Programming\yate\yate\__init__.py`，其可编辑 `.pth` 指向 `D:\Programming\yate`，因此没有残留损害。
+3. **worktree 移动方法改变**：`Move-Item -Path yate-iksfs7
+   -Destination yate-enew-args-lsp-attach` + 从移动后的 worktree 执行 `git worktree repair`。`repair` 打印 `repair: gitdir incorrect: ...` 并重写了 `gitdir` 指针；随后 `git worktree list` 显示
+   `D:/Programming/yate-enew-args-lsp-attach [fix/iksfs7]`（那一刻分支仍是旧的）。然后 **从 worktree 内部**重新运行 `git branch -m`，得到 `[fix/enew-args-lsp-attach]`；未配置 upstream。
+4. **可编辑安装刷新了两次**：一次意外在主仓库中执行（见 #2），然后在移动后的 worktree 中用 `pip install -e . --no-deps` 正确执行；自证 `import yate` 解析到 `D:\Programming\yate-enew-args-lsp-attach\yate\__init__.py`（exit 0）。
+5. **可移植措辞的承诺在 `06e6743` 中只部分兑现**：step-2 设计承诺 "the worktree-local `yate` package"，但第一遍替换成了 `../../yate/__init__.py`，这是一个仍假设 worktree 位于主仓库旁边的相对路径。在 §6 迭代波次中修复。
+6. **全量扫描检查不可用**：§3 step 3 中原有的令牌/链接命令会产生误报（本计划的重命名映射；历史 `file:///` 和 `#Lxx` 链接）。改用现在写入 §3 step 3 的、经过实测的范围命令（见 §4 表格和第 1 轮评审第 11 项）。
+7. **迭代波次仅涉及环境且最初未记录**：M1 将主仓库的 git admin key `.git/worktrees/yate-iksfs7` 重命名为 `yate-enew-args-lsp-attach`（前后以 `git worktree lock` / `unlock` 包围），M2 在检查的五个候选文件中对携带该令牌的四个 venv 文本文件（`activate`、`activate.bat`、`activate.fish`、`pyvenv.cfg`）做了就地重写（`Activate.ps1` 无命中）。两者都不产生被跟踪的 diff 或提交 —— `.venv` 被 gitignore，`.git` 元数据是机器本地的 —— 因此 `git status --short` 保持为空。`git worktree repair` **首次返回 exit 1**，报 `error: unable to
+   locate repository; .git file does not reference a repository`，同时仍重写了 worktree 的 `.git` 指针；第二次 `repair` 返回 exit 0。已验证：`.git` = `gitdir: .../worktrees/yate-enew-args-lsp-attach`，旧 admin key 不存在，`git status` / `worktree list` / `rev-parse --git-dir` / `prune --dry-run -v` 均 exit 0，无陈旧或 `locked` 残留，`.venv` 递归残留为 0，沙箱自证仍解析到该 worktree。第 2 轮把缺失的 #7 标记为其唯一 major；本条目将其闭合。
+8. **自证测量范围**：从主仓库 cwd 运行 `.venv\Scripts\python.exe -c
+   "import yate; ..."` 会打印主仓库的 `yate\__init__.py`，因为 `sys.path[0]` 遮蔽了可编辑安装；从 worktree 根目录运行则打印 worktree 的包。这是测量范围问题，而非沙箱缺陷，因此 §3 step 3 的自证命令必须从 worktree 根目录运行。
+9. **issue 编号残留在 6 个提交主题中**：命名迁移重命名了分支、worktree、10 篇文档、评审索引标题和一处测试 docstring，但未重写历史。`git log --format=%s 8e60598..9c90c8d` 显示 12 个主题中有 6 个仍引用 `IKSFS7`（`7011ff2`、`68a1ada`、`2c6989b`、`20e6b9c`、`6ec91ec`、`0619086`）。§1 原先断言相反（"contain no issue-number name"）；2026-11-07 的合并前 PR 评审确认了这一不符，现已在 §1 用实测哈希更正。理由：在禁止重写历史的约束下主题不可变，因此 issue 编号仅残留在提交历史中，而每个名称/标题/文件都使用描述性词干。
 
-Review round 1 (0 blocker / 4 major / 2 minor) found two environment/metadata
-residuals and one wording deviation; all were fixed in the §6 iteration wave
-and recorded in #5, #7 and #8. Review round 2 (0 blocker / 1 major / 0 minor)
-found the dangling "deviation #7" promise; the backfill added #7/#8. Review
-round 3 (0 blocker / 0 major / 2 minor) confirmed the closure; its two minors
-were wording/count clarifications and are folded into the closing commit (#7
-now states "4 of 5 candidates", and the `.venv` scan count carries a
-measurement-time qualifier). Pyright / pytest / architecture / coverage /
-smoke were not run at any round (`misc-rules.md` §三 pure-document exemption).
-The later [pre-merge PR review](../reviews/2026-11-07-pr-review-fix-enew-args-lsp-attach.md)
-of the combined branch (which includes product code) lifted that exemption and
-ran the full six gates.
+第 1 轮评审（0 blocker / 4 major / 2 minor）发现两处环境/元数据残留和一处措辞偏离；均在 §6 迭代波次中修复并记录在 #5、#7 和 #8。第 2 轮评审（0 blocker / 1 major / 0 minor）发现悬置的 "deviation #7" 承诺；回填增加了 #7/#8。第 3 轮评审（0 blocker / 0 major / 2 minor）确认闭合；其两个 minor 是措辞/计数澄清，已并入收尾提交（#7 现在写明 "4 of 5 candidates"，且 `.venv` 扫描计数带有测量时间限定）。任何一轮都未运行 Pyright / pytest / architecture / coverage / smoke（`misc-rules.md` §三 纯文档豁免）。稍后对合并后分支（含产品代码）的[合并前 PR 评审](../reviews/2026-11-07-pr-review-fix-enew-args-lsp-attach.md)解除了该豁免并运行了完整的六道门禁。
 
-## 5. Risks and rollback
+## 5. 风险与回滚
 
-| Risk | Mitigation | Rollback |
+| 风险 | 缓解措施 | 回滚 |
 |---|---|---|
-| `git worktree move` fails on Windows file locks | run from the main repo with a clean tree; no process holds the worktree | keep the old directory, revert the two worktree-path lines in the documents, record the deviation |
-| Editable install `.pth` still points at the old path | `pip install -e . --no-deps` + self-proof | re-run the install; if it fails, `git worktree move` back and keep the old path lines |
-| Branch rename breaks the worktree HEAD or a configured upstream | rename from inside the worktree (`git branch -m`), branch has no upstream (never pushed), verify with `git branch --show-current` | `git branch -m fix/iksfs7` from the worktree |
-| A link or index entry is missed | the link-check and token-count commands in §3 step 3 | revert the step-3 commit (git keeps the rename detection), re-apply the missing replacement |
-| Over-replacing the issue URL / provenance citations | URL placeholder guard in the replacement script; only lowercase names and titles are rewritten | revert and re-run with the corrected map |
-| Memory index drift (machine-local) | rename the memory file and its `MEMORY.md` line in the same step | restore the old file name/index line |
+| `git worktree move` 因 Windows 文件锁而失败 | 从干净的主仓库运行；无进程占用该 worktree | 保留旧目录，回退文档中两处 worktree 路径行，记录偏离 |
+| 可编辑安装的 `.pth` 仍指向旧路径 | `pip install -e . --no-deps` + 自证 | 重新运行安装；若失败，`git worktree move` 回去并保留旧路径行 |
+| 分支重命名破坏 worktree HEAD 或已配置的 upstream | 从 worktree 内部重命名（`git branch -m`），分支无 upstream（从未 push），用 `git branch --show-current` 验证 | 从 worktree 执行 `git branch -m fix/iksfs7` |
+| 遗漏某条链接或索引条目 | §3 step 3 中的链接检查和令牌计数命令 | 回退 step-3 提交（git 保留重命名检测），重新应用遗漏的替换 |
+| 过度替换 issue URL / 来源引用 | 替换脚本中的 URL 占位符保护；只重写小写名称和标题 | 回退并用更正后的映射重跑 |
+| 记忆索引漂移（机器本地） | 在同一步中重命名记忆文件及其 `MEMORY.md` 行 | 恢复旧文件名/索引行 |
 
-General rollback: `git revert` the two document commits, then
-`git branch -m fix/iksfs7` and `git worktree move` back. No history rewrite.
+通用回滚：对两笔文档提交执行 `git revert`，然后 `git branch -m fix/iksfs7` 并 `git worktree move` 回去。不重写历史。
 
-## 6. Iteration design (review round 1 → round 2)
+## 6. 迭代设计（第 1 轮评审 → 第 2 轮）
 
-Trigger: the step-5 read-only consistency review returned
-**0 blocker / 4 major / 2 minor** (M1-M4, m5-m6). Per
-`task-orchestration.md` §二.6 the loop goes back to step 2; this section is
-that step-2 redesign. Approval is covered by the standing unattended
-instruction, so no question or authorization request is raised (always-applied
-workspace loader §二.5, unattended bypass — not a `.trae/rules/` clause). No
-new worktree/branch, no product code, no history rewrite and no push are
-involved.
+触发：step-5 只读一致性评审返回 **0 blocker / 4 major / 2 minor**（M1-M4、m5-m6）。按 `task-orchestration.md` §二.6 循环回到 step 2；本节即该 step-2 重新设计。批准由长期无人值守指令覆盖，因此不发起任何询问或授权请求（always-applied 工作区加载器 §二.5，无人值守 bypass —— 并非 `.trae/rules/` 条款）。不涉及新 worktree/分支、产品代码、历史重写或 push。
 
-| ID | Finding | Root cause | Fix design | Acceptance |
+| ID | 发现项 | 根因 | 修复设计 | 验收 |
 |---|---|---|---|---|
-| M1 | git admin key `.git/worktrees/yate-iksfs7` and the worktree `.git` `gitdir:` value still carry the old name | native `git worktree move` failed on Windows; `Move-Item` + `git worktree repair` fixed the `gitdir` *contents* but not the registration key name | from the main repo: `git worktree lock`, rename the admin directory to `yate-enew-args-lsp-attach`, `git worktree repair <worktree>`, `git worktree unlock`; rewrite the worktree `.git` pointer only if `repair` does not | no `iksfs7` in `Get-ChildItem .git/worktrees` or in the worktree `.git` file; `git status --short`, `git worktree list`, `git rev-parse --git-dir`, `git worktree prune --dry-run -v` all exit 0 with no stale entry |
-| M2 | `.venv/Scripts/activate*`, `.venv/pyvenv.cfg` still contain `yate-iksfs7` | step-2 design only refreshed the editable `.pth` (`pip install -e . --no-deps`) | in-place text replacement `yate-iksfs7` → `yate-enew-args-lsp-attach` in the activation scripts that hit plus `pyvenv.cfg`; no reinstall, no dependency download, no commit (gitignored machine-local data) | recursive `.venv` residual scan = 0; the `VIRTUAL_ENV` path in `activate.bat` exists; sandbox self-proof still resolves the new worktree |
-| M3 | `.trae/documents/enew-args-lsp-attach-plan.md:11` self-proof says `../../yate/__init__.py` | first pass substituted a relative path instead of the portable wording promised in §2 | use the §2 wording verbatim: "the worktree-local `yate` package" | `git grep -n '../../yate/__init__.py'` returns no match; the line no longer assumes a sibling-directory layout |
-| M4 | §4 `Deviations: none recorded yet.` contradicted known deviations | step-7 backfill had not started when round 1 ran | rewritten in §4 as an 8-item, evidence-backed deviation list (#7/#8 added after round 2); the §4 result table is filled with measured values at step 7 | at close, no `pending` row and no "none recorded" assertion remain |
-| m5 | §3 step 3 token/link commands were not executable as written | full-sweep口径 produces false positives (this plan's own rename map, historical `file:///` / `#Lxx` links) | §3 step 3 now has a case-sensitive lowercase scan excluding this plan and a scoped link check; §4 records the measured commands | both commands exit 0 with 0 hits / 0 `MISSING:` |
-| m6 | review-index heading ruling boundary was implicit | §2 rejected alternative C covered URL/prose only | §2 C now states review-index paragraph headings are names/titles and the issue id survives only in the two Gitee URLs | round-2 review confirms no repository file uses the issue number as a name/title |
+| M1 | git admin key `.git/worktrees/yate-iksfs7` 和 worktree 的 `.git` 中 `gitdir:` 值仍带旧名称 | 原生 `git worktree move` 在 Windows 上失败；`Move-Item` + `git worktree repair` 修复了 `gitdir` 的*内容*，但未修复注册键名 | 从主仓库执行：`git worktree lock`，将 admin 目录重命名为 `yate-enew-args-lsp-attach`，`git worktree repair <worktree>`，`git worktree unlock`；仅当 `repair` 未改写 worktree 的 `.git` 指针时才手动改写 | `Get-ChildItem .git/worktrees` 或 worktree 的 `.git` 文件中无 `iksfs7`；`git status --short`、`git worktree list`、`git rev-parse --git-dir`、`git worktree prune --dry-run -v` 均 exit 0 且无陈旧条目 |
+| M2 | `.venv/Scripts/activate*`、`.venv/pyvenv.cfg` 仍含 `yate-iksfs7` | step-2 设计只刷新了可编辑的 `.pth`（`pip install -e . --no-deps`） | 在命中的激活脚本及 `pyvenv.cfg` 中对 `yate-iksfs7` → `yate-enew-args-lsp-attach` 做就地文本替换；不重装、不下载依赖、不提交（被 gitignore 的机器本地数据） | `.venv` 递归残留扫描 = 0；`activate.bat` 中的 `VIRTUAL_ENV` 路径存在；沙箱自证仍解析到新 worktree |
+| M3 | `.trae/documents/enew-args-lsp-attach-plan.md:11` 的自证写的是 `../../yate/__init__.py` | 第一遍替换成了相对路径，而非 §2 承诺的可移植措辞 | 逐字使用 §2 的措辞："the worktree-local `yate` package" | `git grep -n '../../yate/__init__.py'` 无匹配；该行不再假设同级目录布局 |
+| M4 | §4 的 `Deviations: none recorded yet.` 与已知偏离矛盾 | 第 1 轮评审时 step-7 回填尚未开始 | 在 §4 改写为 8 项有证据支撑的偏离列表（第 2 轮后增加 #7/#8）；§4 结果表在 step 7 用实测值填充 | 收尾时不再有 `pending` 行，也不再有 "none recorded" 断言 |
+| m5 | §3 step 3 的令牌/链接命令按原文无法执行 | 全量扫描口径会产生误报（本计划自身的重命名映射、历史 `file:///` / `#Lxx` 链接） | §3 step 3 现改为区分大小写的、排除本计划的小写扫描，以及范围链接检查；§4 记录实测命令 | 两条命令均 exit 0，命中数 0 / `MISSING:` 0 |
+| m6 | 评审索引标题的裁决边界隐含未明 | §2 否决方案 C 原先只覆盖 URL/正文 | §2 C 现在声明评审索引段落标题属于名称/标题，issue 编号仅存在于两个 Gitee URL 中 | 第 2 轮评审确认没有仓库文件把 issue 编号用作名称/标题 |
 
-### Iteration-wave commands (step 6)
+### 迭代波次命令（step 6）
 
 ```powershell
 # M1 — main repo metadata (environment-only, not committed)
@@ -341,35 +208,18 @@ foreach ($f in $files) {
 # replace ../../yate/__init__.py with the §2 portable wording in the main plan §0
 ```
 
-### Decisions and scope
+### 决策与范围
 
-- M1/M2 are **environment-only** fixes. They produce no tracked diff and no
-  commit; they are logged as deviations #7/#8 in §4 with the measured evidence.
-  The `git` metadata write is the exact operation round 1 asked for; the
-  standing unattended instruction supplies the approval that round 1 wanted
-  to request.
-- Review verdicts for this naming migration are recorded **inline in this
-  plan** (§0 process state, §4 execution record, §6), not as new
-  `.trae/reviews/` records: records #59/#60 already are this task's review
-  records, and this wave changes names only. `doc-conventions.md` §二.1
-  governs the naming *if* a record is created; it does not mandate one, and
-  the review index therefore needs no new entry.
-- Gate: pure document/metadata change, so `misc-rules.md` §三 waives
-  pyright / pytest / architecture / coverage / smoke. The executable checks
-  in §3 step 3 plus the M1/M2 probes are the gate; round 2 is a read-only
-  consistency review whose conclusion carries measured results and exit
-  codes. Round 2 is dispatched to `code-review-expert`
-  (`.trae/agents/code-review-expert.md`) with the pure-document exemption
-  stated in the task book; a failed spawn is handled by the §三 main-agent
-  fallback and reported as "子代理零产出".
-- Step-7 product: §4 result table backfilled with real numbers, §0 state
-  table closed, per-step commits, `git status --short` empty, no push.
+- M1/M2 是**仅环境**修复。它们不产生被跟踪的 diff 或提交；在 §4 中以实测证据记录为偏离 #7/#8。`git` 元数据写入正是第 1 轮要求的操作；长期无人值守指令提供了第 1 轮本想请求的批准。
+- 本次命名迁移的评审结论**内联记录在本计划中**（§0 流程状态、§4 执行记录、§6），而非新增 `.trae/reviews/` 记录：记录 #59/#60 已经是本任务的评审记录，且本波次只改名称。`doc-conventions.md` §二.1 仅在*创建*记录时约束命名；它并不强制创建记录，因此评审索引无需新条目。
+- 门禁：纯文档/元数据变更，因此 `misc-rules.md` §三豁免 pyright / pytest / architecture / coverage / smoke。§3 step 3 中的可执行检查加上 M1/M2 探查即为门禁；第 2 轮是只读一致性评审，其结论带有实测结果和退出码。第 2 轮派发给 `code-review-expert`（`.trae/agents/code-review-expert.md`），任务书中声明纯文档豁免；spawn 失败则按 §三 主代理兜底处理并汇报为"子代理零产出"。
+- step-7 产物：§4 结果表用真实数字回填，§0 状态表闭合，按步骤提交，`git status --short` 为空，不 push。
 
-### Risks and rollback
+### 风险与回滚
 
-| Risk | Mitigation | Rollback |
+| 风险 | 缓解措施 | 回滚 |
 |---|---|---|
-| Renaming the git admin directory makes the worktree unusable | lock first; keep the old name available; repair before any other git write; verify four git commands before unlocking | rename the admin directory back to `yate-iksfs7`, restore the `.git` `gitdir:` line, run `git worktree repair`, unlock |
-| `git worktree repair` rewrites the wrong pointer | read back the `.git` file and `gitdir` contents after repair; only then continue | restore the exact original `.git` line recorded in §4 before iterating |
-| In-place venv replacement corrupts encoding / line endings | raw text read+write with `[System.IO.File]`, replace a single ASCII token; verify the residual count and `import yate` afterwards | replace the new token back; the files are regenerable with `python -m venv` + `pip install -e ".[dev]"` |
-| Round-2 review returns new majors | stay in the loop (§二.6), extend this section | no rollback needed; design is additive |
+| 重命名 git admin 目录使 worktree 不可用 | 先 lock；保留旧名称可用；在任何其他 git 写操作前 repair；unlock 前验证四条 git 命令 | 将 admin 目录重命名回 `yate-iksfs7`，恢复 `.git` 的 `gitdir:` 行，运行 `git worktree repair`，解锁 |
+| `git worktree repair` 改写了错误的指针 | repair 后回读 `.git` 文件和 `gitdir` 内容；之后再继续 | 迭代前恢复 §4 中记录的原始 `.git` 行（逐字） |
+| 就地替换 venv 破坏编码 / 行尾 | 用 `[System.IO.File]` 做原始文本读写，只替换单个 ASCII 令牌；之后验证残留计数和 `import yate` | 把新令牌替换回去；这些文件可用 `python -m venv` + `pip install -e ".[dev]"` 重新生成 |
+| 第 2 轮评审返回新的 major | 留在循环中（§二.6），扩展本节 | 无需回滚；设计是增量式的 |

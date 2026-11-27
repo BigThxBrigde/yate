@@ -1,34 +1,34 @@
-# 2026-11-20 full-repo sweep fixes: review record
+# 2026-11-20 全仓库扫描修复：评审记录
 
-- Scope: `master` `ebe8fee6` -> branch `feature/fix-full-repo-sweep` HEAD `8a247d98`, all 14 findings of [../documents/full-repo-sweep-issue-brief.md](../documents/full-repo-sweep-issue-brief.md).
-- Plan: [../documents/full-repo-sweep-plan.md](../documents/full-repo-sweep-plan.md) and [../documents/full-repo-sweep-plans/overview.md](../documents/full-repo-sweep-plans/overview.md).
-- Reviewer spawn: `code-review-expert` produced neither report nor file for over 30 minutes across three progress probes; judged zero-output per `subagent-workflow.md` §五 and shut down. The main agent performed the self-review recorded here, with all gates re-run independently.
+- 范围：`master` `ebe8fee6` -> 分支 `feature/fix-full-repo-sweep` HEAD `8a247d98`，涵盖 [../documents/full-repo-sweep-issue-brief.md](../documents/full-repo-sweep-issue-brief.md) 的全部 14 个发现项。
+- 计划：[../documents/full-repo-sweep-plan.md](../documents/full-repo-sweep-plan.md) 与 [../documents/full-repo-sweep-plans/overview.md](../documents/full-repo-sweep-plans/overview.md)。
+- 评审者 spawn：`code-review-expert` 在三次进度探活中超过 30 分钟既未产出报告也未写文件；按 `subagent-workflow.md` §五 判定为零产出并关闭。此处记录的自审由主代理执行，全部门禁均独立重跑。
 
-## Findings and disposition
+## 发现项与处置
 
-| # | Severity | Location | Finding | Disposition |
+| # | 严重程度 | 位置 | 发现项 | 处置 |
 |---|---|---|---|---|
-| 1 | `[major]` | `../../tests/test_cli.py:55-71,381-399` (fixed) | After R3 moved snapshot construction to `cli.py`, the `--diag` test double lacked `config` and the whole-suite gate failed with `AttributeError: '_FakeEditor' object has no attribute 'config'` at `../../yate/cli.py:521`. | Fixed in `7b59eccd`: fake editor exposes the six frozen fields; assertion now checks the `DiagnosticsInput` contents. Targeted pytest and pyright exit 0; full gate green. |
-| 2 | `[minor]` | `../../yate/diagnostics.py:55`, `../../yate/cli.py:521` (fixed) | `DiagnosticsInput` was frozen but its `lsp_states` dict was still mutable, contradicting "read-only snapshot". | Fixed in `8a247d98`: field typed as `Mapping[str, ServerState]`, both construction sites wrap states in `MappingProxyType`; read-only test asserts `TypeError` on mutation. |
-| 3 | `[minor]` | `../../yate/editor_core/diff.py`, `../../tests/test_editor_core_diff.py` (fixed in wave 2) | The P2 executor introduced private imports plus a `pyright: ignore` suppression. | Replaced with documented public test seams and `getattr`/`cast` spies; strict pyright zero diagnostics without suppression. |
-| 4 | `[minor]` | `../../yate/services/extensions/bridges.py` (fixed in wave 4) | R1 executor stopped mid-wave with the legacy module still present and no compatibility test. | Main agent deleted the legacy file, added `../../tests/test_extension_bridges_package.py`, and verified all four direct-import test modules plus the frozen facade. |
+| 1 | `[major]` | `../../tests/test_cli.py:55-71,381-399`（已修复） | R3 将快照构造移到 `cli.py` 后，`--diag` 测试替身缺少 `config`，导致全量套件门禁在 `../../yate/cli.py:521` 处以 `AttributeError: '_FakeEditor' object has no attribute 'config'` 失败。 | 在 `7b59eccd` 中修复：假编辑器暴露六个冻结字段；断言现检查 `DiagnosticsInput` 内容。针对性 pytest 与 pyright 退出码 0；全量门禁全绿。 |
+| 2 | `[minor]` | `../../yate/diagnostics.py:55`、`../../yate/cli.py:521`（已修复） | `DiagnosticsInput` 已冻结，但其 `lsp_states` 字典仍可变，与"只读快照"矛盾。 | 在 `8a247d98` 中修复：字段类型改为 `Mapping[str, ServerState]`，两处构造点均用 `MappingProxyType` 包装状态；只读测试断言修改时抛出 `TypeError`。 |
+| 3 | `[minor]` | `../../yate/editor_core/diff.py`、`../../tests/test_editor_core_diff.py`（波次 2 修复） | P2 执行者引入了私有导入并加了 `pyright: ignore` 抑制。 | 已替换为有文档说明的公开测试接缝及 `getattr`/`cast` spy；strict pyright 零诊断且无抑制。 |
+| 4 | `[minor]` | `../../yate/services/extensions/bridges.py`（波次 4 修复） | R1 执行者在波次中途停止，遗留旧模块仍在且无兼容性测试。 | 主代理删除旧文件，新增 `../../tests/test_extension_bridges_package.py`，并验证全部四个直接导入的测试模块及冻结的门面。 |
 
-No blocker or major remains. The issue's four P3 suspects stay unfixed with explicit profiler/real-load reasons in the sub-plan overview.
+无阻塞项或严重项残留。该 issue 的四个 P3 疑点仍未修复，子计划 overview 中给出了明确的 profiler/真实负载理由。
 
-## Self-criticism
+## 自我批评
 
-Each item above was re-read at the cited location before recording; finding 1's severity was confirmed as major because it broke the full-suite gate, finding 2 was downgraded from major to minor because it affected only an internal snapshot's defensive quality, and no candidate was deleted. Reverse sweep across correctness, boundaries, exception handling, concurrency, performance, types and coverage found no additional item: P1 equivalence, P2 zero-length insertions, B1/B2 error paths, B3 dual-mode coverage, R14 facade names, headless diagnostics import and ignore-cache semantics are all pinned by tests.
+上述每一项在记录前都在引用位置重读；发现项 1 的严重程度确认为 major，因为它破坏了全量套件门禁；发现项 2 从 major 降为 minor，因为它只影响内部快照的防御质量；没有候选被删除。对正确性、边界、异常处理、并发、性能、类型与覆盖率的反向扫描未发现额外项：P1 等价性、P2 零长度插入、B1/B2 错误路径、B3 双模式覆盖、R14 门面名称、headless 诊断导入与 ignore-cache 语义均已由测试钉定。
 
-## Gates (main agent, measured)
+## 门禁（主代理实测）
 
-| Gate | Result / exit code |
+| 门禁 | 结果 / 退出码 |
 |---|---|
 | `pyright yate/ tests/ tools/ pack/` | 0 errors, 0 warnings, 0 informations / 0 |
-| `pytest tests/ -q -n auto` | exit 0 |
-| `pytest tests/test_architecture.py -q` | 46 tests / exit 0 |
-| coverage `--cov-fail-under=75 -n auto` | 3981 passed / 10 skipped, 93.15% / exit 0 |
-| coverage `--cov-fail-under=75 -n 1` | 3981 passed / 10 skipped, 93.15% / exit 0 |
-| `tools.smoke_test run --jobs 4` | 124/124 scenarios, 1511/1511 checks, 82.09 s / exit 0 |
-| `tools.changelog check` | exit 0 (`unreleased` lag 174 commits is generator behavior) |
+| `pytest tests/ -q -n auto` | 退出码 0 |
+| `pytest tests/test_architecture.py -q` | 46 tests / 退出码 0 |
+| coverage `--cov-fail-under=75 -n auto` | 3981 passed / 10 skipped, 93.15% / 退出码 0 |
+| coverage `--cov-fail-under=75 -n 1` | 3981 passed / 10 skipped, 93.15% / 退出码 0 |
+| `tools.smoke_test run --jobs 4` | 124/124 scenarios, 1511/1511 checks, 82.09 s / 退出码 0 |
+| `tools.changelog check` | 退出码 0（`unreleased` 滞后 174 笔提交是生成器行为） |
 
-Two intermediate `-n 1` coverage runs exited 1 solely from the local safe-delete hook intercepting pytest bulk cleanup (`SAFE_DELETE_BULK_CONFIRM_REQUIRED`); unique `COVERAGE_FILE` re-runs were clean and are the recorded final results.
+两次中间的 `-n 1` 覆盖率运行退出码为 1，仅因本地 safe-delete 钩子拦截了 pytest 的批量清理（`SAFE_DELETE_BULK_CONFIRM_REQUIRED`）；使用唯一 `COVERAGE_FILE` 的复跑干净，即为记录的最终结果。

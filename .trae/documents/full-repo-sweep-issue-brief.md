@@ -1,60 +1,60 @@
-# Full-repo sweep fixes: issue brief
+# 全仓库扫描修复：issue 简报
 
-- Source issue: <https://gitee.com/jermaine/yate/issues/IKWXU4> (title: `ENH - FULL-REPO SWEEP: LSP DIAGNOSTIC HOT PATH, ROBUSTNESS GUARDS, RULE-TEXT DRIFT AND DOC INDEX CLEANUP`, created 2026-11-20 22:08, labels `docs` / `bug` / `enhancement` / `performance`).
-- Worktree: `yate-full-repo-sweep`; branch: `feature/fix-full-repo-sweep`; parent: local `master` at `ebe8fee6` (already synced with `origin/master`; the issue text used the earlier `f7e34c34` baseline, so all line numbers must be re-verified on this branch).
-- User directive (2026-11-20, unattended window): no questions or approvals; execute strictly by project discipline; commit per completed batch; iterate the closed loop until no issue findings remain.
-- Source review record (local, uncommitted in the main worktree) is `../reviews/2026-11-20-full-repo-review.md`; it must not be modified or committed by this worktree.
+- 来源 issue：<https://gitee.com/jermaine/yate/issues/IKWXU4>（标题：`ENH - FULL-REPO SWEEP: LSP DIAGNOSTIC HOT PATH, ROBUSTNESS GUARDS, RULE-TEXT DRIFT AND DOC INDEX CLEANUP`，创建于 2026-11-20 22:08，标签 `docs` / `bug` / `enhancement` / `performance`）。
+- Worktree：`yate-full-repo-sweep`；分支：`feature/fix-full-repo-sweep`；父级：本地 `master` 位于 `ebe8fee6`（已与 `origin/master` 同步；issue 文本使用的是较早的 `f7e34c34` 基线，因此所有行号都必须在本分支上重新核实）。
+- 用户指令（2026-11-20，无人值守窗口）：不提问、不审批；严格按项目纪律执行；每完成一批即提交；迭代闭环直到不再有 issue 发现项。
+- 来源评审记录（本地，在主 worktree 中未提交）为 `../reviews/2026-11-20-full-repo-review.md`；本 worktree 不得修改或提交它。
 
-## Baseline gate results reported by the issue (not to be reused as evidence here)
+## issue 报告的基线门禁结果（不得在此作为证据复用）
 
-| Gate | Reported result |
+| 门禁 | 报告的结果 |
 |---|---|
 | `pyright yate/ tests/ tools/ pack/` | exit 0 |
 | `pytest tests/ -q -n auto` | exit 0 |
-| `pytest tests/test_architecture.py -q` | 45 passed (rule text still says 44) |
-| coverage `-n 1` | 3962 passed / 10 skipped, 93.09% |
-| coverage `-n auto` | 1 failed / 3961 passed, 93.14% (see B3) |
-| `smoke_test run --jobs 4` | 124/124 scenarios, 1511/1511 checks |
+| `pytest tests/test_architecture.py -q` | 45 passed（规则文本仍写 44） |
+| coverage `-n 1` | 3962 passed / 10 skipped，93.09% |
+| coverage `-n auto` | 1 failed / 3961 passed，93.14%（见 B3） |
+| `smoke_test run --jobs 4` | 124/124 场景，1511/1511 检查 |
 | `tools.changelog check` | exit 0 |
 
-## Findings to resolve
+## 待解决的发现项
 
-### Refactoring suggestions
+### 重构建议
 
-- **R1 (suggested, medium)**: `yate/services/extensions/bridges.py` is 678 lines and self-documents ten capability domains; `yate/services/extensions/api.py:33-47` imports 13 names from it, and the facade re-exports 5 more. Split into a `bridges/` subpackage (3-4 internal modules by domain) with an `__init__` re-exporting every existing name. Must keep R14 (machinery stays inside `services/extensions/`), the frozen 14-name facade, and direct internal-module tests working; primary risk is circular imports.
-- **R2 (should fix, low risk)**: rule text drift — `architecture-boundaries.md:331-337` says `keymaps/vim.py` is 1595 lines (reported 1678), `:389-396` says `editor_components/view.py` is 824 (reported 878), `:508` says 45 architecture guards (reported 45 while text says 44). `SIZE_EXEMPT_FILES` has the right 7 members, but `tests/test_macro_wiring.py:95-125` only asserts the `editor.py` number. Sync the three text sites, centralize the 7 measured line counts as a rule table, and make the guard compare each item. No behavior change, no new exemptions.
-- **R3 (suggested, optional)**: `yate/diagnostics.py` imports `Editor` from `yate.editor` at lines 25/82/131/268/298/355/399 only for report signatures; the dependency diagram draws only `ED -> DIAG`, and `cli.py:31-33` notes the TUI-stack drag. Suggested fix: a read-only `DiagnosticsInput` dataclass snapshot built by L4 `cli.py:507-524` and passed to `format_report` / `print_report`, removing the diagnostics-to-editor import; medium cost, many `tests/test_diagnostics.py` call sites need a builder.
-- **R4 (suggested, low)**: `services/workspace.py` (737 lines) has a self-contained ignore subsystem (`_IgnorePattern`, `_parse_ignore`, `_load_root_ignores`, `_dir_ignores`, `_is_ignored`, mtime cache, `_DIR_IGNORE_CACHE_MAX`). Could move to `services/workspace_ignores.py` with thin delegation; readability-only, no behavior change.
+- **R1（建议，中等）**：`yate/services/extensions/bridges.py` 有 678 行，自述十个能力领域；`yate/services/extensions/api.py:33-47` 从它导入 13 个名字，门面又重新导出 5 个。拆分为 `bridges/` 子包（按领域划分为 3-4 个内部模块），并用 `__init__` 重新导出每一个现有名字。必须保持 R14（机制留在 `services/extensions/` 内）、冻结的 14 名字门面以及直接内部模块测试可用；主要风险是循环导入。
+- **R2（应修复，低风险）**：规则文本漂移 —— `architecture-boundaries.md:331-337` 称 `keymaps/vim.py` 为 1595 行（报告 1678）、`:389-396` 称 `editor_components/view.py` 为 824（报告 878）、`:508` 称 45 个架构守卫（报告 45 而文本写 44）。`SIZE_EXEMPT_FILES` 的 7 个成员正确，但 `tests/test_macro_wiring.py:95-125` 只断言 `editor.py` 的数字。同步三处文本位置，将 7 个实测行数集中为一张规则表，并让守卫逐项比较。不改变行为，不新增豁免。
+- **R3（建议，可选）**：`yate/diagnostics.py` 在第 25/82/131/268/298/355/399 行仅为报告签名从 `yate.editor` 导入 `Editor`；依赖图只画了 `ED -> DIAG`，且 `cli.py:31-33` 记录了 TUI 栈拖拽问题。建议修复：由 L4 的 `cli.py:507-524` 构造一个只读 `DiagnosticsInput` 数据类快照并传给 `format_report` / `print_report`，移除 diagnostics 到 editor 的导入；成本中等，`tests/test_diagnostics.py` 许多调用点需要一个构造器。
+- **R4（建议，低）**：`services/workspace.py`（737 行）有一个自包含的 ignore 子系统（`_IgnorePattern`、`_parse_ignore`、`_load_root_ignores`、`_dir_ignores`、`_is_ignored`、mtime 缓存、`_DIR_IGNORE_CACHE_MAX`）。可用薄委托方式移至 `services/workspace_ignores.py`；仅提升可读性，不改变行为。
 
-### Documentation fixes
+### 文档修复
 
-- **D1 (should fix)**: `.trae/documents/overview.md:14` claims the index is generated by `tools/_gen_index.py` from shared data, but no such script exists; `:23-27` claims 147 documents while the report measured 566 markdown files / 151 status blocks. Nine recent 2026-11 plans (soft-wrap, toggle-comment, macro-record-replay-unified, pack-dist-zip, which-key-auto-trigger, filemgr-wrapup, lsp-hover-docs, readme-screenshots, extension-trust-hardening) have no index entry. Correct or delete the generator claim, incrementally add plans with status blocks after 2026-10-05, refresh counts and record the verification date.
-- **D2 (should fix)**: `.trae/documents/toggle-comment-plan.md:7` exposes a local worktree path (violates `doc-conventions.md` §五). `.trae/documents/macro-record-replay-unified-plans/overview.md:3-4` contradicts §五 by saying repo references are relative to repo root. `toggle-comment-plan.md` and other recent plans lack a unified `> **实施状态**：...` block; `which-key-auto-trigger-plan.md:7` and `soft-wrap-plans/overview.md:3` use ad-hoc status text. Add only the header line; do not rewrite bodies.
-- **D3 (should fix)**: `tests/README.md:15-16` still says 98 of 134 `yate/` modules and 150 `.py` files; the report measured 149 non-`__init__` modules / 169 `.py` files. Use a dynamic "guarded by `test_architecture.py`" framing or refresh the counts with a measurement date.
-- **D4 (needs adjudication)**: `.trae/reviews/README.md` quick table skips #59-#61 and #67-#72 (they appear only in prose). These gaps have an existing numbering-disagreement note (`README.md:181-183,308-318`). Decide one口径: add the 9 rows with a disagreement note, or state in the table header that only master sequence numbers are listed. Note: this branch does not contain the uncommitted 2026-11-20 index rows from the main worktree, so do not reference them here.
+- **D1（应修复）**：`.trae/documents/overview.md:14` 声称索引由 `tools/_gen_index.py` 从共享数据生成，但不存在这样的脚本；`:23-27` 声称 147 篇文档，而报告实测 566 个 markdown 文件 / 151 个状态块。九篇最近的 2026-11 计划（soft-wrap、toggle-comment、macro-record-replay-unified、pack-dist-zip、which-key-auto-trigger、filemgr-wrapup、lsp-hover-docs、readme-screenshots、extension-trust-hardening）没有索引条目。更正或删除生成器声明，增量添加 2026-10-05 之后带状态块的计划，刷新计数并记录核实日期。
+- **D2（应修复）**：`.trae/documents/toggle-comment-plan.md:7` 暴露了本地 worktree 路径（违反 `doc-conventions.md` §五）。`.trae/documents/macro-record-replay-unified-plans/overview.md:3-4` 与 §五 矛盾，称仓库引用相对于仓库根目录。`toggle-comment-plan.md` 及其他近期计划缺少统一的 `> **实施状态**：...` 块；`which-key-auto-trigger-plan.md:7` 和 `soft-wrap-plans/overview.md:3` 使用临时状态文本。只添加标题行；不要重写正文。
+- **D3（应修复）**：`tests/README.md:15-16` 仍称 134 个 `yate/` 模块中有 98 个、以及 150 个 `.py` 文件；报告实测 149 个非 `__init__` 模块 / 169 个 `.py` 文件。使用动态的“由 `test_architecture.py` 守卫”表述，或刷新计数并附上测量日期。
+- **D4（需裁决）**：`.trae/reviews/README.md` 快速表格跳过 #59-#61 和 #67-#72（它们只出现在正文中）。这些缺口已有编号分歧说明（`README.md:181-183,308-318`）。确定一种口径：添加 9 行并附分歧说明，或在表头声明只列出 master 序号。注意：本分支不包含主 worktree 中未提交的 2026-11-20 索引行，因此不要在此引用它们。
 
-### Performance
+### 性能
 
-- **P1 (MAJOR, first priority)**: `yate/editor_lsp/manager.py:793-808` `diagnostic_at` calls `diagnostics_for(doc)` (which copies the whole table at `:784`) and scans every diagnostic, while `:763-773` already rebuilds `_diagnostics_by_row[uri][row]` on each publish (sole write at `:733-734`) and `:810-821` `diagnostics_on_line` uses it in O(1). Hot path: `yate/editor.py:447-453 refresh_ui -> :499-503 _refresh_lsp -> yate/flows/lsp_sync.py:95-101 update_echo -> diagnostic_at`. Fix: look up `by_row = self._diagnostics_by_row.get(uri, {}).get(row, ())` and apply the original column-overlap and severity logic to only those k diagnostics; preserve single-line, multi-line, and `doc.path is None` semantics; add an equivalence test with several diagnostics on one row and a large-D case. O(D) -> O(k_row), space O(D) -> O(1).
-- **P2 (MINOR)**: `yate/editor_core/diff.py:153-199` `diff3_regions.classify` rescans opcodes/changes for every region (`_side_span` at `:286` plus four `any(...)` at `:161-169`), O(k^2). Opcodes and changes are sorted by base line; use two monotonic cursors for O(k). k is usually small and debounced, so MINOR.
-- **P3 (suspects, do not drop)**: `yate/editor_components/palette.py:272-302` full re-score + full sort per keystroke (needs candidate-size distribution before `heapq`); `yate/editor_components/completion.py:273-286,452-457` per-line word sets are version-cached but the union is rebuilt per completion (120 ms debounce, `items[:64]` cut); `yate/editor_lsp/manager.py:769-773` a file-spanning diagnostic expands to every row (needs real publish-load sampling). If not fixed, register a "needs profiler / needs real load" reason for each. The review additionally lists 5 silent `is_dir/stat` `OSError` fallbacks (`yate/flows/document_flows.py:52-55` and peers) as benign-downgrade suspects.
+- **P1（MAJOR，最高优先级）**：`yate/editor_lsp/manager.py:793-808` 的 `diagnostic_at` 调用 `diagnostics_for(doc)`（在 `:784` 复制整张表）并扫描每条诊断，而 `:763-773` 已在每次发布时重建 `_diagnostics_by_row[uri][row]`（唯一写入在 `:733-734`），`:810-821` 的 `diagnostics_on_line` 以 O(1) 使用它。热路径：`yate/editor.py:447-453 refresh_ui -> :499-503 _refresh_lsp -> yate/flows/lsp_sync.py:95-101 update_echo -> diagnostic_at`。修复：查找 `by_row = self._diagnostics_by_row.get(uri, {}).get(row, ())`，并将原有的列重叠与严重度逻辑仅应用于这 k 条诊断；保留单行、多行和 `doc.path is None` 语义；添加一个在同一行有多条诊断的等价性测试以及一个大 D 用例。O(D) -> O(k_row)，空间 O(D) -> O(1)。
+- **P2（MINOR）**：`yate/editor_core/diff.py:153-199` 的 `diff3_regions.classify` 为每个区域重新扫描 opcode/change（`:286` 的 `_side_span` 加上 `:161-169` 的四个 `any(...)`），O(k^2)。opcode 和 change 按基准行排序；使用两个单调游标实现 O(k)。k 通常很小且有防抖，故为 MINOR。
+- **P3（可疑项，不可丢弃）**：`yate/editor_components/palette.py:272-302` 每次按键都全量重新打分 + 全量排序（在 `heapq` 之前需要候选规模分布）；`yate/editor_components/completion.py:273-286,452-457` 的逐行词集有版本缓存，但每次补全都重建并集（120 ms 防抖，`items[:64]` 截断）；`yate/editor_lsp/manager.py:769-773` 一条跨文件的诊断会扩展到每一行（需要真实发布负载采样）。若不修复，为每一项登记“needs profiler / needs real load”理由。评审还列出 5 处静默 `is_dir/stat` 的 `OSError` 兜底（`yate/flows/document_flows.py:52-55` 及同类）作为良性降级可疑项。
 
-### Robustness / test infrastructure
+### 健壮性 / 测试基础设施
 
-- **B1 (MINOR)**: `yate/services/workspace.py:547-559` `move_entry` lacks the self-nesting guard that `copy_entry:519-545` has (`target.resolve().relative_to(src.resolve())`). Cut-parent-into-child from `yate/editor_components/file_manager/screen.py:1007` can recurse or fail. Reuse the ancestor check, raise `OSError("cannot move ... into itself")`, add a regression case including a mocked cross-volume branch. Negative test first.
-- **B2 (MINOR)**: `yate/yaterc_options.py:186-195` uses `isdigit()`, which accepts `²` while `int("²")` raises bare `ValueError`; this bubbles to `yate/yaterc.py:213-216` and aborts `_extract_options` at `:485-487`, skipping file_preview and large_file. Use `isdecimal()` plus a local `try/except ValueError` appending a friendly `config.errors` message; add a `"²/8"` case asserting both the message and that later options are still extracted. Negative test first.
-- **B3 (MINOR, test infra)**: `tests/test_macro_wiring.py:111-125` nests `subprocess.run([sys.executable, "-m", "pytest", ...])`, which fails only under parallel coverage (`1 failed / 3961 passed`), while single-point and `-n 1` runs exit 0. Replace with an in-process guard invocation (import and run the decision logic of `test_architecture.py::test_source_files_within_size_threshold`), or explicitly clear `COV_CORE_*` / `PYTEST_*` environment variables when keeping the subprocess. Acceptance: coverage `-n auto` and `-n 1` both exit 0 with no failed tests.
+- **B1（MINOR）**：`yate/services/workspace.py:547-559` 的 `move_entry` 缺少 `copy_entry:519-545` 具有的自嵌套守卫（`target.resolve().relative_to(src.resolve())`）。从 `yate/editor_components/file_manager/screen.py:1007` 将父目录剪切到子目录中可能递归或失败。复用祖先检查，抛出 `OSError("cannot move ... into itself")`，添加一个包含模拟跨卷分支的回归用例。先写负向测试。
+- **B2（MINOR）**：`yate/yaterc_options.py:186-195` 使用 `isdigit()`，它接受 `²`，而 `int("²")` 抛出裸 `ValueError`；这会冒泡到 `yate/yaterc.py:213-216` 并在 `:485-487` 中止 `_extract_options`，跳过 file_preview 和 large_file。改用 `isdecimal()` 加上局部 `try/except ValueError`，追加一条友好的 `config.errors` 消息；添加一个 `"²/8"` 用例，断言消息以及后续选项仍被提取。先写负向测试。
+- **B3（MINOR，测试基础设施）**：`tests/test_macro_wiring.py:111-125` 嵌套了 `subprocess.run([sys.executable, "-m", "pytest", ...])`，它仅在并行覆盖率下失败（`1 failed / 3961 passed`），而单点和 `-n 1` 运行退出 0。替换为进程内守卫调用（导入并运行 `test_architecture.py::test_source_files_within_size_threshold` 的判定逻辑），或在保留子进程时显式清除 `COV_CORE_*` / `PYTEST_*` 环境变量。验收：coverage `-n auto` 与 `-n 1` 均 exit 0 且无失败测试。
 
-## Acceptance criteria (verbatim intent)
+## 验收标准（逐字意图）
 
-1. P1 uses the per-row index with per-case behavioral equivalence (severity priority, multi-line ranges, `doc.path is None`) plus a large-D unit test.
-2. B1 / B2 each have a negative test that goes red then green; a single yaterc error no longer skips later options.
-3. R2's three numbers match reality; the 7 exempt file line counts are checked item by item.
-4. D1 / D2 / D3 counts, paths, status blocks and generator claims match the current code.
-5. B3's fix makes coverage `-n auto` agree with `-n 1` (both exit 0, zero failed).
-6. Full gates exit 0: pyright (including `pack/`), pytest `-n auto`, architecture tests, coverage >= 75%, smoke, `tools.changelog check`.
-7. Every P3 suspect left unfixed has a registered "needs profiler / needs real load" reason.
+1. P1 使用按行索引，并具备逐场景行为等价性（严重度优先级、多行范围、`doc.path is None`），另加一个大 D 单元测试。
+2. B1 / B2 各有一个先红后绿的负向测试；单个 yaterc 错误不再跳过后续选项。
+3. R2 的三个数字与现实一致；7 个豁免文件的行数逐项检查。
+4. D1 / D2 / D3 的计数、路径、状态块和生成器声明与当前代码一致。
+5. B3 的修复使 coverage `-n auto` 与 `-n 1` 一致（均 exit 0，零失败）。
+6. 全量门禁 exit 0：pyright（包括 `pack/`）、pytest `-n auto`、架构测试、coverage >= 75%、smoke、`tools.changelog check`。
+7. 每一个未修复的 P3 可疑项都有已登记的“needs profiler / needs real load”理由。
 
-## Excluded / already closed (do not reopen)
+## 已排除 / 已关闭（不可重开）
 
-`shell=True`, yaterc `exec`, theme-file `exec`, extension auto-loading (trust-gated); `.yxp` casefold and symlinks, `take_dirty_range` vs `dirty_range`, undo delta, pane-tree identity (#47/#48/#49 closed); further `view.py` mixin split, `editor_dispatch.py` tail imports via `TYPE_CHECKING`, `tools/pack/wiki/__init__.py` facade simplification (§三.7 exemption, R6/frozen Protocol, big-module-split-2 compatibility surface). Withdrawn reviewer candidates: 8 "over-100-char" lines are exactly 100 (compliant), and missing `caplog.propagate` is a false positive under current pytest. Four `type: ignore` / `pyright: ignore` sites have reasons and are within the §4.2 exception.
+`shell=True`、yaterc `exec`、主题文件 `exec`、扩展自动加载（trust 门控）；`.yxp` casefold 与符号链接、`take_dirty_range` 与 `dirty_range`、撤销 delta、窗格树身份（#47/#48/#49 已关闭）；进一步的 `view.py` mixin 拆分、`editor_dispatch.py` 通过 `TYPE_CHECKING` 的尾部导入、`tools/pack/wiki/__init__.py` 门面简化（§三.7 豁免、R6/冻结 Protocol、big-module-split-2 兼容面）。已撤回的评审候选：8 行“超过 100 字符”实际正好 100（合规），缺少 `caplog.propagate` 在当前 pytest 下是误报。四处 `type: ignore` / `pyright: ignore` 均有理由且在 §4.2 例外范围内。
