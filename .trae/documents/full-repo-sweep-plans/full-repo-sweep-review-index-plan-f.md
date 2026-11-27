@@ -1,25 +1,25 @@
-# D4: adjudicate the review index numbering gap (plan f)
+# D4：裁定评审索引的编号断档（计划 f）
 
 > **实施状态**：✅ 已实施 —— 2026-11-20（`19ecb116`，速览表补口径说明）
 
-Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
+父计划：[../full-repo-sweep-plan.md](../full-repo-sweep-plan.md)。
 
-## Input
+## 输入
 
-`../../../.trae/reviews/README.md:16` says the quick table holds 44 entries; the table at `:322-389` runs #1–#75 but omits #59–#61 and #67–#72, which appear only in prose (`:78,86,97,215,224,233,246,256,264`). Numbering disagreement is already registered at `:181-183,198,308-318`, including the rule that each branch numbers sequentially and rows are reordered by date at merge time.
+`../../../.trae/reviews/README.md:16` 称速览表有 44 条记录；`:322-389` 处的表格编号从 #1 到 #75，但遗漏了 #59–#61 和 #67–#72，它们仅出现在正文中（`:78,86,97,215,224,233,246,256,264`）。编号不一致的情况已在 `:181-183,198,308-318` 处登记，其中包括如下规则：每个分支独立顺序编号，合并时按日期对行重新排序。
 
-## Exclusive files
+## 独占文件
 
 - `../../../.trae/reviews/README.md`
 
-## Decision
+## 决议
 
-Add a table-header note (option 2 from the issue) rather than nine rows: the quick table lists master-line sequence numbers only; branch-local numbers are recorded in prose and reconciled by date at merge time, with a pointer to the existing disagreement section. Wording must not say "only master sequence numbers are listed" in a way that contradicts the branch-local registration at `:314-318`; phrase it as "the table follows the master-line sequence; branch-local numbers stay in the prose entries and are reconciled at merge time (see the disagreement notes above)".
+添加一条表头注释（issue 中的选项 2），而不是补九行：速览表只列出 master 主干的序号；分支内编号记录在正文中，并在合并时按日期对账，同时给出指向既有不一致章节的链接。措辞不得说成"只列出 master 序号"，以免与 `:314-318` 处的分支内编号登记相矛盾；应表述为"表格遵循 master 主干序号；分支内编号保留在正文条目中，并在合并时对账（见上文的不一致说明）"。
 
-## Verification
+## 验证
 
-- Document-only change. Re-read `:14-20` and `:308-322` together to confirm the new sentence and the existing disagreement note do not conflict.
+- 纯文档变更。一起重读 `:14-20` 和 `:308-322`，确认新增句子与既有的不一致说明不冲突。
 
-## Risk / rollback
+## 风险 / 回滚
 
-Risk: readers still cannot find a missing number from the table alone; the pointer to the prose entries addresses it. Rollback: revert the added sentence.
+风险：读者仍无法仅凭表格找到缺失的编号；指向正文条目的链接可缓解此问题。回滚：撤销新增的句子。

@@ -1,107 +1,89 @@
-# IKTBXC sub-plan overview (three serial waves)
+# IKTBXC 子计划总览（三个串行波次）
 
-Main plan: [../iktbxc-plan.md](../iktbxc-plan.md). Facts:
-[../iktbxc-reference-inventory.md](../iktbxc-reference-inventory.md), issue text:
-[../iktbxc-issue-notes.md](../iktbxc-issue-notes.md).
+主计划：[../iktbxc-plan.md](../iktbxc-plan.md)。事实：[../iktbxc-reference-inventory.md](../iktbxc-reference-inventory.md)，issue 文本：[../iktbxc-issue-notes.md](../iktbxc-issue-notes.md)。
 
-## 1. Sub-plan index
+## 1. 子计划索引
 
-| Wave | Sub-plan | Subject | Independent commit |
+| 波次 | 子计划 | 主题 | 独立提交 |
 |---|---|---|---|
 | wave-1 | [iktbxc-key-codec-plan-a.md](iktbxc-key-codec-plan-a.md) | `keyproto/legacy.py` -> `key_codec.py` | `refactor(keyproto): rename legacy key codec to key_codec` |
 | wave-2 | [iktbxc-view-plan-b.md](iktbxc-view-plan-b.md) | `editor_components/editor.py` -> `view.py` | `refactor(editor-components): rename editor module to view` |
-| wave-3 | [iktbxc-cmdline-relocation-plan-c.md](iktbxc-cmdline-relocation-plan-c.md) | `flows/cmdline_completions.py` -> root `cmdline_completions.py` (L1) | `refactor(architecture): relocate cmdline_completions out of flows` |
+| wave-3 | [iktbxc-cmdline-relocation-plan-c.md](iktbxc-cmdline-relocation-plan-c.md) | `flows/cmdline_completions.py` -> 根级 `cmdline_completions.py`（L1） | `refactor(architecture): relocate cmdline_completions out of flows` |
 
-## 2. Wave table (strictly serial)
+## 2. 波次表（严格串行）
 
-| Wave | Exclusive source files | Shared files touched | Why serial |
+| 波次 | 独占源文件 | 触及的共享文件 | 为何串行 |
 |---|---|---|---|
-| wave-1 | `yate/keyproto/key_codec.py` (renamed), `yate/app.py`, `yate/editor_dispatch.py`, `yate/editor_term/keys.py`, `yate/keyproto/__init__.py`, 3 tests | `.trae/rules/architecture-boundaries.md:47`, `.trae/wikis/yate-architecture.md:156/184/194` | wave-2 and wave-3 also edit the same rule file and `tests/test_architecture.py` |
-| wave-2 | `yate/editor_components/view.py` (renamed), 11 L2/L3 modules, `yate/resources/editor-view.tcss`, 5 tests, 1 smoke scenario | `tests/test_architecture.py:130/213/225/329`, `.trae/rules/architecture-boundaries.md:113/347`, `.trae/wikis/yate-architecture.md:167` | wave-3 edits `tests/test_architecture.py:25` and `_LAYER_RANKS` in the same file |
-| wave-3 | `yate/cmdline_completions.py` (renamed), `yate/editor_compose.py`, `yate/config.py`, `yate/services/extensions/api.py`, 4 tests, 1 smoke docstring | `tests/test_architecture.py:25` + `_LAYER_RANKS`, `.trae/rules/architecture-boundaries.md` §一/R11/§二/§三.6/§六, `.trae/wikis/yate-architecture.md:23/151/159` | final wave; rule text must land with the code |
+| wave-1 | `yate/keyproto/key_codec.py`（重命名）、`yate/app.py`、`yate/editor_dispatch.py`、`yate/editor_term/keys.py`、`yate/keyproto/__init__.py`、3 个测试 | `.trae/rules/architecture-boundaries.md:47`、`.trae/wikis/yate-architecture.md:156/184/194` | wave-2 与 wave-3 也编辑同一规则文件和 `tests/test_architecture.py` |
+| wave-2 | `yate/editor_components/view.py`（重命名）、11 个 L2/L3 模块、`yate/resources/editor-view.tcss`、5 个测试、1 个冒烟场景 | `tests/test_architecture.py:130/213/225/329`、`.trae/rules/architecture-boundaries.md:113/347`、`.trae/wikis/yate-architecture.md:167` | wave-3 在同一文件中编辑 `tests/test_architecture.py:25` 与 `_LAYER_RANKS` |
+| wave-3 | `yate/cmdline_completions.py`（重命名）、`yate/editor_compose.py`、`yate/config.py`、`yate/services/extensions/api.py`、4 个测试、1 处冒烟 docstring | `tests/test_architecture.py:25` + `_LAYER_RANKS`、`.trae/rules/architecture-boundaries.md` §一/R11/§二/§三.6/§六、`.trae/wikis/yate-architecture.md:23/151/159` | 最后一个波次；规则文本必须与代码一同落盘 |
 
 ```mermaid
 flowchart TD
-    A["wave-1: key_codec rename<br/>commit 1"] --> B["wave-2: view rename + guard sets<br/>commit 2"]
-    B --> C["wave-3: cmdline_completions relocation<br/>+ rank entry + rule text<br/>commit 3"]
-    C --> D["review: code-review-expert<br/>negative drills x4 + residual grep"]
-    D --> E["closing gate: pyright / pytest / arch / cov / smoke / help"]
+    A["wave-1：key_codec 重命名<br/>提交 1"] --> B["wave-2：view 重命名 + 守卫集合<br/>提交 2"]
+    B --> C["wave-3：cmdline_completions 迁移<br/>+ rank 条目 + 规则文本<br/>提交 3"]
+    C --> D["评审：code-review-expert<br/>负向演练 x4 + 残余 grep"]
+    D --> E["收尾门禁：pyright / pytest / 架构 / 覆盖率 / 冒烟 / help"]
 ```
 
-Dependency rule: a wave starts only when the previous wave's acceptance
-commands all returned exit code 0 and its commit exists. No wave reordering.
+依赖规则：仅当上一波次的验收命令全部返回退出码 0 且其提交存在时，本波次才开始。不得调换波次顺序。
 
-## 3. Layer change of cmdline_completions
+## 3. cmdline_completions 的层级变化
 
 ```mermaid
 flowchart LR
-    subgraph before["before (rank 3, flows/)"]
+    subgraph before["迁移前（rank 3，flows/）"]
         F["yate/flows/cmdline_completions.py"] --> R["yate.registries (L1)"]
         F --> S["yate.session (L1)"]
         F --> W["yate.services.workspace (L0)"]
     end
-    subgraph after["after (rank 1, root)"]
-        G["yate/cmdline_completions.py"] --> R2["yate.registries (L1) same layer"]
-        G --> S2["yate.session (L1) same layer"]
-        G --> W2["yate.services.workspace (L0) downward"]
+    subgraph after["迁移后（rank 1，根级）"]
+        G["yate/cmdline_completions.py"] --> R2["yate.registries (L1) 同层"]
+        G --> S2["yate.session (L1) 同层"]
+        G --> W2["yate.services.workspace (L0) 向下"]
     end
 ```
 
-The rank entry `("cmdline_completions.py", 1)` is what keeps the two L1 imports
-same-layer instead of upward. Without it, `test_no_unregistered_upward_imports`
-reports `cmdline_completions.py -> yate.registries` and
-`cmdline_completions.py -> yate.session` (verified by wave-3 negative drill).
+正是 rank 条目 `("cmdline_completions.py", 1)` 使两处 L1 import 保持同层而非向上。没有它，`test_no_unregistered_upward_imports` 会报告 `cmdline_completions.py -> yate.registries` 与 `cmdline_completions.py -> yate.session`（由 wave-3 负向演练验证）。
 
-## 4. Execution contract
+## 4. 执行契约
 
-- Unattended session: plan approval treated as granted; no questions/approvals;
-  all subagents use `bypassPermissions`.
-- `subagent-workflow.md` §一.3 forbids subagent edits to `yate/` product source,
-  so the MAIN AGENT executes all three waves under the `plan-executor` script,
-  with this plan as the single spec. Only the review step is delegated.
-- Each wave: `git mv` (never delete+create) -> exact string edits -> per-wave
-  acceptance commands -> `git status --short` review -> one commit with the
-  subject in the table -> `git log --follow -- <new path>` spot-check.
-- After each wave, the plan's closing backfill section in
-  [../iktbxc-plan.md](../iktbxc-plan.md) records the real command results.
+- 无人值守会话：计划审批视为已授予；不提问/不审批；所有子代理使用 `bypassPermissions`。
+- `subagent-workflow.md` §一.3 禁止子代理编辑 `yate/` 产品源码，因此主代理在 `plan-executor` 脚本下执行全部三个波次，以本计划为唯一规范。仅评审步骤外包。
+- 每波：`git mv`（绝不删除+创建）-> 精确字符串编辑 -> 逐波验收命令 -> `git status --short` 复核 -> 按 §1 表主题提交一次 -> `git log --follow -- <new path>` 抽查。
+- 每波之后，[../iktbxc-plan.md](../iktbxc-plan.md) 中计划的收尾回填章节记录真实命令结果。
 
-## 5. Residual grep surface
+## 5. 残余 grep 范围
 
-Source face: `yate tests tools pack pyproject.toml .trae/rules .trae/wikis
-README.md README.zh.md`. Two `git grep -n -E` commands (dotted import forms and
-slashed path forms) are listed in the main plan §6; both must report 0 hits.
+源码面：`yate tests tools pack pyproject.toml .trae/rules .trae/wikis README.md README.zh.md`。主计划 §6 列出两条 `git grep -n -E` 命令（点号 import 形式与斜杠路径形式）；两者都必须报告 0 命中。
 
-Exempt: `.trae/documents/**` (historical plans, this task's notes and plans),
-`.trae/reviews/**` (read-only fact records), `CHANGELOG*`,
-`tools/changelog/zh_overrides.json`, and the `iktbxc-issue-notes.md` input
-material. No blind global replacement; `git grep` hits are triaged by hand.
+豁免：`.trae/documents/**`（历史计划、本任务的笔记与计划）、`.trae/reviews/**`（只读事实记录）、`CHANGELOG*`、`tools/changelog/zh_overrides.json`，以及 `iktbxc-issue-notes.md` 输入素材。不做盲目全局替换；`git grep` 命中手工分诊。
 
-## 6. Negative drills
+## 6. 负向演练
 
-| Wave | Guard | Temporary violation | Expected failing test |
+| 波次 | 守卫 | 临时违规 | 预期失败的测试 |
 |---|---|---|---|
-| 1 | naming (`BANNED_SUFFIXES`) | add `class RenameProbeController` in new codec | `test_no_banned_identifier_names` |
-| 2 | R2 path whitelist | restore old `ALLOWED_PROTOCOLS` key | `test_no_new_protocols` |
-| 2 | R11 frozen surface | restore one old `UI_FROZEN_FILES` value | `test_collaborators_keep_widget_coupling_frozen` |
-| 3 | layer rank | remove `("cmdline_completions.py", 1)` | `test_no_unregistered_upward_imports` |
+| 1 | 命名（`BANNED_SUFFIXES`） | 在新编解码器中加 `class RenameProbeController` | `test_no_banned_identifier_names` |
+| 2 | R2 路径白名单 | 恢复旧 `ALLOWED_PROTOCOLS` 键 | `test_no_new_protocols` |
+| 2 | R11 冻结面 | 恢复一个旧 `UI_FROZEN_FILES` 值 | `test_collaborators_keep_widget_coupling_frozen` |
+| 3 | 层级 rank | 移除 `("cmdline_completions.py", 1)` | `test_no_unregistered_upward_imports` |
 
-Every drill ends with restore + `git status --short` clean + green re-run after
-clearing the touched `__pycache__`.
+每次演练均以还原 + `git status --short` 干净 + 清理所涉 `__pycache__` 后重跑转绿收尾。
 
-## 7. Commit sequence (all English, `type(scope): subject`)
+## 7. 提交序列（均为英文，`type(scope): subject`）
 
-1. `docs(plan): collect IKTBXC issue input notes` (done, `efd4551`)
-2. `docs(plan): record IKTBXC reference-surface inventory` (done, `6539b90`)
+1. `docs(plan): collect IKTBXC issue input notes`（已完成，`efd4551`）
+2. `docs(plan): record IKTBXC reference-surface inventory`（已完成，`6539b90`）
 3. `docs(plan): add IKTBXC naming refactor plan and wave sub-plans`
-4. wave-1 subject (table §1)
-5. wave-2 subject (table §1)
-6. wave-3 subject (table §1)
-7. review record + any review-fix commits
+4. wave-1 主题（§1 表）
+5. wave-2 主题（§1 表）
+6. wave-3 主题（§1 表）
+7. 评审记录 + 任何评审修复提交
 8. `docs(plan): backfill IKTBXC gate results and deviations`
 
-Only commits, no `git push` (task-orchestration.md §二).
+仅提交，不 `git push`（task-orchestration.md §二）。
 
-## 8. Closing gate (main agent, all exit code 0)
+## 8. 收尾门禁（主代理，均退出码 0）
 
 ```powershell
 .venv\Scripts\python.exe -m pyright yate/ tests/ tools/ pack/
@@ -112,40 +94,22 @@ Only commits, no `git push` (task-orchestration.md §二).
 .venv\Scripts\python.exe -m yate --help
 ```
 
-Parallel `-n auto` flakes must be re-checked with `-n 1` and fixed, never
-recorded as "occasional". Coverage must be >= 75 with `--cov-fail-under=75`.
+并行 `-n auto` 的 flake 必须用 `-n 1` 复核并修复，绝不可记为"偶发"。覆盖率必须在 `--cov-fail-under=75` 下 >= 75。
 
-## 9. Backfill (2026-11-07, closed)
+## 9. 回填（2026-11-07，已关闭）
 
-Wave table (all exit code 0; grep no-match exit 1 = 0 hits):
+波次表（均退出码 0；grep 无匹配退出 1 = 0 命中）：
 
-| Wave | pyright | arch | full pytest | smoke | negative drill | commit |
+| 波次 | pyright | 架构 | 全量 pytest | 冒烟 | 负向演练 | 提交 |
 |---|---|---|---|---|---|---|
-| 1 | 0 | 37 | 0 | n/a | naming guard RED 1 / GREEN 0 | `3e615a9` |
-| 2 | 0 | 37 | 0 | 121/121 · 1463/1463 | R2 + R11 RED 1 / GREEN 0 | `55aee7e` |
-| 3 | 0 | 37 | 0 | 121/121 · 1463/1463 | rank RED 1 (2 upward edges) / GREEN 0 | `f3299a1` |
+| 1 | 0 | 37 | 0 | n/a | 命名守卫 红 1 / 绿 0 | `3e615a9` |
+| 2 | 0 | 37 | 0 | 121/121 · 1463/1463 | R2 + R11 红 1 / 绿 0 | `55aee7e` |
+| 3 | 0 | 37 | 0 | 121/121 · 1463/1463 | rank 红 1（2 条向上边）/ 绿 0 | `f3299a1` |
 
-Review: `code-review-expert` 0 blocker / 1 major / 3 minor; record at
-[../../reviews/2026-11-07-iktbxc-naming-refactor.md](../../reviews/2026-11-07-iktbxc-naming-refactor.md),
-fix plan at [../iktbxc-review-fixes-plan.md](../iktbxc-review-fixes-plan.md).
-M1 (7 one-shot scripts) deleted, m2/m3 rule text fixed, m1 deferred; the
-`stress_rapid_toggles` timing flake was fixed per §二.7 in `c9f5589`.
+评审：`code-review-expert` 0 阻塞项 / 1 严重 / 3 次要；记录见 [../../reviews/2026-11-07-iktbxc-naming-refactor.md](../../reviews/2026-11-07-iktbxc-naming-refactor.md)，修复计划见 [../iktbxc-review-fixes-plan.md](../iktbxc-review-fixes-plan.md)。M1（7 个一次性脚本）已删除，m2/m3 规则文本已修复，m1 延期；`stress_rapid_toggles` 时序 flake 依据 §二.7 在 `c9f5589` 中修复。
 
-Closing gate (main agent, real numbers): pyright `0 errors, 0 warnings`;
-`pytest -q -n auto` exit 0; architecture 37 dots exit 0; coverage
-`TOTAL ... 93%`, `Total coverage: 92.84%`, `3395 passed, 10 skipped`, exit 0;
-smoke `1463/1463 checks`, `121/121 scenarios`, exit 0; `python -m yate --help`
-exit 0; combined residual grep 0 hits (exit 1).
+收尾门禁（主代理，真实数字）：pyright `0 errors, 0 warnings`；`pytest -q -n auto` 退出 0；架构 37 点 退出 0；覆盖率 `TOTAL ... 93%`、`Total coverage: 92.84%`、`3395 passed, 10 skipped`，退出 0；冒烟 `1463/1463 checks`、`121/121 scenarios`，退出 0；`python -m yate --help` 退出 0；合并残余 grep 0 命中（退出 1）。
 
-Final commits (9, no push): `efd4551` / `6539b90` / `e7c2d67` / `3e615a9` /
-`55aee7e` / `f3299a1` / `506b38c` / `adca72b` / `c9f5589`, plus this backfill
-commit. Deviations, anomalies and deferred items: main plan §9.3 / §9.6.
-`git status --short` empty at close.
+最终提交（9 笔，无 push）：`efd4551` / `6539b90` / `e7c2d67` / `3e615a9` / `55aee7e` / `f3299a1` / `506b38c` / `adca72b` / `c9f5589`，外加本次回填提交。偏离、异常与延期项见主计划 §9.3 / §9.6。收尾时 `git status --short` 为空。
 
-Merge-ready PR review (2026-11-07, closed): 3 read-only reviewers plus
-main-agent adjudication (0 BLOCKER / 3 MAJOR / 9 MINOR) -> APPROVE after fixes.
-Report: [../../reviews/2026-11-07-pr-review-naming-hygiene.md](../../reviews/2026-11-07-pr-review-naming-hygiene.md);
-iteration plan: [../naming-hygiene-pr-review-plan.md](../naming-hygiene-pr-review-plan.md).
-Main-agent gates all exit 0 (pyright 0 / pytest 0 / arch 37 / coverage 92.88% /
-smoke 121/121 · 1463/1463 / changelog 0); `git merge-tree` 0 conflict markers;
-broken relative link to the first review record fixed. No push.
+合并就绪 PR 评审（2026-11-07，已关闭）：3 名只读评审者加主代理裁决（0 阻塞项 / 3 严重 / 9 次要）-> 修复后 APPROVE。报告：[../../reviews/2026-11-07-pr-review-naming-hygiene.md](../../reviews/2026-11-07-pr-review-naming-hygiene.md)；迭代计划：[../naming-hygiene-pr-review-plan.md](../naming-hygiene-pr-review-plan.md)。主代理门禁均退出 0（pyright 0 / pytest 0 / 架构 37 / 覆盖率 92.88% / 冒烟 121/121 · 1463/1463 / changelog 0）；`git merge-tree` 0 冲突标记；首轮评审记录的失效相对链接已修复。无 push。

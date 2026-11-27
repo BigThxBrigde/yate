@@ -1,73 +1,58 @@
-# big-module-split-2 -- split oversized modules by single-duty principle
+# big-module-split-2 —— 按单一职责原则拆分超大模块
 
-Gitee issue IKSFMQ: split modules exceeding the 800-line threshold (rules
-section 3.7 / A11) by the single-duty principle. Three candidates were
-identified; this plan covers all three.
+Gitee 议题 IKSFMQ：按单一职责原则拆分超过 800 行阈值的模块（规则第 3.7 节 / A11）。已识别出三个候选；本计划覆盖全部三个。
 
-## Goals
+## 目标
 
-1. Split `yate/editor.py` (1275 lines) into `editor_compose.py` (assembly
-   factories) + `editor_dispatch.py` (key/mouse dispatch) + slimmed
-   `editor.py` (orchestration + operations).
-2. Subpackage-ize `tools/pack/wiki.py` (2149 lines) into
-   `tools/pack/wiki/` (lint / sources / publish / translate / report / run).
-3. Subpackage-ize `yate/services/yxp.py` (841 lines) into
-   `yate/services/yxp/` (manifest / install / records) with a re-export
-   facade preserving the `yate.services.yxp` import path.
-4. Remove the three entries from `SIZE_EXEMPT_FILES` (both the rule text
-   section 3.7 and `tests/test_architecture.py`) once each split lands.
+1. 将 `yate/editor.py`（1275 行）拆分为 `editor_compose.py`（装配工厂）+ `editor_dispatch.py`（按键/鼠标分发）+ 精简后的 `editor.py`（编排 + 操作）。
+2. 将 `tools/pack/wiki.py`（2149 行）子包化为 `tools/pack/wiki/`（lint / sources / publish / translate / report / run）。
+3. 将 `yate/services/yxp.py`（841 行）子包化为 `yate/services/yxp/`（manifest / install / records），并以再导出门面保留 `yate.services.yxp` 导入路径。
+4. 每次拆分落地后，从 `SIZE_EXEMPT_FILES` 中移除对应条目（规则文本第 3.7 节与 `tests/test_architecture.py` 均移除）。
 
-## Non-goals
+## 非目标
 
-- Splitting `keymaps/vim.py` (1480 lines), `editor_core/buffer.py`
-  (1565 lines), `editor_components/file_manager/screen.py` (963 lines),
-  `editor_syntax/langdefs.py` (841 lines) -- all single-duty, remain
-  exempt (issue explicitly excludes them).
-- Observing the 700-800 line "watch list" modules (`emulator.py`,
-  `pty_proc.py`, `ts_backend/backend.py`, `manual.py`,
-  `editor_lsp/manager.py`, `tools/smoke_test/harness.py`,
-  `yaterc_options.py`, `logs.py`) -- out of scope.
-- Behavior changes. Every split is move-only + re-wiring; no logic
-  rewrites. Existing regression tests keep their assertions unchanged.
+- 拆分 `keymaps/vim.py`（1480 行）、`editor_core/buffer.py`（1565 行）、`editor_components/file_manager/screen.py`（963 行）、`editor_syntax/langdefs.py`（841 行）——它们均为单一职责，保持豁免（议题明确将它们排除在外）。
+- 观察 700-800 行的"观察名单"模块（`emulator.py`、`pty_proc.py`、`ts_backend/backend.py`、`manual.py`、`editor_lsp/manager.py`、`tools/smoke_test/harness.py`、`yaterc_options.py`、`logs.py`）——不在范围内。
+- 行为变更。每次拆分都只是移动 + 重新接线；不重写逻辑。现有回归测试的断言保持不变。
 
-## Current line counts (splitlines口径, 2026-11-04 re-measured)
+## 当前行数（splitlines 口径，2026-11-04 重新测量）
 
-| File | Lines | Exempt | Target after split |
+| 文件 | 行数 | 豁免 | 拆分后目标 |
 |---|---|---|---|
-| `yate/editor.py` | 1275 | yes | < 800 (remove exempt) |
-| `tools/pack/wiki.py` | 2149 | yes | each sub-file < 800 (remove exempt) |
-| `yate/services/yxp.py` | 841 | yes | each sub-file < 800 (remove exempt) |
+| `yate/editor.py` | 1275 | 是 | < 800（移除豁免） |
+| `tools/pack/wiki.py` | 2149 | 是 | 每个子文件 < 800（移除豁免） |
+| `yate/services/yxp.py` | 841 | 是 | 每个子文件 < 800（移除豁免） |
 
-## Sub-plan index
+## 子计划索引
 
-| Sub-plan | Wave | File | Scope |
+| 子计划 | 波次 | 文件 | 范围 |
 |---|---|---|---|
-| [plan-a](big-module-split-2-editor-plan-a.md) | wave-1 | `yate/editor.py` | Extract assembly factories into `editor_compose.py` |
-| [plan-b](big-module-split-2-editor-plan-b.md) | wave-2 | `yate/editor.py` | Extract key/mouse dispatch into `editor_dispatch.py`; remove exemption |
-| [plan-c](big-module-split-2-wiki-plan-a.md) | wave-3 | `tools/pack/wiki.py` | Subpackage-ize into `tools/pack/wiki/` |
-| [plan-d](big-module-split-2-yxp-plan-a.md) | wave-3 | `yate/services/yxp.py` | Subpackage-ize into `yate/services/yxp/` |
+| [计划-a](big-module-split-2-editor-plan-a.md) | wave-1 | `yate/editor.py` | 将装配工厂抽取到 `editor_compose.py` |
+| [计划-b](big-module-split-2-editor-plan-b.md) | wave-2 | `yate/editor.py` | 将按键/鼠标分发抽取到 `editor_dispatch.py`；移除豁免 |
+| [计划-c](big-module-split-2-wiki-plan-a.md) | wave-3 | `tools/pack/wiki.py` | 子包化为 `tools/pack/wiki/` |
+| [计划-d](big-module-split-2-yxp-plan-a.md) | wave-3 | `yate/services/yxp.py` | 子包化为 `yate/services/yxp/` |
 
-## Execution wave table
+## 波次执行表
 
-| Wave | Sub-plans | Dependency | File overlap |
+| 波次 | 子计划 | 依赖 | 文件重叠 |
 |---|---|---|---|
-| wave-1 | editor plan-a | none | `editor.py` + new `editor_compose.py` |
-| wave-2 | editor plan-b | wave-1 (needs post-plan-a `editor.py`) | `editor.py` + new `editor_dispatch.py` |
-| wave-3 | wiki plan-a || yxp plan-d | wiki and yxp are independent; no overlap with editor files |
+| wave-1 | editor 计划-a | 无 | `editor.py` + 新建 `editor_compose.py` |
+| wave-2 | editor 计划-b | wave-1（需要计划-a 之后的 `editor.py`） | `editor.py` + 新建 `editor_dispatch.py` |
+| wave-3 | wiki 计划-a || yxp 计划-d | wiki 与 yxp 相互独立；与 editor 文件无重叠 |
 
-Wave-3 members run in parallel (different files, no overlap).
+wave-3 的成员并行运行（文件不同，无重叠）。
 
-## Dependency graph (Mermaid)
+## 依赖图（Mermaid）
 
 ```mermaid
 flowchart TD
-    W1["wave-1: editor plan-a<br/>(assembly -> editor_compose.py)"]
-    W2["wave-2: editor plan-b<br/>(dispatch -> editor_dispatch.py;<br/>remove SIZE_EXEMPT)"]
-    W3a["wave-3: wiki plan-a<br/>(wiki.py -> wiki/ subpackage)"]
-    W3b["wave-3: yxp plan-d<br/>(yxp.py -> yxp/ subpackage)"]
+    W1["wave-1：editor 计划-a<br/>(装配 -> editor_compose.py)"]
+    W2["wave-2：editor 计划-b<br/>(分发 -> editor_dispatch.py；<br/>移除 SIZE_EXEMPT)"]
+    W3a["wave-3：wiki 计划-a<br/>(wiki.py -> wiki/ 子包)"]
+    W3b["wave-3：yxp 计划-d<br/>(yxp.py -> yxp/ 子包)"]
 
     W1 --> W2
-    W2 --> FINAL["All gates green:<br/>pyright + pytest + arch + smoke"]
+    W2 --> FINAL["所有门禁通过：<br/>pyright + pytest + 架构 + 冒烟"]
     W3a --> FINAL
     W3b --> FINAL
 
@@ -78,35 +63,19 @@ flowchart TD
     style FINAL fill:#fff9c4,color:#f57f17
 ```
 
-## Architecture rules touched
+## 涉及的架构规则
 
-- **R5**: `editor.py` must not import `actions` / `commands` (reverse
-  direction). The new `editor_compose.py` and `editor_dispatch.py` are
-  module-level function collections parameterized by `ed: Editor`; they
-  never import `actions` / `commands` directly.
-- **R9**: Widget IDs stay assigned by the assembly code; `app.tcss`
-  selectors are unchanged.
-- **R11**: `editor_dispatch.py` is a new top-level `yate/` module. The
-  guard `test_flow_modules_hold_no_app_handle` scans `yate/*.py`
-  top-level (excluding `editor.py`); the new module must NOT contain
-  `self.app` attribute chains. All dispatch functions take `ed: Editor`
-  as a parameter.
-- **R12**: New modules use `log = tracing.get_logger(__name__)`.
-- **R14 precedent**: The `yxp` subpackage-ization follows the
-  `services/extensions/` facade pattern (frozen public names, docstring
-  exception note).
-- **Section 3.5**: Package `__init__.py` inertia. `yxp/__init__.py`
-  re-exports all public names (consumer path preservation); the
-  docstring must carry the exception note (like
-  `services/extensions/__init__.py`).
-- **test_no_relative_imports**: All intra-package imports use absolute
-  paths (`from yate.services.yxp.manifest import ...`).
-- **test_comments_and_docstrings_stay_ascii**: All new files carry
-  ASCII-only comments and docstrings.
-- **test_source_files_within_size_threshold**: After each wave, the
-  affected files must be < 800 lines; `SIZE_EXEMPT_FILES` shrinks.
+- **R5**：`editor.py` 不得导入 `actions` / `commands`（反向）。新的 `editor_compose.py` 与 `editor_dispatch.py` 是以 `ed: Editor` 参数化的模块级函数集合；它们从不直接导入 `actions` / `commands`。
+- **R9**：控件 ID 仍由装配代码赋值；`app.tcss` 选择器不变。
+- **R11**：`editor_dispatch.py` 是新的顶层 `yate/` 模块。守卫 `test_flow_modules_hold_no_app_handle` 扫描顶层 `yate/*.py`（不含 `editor.py`）；新模块不得包含 `self.app` 属性链。所有分发函数都以 `ed: Editor` 作为参数。
+- **R12**：新模块使用 `log = tracing.get_logger(__name__)`。
+- **R14 先例**：`yxp` 的子包化沿用 `services/extensions/` 的门面模式（冻结的公开名称、docstring 例外说明）。
+- **第 3.5 节**：包 `__init__.py` 保持惰性。`yxp/__init__.py` 再导出所有公开名称（保留使用方路径）；docstring 必须带有例外说明（如同 `services/extensions/__init__.py`）。
+- **test_no_relative_imports**：所有包内导入使用绝对路径（`from yate.services.yxp.manifest import ...`）。
+- **test_comments_and_docstrings_stay_ascii**：所有新文件仅含 ASCII 注释与 docstring。
+- **test_source_files_within_size_threshold**：每一波次之后，受影响文件必须 < 800 行；`SIZE_EXEMPT_FILES` 逐渐缩减。
 
-## Global verification commands (after each wave)
+## 全局验收命令（每波次之后）
 
 ```powershell
 # pyright strict -- zero diagnostics
@@ -125,55 +94,29 @@ flowchart TD
 .venv\Scripts\python.exe -m pytest tests/ -q -n auto --cov=yate --cov-fail-under=75
 ```
 
-## Deviation from issue
+## 与议题的偏离
 
-The issue text (dated 2026-11-02) reports `editor.py` at 1275 lines,
-`tools/pack/wiki.py` at 2149 lines, `yate/services/yxp.py` at 841 lines.
-Re-measured on 2026-11-04 with `splitlines()` (the guard's口径):
-**all three match exactly**. No deviation.
+议题文本（日期 2026-11-02）报告 `editor.py` 为 1275 行、`tools/pack/wiki.py` 为 2149 行、`yate/services/yxp.py` 为 841 行。2026-11-04 用 `splitlines()`（守卫的口径）重新测量：**三者完全一致**。无偏离。
 
-The issue suggests `editor_compose.py` for wave-a and a separate
-dispatch module for wave-b. This plan follows that direction. The issue
-suggests `tools/pack/wiki/` subpackage with `lint.py / sources.py /
-publish.py / translate.py / report.py`; this plan refines the split
-based on actual AST analysis (see wiki sub-plan for the refined file
-list). The issue suggests `yate/services/yxp/` with `manifest.py /
-install.py / records.py`; this plan follows that direction.
+议题建议 wave-a 使用 `editor_compose.py`，wave-b 使用独立的分发模块。本计划遵循该方向。议题建议 `tools/pack/wiki/` 子包包含 `lint.py / sources.py / publish.py / translate.py / report.py`；本计划基于实际 AST 分析细化了拆分（细化后的文件清单见 wiki 子计划）。议题建议 `yate/services/yxp/` 包含 `manifest.py / install.py / records.py`；本计划遵循该方向。
 
-## Execution record (2026-11-04, closed loop)
+## 执行记录（2026-11-04，闭环）
 
-| Wave | Plan | Outcome | Commit |
+| 波次 | 计划 | 结果 | 提交 |
 |---|---|---|---|
-| plans | overview + 4 sub-plans | landed, import-cycle wiring corrected by main agent | plans commit + ebe401e / 651a5b8 (corrections) |
-| wave-1 | editor plan-a | `_build_*` factories -> `editor_compose.py`; editor.py 1275 -> 959; `_LAYER_RANKS` +L3 | af92c07 |
-| wave-2 | editor plan-b | dispatch methods -> `editor_dispatch.py`; editor.py 959 -> 800; exemption dropped; `execute_action` fallback per plan pre-authorization | 6c48dc2 |
-| wave-3 | wiki plan-a | 2149-line wiki.py -> 7-file subpackage, facade with 48-name `__all__`, late-bound patch surface | a71c0da |
-| wave-3 | yxp plan-a | 841-line yxp.py -> 4-file subpackage, facade `__all__` 26 names == PATCH_SURFACE, frozen logger name | 6c0b31d |
-| governance | rule + guard sync | SIZE_EXEMPT_FILES drops 3 entries; rule text 3.7 exemption register shrunk, closed list extended; R12 gains the frozen-logger-name exception note | e3b3009 + final |
+| plans | overview + 4 个子计划 | 已落地，导入环接线由主代理更正 | plans 提交 + ebe401e / 651a5b8（更正） |
+| wave-1 | editor 计划-a | `_build_*` 工厂 -> `editor_compose.py`；editor.py 1275 -> 959；`_LAYER_RANKS` +L3 | af92c07 |
+| wave-2 | editor 计划-b | 分发方法 -> `editor_dispatch.py`；editor.py 959 -> 800；豁免取消；按计划预先授权使用 `execute_action` 兜底 | 6c48dc2 |
+| wave-3 | wiki 计划-a | 2149 行 wiki.py -> 7 文件子包，门面含 48 个名称的 `__all__`，后期绑定 patch 作用面 | a71c0da |
+| wave-3 | yxp 计划-a | 841 行 yxp.py -> 4 文件子包，门面 `__all__` 26 个名称 == PATCH_SURFACE，冻结日志名 | 6c0b31d |
+| 治理 | 规则 + 守卫同步 | SIZE_EXEMPT_FILES 减少 3 个条目；规则文本 3.7 豁免登记表缩减、封闭列表扩展；R12 增加冻结日志名的例外说明 | e3b3009 + final |
 
-Review (code-review-expert): **APPROVE** -- 0 blocker, 0 major,
-3 minor, 3 nit. 150 moved symbols verified byte-identical by AST
-body-dump. Fixups applied after review: dead escape clause removed in
-`tests/test_wiki_subpackage.py:138`; R12 exception note added.
+评审（code-review-expert）：**APPROVE**——0 阻塞项、0 严重、3 次要、3 nit。150 个移动符号通过 AST body-dump 验证为逐字节一致。评审后应用的修补：`tests/test_wiki_subpackage.py:138` 中删除了失效的逃生子句；增加了 R12 例外说明。
 
-Registered follow-ups (non-blocking, out of this branch's scope):
+已登记的后续事项（非阻塞，超出本分支范围）：
 
-- `yate/editor.py` sits at exactly 800 lines (guard uses `>`), zero
-  headroom -- any later addition re-triggers the size guard until a
-  further extraction lands.
-- `tests/test_app_panes.py` has a pre-existing empty-snapshot hole
-  (L168-197): when `panes.all_views()` snapshots empty, the settle
-  polling passes vacuously and the test crashes at `views[0]`; seen
-  once under full-suite parallel load, 0/10 solo, full rerun green.
-  Fix: guard the settle loop with `views and ...`.
-- Coverage scope note: the gate is yate-only by config
-  (`source = ["yate"]`). An early run that also counted `tools/`
-  reported 83.54% -- a mixed-scope figure, not a regression.
-  Re-measured 2026-11-04 with the CI command
-  (`--cov=yate --cov-branch`): **92.90%** (19366 stmts / 1087 miss,
-  6190 branches / 578 partial).
+- `yate/editor.py` 恰好为 800 行（守卫使用 `>`），零余量——任何后续新增都会再次触发行数守卫，直到进一步拆分落地。
+- `tests/test_app_panes.py` 存在既有的空快照漏洞（L168-197）：当 `panes.all_views()` 快照为空时，settle 轮询会空过，测试在 `views[0]` 处崩溃；在全套并行负载下出现过一次，单独运行 0/10，完整重跑通过。修复：用 `views and ...` 守卫 settle 循环。
+- 覆盖率范围说明：按配置门禁仅针对 yate（`source = ["yate"]`）。早期一次同时计入 `tools/` 的运行报告为 83.54%——这是混合范围的数字，并非回归。2026-11-04 用 CI 命令（`--cov=yate --cov-branch`）重新测量：**92.90%**（19366 条语句 / 1087 未覆盖，6190 个分支 / 578 部分覆盖）。
 
-Final gates on HEAD (all exit 0): pyright strict 0 diagnostics;
-`pytest tests/ -q -n auto` green; architecture tests 37 passed;
-coverage 92.90% (>= 75, yate-only); smoke 121/121 scenarios, 1463/1463 checks;
-`python -m tools.pack wiki --help` unchanged.
+HEAD 上的最终门禁（退出码均为 0）：pyright strict 0 条诊断；`pytest tests/ -q -n auto` 通过；架构测试 37 项通过；覆盖率 92.90%（>= 75，仅 yate）；冒烟 121/121 场景、1463/1463 检查；`python -m tools.pack wiki --help` 不变。
