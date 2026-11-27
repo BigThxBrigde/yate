@@ -1,29 +1,20 @@
-# Plan h — wiring, architecture guards, integration (wave-4)
+# 计划 h —— 接线、架构守卫与集成（波次 4）
 
-Parent: [overview.md](overview.md) · Main plan: [../lsp-hover-docs-plan.md](../lsp-hover-docs-plan.md), §6
-Depends on: all wave 1-3 plans, especially plan g's `HoverFlows.__init__`
-signature and `HoverPopup(id=...)`.
+父计划：[overview.md](overview.md) · 主计划：[../lsp-hover-docs-plan.md](../lsp-hover-docs-plan.md)，§6
+依赖：全部波次 1-3 的计划，尤其是计划 g 的 `HoverFlows.__init__` 签名和 `HoverPopup(id=...)`。
 
-## Input (exact baseline locations)
+## 输入（精确的基线位置）
 
-- `yate/editor.py:101-139` (class attributes), `:164-175` (assembly order),
-  `:327-336` (`on_mount` popup mount), `:484-488` (`_refresh_lsp`), `:500-506`.
-- `yate/editor_compose.py:125-142` (`_build_widgets`, `CompletionPopup()`),
-  `:213-241` (`_build_pane_stack`, `MouseFlows(...)`), `:295-330`
-  (`LspSync` / `CompletionFlows` construction).
-- `yate/editor_dispatch.py:40-51` (`_handle_key` entry), `:189-197`
-  (`_cancel_mouse_state`).
+- `yate/editor.py:101-139`（类属性）、`:164-175`（装配顺序）、`:327-336`（`on_mount` 中挂载 popup）、`:484-488`（`_refresh_lsp`）、`:500-506`。
+- `yate/editor_compose.py:125-142`（`_build_widgets`、`CompletionPopup()`）、`:213-241`（`_build_pane_stack`、`MouseFlows(...)`）、`:295-330`（`LspSync` / `CompletionFlows` 的构造）。
+- `yate/editor_dispatch.py:40-51`（`_handle_key` 入口）、`:189-197`（`_cancel_mouse_state`）。
 - `yate/flows/mouse_flows.py:28-58`, `:60-67`, `:69-134`.
-- `yate/actions.py:26-32`, `:209-238` (view group).
-- `tests/test_architecture.py:141` (`_LAYER_RANKS`), `:198` (`UI_FROZEN_FILES`),
-  `:360` (`SIZE_EXEMPT_FILES`), `:436` (`SCROLLABLE_BASES`), `:1556-1597`
-  (R15 guard).
-- `tests/conftest.py:311-331` (`wait_until`), `:334-344`
-  (`plain_text` / `message_text`), `:347-377` (`make_key_ui` /
-  `make_action_context`).
-- `tests/test_action_table.py:20-135` (`_StubEditor` hook list).
+- `yate/actions.py:26-32`、`:209-238`（view 组）。
+- `tests/test_architecture.py:141`（`_LAYER_RANKS`）、`:198`（`UI_FROZEN_FILES`）、`:360`（`SIZE_EXEMPT_FILES`）、`:436`（`SCROLLABLE_BASES`）、`:1556-1597`（R15 守卫）。
+- `tests/conftest.py:311-331`（`wait_until`）、`:334-344`（`plain_text` / `message_text`）、`:347-377`（`make_key_ui` / `make_action_context`）。
+- `tests/test_action_table.py:20-135`（`_StubEditor` 钩子列表）。
 
-## Exclusive files
+## 独占文件
 
 - `yate/editor.py`
 - `yate/editor_compose.py`
@@ -31,39 +22,32 @@ signature and `HoverPopup(id=...)`.
 - `yate/flows/mouse_flows.py`
 - `yate/actions.py`
 - `tests/test_architecture.py`
-- `tests/test_hover_integration.py` (new)
+- `tests/test_hover_integration.py`（新建）
 - `tests/test_app_mouse.py`
 - `tests/test_action_table.py`
 - `tests/test_editor_dispatch.py`
 - `tests/test_dispatch_guards.py`
 
-`.trae/rules/architecture-boundaries.md` is **not** touched by this plan: after
-the new guard case is added (37 → 38 architecture cases), the main agent
-updates the rule's §六 count/table during step 7 (document write-back), with
-the real measured number.
+`.trae/rules/architecture-boundaries.md` **不在**本计划的改动范围内：新增守卫用例后（架构用例 37 → 38），主代理会在第 7 步（文档回写）中用实测数字更新该规则的 §六 计数/表格。
 
-## Concrete changes
+## 具体改动
 
 ### 1. `yate/editor.py`
 
-- `:101-139`: add `hover_popup: HoverPopup` and `hover: HoverFlows` next to
-  `completion_popup` / `completion`; add the two imports at the top with the
-  existing grouped absolute imports (no new upward edge: Editor is L3).
-- `:164-175`: extend the assembly-order comment with "hover flows are built
+- `:101-139`：在 `completion_popup` / `completion` 旁添加 `hover_popup: HoverPopup` 和 `hover: HoverFlows`；在顶部与现有的分组绝对导入一起添加这两个导入（不新增向上的边：Editor 是 L3）。
+- `:164-175`：在装配顺序注释中补充 "hover flows are built
   after `panes` and before `mouse_flows`, which receives its `on_mouse_move`
-  callback".
-- `:336`: after `await self.editor_col.mount(self.completion_popup)`, add
-  `await self.editor_col.mount(self.hover_popup)`. Two separate awaits keep the
-  existing mount semantics.
-- Do **not** add any `def apply_theme` / `.styles.background` painting (T2),
-  and do not call `lsp.notify_edit` from the hover path (AC6).
+  callback"。
+- `:336`：在 `await self.editor_col.mount(self.completion_popup)` 之后添加
+  `await self.editor_col.mount(self.hover_popup)`。两次独立的 await 保持现有的挂载语义。
+- **不要**添加任何 `def apply_theme` / `.styles.background` 绘制代码（T2），也不要在悬停路径中调用 `lsp.notify_edit`（AC6）。
 
 ### 2. `yate/editor_compose.py`
 
-- `_build_widgets` (`:138`): `ed.hover_popup = HoverPopup(id="hover-docs")`
-  (R9: id supplied by the dispatch layer; frozen in `hover-popup.tcss`).
-- `_build_pane_stack`: after `ed.panes = PaneManager(...)` (`:225-231`) and
-  before `ed.mouse_flows = MouseFlows(...)` (`:233`), construct
+- `_build_widgets`（`:138`）：`ed.hover_popup = HoverPopup(id="hover-docs")`
+  （R9：id 由 dispatch 层提供；在 `hover-popup.tcss` 中固定）。
+- `_build_pane_stack`：在 `ed.panes = PaneManager(...)`（`:225-231`）之后、
+  `ed.mouse_flows = MouseFlows(...)`（`:233`）之前，构造
 
   ```python
   ed.hover = HoverFlows(
@@ -76,101 +60,75 @@ the real measured number.
   )
   ```
 
-  then pass `on_hover_move=ed.hover.on_mouse_move` into `MouseFlows(...)`.
-  Update the factory docstring (`:213-222`) to list `HoverFlows`.
-- No App handle is stored in any flow (guard
-  `test_flow_modules_hold_no_app_handle`).
+  然后将 `on_hover_move=ed.hover.on_mouse_move` 传入 `MouseFlows(...)`。
+  更新工厂函数的 docstring（`:213-222`），列出 `HoverFlows`。
+- 任何 flow 中都不保存 App 句柄（守卫 `test_flow_modules_hold_no_app_handle`）。
 
 ### 3. `yate/flows/mouse_flows.py`
 
-- `__init__` (`:28-41`): add
-  `on_hover_move: Callable[[Pos | None], None] | None = None` as the **last**
-  parameter with a default so every existing direct construction keeps
-  working; store it. Import `Pos` from `yate.editor_core.buffer` (L0).
-- Add `_notify_hover(self, pos: Pos | None) -> None` calling the callback when
-  present (plain `Callable`, no protocol).
-- `handle_view_mouse` gate branch (`:45-49`): call `_notify_hover(None)`
-  before returning `False`, so turning `support_mouse` off removes a visible
-  card.
-- `_on_move` (`:96-106`): when **not dragging** (`not self._dragging or
-  event.button != LEFT_BUTTON`), compute
-  `pos = view.buffer_pos_from_mouse(event)`, call `_notify_hover(pos)`, and
-  `return False` — the event stays unconsumed (AC3 / "不改变既有鼠标行为").
-  At the top of the drag branch call `_notify_hover(None)`.
-- `_on_down`, `_on_up`, `_on_click` and `cancel_drag`: call
-  `_notify_hover(None)` before their existing logic (editing interaction
-  dismisses the card). Keep all existing return values and refresh calls
-  unchanged.
+- `__init__`（`:28-41`）：将
+  `on_hover_move: Callable[[Pos | None], None] | None = None` 作为**最后一个**带默认值的参数添加，使现有的所有直接构造仍然可用；保存它。从 `yate.editor_core.buffer`（L0）导入 `Pos`。
+- 添加 `_notify_hover(self, pos: Pos | None) -> None`，在回调存在时调用它（普通 `Callable`，不用 protocol）。
+- `handle_view_mouse` 的门控分支（`:45-49`）：在返回 `False` 前调用 `_notify_hover(None)`，使关闭 `support_mouse` 时移除可见卡片。
+- `_on_move`（`:96-106`）：当**未在拖拽**时（`not self._dragging or
+  event.button != LEFT_BUTTON`），计算
+  `pos = view.buffer_pos_from_mouse(event)`，调用 `_notify_hover(pos)`，并
+  `return False` —— 事件保持未被消费（AC3 / "不改变既有鼠标行为"）。
+  在拖拽分支的开头调用 `_notify_hover(None)`。
+- `_on_down`、`_on_up`、`_on_click` 和 `cancel_drag`：在各自现有逻辑之前调用 `_notify_hover(None)`（编辑交互会关闭卡片）。保持所有现有返回值和刷新调用不变。
 
 ### 4. `yate/editor_dispatch.py`
 
-- `_handle_key` (`:40-52`): after the modal-screen guard, add one idempotent
-  line `ed.hover.dismiss()`. It must **not** `return` and must not consume the
-  key: every key keeps its existing dispatch path (R10, AC6, "卡片不吞键").
-  This covers cursor moves, editing keys and `Esc` in one place.
-- If `tests/test_editor_dispatch.py` / `tests/test_dispatch_guards.py` build a
-  stub editor, add a `hover` object with a no-op `dismiss()` to that stub —
-  do not introduce `getattr` fallbacks in production code.
+- `_handle_key`（`:40-52`）：在模态屏守卫之后，添加一行幂等的 `ed.hover.dismiss()`。它**不得** `return`，也不得消费按键：每个键都保持现有的分发路径（R10、AC6、"卡片不吞键"）。这一处即可覆盖光标移动、编辑键和 `Esc`。
+- 若 `tests/test_editor_dispatch.py` / `tests/test_dispatch_guards.py` 构造了 stub editor，则为该 stub 添加一个带空操作 `dismiss()` 的 `hover` 对象 —— 不要在生产代码中引入 `getattr` 回退。
 
 ### 5. `yate/actions.py`
 
-- In the view group (`:209-236`) add
+- 在 view 组（`:209-236`）中添加
   `reg("show_hover_docs", lambda ctx: editor.hover.request_at_cursor(),
-  "Show API documentation at cursor")`.
-- `tests/test_action_table.py`: extend `_StubEditor`'s recorded hook list with
-  `hover` (a recording stand-in with `request_at_cursor`) and add a test
-  `test_show_hover_docs_action_forwards_to_hover_flows` asserting
-  `registry.execute("show_hover_docs", ctx) is True` and the call count is 1.
+  "Show API documentation at cursor")`。
+- `tests/test_action_table.py`：在 `_StubEditor` 记录的钩子列表中加入 `hover`（一个带 `request_at_cursor` 的记录用替身），并添加测试 `test_show_hover_docs_action_forwards_to_hover_flows`，断言 `registry.execute("show_hover_docs", ctx) is True` 且调用次数为 1。
 
 ### 6. `tests/test_architecture.py`
 
-- `UI_FROZEN_FILES` (`:198`): add the exact set of L2 modules imported by
-  `yate/flows/hover_flows.py`, e.g.
+- `UI_FROZEN_FILES`（`:198`）：添加 `yate/flows/hover_flows.py` 实际导入的 L2 模块集合，例如
   `"flows/hover_flows.py": {"yate.editor_components",
   "yate.editor_components.hover_popup", "yate.editor_components.view",
-  "yate.editor_components.theme", "yate.editor_components.panes"}` — reduce
-  the set to the actual imports; R11 forbids a wider whitelist.
-- Add `test_hover_key_is_shared_and_identical`: AST-assert that
-  `yate/keymaps/vsc.py` and `yate/keymaps/vim.py` each reference
-  `HOVER_DOC_KEY` inside `build_bindings` and contain no literal `"<f7>"`;
-  runtime-assert `VscKeymap().lookup(parse_key(HOVER_DOC_KEY))` and
-  `VimKeymap().lookup(...)` both resolve to `show_hover_docs`. This makes a
-  one-sided key edit fail the architecture gate (AC2).
-- Do not change `_LAYER_RANKS`, `SIZE_EXEMPT_FILES`, `UPWARD_EDGES_FROZEN` or
-  `SCROLLBAR_EXEMPT`. Expected architecture result: **38 passed** (37 + 1).
+  "yate.editor_components.theme", "yate.editor_components.panes"}` —— 将该集合收敛为实际导入项；R11 禁止更宽的白名单。
+- 添加 `test_hover_key_is_shared_and_identical`：用 AST 断言
+  `yate/keymaps/vsc.py` 和 `yate/keymaps/vim.py` 各自在 `build_bindings` 中引用
+  `HOVER_DOC_KEY`，且不包含字面量 `"<f7>"`；
+  运行时断言 `VscKeymap().lookup(parse_key(HOVER_DOC_KEY))` 和
+  `VimKeymap().lookup(...)` 均解析为 `show_hover_docs`。这样单边改动按键就会让架构门禁失败（AC2）。
+- 不要改动 `_LAYER_RANKS`、`SIZE_EXEMPT_FILES`、`UPWARD_EDGES_FROZEN` 或 `SCROLLBAR_EXEMPT`。预期架构测试结果：**38 项通过**（37 + 1）。
 
-### 7. `tests/test_hover_integration.py` (new)
+### 7. `tests/test_hover_integration.py`（新建）
 
-Use Textual pilots (`app.run_test()`), a fake READY LSP client injected the way
-`tests/test_app_lsp.py` does, `wait_until` for async workers, and
-`plain_text`/`message_text` helpers for UI-output assertions. No real server
-(`tests/conftest.py:41` forces `YATE_PYTHON_LSP=off`).
+使用 Textual pilot（`app.run_test()`）、按 `tests/test_app_lsp.py` 的方式注入的假 READY LSP 客户端、`wait_until` 等待异步 worker，并用 `plain_text`/`message_text` 辅助函数做 UI 输出断言。不使用真实服务器（`tests/conftest.py:41` 强制 `YATE_PYTHON_LSP=off`）。
 
-| Test | Arrange / Act | Assert |
+| 测试 | 安排 / 执行 | 断言 |
 | --- | --- | --- |
-| `test_f7_shows_hover_docs_in_vsc_keymap` | fake hover payload with signature + docstring, `pilot.press("f7")` | `app.editor.hover_popup.is_open is True` and body holds the Markdown text |
-| `test_f7_shows_hover_docs_in_vim_keymap_after_ctrl_slash_toggle` | `pilot.press("ctrl+/")`, then `pilot.press("f7")` | same card; `app.editor.keymaps.active.name == "vim"` |
-| `test_null_hover_result_has_zero_ui_output` | fake returns `None` | card closed, `message_text(app) == ""`, status-bar text snapshot unchanged, `plain_text(app)` unchanged |
-| `test_empty_whitespace_and_empty_array_results_have_zero_ui_output` | parametrized payloads `{}`, `"  "`, `[]` | same three assertions |
-| `test_failed_and_timed_out_requests_are_silent` | fake raises / never resolves (tiny patched timeout) | same three assertions |
-| `test_card_is_cleared_when_a_later_result_is_empty` | first payload has docs, second is `None` | after the second `f7`, `is_open is False`, no message/status change |
-| `test_typing_dismisses_card_without_swallowing_key` | card visible, `pilot.press("x")` | card closed **and** `x` inserted into the buffer (vsc) |
-| `test_escape_dismisses_card_and_keeps_existing_behavior` | card visible, `pilot.press("escape")` | card closed; existing clear_selection/keymap behavior unchanged |
-| `test_hover_does_not_start_server_or_open_document` | no READY client, monkeypatch `ensure_client` / `on_document_shown` to fail | `pilot.press("f7")` shows nothing and neither method is called |
-| `test_switching_buffer_drops_stale_hover_response` | delayed response, switch tab before it resolves | no card appears for the old document |
-| `test_cursor_move_drops_stale_keyboard_response` | delayed response, move cursor before it resolves | no card appears |
-| `test_support_mouse_off_disables_hover_and_keeps_mouse_behavior` | `:set support_mouse off` (or construct config with it off), post a non-drag `MouseMove` | `request_hover` call count 0, buffer unchanged, event not consumed |
-| `test_support_mouse_on_non_drag_move_triggers_debounced_hover` | debounce patched to 0, `MouseMove` over a symbol | one request; card shows docs |
-| `test_non_drag_mouse_move_is_not_consumed` | direct `MouseFlows.handle_view_mouse` with a move | returns `False` (existing behavior), `event.stop` not called |
-| `test_bind_key_both_retargets_hover_action_in_both_keymaps` | `ExtensionAPI.bind_key(..., keymap="both")` with a new key (use the fixture from `tests/test_extensions.py`) | both `vsc` and `vim` resolve the new key to `show_hover_docs`; old key no longer does |
+| `test_f7_shows_hover_docs_in_vsc_keymap` | 伪造带签名 + docstring 的悬停载荷，`pilot.press("f7")` | `app.editor.hover_popup.is_open is True`，且正文包含 Markdown 文本 |
+| `test_f7_shows_hover_docs_in_vim_keymap_after_ctrl_slash_toggle` | `pilot.press("ctrl+/")`，然后 `pilot.press("f7")` | 同一张卡片；`app.editor.keymaps.active.name == "vim"` |
+| `test_null_hover_result_has_zero_ui_output` | 假对象返回 `None` | 卡片关闭，`message_text(app) == ""`，状态栏文本快照不变，`plain_text(app)` 不变 |
+| `test_empty_whitespace_and_empty_array_results_have_zero_ui_output` | 参数化载荷 `{}`、`"  "`、`[]` | 上述三项断言相同 |
+| `test_failed_and_timed_out_requests_are_silent` | 假对象抛错 / 永不解析（打补丁为极小超时） | 上述三项断言相同 |
+| `test_card_is_cleared_when_a_later_result_is_empty` | 第一个载荷有文档，第二个为 `None` | 第二次 `f7` 后，`is_open is False`，消息/状态无变化 |
+| `test_typing_dismisses_card_without_swallowing_key` | 卡片可见，`pilot.press("x")` | 卡片关闭**且** `x` 被插入缓冲区（vsc） |
+| `test_escape_dismisses_card_and_keeps_existing_behavior` | 卡片可见，`pilot.press("escape")` | 卡片关闭；现有的 clear_selection/keymap 行为不变 |
+| `test_hover_does_not_start_server_or_open_document` | 无 READY 客户端，对 `ensure_client` / `on_document_shown` 打 monkeypatch 使其失败 | `pilot.press("f7")` 不显示任何内容，且两个方法均未被调用 |
+| `test_switching_buffer_drops_stale_hover_response` | 延迟响应，在解析前切换标签页 | 旧文档不出现卡片 |
+| `test_cursor_move_drops_stale_keyboard_response` | 延迟响应，在解析前移动光标 | 不出现卡片 |
+| `test_support_mouse_off_disables_hover_and_keeps_mouse_behavior` | `:set support_mouse off`（或构造该选项关闭的配置），投递一个非拖拽 `MouseMove` | `request_hover` 调用次数为 0，缓冲区不变，事件未被消费 |
+| `test_support_mouse_on_non_drag_move_triggers_debounced_hover` | 防抖打补丁为 0，在符号上触发 `MouseMove` | 一次请求；卡片显示文档 |
+| `test_non_drag_mouse_move_is_not_consumed` | 直接以一次 move 调用 `MouseFlows.handle_view_mouse` | 返回 `False`（现有行为），未调用 `event.stop` |
+| `test_bind_key_both_retargets_hover_action_in_both_keymaps` | `ExtensionAPI.bind_key(..., keymap="both")` 使用新键（使用 `tests/test_extensions.py` 中的 fixture） | `vsc` 和 `vim` 均将新键解析为 `show_hover_docs`；旧键不再如此 |
 
 ### 8. `tests/test_app_mouse.py`
 
-Add `test_non_drag_mouse_move_keeps_existing_selection_and_cursor_behavior`
-(no hover card, cursor unchanged, no refresh storm), guarding that the new
-callback injection did not alter the existing mouse contract.
+添加 `test_non_drag_mouse_move_keeps_existing_selection_and_cursor_behavior`（无悬停卡片、光标不变、无刷新风暴），守卫新的回调注入没有改变既有鼠标契约。
 
-## Acceptance commands
+## 验收命令
 
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/test_hover_integration.py -q -n 1
@@ -178,22 +136,12 @@ callback injection did not alter the existing mouse contract.
 .venv\Scripts\python.exe -m pytest tests/test_hover_integration.py tests/test_architecture.py -q -n auto
 ```
 
-All exit codes 0; the last command checks the parallel/CI-like path. Any flake
-must be re-run with `-n 1` and the test fixed, not excused. Main-agent wave-4
-gate also runs full pyright.
+所有命令退出码均为 0；最后一条检查并行/类 CI 路径。任何 flake 都必须用 `-n 1` 复跑并修复测试，不得姑息。主代理的波次 4 门禁还运行完整 pyright。
 
-## Risks and rollback
+## 风险与回滚
 
-- Risk: `ed.hover.dismiss()` on every key invalidates an in-flight request
-  started by the same `f7` press? No — dismiss runs **before** the action
-  executes; the action then increments a fresh token. Covered by
-  `test_f7_shows_hover_docs_in_vsc_keymap`.
-- Risk: `pilot.press("f7")` may not produce `\x1b[18~` in headless Textual.
-  `key_codec._NAMED_KEYS` maps it; if the pilot uses a different spelling,
-  assert via `event_to_raw` first and report the deviation with the actual
-  event key before adapting the test.
-- Risk: new `editor_components` imports in `hover_flows.py` fail R11 until the
-  whitelist entry lands — both are in this same plan, so keep them in sync.
-- Risk: architecture count changes to 38; the main agent must write the real
-  number back into `architecture-boundaries.md` §六 at step 7.
-- Rollback: revert this single wave commit; wave-5 smoke is the only consumer.
+- 风险：每个按键都执行 `ed.hover.dismiss()` 会不会使同一次 `f7` 按下所启动的在途请求失效？不会 —— dismiss 在动作执行**之前**运行；动作随后递增一个全新的 token。`test_f7_shows_hover_docs_in_vsc_keymap` 已覆盖。
+- 风险：在无头 Textual 中 `pilot.press("f7")` 可能不会产生 `\x1b[18~`。`key_codec._NAMED_KEYS` 对其做了映射；若 pilot 使用了不同的拼写，先通过 `event_to_raw` 断言，并在调整测试前用实际的事件键上报这一偏离。
+- 风险：`hover_flows.py` 中新增的 `editor_components` 导入在白名单条目落地前会导致 R11 失败 —— 两者都在本计划内，须保持同步。
+- 风险：架构计数变为 38；主代理必须在第 7 步把真实数字回写到 `architecture-boundaries.md` §六。
+- 回滚：回退这一波次的单个提交；波次 5 的冒烟测试是唯一的消费方。

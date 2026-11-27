@@ -1,27 +1,27 @@
-# D3: refresh `tests/README.md` coverage map (plan e)
+# D3：刷新 `tests/README.md` 覆盖率地图（计划 e）
 
-> **实施状态**：✅ 已实施 —— 2026-11-20（`19ecb116`，计数改为 guard 动态口径）
+> **实施状态**：✅ 已实施 —— 2026-11-20（`19ecb116`，计数改为守卫动态口径）
 
-Parent: [../full-repo-sweep-plan.md](../full-repo-sweep-plan.md).
+父计划：[../full-repo-sweep-plan.md](../full-repo-sweep-plan.md)。
 
-## Input
+## 输入
 
-`../../../tests/README.md:13-18` claims "2026-10-29 measurement: 98 of the 134 `yate/` modules ... 150 `.py` files". Current measurement: 149 non-`__init__.py` modules and 169 `.py` files. The file itself states at `:13` that the map is a spot-check, not an exhaustive registry.
+`../../../tests/README.md:13-18` 声称 "2026-10-29 测量：134 个 `yate/` 模块中有 98 个 ... 共 150 个 `.py` 文件"。当前测量结果为 149 个非 `__init__.py` 模块和 169 个 `.py` 文件。该文件本身在 `:13` 处说明，这张地图是抽查，而非详尽的清单。
 
-## Exclusive files
+## 独占文件
 
 - `../../../tests/README.md`
 
-## Design
+## 设计
 
-1. Replace the stale numeric sentence with a dynamic statement: the spot-check map is intentionally not a complete registry; the authoritative file set is guarded by `test_source_files_within_size_threshold` in `../../../tests/test_architecture.py` and the module-level constants there.
-2. If counts are retained, recompute them with `len(list(Path("yate").rglob("*.py")))` and the non-`__init__` filter and label them `2026-11-20 measurement`. Prefer the dynamic wording to avoid a third drift.
-3. Keep the rest of the README (organization, indirect coverage table, conventions, `conftest.py` pointers) untouched.
+1. 用动态表述替换过时的数字句子：这张抽查地图有意不是一份完整的清单；权威的文件集合由 `../../../tests/test_architecture.py` 中的 `test_source_files_within_size_threshold` 及其模块级常量守卫。
+2. 如果保留计数，则用 `len(list(Path("yate").rglob("*.py")))` 和非 `__init__` 过滤条件重新计算，并标注为 `2026-11-20 measurement`。优先采用动态措辞，以免出现第三次漂移。
+3. 保持 README 的其余部分（组织结构、间接覆盖率表格、约定、`conftest.py` 指引）不动。
 
-## Verification
+## 验证
 
-- Document-only change: no test run required by `../../rules/misc-rules.md` §三; re-read the edited paragraph and mechanically re-run the count expression used in the text.
+- 纯文档变更：按 `../../rules/misc-rules.md` §三无需运行测试；重新阅读编辑过的段落，并机械地重跑文中使用的计数表达式。
 
-## Risk / rollback
+## 风险 / 回滚
 
-Risk: removing concrete numbers reduces guidance; mitigate by pointing readers at the executable guard. Rollback: restore the original paragraph.
+风险：移除具体数字会降低指导性；可通过把读者指向可执行的守卫来缓解。回滚：恢复原段落。

@@ -1,60 +1,50 @@
-# big-module-split-2 editor plan-a: extract assembly factories
+# big-module-split-2 editor 计划-a：抽取装配工厂
 
-**Wave**: wave-1
-**Issue**: Gitee IKSFMQ (candidate P1, wave-a)
-**Depends on**: nothing (first wave)
+**波次**：wave-1
+**议题**：Gitee IKSFMQ（候选 P1，wave-a）
+**依赖**：无（首个波次）
 
-## Goal
+## 目标
 
-Extract the five module-level assembly factory functions from
-`yate/editor.py` into a sibling module `yate/editor_compose.py`:
+将 `yate/editor.py` 中的五个模块级装配工厂函数抽取到同级模块 `yate/editor_compose.py`：
 
-- `_build_models` (L88-L146, 59 lines)
-- `_build_widgets` (L149-L222, 74 lines)
-- `_open_startup_target` (L225-L235, 11 lines)
-- `_build_pane_stack` (L238-L386, 149 lines)
-- `_build_key_ui` (L389-L403, 15 lines)
+- `_build_models`（L88-L146，59 行）
+- `_build_widgets`（L149-L222，74 行）
+- `_open_startup_target`（L225-L235，11 行）
+- `_build_pane_stack`（L238-L386，149 行）
+- `_build_key_ui`（L389-L403，15 行）
 
-Total extracted: ~316 lines of factory code. After extraction,
-`editor.py` drops from 1275 to ~959 lines (still exempt; wave-b
-handles the rest).
+共抽取约 316 行工厂代码。抽取后，`editor.py` 从 1275 行降至约 959 行（仍属豁免；其余部分由 wave-b 处理）。
 
-## Non-goals
+## 非目标
 
-- Changing the `Editor` public API surface.
-- Changing the construction order or semantics.
-- Extracting key/mouse dispatch (that is wave-b).
-- Removing the `SIZE_EXEMPT_FILES` entry (wave-b does that).
+- 改变 `Editor` 的公开 API 表面。
+- 改变构造顺序或语义。
+- 抽取按键/鼠标分发（那是 wave-b 的工作）。
+- 移除 `SIZE_EXEMPT_FILES` 条目（由 wave-b 完成）。
 
-## Alternative considered and rejected
+## 考虑过但否决的备选方案
 
-**Alternative**: Extract into `editor/_compose.py` (subpackage).
-**Rejected**: The issue explicitly suggests a sibling module
-`editor_compose.py`. A subpackage would require converting `editor.py`
-into `editor/__init__.py`, breaking every `from yate.editor import
-Editor` consumer (app.py, commands.py, actions.py, diagnostics.py,
-tests, smoke harness). The sibling module approach is zero-breakage.
+**备选方案**：抽取到 `editor/_compose.py`（子包）。
+**否决理由**：议题明确建议同级模块 `editor_compose.py`。子包需要将 `editor.py` 改造为 `editor/__init__.py`，这会破坏每一个 `from yate.editor import Editor` 的使用方（app.py、commands.py、actions.py、diagnostics.py、tests、冒烟测试框架）。同级模块方案可做到零破坏。
 
-## Exclusive file list
+## 独占文件清单
 
-| File | Action |
+| 文件 | 操作 |
 |---|---|
-| `yate/editor.py` | Remove L86-L403 (factories + section comment); add `from yate.editor_compose import ...` |
-| `yate/editor_compose.py` | **NEW**: the five factory functions + necessary imports |
-| `tests/test_editor_compose.py` | **NEW**: structural tests for the new module |
+| `yate/editor.py` | 删除 L86-L403（工厂函数 + 分节注释）；添加 `from yate.editor_compose import ...` |
+| `yate/editor_compose.py` | **新建**：五个工厂函数 + 必要的 import |
+| `tests/test_editor_compose.py` | **新建**：新模块的结构测试 |
 
-No other files are touched. `Editor.__init__` keeps calling the same
-five functions in the same order; only the import source changes.
+不触碰其它文件。`Editor.__init__` 继续以相同顺序调用同样的五个函数；仅 import 来源发生变化。
 
-## Detailed changes
+## 详细改动
 
-### Step 1: Create `yate/editor_compose.py`
+### 第 1 步：创建 `yate/editor_compose.py`
 
-New file containing the five functions verbatim from `editor.py`
-L86-L403. The functions are already module-level and parameterized by
-`ed: Editor`; no code changes are needed beyond adjusting imports.
+新文件逐字包含 `editor.py` L86-L403 的五个函数。这些函数本就是模块级并以 `ed: Editor` 参数化；除调整 import 外无需改动代码。
 
-**Imports needed** (derived from the function bodies):
+**所需 import**（由函数体推导）：
 
 ```python
 """Assembly factories for the Editor widget tree.
@@ -111,25 +101,22 @@ from yate.services.workspace import Workspace
 from yate.session import EditorSession
 ```
 
-**Type annotation for `ed` parameter**: The factories take
-`ed: yate.editor.Editor`. See the correction section below for the
-import-cycle resolution (main-agent correction, 2026-11-04).
+`ed` 参数的类型标注：工厂函数接受 `ed: yate.editor.Editor`。导入环的解决办法见下方的更正章节（主代理更正，2026-11-04）。
 
-**Functions to copy** (line references are to the current `editor.py`):
+**待复制的函数**（行号引用针对当前 `editor.py`）：
 
-1. `_build_models(ed: Editor, keymap: str | None) -> None` (L88-L146)
-2. `_build_widgets(ed: Editor) -> None` (L149-L222)
-3. `_open_startup_target(ed: Editor, target: str | Path | None) -> None` (L225-L235)
-4. `_build_pane_stack(ed: Editor) -> None` (L238-L386)
-5. `_build_key_ui(ed: Editor) -> None` (L389-L403)
+1. `_build_models(ed: Editor, keymap: str | None) -> None`（L88-L146）
+2. `_build_widgets(ed: Editor) -> None`（L149-L222）
+3. `_open_startup_target(ed: Editor, target: str | Path | None) -> None`（L225-L235）
+4. `_build_pane_stack(ed: Editor) -> None`（L238-L386）
+5. `_build_key_ui(ed: Editor) -> None`（L389-L403）
 
-Each function is copied verbatim. The `# --- assembly` section comment
-(L86) moves to the new file's module docstring.
+每个函数逐字复制。`# --- assembly` 分节注释（L86）移至新文件的模块 docstring。
 
-### Step 2: Edit `yate/editor.py`
+### 第 2 步：编辑 `yate/editor.py`
 
-1. **Remove** lines L86-L403 (the section comment + five functions).
-2. **Add** import at the top (after existing imports, line ~81):
+1. **删除** L86-L403 行（分节注释 + 五个函数）。
+2. **添加**顶部的 import（在现有 import 之后，约第 81 行）：
    ```python
    from yate.editor_compose import (
        _build_key_ui,
@@ -139,12 +126,11 @@ Each function is copied verbatim. The `# --- assembly` section comment
        _open_startup_target,
    )
    ```
-3. **Keep** `Editor.__init__` unchanged (it still calls the same five
-   functions in the same order; they now come from the import).
+3. **保持** `Editor.__init__` 不变（它仍以相同顺序调用同样的五个函数；现在这些函数来自 import）。
 
-### Step 3: Create `tests/test_editor_compose.py`
+### 第 3 步：创建 `tests/test_editor_compose.py`
 
-New test file verifying the structural properties of the new module:
+新测试文件，验证新模块的结构属性：
 
 ```python
 """Tests for yate.editor_compose (assembly factories)."""
@@ -222,48 +208,22 @@ def test_editor_compose_no_actions_no_commands_import() -> None:
     assert "import yate.commands" not in src
 ```
 
-## Correction: import-cycle resolution (main-agent, 2026-11-04)
+## 更正：导入环的解决（主代理，2026-11-04）
 
-The original draft claimed a bare string annotation `"Editor"` plus
-`from yate.editor_compose import ...` inside `editor.py` is enough. It
-is not, and the runtime evidence is decisive:
+最初的草稿声称，仅用一个裸字符串标注 `"Editor"` 加上 `editor.py` 中的 `from yate.editor_compose import ...` 就足够了。事实并非如此，运行时证据是决定性的：
 
-1. `from yate.editor_compose import _build_models` (editor.py top) runs
-   while `yate.editor` is partially initialized, so a module-level
-   `from yate.editor import Editor` inside `editor_compose.py` raises
-   `ImportError: cannot import name 'Editor' from partially initialized
-   module` on the production path (cli -> app -> editor ->
-   editor_compose -> editor).
-2. Deferring the compose import to the bottom of `editor.py` only moves
-   the failure: importing `yate.editor_compose` first (tests do) makes
-   editor.py's bottom from-import hit the still-partial compose module.
-3. pyright strict cannot resolve an unimported `Editor` name
-   (reportUndefinedVariable), and R6 bans `TYPE_CHECKING`, so the
-   annotation must be backed by a real import.
+1. `from yate.editor_compose import _build_models`（editor.py 顶部）在 `yate.editor` 部分初始化时运行，因此 `editor_compose.py` 中的模块级 `from yate.editor import Editor` 会在生产路径（cli -> app -> editor -> editor_compose -> editor）上抛出 `ImportError: cannot import name 'Editor' from partially initialized module`。
+2. 将 compose 的 import 推迟到 `editor.py` 底部只是转移了故障：先导入 `yate.editor_compose`（测试就是这么做的）会使 editor.py 底部的 from-import 命中仍处于部分初始化状态的 compose 模块。
+3. pyright strict 无法解析未导入的 `Editor` 名称（reportUndefinedVariable），而 R6 禁用 `TYPE_CHECKING`，因此标注必须有真实的 import 支撑。
 
-**Corrected wiring (cycle-safe in both import orders)**:
+**更正后的接线（两种导入顺序下均安全无环）**：
 
-- `editor_compose.py` uses a module-object import at top:
-  `import yate.editor`; the parameter annotation is
-  `ed: yate.editor.Editor` (never evaluated at runtime under
-  `from __future__ import annotations`; `import yate.editor` on a
-  partially initialized module only binds the module object and never
-  raises).
-- `editor.py` uses a module-object import at top:
-  `import yate.editor_compose`; `Editor.__init__` calls the factories
-  through module attribute access at call time, e.g.
-  `editor_compose._build_models(self, keymap)`. By the time `__init__`
-  runs, both modules are fully initialized regardless of import order.
-- Cross-module underscore access is an established repo pattern under
-  the strict gate (`yate/editor_lsp/manager.py:43` imports
-  `_from_utf16` from `yate.editor_lsp.parsing`); pyright stays clean.
-- The verification step `test_editor_imports_factories_from_compose`
-  asserts the module-object import form instead:
-  `"import yate.editor_compose" in src` plus
-  `"editor_compose._build_models" in src` (and likewise for the other
-  four call sites).
+- `editor_compose.py` 在顶部使用模块对象导入：`import yate.editor`；参数标注为 `ed: yate.editor.Editor`（在 `from __future__ import annotations` 下永不在运行时求值；对部分初始化的模块执行 `import yate.editor` 只会绑定模块对象，绝不会抛错）。
+- `editor.py` 在顶部使用模块对象导入：`import yate.editor_compose`；`Editor.__init__` 在调用时通过模块属性访问来调用工厂函数，例如 `editor_compose._build_models(self, keymap)`。当 `__init__` 运行时，无论导入顺序如何，两个模块都已完全初始化。
+- 跨模块的下划线访问是严格门禁下既有的仓库惯例（`yate/editor_lsp/manager.py:43` 从 `yate.editor_lsp.parsing` 导入 `_from_utf16`）；pyright 保持干净。
+- 验证步骤 `test_editor_imports_factories_from_compose` 改为断言模块对象导入形式：`"import yate.editor_compose" in src` 加上 `"editor_compose._build_models" in src`（另外四处调用点同理）。
 
-## Verification commands (execute in order)
+## 验收命令（按顺序执行）
 
 ```powershell
 # 1. pyright strict -- zero diagnostics
@@ -285,33 +245,30 @@ is not, and the runtime evidence is decisive:
 .venv\Scripts\python.exe -c "print(len(open('yate/editor_compose.py').read().splitlines()))"
 ```
 
-## Risk assessment
+## 风险评估
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |---|---|---|
-| Circular import (editor <-> editor_compose) | Import fails at startup | `from __future__ import annotations` makes `ed: Editor` a string annotation; no runtime import of Editor needed in compose module |
-| Missing import in new module | pyright error | Copy all imports from the original functions; verify with pyright |
-| `test_flow_modules_hold_no_app_handle` flags new file | Architecture test fails | The module uses `ed: Editor` parameter, never `self.app`; structural test in step 3 verifies this |
-| R5 violation (compose imports actions/commands) | Architecture test fails | Structural test `test_editor_compose_no_actions_no_commands_import` prevents this |
+| 循环导入（editor <-> editor_compose） | 启动时导入失败 | `from __future__ import annotations` 使 `ed: Editor` 成为字符串标注；compose 模块中无需运行时导入 Editor |
+| 新模块缺少 import | pyright 报错 | 复制原函数的所有 import；用 pyright 验证 |
+| `test_flow_modules_hold_no_app_handle` 标记新文件 | 架构测试失败 | 该模块使用 `ed: Editor` 参数，从不用 `self.app`；第 3 步的结构测试对此进行验证 |
+| 违反 R5（compose 导入 actions/commands） | 架构测试失败 | 结构测试 `test_editor_compose_no_actions_no_commands_import` 可防止这种情况 |
 
-## Rollback path
+## 回滚路径
 
-If any step fails: revert `yate/editor.py` to its pre-wave-1 state and
-delete `yate/editor_compose.py` and `tests/test_editor_compose.py`.
-The changes are purely additive (new file) + removal from editor.py;
-a git checkout of the original file is sufficient.
+若任一步骤失败：将 `yate/editor.py` 恢复到 wave-1 之前的状态，并删除 `yate/editor_compose.py` 和 `tests/test_editor_compose.py`。改动纯粹是新增（新文件）+ 从 editor.py 删除；对原文件执行一次 git checkout 即可。
 
-## Mermaid: module structure after wave-1
+## Mermaid：wave-1 之后的模块结构
 
 ```mermaid
 flowchart LR
     subgraph yate/
-        ED["editor.py<br/>(~959 lines)<br/>Editor class + operations"]
-        EC["editor_compose.py<br/>(~330 lines)<br/>5 assembly factories"]
+        ED["editor.py<br/>(约 959 行)<br/>Editor 类 + 操作"]
+        EC["editor_compose.py<br/>(约 330 行)<br/>5 个装配工厂"]
     end
 
     ED -->|"from yate.editor_compose import<br/>_build_*"| EC
-    EC -->|"ed: Editor<br/>(forward ref)"| ED
+    EC -->|"ed: Editor<br/>(前向引用)"| ED
 
     style ED fill:#bbdefb,color:#0d47a1
     style EC fill:#c8e6c9,color:#1a5e20
