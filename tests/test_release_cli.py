@@ -68,7 +68,7 @@ def _point_release_at(monkeypatch: pytest.MonkeyPatch, repo: Path) -> None:
 
 def _stub_pipeline(
     monkeypatch: pytest.MonkeyPatch,
-    failure: OSError | KeyboardInterrupt,
+    failure: OSError | ValueError | KeyboardInterrupt,
 ) -> None:
     """Changelog stub that writes the files and then raises *failure*.
 
@@ -102,17 +102,18 @@ def _stub_pipeline(
     "failure",
     [
         OSError("disk full during changelog write"),
+        ValueError("duplicate changelog heading"),
         KeyboardInterrupt(),
     ],
-    ids=["oserror", "keyboard-interrupt"],
+    ids=["oserror", "valueerror", "keyboard-interrupt"],
 )
 def test_release_rolls_back_on_non_runtime_error_failure(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
-    failure: OSError | KeyboardInterrupt,
+    failure: OSError | ValueError | KeyboardInterrupt,
 ) -> None:
-    """An OSError / KeyboardInterrupt mid-run rolls the release back (M4)."""
+    """A non-RuntimeError mid-run failure rolls the release back (M4)."""
     work = _seed_origin_and_clone(tmp_path)
     _stub_pipeline(monkeypatch, failure)
     _point_release_at(monkeypatch, work)

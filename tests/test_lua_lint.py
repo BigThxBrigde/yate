@@ -200,6 +200,53 @@ def test_double_dash_inside_quoted_string_keeps_global_leak_detection(
 
 
 @requires_lupa
+def test_comment_long_brackets_do_not_disable_later_rules(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """A ``[[`` inside a comment must not blank every subsequent line (S5-2)."""
+    source = "-- see [[ array opener\nprint(1)\nleak = 2\n"
+    issues = _lint(tmp_path, source, compiler, modules)
+    pairs = [(issue.line, issue.rule) for issue in issues]
+
+    assert (2, "banned-call") in pairs
+    assert (3, "global-leak") in pairs
+
+
+@requires_lupa
+def test_trailing_comment_long_brackets_do_not_disable_later_rules(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """Inline comments are masked too, not mistaken for long strings."""
+    issues = _lint(tmp_path, "local t = {1, 2} -- [[ note\nprint(3)\n", compiler, modules)
+
+    assert any(issue.rule == "banned-call" and issue.line == 2 for issue in issues)
+
+
+@requires_lupa
+def test_block_comment_still_hides_only_its_own_lines(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """A real block comment suppresses rules inside it, then resumes."""
+    issues = _lint(tmp_path, "--[[\nprint(1)\n]]\nleak = 2\n", compiler, modules)
+
+    assert [(issue.line, issue.rule) for issue in issues] == [(4, "global-leak")]
+
+
+@requires_lupa
+def test_local_inside_long_string_is_not_a_declaration(
+    tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
+) -> None:
+    """Declarations are collected from masked lines, not string contents."""
+    source = 'local s = [[ local hidden = 1 ]]\nhidden = 2\n'
+    issues = _lint(tmp_path, source, compiler, modules)
+
+    assert any(
+        issue.rule == "global-leak" and issue.message == "global assignment: hidden"
+        for issue in issues
+    )
+
+
+@requires_lupa
 def test_indented_global_leak_is_reported(
     tmp_path: Path, compiler: Callable[[str, str], None], modules: set[str]
 ) -> None:

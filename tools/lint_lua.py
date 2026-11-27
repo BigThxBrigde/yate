@@ -75,6 +75,10 @@ _GLOBAL_FUNC_RE = re.compile(r"^\s*function\s+([A-Za-z_]\w*)\s*\(")
 #: Long-bracket string opener, e.g. ``[[`` or ``[==[``.
 _LONG_STRING_OPEN_RE = re.compile(r"\[(=*)\[")
 
+#: Long-bracket comment opener, e.g. ``--[[`` or ``--[==[``.  Its inner
+#: brackets are comments, never string delimiters.
+_COMMENT_OPEN_RE = re.compile(r"--\[(=*)\[")
+
 #: ``local name`` / ``local name = ...`` declarations (forward declarations
 #: included: ``local spawn_piece`` followed by ``spawn_piece = function()``).
 _LOCAL_DECL_RE = re.compile(r"\blocal\s+([A-Za-z_]\w*)\s*(?:=|$)")
@@ -143,8 +147,9 @@ def strip_comments(source: str) -> list[str]:
     """Remove ``--`` and ``--[[ ]]`` comments, preserving the line count.
 
     A textual approximation: a ``--`` sequence inside a string literal ends
-    the line early.  The rule set only scans bundled extension sources, and
-    the approximation is pinned by tests instead of hidden.
+    the line early.  The string-sensitive rules use :func:`mask_strings`
+    output instead, so this affects only ``require`` collection and local
+    declarations; the approximation is pinned by tests instead of hidden.
     """
     stripped: list[str] = []
     in_block = False
@@ -171,12 +176,16 @@ def mask_strings(source: str) -> str:
     Quoted (``"..."`` / ``'...'``) and long-bracket (``[[...]]``) literals
     have their contents replaced by spaces (quotes and brackets kept), so
     the banned-call patterns can never match text inside a string while
-    every rule still sees one output line per input line.  Line numbers are
+    every rule still sees one output line per input line.  Comments are
+    masked in the same pass: a ``[[`` inside a comment is never mistaken for
+    a long-string opener (the D-10 failure class).  Line numbers are
     preserved: the same number indexes :func:`strip_comments` output.
     """
     out: list[str] = []
     in_long = False
     long_eq = ""
+    in_comment = False
+    comment_close = ""
     for line in source.split("\n"):
         masked: list[str] = []
         i = 0
@@ -193,6 +202,32 @@ def mask_strings(source: str) -> str:
                 masked.append(close)
                 i = idx + len(close)
                 in_long = False
+                continue
+            if in_comment:
+                idx = line.find(comment_close, i)
+                if idx == -1:
+                    masked.append(" " * (n - i))
+                    i = n
+                    continue
+                masked.append(" " * (idx + len(comment_close) - i))
+                i = idx + len(comment_close)
+                in_comment = False
+                continue
+            comment = _COMMENT_OPEN_RE.match(line, i)
+            if comment is not None:
+                comment_close = f"]{comment.group(1)}]"
+                idx = line.find(comment_close, comment.end())
+                if idx == -1:
+                    masked.append(" " * (n - i))
+                    i = n
+                    in_comment = True
+                    continue
+                masked.append(" " * (idx + len(comment_close) - i))
+                i = idx + len(comment_close)
+                continue
+            if line.startswith("--", i):
+                masked.append(" " * (n - i))
+                i = n
                 continue
             opener = _LONG_STRING_OPEN_RE.match(line, i)
             if opener is not None:
@@ -265,20 +300,21 @@ def check_source(
                 )
             )
 
+    # Mask strings and comments on the ORIGINAL source first: stripping
+    # comments before masking lets a "--" inside a string truncate the line,
+    # and an unclosed [[ in a comment blanks every later rule.  Both states
+    # are now handled in one pass; line counts are preserved.
+    masked_lines = strip_comments(mask_strings(source))
+
+    # Declarations come from masked lines too: a `local hidden` inside a long
+    # string must not suppress a later real global-leak report.
     locals_declared: set[str] = set()
-    for code in code_lines:
+    for code in masked_lines:
         locals_declared.update(_LOCAL_DECL_RE.findall(code))
         for params in _FUNCTION_PARAMS_RE.findall(code):
             locals_declared.update(
                 {param.strip() for param in params.split(",") if param.strip()}
             )
-
-    # Mask strings on the ORIGINAL source first: stripping comments before
-    # masking lets a "--" inside a string truncate the line, which in turn
-    # leaves an unclosed [[ and silently disables every later rule.  On the
-    # masked text "--" inside strings is already blanked, so comment removal
-    # cannot confuse the long-string state.  Both passes keep line counts.
-    masked_lines = strip_comments(mask_strings(source))
     depth = 0
     for number, (code, masked) in enumerate(zip(code_lines, masked_lines), start=1):
         # Banned calls scan string-masked text so a literal like
