@@ -172,6 +172,7 @@ git --no-pager diff --check
 | S5 审核回炉 | `b0f76c3c`（21:42） | `code-reviewer-tools` 交付 13 闭合 / 5 部分闭合 + 1 major（Lua lint 字符串内 `--` 致后续规则静默失效）+ 9 minor；主代理逐条裁定后全部修复并补负向用例 | 定点 11 文件全通过、pyright 0 |
 | 门禁（重验收） | — | §二.7 要求 major 回炉后重跑六道门禁，全部 exit 0 | pyright 0 / pytest 4121 收集·0 failed / 架构 48 / 覆盖率 92.78% / 冒烟 128·1559 / changelog 0 |
 | D-7 收尾 | `35d19133`（11-27 06:43） | 用户要求「完成未完成的任务」；LSP 服务器 stderr 改 `PIPE` + 排空日志任务，`_cleanup` 取消；补源码钉与 caplog 功能用例 | LSP 87 条测试通过、pyright 0；全量门禁重跑见下 |
+| 同步复核回炉 | `966cc11c`（11-27） | 两名同步 `code-review-expert` 交付最终报告；闭合 D-14 major（Lua 注释内 `[[` 静默失效）+ 同批 minor；D-15/D-16 登记待办 | 定点 23 条测试通过、随包 Lua lint 0 issue；全量门禁见 §八 |
 
 ## 七、偏离记录（回填）
 
@@ -189,16 +190,21 @@ git --no-pager diff --check
 | D-10 | S5 major 回炉 | Lua lint 的注释剥离先于字符串屏蔽，字符串内 `--` 会令后续规则静默失效（相对修复前为回归）；改为先屏蔽字符串再剥注释，补 2 条负向用例；附带 9 条 minor（回滚异常集、`wait_for` 边界、zip 无备份分支、icon 用例判别力、explorer 早退、3 处行宽、D9 措辞等）一并闭合 |
 | D-11 | M4 未按方案「原样 `raise`」 | 实现为 `return _abort_with_rollback(...)`（受控 exit 1），Ctrl+C 退出码为 1 而非 130；功能上回滚与报告完整，保留现状并登记偏离，如需 130 语义另行处理 |
 | D-12 | 审核员检查时方案尚未回填 | `code-reviewer-tools` 报告的「§六/§七 待回填」在其检查时点成立；主代理随后已回填执行日志、门禁数字与偏离记录 |
+| D-13 | 异步审核员零产出 / 运行时强停 | 失败原因：关闭握手超时后运行时强制终止（`shutdown_response` 自动确认 + system reminder），非模型未注册（定义中 `DeepSeek-V4.1-Flash` 与 `task-orchestration.md` §一.3 一致）。改为同步 `task` 调用重跑两名审核员，均直接交付报告；据此又闭合 1 major（见 D-14） |
+| D-14 | D-10 同类 major 再回炉（**已闭合**） | `mask_strings` 曾把注释里的 `[[` 当作长字符串开头，令其后 `banned-call`/`global-leak` 全部静默失效（实测 3 变体，lupa 编译通过）；改为同一遍扫描同时屏蔽字符串与行/块注释，`locals_declared` 改从 masked 行收集，补 4 条负向用例（`966cc11c`） |
+| D-15 | M2/M3 性能残留（登记待办） | 同步产品审核实测：`diff.py:124` 单行 cap=2000 生效，但 1999 字符空白密集行 ×200 对仍约 77 s（UI 线程）；`vim.py:1015,1022` 的 `p`/`P` 在 100000 上限下约 1 s / 30 万行。原 MAJOR 主诉（无界/数十分钟）已解决，主诉级别降为 minor；按 §二.7 仅登记待办，不继续扩大本轮范围。候选修法：行对总量预算 / cap 降至约 500；`p`/`P` 单独设较小上界并保留宏告警路径 |
+| D-16 | 同步审核的其他 minor | `mask_strings`/`strip_comments` docstring 单边过时与 `release` 的 `ValueError` 无用例已随 `966cc11c` 修正；`tests/test_theme_reset_fixture.py:22-28` 断言 `theme._listeners` 私有全局，属测试与实现耦合（行为正确），登记后续改为公共 API 哨兵断言 |
 
 ## 八、当前状态（2026-11-27 更新）
 
-- **代码级任务：全部闭合**。33 条原始 findings、S5 独立审核的 1 major + 9 minor、
-  以及最后一项 D-7（LSP stderr）均已修复并有回归用例；无 blocker / major 未闭合。
-- **最终门禁（D-7 后重跑，主代理亲跑、全部 exit 0）**：pyright 四路径 0 errors；
-  `pytest tests/ -q -n auto` 4122 收集 · 0 failed；架构 48 passed；覆盖率 **92.85%**
+- **代码级任务：无 blocker / major 未闭合**。33 条原始 findings、S5 独立审核的
+  1 major + 9 minor、D-7（LSP stderr）以及同步复核发现的 D-14 major 均已修复并有
+  回归用例；D-15 的 2 条性能残留与 D-16 的 theme 测试耦合按 §二.7 仅登记待办。
+- **最近一次全量门禁（同步复核回炉后，主代理亲跑、全部 exit 0）**：pyright 四路径 0 errors；
+  `pytest tests/ -q -n auto` 4127 收集 · 0 failed；架构 48 passed；覆盖率 **92.82%**
   （阈值 75）；冒烟 128/128 场景 · 1559/1559 检查；`tools.changelog check` 0。
 - **分支状态**：worktree `yate-full-repo-review` / 分支 `feature/enh-full-repo-review`，
-  HEAD `35d19133`（代码）+ 本节的文档回填提交；**未推送、未合并**，工作树干净。
+  HEAD `966cc11c`（代码）+ 本节的文档回填提交；**未推送、未合并**，工作树干净。
 - **仅剩待用户裁决项**（非代码缺陷，主代理不擅自处理）：
   1. D-6 的四笔越界提交（两次 master 合并 + 两笔模型配置 chore）是否拆分 / 回退；
   2. D-11 的 M4 退出语义（受控 exit 1 vs 原样 `raise` 的 130）是否调整；
