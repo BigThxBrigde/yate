@@ -501,10 +501,18 @@ class FindReplaceScreen(ModalScreen[None]):
         self.dismiss()
         self._open_path(path)
         if self._reveal is not None:
-            # Record the jump origin immediately before the reveal lands
-            # the cursor elsewhere (single push contract, T3 closure).
-            self._session.push_jump()
-            self._reveal(path, match.row, match.start)
+            # Capture the jump origin before the reveal lands the cursor
+            # elsewhere, but push only after a successful reveal (single
+            # push contract, same shape as QuickFixFlows.jump_to): a
+            # failed reveal leaves the jump stacks untouched and reports
+            # why instead of recording a jump that never happened.
+            origin = self._session.doc
+            row = origin.buffer.row
+            col = origin.buffer.col
+            if self._reveal(path, match.row, match.start):
+                self._session.push_jump(origin, row=row, col=col)
+            else:
+                self._message(f"cannot open {path}", "error")
 
     # -------------------------------------------------------------- replace
 

@@ -165,6 +165,36 @@ def test_enter_opens_and_reveals_match(tmp_path: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_failed_reveal_pushes_no_jump_and_reports(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        doc = tmp_path / "note.txt"
+        doc.write_text("needle here\n", encoding="utf-8")
+        app = YateApp()
+        async with app.run_test(size=(100, 30)) as pilot:
+            seen: list[tuple[Path, int, int]] = []
+
+            def reveal(path: Path, row: int, col: int) -> bool:
+                seen.append((path, row, col))
+                return False
+
+            screen, messages, _notices = _push(app, tmp_path, reveal=reveal)
+            await pilot.pause()
+            _type_query(screen, "needle")
+            assert await wait_until(pilot, lambda: len(screen._flat) == 1)
+            back_before = len(app.editor.session.jumps.stacks()[0])
+            screen.query_one("#fr-results", Static).focus()
+            await pilot.pause()
+            await pilot.press("enter")
+            await pilot.pause()
+            # the reveal was attempted, but a failed reveal must not push
+            # a jump origin and must report the failure on the message line
+            assert seen == [(doc, 0, 0)]
+            assert len(app.editor.session.jumps.stacks()[0]) == back_before
+            assert ("cannot open " + str(doc), "error") in messages
+
+    asyncio.run(scenario())
+
+
 def test_replace_all_writes_unopened_files(tmp_path: Path) -> None:
     async def scenario() -> None:
         alpha = tmp_path / "alpha.txt"

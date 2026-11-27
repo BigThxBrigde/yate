@@ -183,8 +183,9 @@ def test_project_search_publishes_flat_entries_and_records_jump(
     assert [e.label for e in entries] == ["hello needle", "needle here"]
     assert all(e.path == target for e in entries)
 
-    # T3 closure: push_jump lands the origin on the back stack before the
-    # reveal fires.
+    # Single push contract: the origin is captured before the reveal but
+    # lands on the back stack only after a successful reveal (same shape
+    # as QuickFixFlows.jump_to); a failed reveal would push nothing.
     reveals: list[tuple[Path, int, int]] = []
     back_at_reveal = 0
 
@@ -199,7 +200,8 @@ def test_project_search_publishes_flat_entries_and_records_jump(
     screen._open_current()
 
     assert reveals == [(target, 3, 5)]
-    assert back_at_reveal == 1
+    assert back_at_reveal == 0
+    assert len(session.jumps.stacks()[0]) == 1
 
 
 # -------------------------------------------------------------- references
