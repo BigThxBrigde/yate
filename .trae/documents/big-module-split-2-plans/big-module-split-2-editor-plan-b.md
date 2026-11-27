@@ -1,67 +1,52 @@
-# big-module-split-2 editor plan-b: extract key/mouse dispatch
+# big-module-split-2 editor 计划-b：抽取按键/鼠标分发
 
-**Wave**: wave-2
-**Issue**: Gitee IKSFMQ (candidate P1, wave-b)
-**Depends on**: wave-1 (editor plan-a) -- operates on post-wave-a `editor.py`
+**波次**：wave-2
+**议题**：Gitee IKSFMQ（候选 P1，wave-b）
+**依赖**：wave-1（editor 计划-a）——在 wave-a 之后的 `editor.py` 上操作
 
-## Goal
+## 目标
 
-Extract the key and mouse dispatch methods from the `Editor` class in
-`yate/editor.py` into a new sibling module `yate/editor_dispatch.py`.
-After extraction, `editor.py` drops below 800 lines and the
-`SIZE_EXEMPT_FILES` entry is removed (both from the rule text and the
-guard).
+将 `yate/editor.py` 中 `Editor` 类的按键与鼠标分发方法抽取到新的同级模块 `yate/editor_dispatch.py`。抽取后，`editor.py` 降至 800 行以下，`SIZE_EXEMPT_FILES` 条目被移除（规则文本与守卫中同时移除）。
 
-Methods to extract (post-wave-a line numbers; names are stable):
+待抽取的方法（wave-a 之后的行号；名称保持稳定）：
 
-| Method | Approx. lines | Role |
+| 方法 | 约行数 | 职责 |
 |---|---|---|
-| `handle_key` | ~118 | Key event dispatch (modal/popup/chord/raw) |
-| `handle_raw_key` | ~19 | Raw key -> keymap dispatch |
-| `_on_view_mouse` | ~6 | Mouse event routing for a view leaf |
-| `cancel_mouse_state` | ~9 | Drop in-flight mouse interactions |
-| `readonly_notice` | ~5 | Read-only buffer user feedback (called by dispatch) |
-| `insert_char` | ~3 | Character insertion (keymap callback) |
+| `handle_key` | ~118 | 按键事件分发（模态/弹窗/和弦/原始） |
+| `handle_raw_key` | ~19 | 原始按键 -> 键位映射分发 |
+| `_on_view_mouse` | ~6 | 视图叶节点的鼠标事件路由 |
+| `cancel_mouse_state` | ~9 | 丢弃进行中的鼠标交互 |
+| `readonly_notice` | ~5 | 只读缓冲区的用户反馈（由分发调用） |
+| `insert_char` | ~3 | 字符插入（键位映射回调） |
 
-Total extracted: ~160 lines. After wave-1 brought `editor.py` to
-~960 lines, this wave drops it to ~800 lines.
+共抽取约 160 行。wave-1 将 `editor.py` 降至约 960 行后，本波次将其进一步降至约 800 行。
 
-## Non-goals
+## 非目标
 
-- Extracting `execute_action`, `reveal_match`, `focus_*`, `run_command`,
-  `set_theme`, `set_filetype`, etc. -- these are operations, not
-  dispatch routing. They stay in `Editor`.
-- Changing the dispatch semantics or key consumption behavior (R10).
-- Changing the `Editor` public API surface.
+- 抽取 `execute_action`、`reveal_match`、`focus_*`、`run_command`、`set_theme`、`set_filetype` 等——这些是操作，而非分发路由。它们留在 `Editor` 中。
+- 改变分发语义或按键消费行为（R10）。
+- 改变 `Editor` 的公开 API 表面。
 
-## Alternative considered and rejected
+## 考虑过但否决的备选方案
 
-**Alternative**: Also extract `execute_action` (21 lines) to ensure we
-go well under 800.
-**Rejected**: `execute_action` is called from keymaps, the palette, and
-extension bridges -- it is an operation, not dispatch routing. Moving
-it would scatter the operation logic. If the post-extraction count is
-801-805, we register a one-time exemption note in the rule text
-explaining the 1-5 line overshoot is due to the dispatch boundary
-being the natural split point. The guard `MAX_SOURCE_LINES` is 800;
-if we land at 801-805 we can also trim a blank line or comment.
+**备选方案**：同时抽取 `execute_action`（21 行），以确保远低于 800 行。
+**否决理由**：`execute_action` 由键位映射、命令面板和扩展桥接调用——它是操作，而非分发路由。移动它会使操作逻辑分散。若抽取后行数为 801-805，我们会在规则文本中登记一条一次性豁免说明，解释超出 1-5 行是因为分发边界是天然的分界点。守卫 `MAX_SOURCE_LINES` 为 800；若落在 801-805，也可以删掉一个空行或注释。
 
-## Exclusive file list
+## 独占文件清单
 
-| File | Action |
+| 文件 | 操作 |
 |---|---|
-| `yate/editor.py` | Remove 6 methods from Editor class; add import from editor_dispatch |
-| `yate/editor_dispatch.py` | **NEW**: 6 functions extracted from Editor |
-| `tests/test_editor_dispatch.py` | **NEW**: structural tests for the new module |
-| `tests/test_architecture.py` | Remove `"editor.py"` from `SIZE_EXEMPT_FILES` |
-| `.trae/rules/architecture-boundaries.md` | Remove `editor.py` from section 3.7 exemption list |
+| `yate/editor.py` | 从 Editor 类中删除 6 个方法；添加来自 editor_dispatch 的 import |
+| `yate/editor_dispatch.py` | **新建**：从 Editor 抽取的 6 个函数 |
+| `tests/test_editor_dispatch.py` | **新建**：新模块的结构测试 |
+| `tests/test_architecture.py` | 从 `SIZE_EXEMPT_FILES` 中移除 `"editor.py"` |
+| `.trae/rules/architecture-boundaries.md` | 从 3.7 节豁免列表中移除 `editor.py` |
 
-## Detailed changes
+## 详细改动
 
-### Step 1: Create `yate/editor_dispatch.py`
+### 第 1 步：创建 `yate/editor_dispatch.py`
 
-New module containing six functions converted from Editor methods to
-module-level functions parameterized by `ed: Editor`:
+新模块包含六个由 Editor 方法改造而来的函数，以 `ed: Editor` 参数化为模块级函数：
 
 ```python
 """Key and mouse dispatch routing for the editor.
@@ -90,30 +75,30 @@ from yate.logs import tracing
 log = tracing.get_logger(__name__)
 ```
 
-**Functions** (converted from methods, `self` -> `ed`):
+**函数**（由方法改造，`self` -> `ed`）：
 
 1. `handle_key(ed: Editor, event: Key) -> bool`
-   - Was `Editor.handle_key` (post-wave-a ~L490-L607)
-   - All `self.xxx` -> `ed.xxx`
-   - `self.app.focused` -> `ed.app.focused` (not `self.app`; guard-safe)
+   - 原为 `Editor.handle_key`（wave-a 之后约 L490-L607）
+   - 所有 `self.xxx` -> `ed.xxx`
+   - `self.app.focused` -> `ed.app.focused`（不是 `self.app`；守卫安全）
    - `self.has_modal_screen()` -> `ed.has_modal_screen()`
 
 2. `handle_raw_key(ed: Editor, raw: str) -> bool`
-   - Was `Editor.handle_raw_key`
+   - 原为 `Editor.handle_raw_key`
 
 3. `_on_view_mouse(ed: Editor, leaf_id: int, event: MouseEvent) -> bool`
-   - Was `Editor._on_view_mouse`
+   - 原为 `Editor._on_view_mouse`
 
 4. `cancel_mouse_state(ed: Editor) -> None`
-   - Was `Editor.cancel_mouse_state`
+   - 原为 `Editor.cancel_mouse_state`
 
 5. `readonly_notice(ed: Editor) -> None`
-   - Was `Editor.readonly_notice`
+   - 原为 `Editor.readonly_notice`
 
 6. `insert_char(ed: Editor, ch: str) -> None`
-   - Was `Editor.insert_char`
+   - 原为 `Editor.insert_char`
 
-**Editor class methods become thin delegates**:
+**Editor 类的方法变为薄委托**：
 
 ```python
 # In editor.py, Editor class:
@@ -142,12 +127,11 @@ def insert_char(self, ch: str) -> None:
     _insert_char(self, ch)
 ```
 
-Each delegate is 2 lines (docstring + call). 6 delegates = ~18 lines
-added to editor.py (net: -160 + 18 = -142 lines from the class body).
+每个委托为 2 行（docstring + 调用）。6 个委托 = 向 editor.py 增加约 18 行（净计：类体中 -160 + 18 = -142 行）。
 
-### Step 2: Edit `yate/editor.py`
+### 第 2 步：编辑 `yate/editor.py`
 
-1. **Add import** (after editor_compose import):
+1. **添加 import**（在 editor_compose 的 import 之后）：
    ```python
    from yate.editor_dispatch import (
        _cancel_mouse_state,
@@ -159,12 +143,11 @@ added to editor.py (net: -160 + 18 = -142 lines from the class body).
    )
    ```
 
-2. **Replace** the 6 method bodies with thin delegates (see above).
+2. **替换**这 6 个方法体为薄委托（见上文）。
 
-3. **Remove** the now-unused imports that only the dispatch methods
-   needed (if any -- verify with pyright).
+3. **移除**现已不再使用、仅为分发方法所需的 import（如有——用 pyright 验证）。
 
-### Step 3: Create `tests/test_editor_dispatch.py`
+### 第 3 步：创建 `tests/test_editor_dispatch.py`
 
 ```python
 """Tests for yate.editor_dispatch (key/mouse dispatch routing)."""
@@ -230,56 +213,32 @@ def test_editor_dispatch_no_actions_no_commands() -> None:
     assert "from yate.commands" not in src
 ```
 
-### Step 4: Remove `editor.py` from `SIZE_EXEMPT_FILES`
+### 第 4 步：从 `SIZE_EXEMPT_FILES` 中移除 `editor.py`
 
-**In `tests/test_architecture.py`**:
+**在 `tests/test_architecture.py` 中**：
 
-Remove `"editor.py"` from the `SIZE_EXEMPT_FILES` frozenset (line ~355).
+从 `SIZE_EXEMPT_FILES` 的 frozenset 中移除 `"editor.py"`（约第 355 行）。
 
-**In `.trae/rules/architecture-boundaries.md`**:
+**在 `.trae/rules/architecture-boundaries.md` 中**：
 
-Remove the `editor.py` entry from section 3.7 exemption list. The
-entry spans multiple lines (the history of line count measurements);
-remove the entire paragraph and update the "next big-module-split
-candidate" note.
+从 3.7 节豁免列表中移除 `editor.py` 条目。该条目跨越多行（行数测量的历史记录）；删除整个段落，并更新"下一个 big-module-split 候选"的说明。
 
-### Step 5: Verify line count
+### 第 5 步：核对行数
 
 ```powershell
 .venv\Scripts\python.exe -c "print(len(open('yate/editor.py').read().splitlines()))"
 ```
 
-Expected: <= 800. If 801-805, trim trailing blanks or consolidate a
-comment. If still over 805, also extract `execute_action` (21 lines)
-into `editor_dispatch.py`.
+预期：<= 800。若为 801-805，删减末尾空行或合并注释。若仍超过 805，则同时将 `execute_action`（21 行）抽取到 `editor_dispatch.py`。
 
-## Correction: wiring, guard registration (main-agent, 2026-11-04)
+## 更正：接线、守卫登记（主代理，2026-11-04）
 
-Two fixes, both proven on wave-1:
+两处修复，均已在 wave-1 验证：
 
-1. **Import cycle & pyright-clean private imports** (replaces the
-   "string type" claim in the risk table): annotate parameters as
-   `ed: yate.editor.Editor`; put `import yate.editor` at the **end**
-   of `editor_dispatch.py` (after the six function definitions; the
-   annotation is never evaluated at runtime, and both import orders
-   stay safe -- same pattern as the shipped `editor_compose.py`).
-   Name the six module functions `_handle_key` / `_handle_raw_key` /
-   `_on_view_mouse` / `_cancel_mouse_state` / `_readonly_notice` /
-   `_insert_char`, list them in `__all__` (parsing.py precedent) and
-   import them in editor.py with the same-name alias form
-   (`from yate.editor_dispatch import _handle_key as _handle_key, ...`)
-   -- this is the form that measured 0 pyright diagnostics on wave-1.
-   Update the structural test assertions accordingly (same-name alias
-   import + `editor_dispatch` `__all__` presence), and keep
-   `test_editor_imports_factories_from_compose`-style checks in sync.
-2. **`_LAYER_RANKS` registration (plan gap)**: like wave-1,
-   `test_no_unregistered_upward_imports` defaults unregistered files to
-   L0 and will flag every editor_dispatch import of
-   editor_components/keymaps. Add `("editor_dispatch.py", 3)` to
-   `_LAYER_RANKS` (next to `editor_compose.py`) and add the module to
-   the rule text section 1 L3 list in the same change.
+1. **导入环与 pyright 干净的私有 import**（取代风险表中"字符串类型"的说法）：将参数标注为 `ed: yate.editor.Editor`；把 `import yate.editor` 放在 `editor_dispatch.py` 的**末尾**（六个函数定义之后；标注从不在运行时求值，两种导入顺序都安全——与已交付的 `editor_compose.py` 模式相同）。六个模块函数命名为 `_handle_key` / `_handle_raw_key` / `_on_view_mouse` / `_cancel_mouse_state` / `_readonly_notice` / `_insert_char`，在 `__all__` 中列出（沿用 parsing.py 的先例），并在 editor.py 中以同名别名形式导入（`from yate.editor_dispatch import _handle_key as _handle_key, ...`）——这是在 wave-1 实测得到 0 条 pyright 诊断的形式。相应更新结构测试的断言（同名别名 import + `editor_dispatch` 中存在 `__all__`），并保持 `test_editor_imports_factories_from_compose` 风格的检查同步。
+2. **`_LAYER_RANKS` 登记（计划疏漏）**：与 wave-1 一样，`test_no_unregistered_upward_imports` 将未登记的文件默认为 L0，会标记 editor_dispatch 对 editor_components/keymaps 的每一处 import。将 `("editor_dispatch.py", 3)` 加入 `_LAYER_RANKS`（紧邻 `editor_compose.py`），并在同一次改动中把该模块加入规则文本第 1 节的 L3 列表。
 
-## Verification commands
+## 验收命令
 
 ```powershell
 # 1. pyright strict -- zero diagnostics
@@ -304,28 +263,27 @@ Two fixes, both proven on wave-1:
 .venv\Scripts\python.exe -m tools.smoke_test run --jobs 4
 ```
 
-## Risk assessment
+## 风险评估
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |---|---|---|
-| `self.app` in dispatch functions flagged by guard | Architecture test fails | Convert to `ed.app`; structural test verifies no `self.app` |
-| Dispatch semantics change (key consumption, R10) | Functional regression | Functions are copied verbatim; only `self` -> `ed` changes |
-| Line count still > 800 after extraction | SIZE_EXEMPT removal fails | Also extract `execute_action` (21 lines) as fallback |
-| Circular import (editor <-> editor_dispatch) | Import fails | `from __future__ import annotations` + string type for `Editor` |
+| 分发函数中的 `self.app` 被守卫标记 | 架构测试失败 | 改为 `ed.app`；结构测试验证无 `self.app` |
+| 分发语义改变（按键消费，R10） | 功能回归 | 函数逐字复制；仅 `self` -> `ed` 改动 |
+| 抽取后行数仍 > 800 | SIZE_EXEMPT 移除失败 | 同时抽取 `execute_action`（21 行）作为兜底 |
+| 循环导入（editor <-> editor_dispatch） | 导入失败 | `from __future__ import annotations` + `Editor` 的字符串类型 |
 
-## Rollback path
+## 回滚路径
 
-Revert `yate/editor.py`, delete `yate/editor_dispatch.py` and
-`tests/test_editor_dispatch.py`, restore `SIZE_EXEMPT_FILES` entries.
+回退 `yate/editor.py`，删除 `yate/editor_dispatch.py` 和 `tests/test_editor_dispatch.py`，恢复 `SIZE_EXEMPT_FILES` 条目。
 
-## Mermaid: module structure after wave-2
+## Mermaid：wave-2 之后的模块结构
 
 ```mermaid
 flowchart LR
     subgraph yate/
-        ED["editor.py<br/>(~800 lines)<br/>Editor class + operations"]
-        EC["editor_compose.py<br/>(~330 lines)<br/>5 assembly factories"]
-        EDi["editor_dispatch.py<br/>(~180 lines)<br/>6 dispatch functions"]
+        ED["editor.py<br/>(约 800 行)<br/>Editor 类 + 操作"]
+        EC["editor_compose.py<br/>(约 330 行)<br/>5 个装配工厂"]
+        EDi["editor_dispatch.py<br/>(约 180 行)<br/>6 个分发函数"]
     end
 
     ED -->|"from yate.editor_compose"| EC
@@ -338,14 +296,10 @@ flowchart LR
     style EDi fill:#c8e6c9,color:#1a5e20
 ```
 
-## Architecture rules touched
+## 涉及的架构规则
 
-- **R5**: `editor_dispatch.py` must not import `actions` / `commands`.
-- **R10**: Key consumption semantics unchanged; `handle_key` returns
-  `True` when consumed, `False` for fall-through.
-- **R11**: `editor_dispatch.py` is a new top-level `yate/` module; the
-  guard `test_flow_modules_hold_no_app_handle` will scan it. No
-  `self.app` attribute chains (verified by structural test).
-- **R12**: New module uses `log = tracing.get_logger(__name__)`.
-- **Section 3.7**: `editor.py` removed from exemption list (both rule
-  text and `SIZE_EXEMPT_FILES`).
+- **R5**：`editor_dispatch.py` 不得导入 `actions` / `commands`。
+- **R10**：按键消费语义不变；`handle_key` 消费时返回 `True`，否则返回 `False` 继续向下传递。
+- **R11**：`editor_dispatch.py` 是新的顶层 `yate/` 模块；守卫 `test_flow_modules_hold_no_app_handle` 会扫描它。不得有 `self.app` 属性链（由结构测试验证）。
+- **R12**：新模块使用 `log = tracing.get_logger(__name__)`。
+- **第 3.7 节**：`editor.py` 从豁免列表中移除（规则文本与 `SIZE_EXEMPT_FILES` 均移除）。

@@ -1,83 +1,70 @@
-# big-module-split-2 wiki plan-a: subpackage-ize tools/pack/wiki.py
+# big-module-split-2 wiki 计划-a：将 tools/pack/wiki.py 子包化
 
-**Wave**: wave-3 (parallel with yxp plan-d)
-**Issue**: Gitee IKSFMQ (candidate P2)
-**Depends on**: nothing (independent of editor waves)
+**波次**：wave-3（与 yxp 计划-d 并行）
+**议题**：Gitee IKSFMQ（候选 P2）
+**依赖**：无（独立于 editor 各波次）
 
-## Goal
+## 目标
 
-Convert the monolithic `tools/pack/wiki.py` (2149 lines) into a
-subpackage `tools/pack/wiki/` with 6 submodules + facade `__init__.py`.
-Each file stays well under 800 lines. The public import path
-`from tools.pack import wiki` is preserved via the facade; consumers
-(`tools/pack/cli.py`, `tests/test_pack_wiki.py`,
-`tests/test_pack_wiki_lint.py`) require zero changes.
+将单体文件 `tools/pack/wiki.py`（2149 行）转换为子包 `tools/pack/wiki/`，包含 6 个子模块 + 门面 `__init__.py`。每个文件都远低于 800 行。公开导入路径 `from tools.pack import wiki` 通过门面得以保留；使用方（`tools/pack/cli.py`、`tests/test_pack_wiki.py`、`tests/test_pack_wiki_lint.py`）无需任何改动。
 
-## Non-goals
+## 非目标
 
-- Changing the CLI semantics (`python -m tools.pack wiki --check --push
-  --jobs N` behavior unchanged).
-- Changing the lint / translation / publish logic.
-- Modifying test assertions.
+- 改变 CLI 语义（`python -m tools.pack wiki --check --push --jobs N` 行为不变）。
+- 改变 lint / 翻译 / 发布逻辑。
+- 修改测试断言。
 
-## Alternative considered and rejected
+## 考虑过但否决的备选方案
 
-**Alternative**: Keep as a single file, register exemption.
-**Rejected**: At 2149 lines it is 2.7x the threshold. The AST analysis
-shows 5+ distinct responsibility blocks (lint, sources, publish,
-translate, report, orchestration). This is the definition of
-multi-duty mixed file (rules section 3.7: must split).
+**备选方案**：保持单文件，登记豁免。
+**否决理由**：2149 行是阈值的 2.7 倍。AST 分析显示有 5 个以上不同的职责块（lint、sources、publish、translate、report、编排）。这正是多职责混合文件的定义（规则第 3.7 节：必须拆分）。
 
-**Alternative**: Split into 3 files (lint / translate / rest).
-**Rejected**: The "rest" bucket would still be ~1400 lines. Fine-grained
-6-way split keeps each file focused and under 600 lines.
+**备选方案**：拆成 3 个文件（lint / translate / 其余）。
+**否决理由**："其余"这个桶仍会有约 1400 行。细粒度的 6 路拆分能让每个文件保持专注且低于 600 行。
 
-## Submodule split (by AST responsibility blocks)
+## 子模块拆分（按 AST 职责块）
 
-| Submodule | Source lines | Approx. size | Content |
+| 子模块 | 源码行 | 约大小 | 内容 |
 |---|---|---|---|
-| `__init__.py` | new | ~50 | Facade re-exports + docstring exception note |
+| `__init__.py` | new | ~50 | 门面再导出 + docstring 例外说明 |
 | `lint.py` | L174-L551 | ~380 | WikiError, lint engine/pool/bar, _lint_texts* |
 | `sources.py` | L555-L694 | ~140 | WikiPage, _collect_*, collect_sources, _page_* |
 | `publish.py` | L697-L858 + L1218-L1288 + L1721-L1822 | ~320 | run_git, manifest, prune, push, _publish_translations |
 | `translate.py` | L878-L1202 + L1527-L1589 + L1825-L1996 | ~520 | _run_translate, translate_via_cmd, needs_translation, _run_batch, _translate_pending |
 | `report.py` | L1291-L1524 | ~215 | _nav_documents, _PagePlan/Outcome, _ProgressBoard, resolve_jobs |
-| `run.py` | L1593-L1717 + L1999-L2149 | ~275 | _prepare_pages, _PreparedPage, run() entry point |
+| `run.py` | L1593-L1717 + L1999-L2149 | ~275 | _prepare_pages, _PreparedPage, run() 入口点 |
 
-All files < 800 lines. Total ~1900 lines (some overhead from
-per-module imports).
+所有文件 < 800 行。合计约 1900 行（各模块 import 带来少量额外开销）。
 
-## Exclusive file list
+## 独占文件清单
 
-| File | Action |
+| 文件 | 操作 |
 |---|---|
-| `tools/pack/wiki.py` | **DELETE** (replaced by `tools/pack/wiki/` subpackage) |
-| `tools/pack/wiki/__init__.py` | **NEW**: facade re-exports |
-| `tools/pack/wiki/lint.py` | **NEW**: lint pipeline |
-| `tools/pack/wiki/sources.py` | **NEW**: source collection |
-| `tools/pack/wiki/publish.py` | **NEW**: git/manifest/publish |
-| `tools/pack/wiki/translate.py` | **NEW**: translation execution |
-| `tools/pack/wiki/report.py` | **NEW**: navigation/progress |
-| `tools/pack/wiki/run.py` | **NEW**: orchestration + run() |
-| `tests/test_architecture.py` | Remove `"tools/pack/wiki.py"` from `SIZE_EXEMPT_FILES` |
-| `.trae/rules/architecture-boundaries.md` | Remove `tools/pack/wiki.py` from section 3.7 |
+| `tools/pack/wiki.py` | **删除**（由 `tools/pack/wiki/` 子包取代） |
+| `tools/pack/wiki/__init__.py` | **新建**：门面再导出 |
+| `tools/pack/wiki/lint.py` | **新建**：lint 流水线 |
+| `tools/pack/wiki/sources.py` | **新建**：源码收集 |
+| `tools/pack/wiki/publish.py` | **新建**：git/manifest/发布 |
+| `tools/pack/wiki/translate.py` | **新建**：翻译执行 |
+| `tools/pack/wiki/report.py` | **新建**：导航/进度 |
+| `tools/pack/wiki/run.py` | **新建**：编排 + run() |
+| `tests/test_architecture.py` | 从 `SIZE_EXEMPT_FILES` 中移除 `"tools/pack/wiki.py"` |
+| `.trae/rules/architecture-boundaries.md` | 从 3.7 节中移除 `tools/pack/wiki.py` |
 
-**No changes** to: `tools/pack/cli.py`, `tools/pack/__init__.py`,
-`tools/pack/__main__.py`, `tests/test_pack_wiki.py`,
-`tests/test_pack_wiki_lint.py`. The facade preserves the import path.
+**不改动**：`tools/pack/cli.py`、`tools/pack/__init__.py`、`tools/pack/__main__.py`、`tests/test_pack_wiki.py`、`tests/test_pack_wiki_lint.py`。门面保留了导入路径。
 
-## Detailed changes
+## 详细改动
 
-### Step 1: Create `tools/pack/wiki/` subpackage
+### 第 1 步：创建 `tools/pack/wiki/` 子包
 
-Create the directory and 7 files. Each file gets:
-- `from __future__ import annotations` as first code line
-- ASCII-only module docstring
-- `log = tracing.get_logger(__name__)` if it logs
-- Absolute imports only (no `from .lint import ...`; use
-  `from tools.pack.wiki.lint import ...`)
+创建目录及 7 个文件。每个文件都包含：
 
-**`__init__.py`** (facade):
+- `from __future__ import annotations` 作为第一行代码
+- 仅含 ASCII 的模块 docstring
+- 若记录日志则包含 `log = tracing.get_logger(__name__)`
+- 仅使用绝对导入（不用 `from .lint import ...`；使用 `from tools.pack.wiki.lint import ...`）
+
+**`__init__.py`**（门面）：
 
 ```python
 """Bilingual wiki publisher (``python -m tools.pack wiki``).
@@ -126,31 +113,20 @@ __all__ = [
 ]
 ```
 
-**Intra-package imports**: Each submodule uses absolute imports
-(`from tools.pack.wiki.lint import ...`). This satisfies
-`test_no_relative_imports` (no `from .X` allowed).
+**包内导入**：每个子模块使用绝对导入（`from tools.pack.wiki.lint import ...`）。这满足 `test_no_relative_imports`（不允许 `from .X`）。
 
-### Step 2: Populate each submodule
+### 第 2 步：填充每个子模块
 
-Copy functions verbatim from `tools/pack/wiki.py` into the target
-submodule. Adjust cross-references:
+将 `tools/pack/wiki.py` 中的函数逐字复制到目标子模块。调整交叉引用：
 
-- Functions that call functions in other submodules need to import them.
-  Example: `run()` in `run.py` calls `collect_sources()` from
-  `sources.py`, `_prepare_pages()` (local), `_translate_pending()` from
-  `translate.py`, etc.
+- 调用其它子模块中函数的函数需要导入它们。例如：`run.py` 中的 `run()` 调用 `sources.py` 的 `collect_sources()`、`_prepare_pages()`（本地）、`translate.py` 的 `_translate_pending()` 等。
+- 模块级常量（`MANIFEST_NAME`、lint 引擎缓存等）归入拥有它们的子模块。共享常量如有需要可放入一个小的 `_common.py`（但更推荐放在归属模块中再导入）。
 
-- Module-level constants (`MANIFEST_NAME`, lint engine cache, etc.) go
-  to the submodule that owns them. Shared constants go to a small
-  `_common.py` if needed (but prefer placing them in the owning module
-  and importing).
+### 第 3 步：删除 `tools/pack/wiki.py`
 
-### Step 3: Delete `tools/pack/wiki.py`
+在所有函数复制完毕并验证 import 后，删除原文件。
 
-After all functions are copied and imports verified, delete the
-original file.
-
-### Step 4: Create `tests/test_wiki_subpackage.py`
+### 第 4 步：创建 `tests/test_wiki_subpackage.py`
 
 ```python
 """Structural tests for the wiki subpackage."""
@@ -209,74 +185,26 @@ def test_wiki_subpackage_ascii_comments() -> None:
                 )
 ```
 
-### Step 5: Remove `tools/pack/wiki.py` from `SIZE_EXEMPT_FILES`
+### 第 5 步：从 `SIZE_EXEMPT_FILES` 中移除 `tools/pack/wiki.py`
 
-**In `tests/test_architecture.py`**: Remove `"tools/pack/wiki.py"` from
-the `SIZE_EXEMPT_FILES` frozenset.
+**在 `tests/test_architecture.py` 中**：从 `SIZE_EXEMPT_FILES` 的 frozenset 中移除 `"tools/pack/wiki.py"`。
 
-**In `.trae/rules/architecture-boundaries.md`**: Remove the
-`tools/pack/wiki.py` entry from section 3.7 exemption list.
+**在 `.trae/rules/architecture-boundaries.md` 中**：从 3.7 节豁免列表中移除 `tools/pack/wiki.py` 条目。
 
-## Correction: monkeypatch-surface wiring (main-agent, 2026-11-04)
+## 更正：monkeypatch 作用面接线（主代理，2026-11-04）
 
-The tests couple to the single file's module-global namespace
-(`from tools.pack import wiki` + `monkeypatch.setattr(wiki, ...)`).
-After a split, a plain direct import inside submodules breaks every
-patch: the caller keeps its own binding and the facade attribute the
-test patched is never consulted. Evidence (test surface, all in
-`tests/test_pack_wiki*.py`): patched names include `translate_via_cmd`,
-`collect_sources`, `_get_lint_engine`, `_emit_mode`,
-`_drain_collected_failures`, `_STOP_POLL_S`, `TRANSLATE_TIMEOUT_S`,
-`PARALLEL_LINT_MIN_CHARS`, `subprocess` (whole module replaced),
-`ThreadPoolExecutor`, `job_ceiling`; directly referenced attrs include
-`WikiError`, `WikiPage`, `Code`, `SECTION_GUIDES/PLANS/SETS/REVIEWS`,
-`BATCH_SIZE`, `PARALLEL_LINT_MIN_TEXTS`, `MANIFEST_NAME`, `Console`,
-`_feed_stdin`. The "tests unchanged" hard requirement forces:
+测试与单文件的模块全局命名空间相耦合（`from tools.pack import wiki` + `monkeypatch.setattr(wiki, ...)`）。拆分后，子模块内部的普通直接导入会使每一个 patch 失效：调用方保留自己的绑定，而测试所 patch 的门面属性永远不会被查询。证据（测试作用面，全部位于 `tests/test_pack_wiki*.py`）：被 patch 的名称包括 `translate_via_cmd`、`collect_sources`、`_get_lint_engine`、`_emit_mode`、`_drain_collected_failures`、`_STOP_POLL_S`、`TRANSLATE_TIMEOUT_S`、`PARALLEL_LINT_MIN_CHARS`、`subprocess`（整个模块被替换）、`ThreadPoolExecutor`、`job_ceiling`；直接引用的属性包括 `WikiError`、`WikiPage`、`Code`、`SECTION_GUIDES/PLANS/SETS/REVIEWS`、`BATCH_SIZE`、`PARALLEL_LINT_MIN_TEXTS`、`MANIFEST_NAME`、`Console`、`_feed_stdin`。"测试不变"这一硬性要求迫使：
 
-1. **Patch-surface rule**: enumerate every `monkeypatch.setattr(wiki, ...)`
-   target and every `wiki.<attr>` reference in the four test files.
-   Every patched name is (a) re-exported by the facade and (b) read /
-   called inside submodules **via the late-bound facade**, not via a
-   from-import binding: submodules that need it do a module-object
-   import at top (`import tools.pack.wiki as _wiki_facade`) and call
-   sites resolve `_wiki_facade.<name>` at call time. Module-object
-   import on a partially initialized package only binds the module
-   object and never raises (wave-1 evidence). pyright stays typed:
-   the facade module's attributes resolve statically (no
-   `ModuleType`/Any escape), so strict mode stays clean.
-2. **Import discipline**: the submodules are internal; only the facade
-   path `tools.pack.wiki` is public (R14 `services/extensions/`
-   precedent). A direct `import tools.pack.wiki.run` may raise
-   ImportError due to the intentional cycle; note this in the
-   subpackage docstring. Nothing in the repo or tests imports
-   submodules directly (verified 2026-11-04).
-3. **Facade coverage**: `__all__` (plus explicit re-exports, private
-   names included with same-name alias form for pyright) must cover
-   every attribute the tests reference; the structural test asserts
-   the patched-name set is importable from the facade.
-4. **Behavior arbiter**: the existing behavioral tests run unchanged
-   and green -- they are the authoritative regression net. The CLI
-   smoke (`python -m tools.pack wiki --help` plus a `--check` run on a
-   fixture tree if available) stays in verification.
+1. **Patch 作用面规则**：枚举四个测试文件中的每一个 `monkeypatch.setattr(wiki, ...)` 目标以及每一处 `wiki.<attr>` 引用。每个被 patch 的名称都 (a) 由门面再导出，且 (b) 在子模块内部**通过后期绑定的门面**读取/调用，而非通过 from-import 绑定：需要它的子模块在顶部做模块对象导入（`import tools.pack.wiki as _wiki_facade`），调用点在调用时解析 `_wiki_facade.<name>`。对部分初始化的包做模块对象导入只会绑定模块对象、绝不会抛错（wave-1 的证据）。pyright 保持类型化：门面模块的属性可静态解析（不会退化为 `ModuleType`/Any），因此严格模式保持干净。
+2. **导入纪律**：子模块是内部的；只有门面路径 `tools.pack.wiki` 是公开的（沿用 R14 中 `services/extensions/` 的先例）。直接 `import tools.pack.wiki.run` 可能因刻意引入的环而抛出 ImportError；在子包 docstring 中注明这一点。仓库或测试中没有任何地方直接导入子模块（2026-11-04 已核实）。
+3. **门面覆盖**：`__all__`（加上显式再导出，私有名称以同名别名形式纳入以适配 pyright）必须覆盖测试引用的每一个属性；结构测试断言被 patch 的名称集合可从门面导入。
+4. **行为裁决**：现有的行为测试原样运行且保持通过——它们是权威的回归网。CLI 冒烟（`python -m tools.pack wiki --help`，若有测试样本树则再执行一次 `--check`）保留在验收中。
 
-## Ruling: structural source guards (main-agent, 2026-11-04)
+## 裁决：源码结构守卫（主代理，2026-11-04）
 
-`tests/test_pack_wiki_errors.py` holds two structural guards that read
-`tools/pack/wiki.py` source text for AST assertions:
-`test_the_collect_policy_is_installed_inside_the_protected_region`
-(L784-L837) and `test_every_drained_failure_is_rendered_the_same_way`
-(L840-L883). Deleting the file breaks them unconditionally, which
-collides with the "tests unchanged" requirement. Ruling: **option 1,
-authorized** -- update exactly these two guards in lockstep (path
-literal to the new translate module; the drain-loop search scope may
-span the new subpackage files as needed). Their own docstrings mandate
-lockstep updates for equivalent refactors, so this does not relax
-assertion strength. Every other test in the four files stays
-untouched, and the guards' assertions must keep the same strength
-(same protected-region checks, same "exactly 2" drain-loop count,
-same markup/highlight keyword checks).
+`tests/test_pack_wiki_errors.py` 中有两个结构守卫，它们读取 `tools/pack/wiki.py` 的源码文本进行 AST 断言：`test_the_collect_policy_is_installed_inside_the_protected_region`（L784-L837）和 `test_every_drained_failure_is_rendered_the_same_way`（L840-L883）。删除该文件会无条件破坏这两个守卫，与"测试不变"的要求冲突。裁决：**选项 1，授权**——仅同步更新这两个守卫（路径字面量指向新的 translate 模块；drain-loop 的搜索范围可按需覆盖新的子包文件）。它们自身的 docstring 要求对等重构时同步更新，因此这不会削弱断言强度。四个文件中的其它测试保持不动，守卫的断言必须保持同等强度（相同的受保护区域检查、相同的"恰好 2" drain-loop 计数、相同的 markup/highlight 关键字检查）。
 
-## Verification commands
+## 验收命令
 
 ```powershell
 # 1. pyright strict -- zero diagnostics
@@ -301,32 +229,31 @@ same markup/highlight keyword checks).
 .venv\Scripts\python.exe -c "from pathlib import Path; [print(f'{p}: {len(p.read_text().splitlines())}') for p in sorted(Path('tools/pack/wiki').glob('*.py'))]"
 ```
 
-## Risk assessment
+## 风险评估
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |---|---|---|
-| Circular import between submodules | Import fails | Careful dependency ordering; `__init__.py` imports last |
-| Missing public name in facade | Consumer breaks | `__all__` lists all public names; structural test verifies |
-| Relative import accidentally introduced | `test_no_relative_imports` fails | Structural test pre-checks; all imports use `from tools.pack.wiki.X` |
-| Test import path breaks | Tests fail | Facade preserves `from tools.pack import wiki` |
+| 子模块之间的循环导入 | 导入失败 | 仔细安排依赖顺序；`__init__.py` 最后导入 |
+| 门面缺少公开名称 | 使用方失效 | `__all__` 列出所有公开名称；结构测试验证 |
+| 意外引入相对导入 | `test_no_relative_imports` 失败 | 结构测试预先检查；所有导入使用 `from tools.pack.wiki.X` |
+| 测试导入路径失效 | 测试失败 | 门面保留 `from tools.pack import wiki` |
 
-## Rollback path
+## 回滚路径
 
-Delete `tools/pack/wiki/` directory, restore `tools/pack/wiki.py` from
-git. Restore `SIZE_EXEMPT_FILES` entries.
+删除 `tools/pack/wiki/` 目录，从 git 恢复 `tools/pack/wiki.py`。恢复 `SIZE_EXEMPT_FILES` 条目。
 
-## Mermaid: module structure after wave-3
+## Mermaid：wave-3 之后的模块结构
 
 ```mermaid
 flowchart TD
     subgraph tools/pack/wiki/
-        INIT["__init__.py<br/>(~50 lines)<br/>facade re-exports"]
-        LINT["lint.py<br/>(~380 lines)"]
-        SRC["sources.py<br/>(~140 lines)"]
-        PUB["publish.py<br/>(~320 lines)"]
-        TRANS["translate.py<br/>(~520 lines)"]
-        REP["report.py<br/>(~215 lines)"]
-        RUN["run.py<br/>(~275 lines)"]
+        INIT["__init__.py<br/>(约 50 行)<br/>门面再导出"]
+        LINT["lint.py<br/>(约 380 行)"]
+        SRC["sources.py<br/>(约 140 行)"]
+        PUB["publish.py<br/>(约 320 行)"]
+        TRANS["translate.py<br/>(约 520 行)"]
+        REP["report.py<br/>(约 215 行)"]
+        RUN["run.py<br/>(约 275 行)"]
     end
 
     CLI["tools/pack/cli.py"] -->|"from tools.pack import wiki"| INIT
@@ -352,15 +279,9 @@ flowchart TD
     style RUN fill:#c8e6c9,color:#1a5e20
 ```
 
-## Architecture rules touched
+## 涉及的架构规则
 
-- **test_no_relative_imports**: All intra-package imports use absolute
-  paths (`from tools.pack.wiki.lint import ...`).
-- **test_comments_and_docstrings_stay_ascii**: All new files carry
-  ASCII-only comments/docstrings.
-- **test_source_files_within_size_threshold**: All sub-files < 800
-  lines; `tools/pack/wiki.py` removed from exemption list.
-- **test_no_debug_prints_in_library_modules**: `tools/` is NOT in the
-  scan scope (only `yate/` is scanned), so `print()` in tools/pack/
-  is acceptable. But we keep the existing pattern of using `print()`
-  only in CLI-facing code.
+- **test_no_relative_imports**：所有包内导入使用绝对路径（`from tools.pack.wiki.lint import ...`）。
+- **test_comments_and_docstrings_stay_ascii**：所有新文件仅含 ASCII 注释/docstring。
+- **test_source_files_within_size_threshold**：所有子文件 < 800 行；`tools/pack/wiki.py` 已从豁免列表移除。
+- **test_no_debug_prints_in_library_modules**：`tools/` 不在扫描范围内（仅扫描 `yate/`），因此 tools/pack/ 中的 `print()` 是可接受的。但我们沿用既有模式，只在面向 CLI 的代码中使用 `print()`。

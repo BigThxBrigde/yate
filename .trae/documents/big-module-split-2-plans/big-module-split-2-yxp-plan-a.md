@@ -1,73 +1,58 @@
-# big-module-split-2 yxp plan-a: subpackage-ize yate/services/yxp.py
+# big-module-split-2 yxp 计划-a：将 yate/services/yxp.py 子包化
 
-**Wave**: wave-3 (parallel with wiki plan-c)
-**Issue**: Gitee IKSFMQ (candidate P3)
-**Depends on**: nothing (independent of editor waves)
+**波次**：wave-3（与 wiki 计划-c 并行）
+**议题**：Gitee IKSFMQ（候选 P3）
+**依赖**：无（独立于 editor 各波次）
 
-## Goal
+## 目标
 
-Convert `yate/services/yxp.py` (841 lines) into a subpackage
-`yate/services/yxp/` with 3 submodules + facade `__init__.py`. The
-public import path `from yate.services import yxp` (and
-`from yate.services.yxp import YxpError` etc.) is preserved via the
-facade; consumers (`yate/commands.py`, `yate/cli.py`,
-`tools/yxp/cli.py`, `tests/test_yxp.py`, `tests/test_tools_yxp.py`,
-`tests/test_cli.py`) require zero changes.
+将 `yate/services/yxp.py`（841 行）转换为子包 `yate/services/yxp/`，包含 3 个子模块 + 门面 `__init__.py`。公开导入路径 `from yate.services import yxp`（以及 `from yate.services.yxp import YxpError` 等）通过门面得以保留；使用方（`yate/commands.py`、`yate/cli.py`、`tools/yxp/cli.py`、`tests/test_yxp.py`、`tests/test_tools_yxp.py`、`tests/test_cli.py`）无需任何改动。
 
-## Non-goals
+## 非目标
 
-- Changing the install/uninstall/read/list logic.
-- Modifying test assertions (especially the security-hardened tests
-  from the recent symlink/casefold audit).
-- Changing the public API surface.
+- 改变安装/卸载/读取/列表逻辑。
+- 修改测试断言（尤其是近期 symlink/casefold 审计中经过安全加固的测试）。
+- 改变公开 API 表面。
 
-## Alternative considered and rejected
+## 考虑过但否决的备选方案
 
-**Alternative**: Keep as single file, maintain exemption.
-**Rejected**: At 841 lines it is just over the 800-line threshold. The
-AST analysis shows 3 distinct responsibility blocks (read/verify,
-install/rollback, records/list). The security hardening is fresh;
-splitting by clean boundaries is low-risk and removes the exemption.
+**备选方案**：保持单文件，维持豁免。
+**否决理由**：841 行刚好略高于 800 行阈值。AST 分析显示有 3 个不同的职责块（读取/校验、安装/回滚、记录/列表）。安全加固刚完成；按清晰边界拆分风险低，并可取消豁免。
 
-**Alternative**: Split into 2 files (read+install / records+list).
-**Rejected**: The install block (374-643, ~270 lines) plus the read
-block (142-368, ~227 lines) would be ~500 lines in one file. Three-way
-split is cleaner and each file is well under 400 lines.
+**备选方案**：拆成 2 个文件（读取+安装 / 记录+列表）。
+**否决理由**：安装块（374-643，约 270 行）加上读取块（142-368，约 227 行）在一个文件中将达到约 500 行。三路拆分更清晰，且每个文件都远低于 400 行。
 
-## Submodule split (by AST responsibility blocks)
+## 子模块拆分（按 AST 职责块）
 
-| Submodule | Source lines | Approx. size | Content |
+| 子模块 | 源码行 | 约大小 | 内容 |
 |---|---|---|---|
-| `__init__.py` | new | ~80 | Facade re-exports + docstring exception note |
-| `manifest.py` | L73-L368 | ~296 | YxpError, constants, YxpManifest, YxpPackage, read_package, _parse_manifest, _check_*, _verify_digests |
+| `__init__.py` | new | ~80 | 门面再导出 + docstring 例外说明 |
+| `manifest.py` | L73-L368 | ~296 | YxpError, 常量, YxpManifest, YxpPackage, read_package, _parse_manifest, _check_*, _verify_digests |
 | `install.py` | L374-L643 | ~270 | install_package, _extract_payload, _rollback_files, _restore_stale_files, _remove_stale_files, _write_record, uninstall_package |
 | `records.py` | L649-L841 | ~193 | _Record, _parse_record, list_packages, format_*, _unlink_quietly, _prune_empty_parents |
 
-All files < 400 lines. Total ~840 lines (original size preserved with
-small overhead for per-module imports).
+所有文件 < 400 行。合计约 840 行（保留原始大小，各模块 import 带来少量额外开销）。
 
-## Exclusive file list
+## 独占文件清单
 
-| File | Action |
+| 文件 | 操作 |
 |---|---|
-| `yate/services/yxp.py` | **DELETE** (replaced by `yate/services/yxp/` subpackage) |
-| `yate/services/yxp/__init__.py` | **NEW**: facade re-exports |
-| `yate/services/yxp/manifest.py` | **NEW**: read/verify + data classes |
-| `yate/services/yxp/install.py` | **NEW**: install/uninstall/rollback |
-| `yate/services/yxp/records.py` | **NEW**: records/list/format |
-| `tests/test_yxp_subpackage.py` | **NEW**: structural tests |
-| `tests/test_architecture.py` | Remove `"services/yxp.py"` from `SIZE_EXEMPT_FILES` |
-| `.trae/rules/architecture-boundaries.md` | Remove `services/yxp.py` from section 3.7 |
+| `yate/services/yxp.py` | **删除**（由 `yate/services/yxp/` 子包取代） |
+| `yate/services/yxp/__init__.py` | **新建**：门面再导出 |
+| `yate/services/yxp/manifest.py` | **新建**：读取/校验 + 数据类 |
+| `yate/services/yxp/install.py` | **新建**：安装/卸载/回滚 |
+| `yate/services/yxp/records.py` | **新建**：记录/列表/格式化 |
+| `tests/test_yxp_subpackage.py` | **新建**：结构测试 |
+| `tests/test_architecture.py` | 从 `SIZE_EXEMPT_FILES` 中移除 `"services/yxp.py"` |
+| `.trae/rules/architecture-boundaries.md` | 从 3.7 节中移除 `services/yxp.py` |
 
-**No changes** to consumers: `yate/commands.py`, `yate/cli.py`,
-`tools/yxp/cli.py`, `tests/test_yxp.py`, `tests/test_tools_yxp.py`,
-`tests/test_cli.py`. The facade preserves all import paths.
+**不改动**使用方：`yate/commands.py`、`yate/cli.py`、`tools/yxp/cli.py`、`tests/test_yxp.py`、`tests/test_tools_yxp.py`、`tests/test_cli.py`。门面保留了所有导入路径。
 
-## Detailed changes
+## 详细改动
 
-### Step 1: Create `yate/services/yxp/` subpackage
+### 第 1 步：创建 `yate/services/yxp/` 子包
 
-**`__init__.py`** (facade):
+**`__init__.py`**（门面）：
 
 ```python
 """Extension packages (``.yxp``): read, verify, install, uninstall, list.
@@ -142,30 +127,19 @@ __all__ = [
 ]
 ```
 
-### Step 2: Populate submodules
+### 第 2 步：填充子模块
 
-**`manifest.py`**: Copy from `yxp.py` L1-L368 (module docstring,
-imports, constants, data classes, read_package and its helpers).
+**`manifest.py`**：从 `yxp.py` L1-L368 复制（模块 docstring、import、常量、数据类、read_package 及其辅助函数）。
 
-**`install.py`**: Copy L374-L697 (install_package, _extract_payload,
-_rollback_files, _restore_stale_files, _remove_stale_files,
-_write_record, uninstall_package). Imports from `manifest.py`:
-`YxpError`, `YxpPackage`, `YxpManifest`, `read_package`,
-`default_extensions_dir`, `RECORDS_DIRNAME`, `RECORD_SUFFIX`,
-`NAME_RE`, `MANIFEST_NAME`.
+**`install.py`**：复制 L374-L697（install_package、_extract_payload、_rollback_files、_restore_stale_files、_remove_stale_files、_write_record、uninstall_package）。从 `manifest.py` 导入：`YxpError`、`YxpPackage`、`YxpManifest`、`read_package`、`default_extensions_dir`、`RECORDS_DIRNAME`、`RECORD_SUFFIX`、`NAME_RE`、`MANIFEST_NAME`。
 
-**`records.py`**: Copy L649-L841 (_Record, _parse_record,
-_read_record_files, list_packages, _unlink_quietly,
-_prune_empty_parents, format_*). Imports from `manifest.py`:
-`YxpError`, `YxpManifest`, `InstalledPackage`, `RECORDS_DIRNAME`,
-`RECORD_SUFFIX`, `NAME_RE`, `default_extensions_dir`. Imports from
-`install.py`: none (records is read-only; install uses records).
+**`records.py`**：复制 L649-L841（_Record、_parse_record、_read_record_files、list_packages、_unlink_quietly、_prune_empty_parents、format_*）。从 `manifest.py` 导入：`YxpError`、`YxpManifest`、`InstalledPackage`、`RECORDS_DIRNAME`、`RECORD_SUFFIX`、`NAME_RE`、`default_extensions_dir`。从 `install.py` 导入：无（records 是只读的；install 使用 records）。
 
-### Step 3: Delete `yate/services/yxp.py`
+### 第 3 步：删除 `yate/services/yxp.py`
 
-After all functions are copied and imports verified.
+在所有函数复制完毕并验证 import 之后。
 
-### Step 4: Create `tests/test_yxp_subpackage.py`
+### 第 4 步：创建 `tests/test_yxp_subpackage.py`
 
 ```python
 """Structural tests for the yxp subpackage."""
@@ -231,50 +205,20 @@ def test_yxp_subpackage_ascii_comments() -> None:
                 )
 ```
 
-### Step 5: Remove `services/yxp.py` from `SIZE_EXEMPT_FILES`
+### 第 5 步：从 `SIZE_EXEMPT_FILES` 中移除 `services/yxp.py`
 
-**In `tests/test_architecture.py`**: Remove `"services/yxp.py"` from
-the `SIZE_EXEMPT_FILES` frozenset.
+**在 `tests/test_architecture.py` 中**：从 `SIZE_EXEMPT_FILES` 的 frozenset 中移除 `"services/yxp.py"`。
 
-**In `.trae/rules/architecture-boundaries.md`**: Remove the
-`services/yxp.py` entry from section 3.7 exemption list.
+**在 `.trae/rules/architecture-boundaries.md` 中**：从 3.7 节豁免列表中移除 `services/yxp.py` 条目。
 
-## Correction: patch surface, logger name, facade all (main-agent, 2026-11-04)
+## 更正：patch 作用面、日志名、门面全览（主代理，2026-11-04）
 
-1. **Logger-name freeze**: `tests/test_yxp.py:590` asserts caplog
-   records on logger name `"yate.services.yxp"`. After the split,
-   `__name__` in submodules is `yate.services.yxp.manifest` etc. and
-   the assertions would break. Fix: every submodule creates its logger
-   with the explicit frozen name
-   (`log = tracing.get_logger("yate.services.yxp")`), noted in the
-   subpackage docstring. This is a wiring deviation from R12's
-   `__name__` convention, forced by unchanged test assertions.
-2. **Patch surface**: `tests/test_yxp.py` patches `yxp._write_record`
-   (L346, L365), `yxp.read_package` (L392) and `yxp.os.replace`
-   (L419, stdlib-global, seam-free); `tests/test_tools_yxp.py` and
-   `tests/test_cli.py` patch `"yate.services.yxp.uninstall_package"`
-   via string. Rule: enumerate every `monkeypatch.setattr(yxp, ...)`
-   target and every `yxp.<attr>` / string-patch reference in the yxp
-   test files; every patched name is re-exported by the facade AND its
-   callers inside submodules resolve it **via a late-bound facade
-   lookup at call time** -- for yxp, a function-level
-   `from yate.services import yxp as _facade` inside the calling
-   function (bounded surface: install_package is the main caller).
-   String patches on the facade path keep working because callers do
-   attribute lookup at call time (`yxp.uninstall_package(...)`).
-3. **Facade `__all__` consistency**: the draft `__all__` lists
-   `INSTALLED_PACKAGES` but the import block omits it. Reconcile:
-   enumerate the original module's public names plus every
-   `yxp.<attr>` reference in tests/CLI; `__all__` must exactly equal
-   the re-exported, importable set. The structural test asserts every
-   `__all__` name resolves on the facade.
-4. **Submodules are internal** (R14 precedent): only
-   `yate.services.yxp` is public; a direct
-   `import yate.services.yxp.install` may raise ImportError due to the
-   intentional cycle; nothing imports submodules directly (verified
-   2026-11-04). Note it in the subpackage docstring.
+1. **日志名冻结**：`tests/test_yxp.py:590` 断言 logger 名为 `"yate.services.yxp"` 的 caplog 记录。拆分后，子模块中的 `__name__` 为 `yate.services.yxp.manifest` 等，断言会失效。修复：每个子模块都用显式冻结的名称创建其 logger（`log = tracing.get_logger("yate.services.yxp")`），并在子包 docstring 中注明。这是对 R12 的 `__name__` 惯例的接线偏离，由"测试断言不变"所迫使。
+2. **Patch 作用面**：`tests/test_yxp.py` patch 了 `yxp._write_record`（L346、L365）、`yxp.read_package`（L392）和 `yxp.os.replace`（L419，stdlib 全局，无接缝）；`tests/test_tools_yxp.py` 与 `tests/test_cli.py` 通过字符串 patch `"yate.services.yxp.uninstall_package"`。规则：枚举 yxp 测试文件中的每一个 `monkeypatch.setattr(yxp, ...)` 目标以及每一处 `yxp.<attr>` / 字符串 patch 引用；每个被 patch 的名称都由门面再导出，并且其在子模块内部的调用方**在调用时通过后期绑定的门面查找来解析**——对 yxp 而言，是在调用函数内部做函数级的 `from yate.services import yxp as _facade`（作用面有限：install_package 是主要调用方）。门面路径上的字符串 patch 之所以仍然有效，是因为调用方在调用时做属性查找（`yxp.uninstall_package(...)`）。
+3. **门面 `__all__` 一致性**：草稿的 `__all__` 列出了 `INSTALLED_PACKAGES`，但 import 块中遗漏了它。对齐方法：枚举原模块的公开名称，加上 tests/CLI 中的每一处 `yxp.<attr>` 引用；`__all__` 必须精确等于已再导出、可导入的集合。结构测试断言每个 `__all__` 名称都能在门面上解析。
+4. **子模块是内部的**（沿用 R14 先例）：只有 `yate.services.yxp` 是公开的；直接 `import yate.services.yxp.install` 可能因刻意引入的环而抛出 ImportError；没有任何地方直接导入子模块（2026-11-04 已核实）。在子包 docstring 中注明这一点。
 
-## Verification commands
+## 验收命令
 
 ```powershell
 # 1. pyright strict -- zero diagnostics
@@ -299,29 +243,28 @@ the `SIZE_EXEMPT_FILES` frozenset.
 .venv\Scripts\python.exe -c "from pathlib import Path; [print(f'{p}: {len(p.read_text().splitlines())}') for p in sorted(Path('yate/services/yxp').glob('*.py'))]"
 ```
 
-## Risk assessment
+## 风险评估
 
-| Risk | Impact | Mitigation |
+| 风险 | 影响 | 缓解措施 |
 |---|---|---|
-| Circular import between submodules | Import fails | `records.py` does not import from `install.py`; `install.py` imports from `manifest.py` only |
-| Missing public name in facade | Consumer breaks | `__all__` lists all names used by consumers; structural test verifies |
-| Security test regression | Hardened behavior breaks | Functions are copied verbatim; all existing tests run unchanged |
-| `test_leaf_package_reexports_carry_exception_note` flags facade | Architecture test fails | Docstring carries the exception note (see facade code above) |
+| 子模块之间的循环导入 | 导入失败 | `records.py` 不从 `install.py` 导入；`install.py` 仅从 `manifest.py` 导入 |
+| 门面缺少公开名称 | 使用方失效 | `__all__` 列出使用方用到的所有名称；结构测试验证 |
+| 安全测试回归 | 加固行为被破坏 | 函数逐字复制；所有现有测试原样运行 |
+| `test_leaf_package_reexports_carry_exception_note` 标记门面 | 架构测试失败 | docstring 带有例外说明（见上文门面代码） |
 
-## Rollback path
+## 回滚路径
 
-Delete `yate/services/yxp/` directory, restore `yate/services/yxp.py`
-from git. Restore `SIZE_EXEMPT_FILES` entries.
+删除 `yate/services/yxp/` 目录，从 git 恢复 `yate/services/yxp.py`。恢复 `SIZE_EXEMPT_FILES` 条目。
 
-## Mermaid: module structure after wave-3
+## Mermaid：wave-3 之后的模块结构
 
 ```mermaid
 flowchart TD
     subgraph yate/services/yxp/
-        INIT["__init__.py<br/>(~80 lines)<br/>facade re-exports"]
-        MAN["manifest.py<br/>(~296 lines)<br/>read/verify + data classes"]
-        INS["install.py<br/>(~270 lines)<br/>install/uninstall/rollback"]
-        REC["records.py<br/>(~193 lines)<br/>records/list/format"]
+        INIT["__init__.py<br/>(约 80 行)<br/>门面再导出"]
+        MAN["manifest.py<br/>(约 296 行)<br/>读取/校验 + 数据类"]
+        INS["install.py<br/>(约 270 行)<br/>安装/卸载/回滚"]
+        REC["records.py<br/>(约 193 行)<br/>记录/列表/格式化"]
     end
 
     CMD["yate/commands.py"] -->|"from yate.services import yxp"| INIT
@@ -341,21 +284,13 @@ flowchart TD
     style REC fill:#c8e6c9,color:#1a5e20
 ```
 
-## Architecture rules touched
+## 涉及的架构规则
 
-- **R4**: `services/*` must not import `editor_components`. The new
-  submodules stay UI-free (no editor_components imports).
-- **R14 precedent**: The facade pattern follows
-  `services/extensions/__init__.py` (frozen public names, docstring
-  exception note).
-- **Section 3.5**: Package `__init__.py` re-export exception note in
-  docstring (like `services/extensions/__init__.py`).
-- **test_no_relative_imports**: All intra-package imports use absolute
-  paths (`from yate.services.yxp.manifest import ...`).
-- **test_comments_and_docstrings_stay_ascii**: All new files carry
-  ASCII-only comments/docstrings.
-- **test_source_files_within_size_threshold**: All sub-files < 800
-  lines; `services/yxp.py` removed from exemption list.
-- **test_leaf_package_reexports_carry_exception_note**: The facade
-  docstring carries the exception note.
-- **R12**: New modules use `log = tracing.get_logger(__name__)`.
+- **R4**：`services/*` 不得导入 `editor_components`。新子模块保持无 UI（不导入 editor_components）。
+- **R14 先例**：门面模式沿用 `services/extensions/__init__.py`（冻结的公开名称、docstring 例外说明）。
+- **第 3.5 节**：包 `__init__.py` 的再导出例外说明写在 docstring 中（如同 `services/extensions/__init__.py`）。
+- **test_no_relative_imports**：所有包内导入使用绝对路径（`from yate.services.yxp.manifest import ...`）。
+- **test_comments_and_docstrings_stay_ascii**：所有新文件仅含 ASCII 注释/docstring。
+- **test_source_files_within_size_threshold**：所有子文件 < 800 行；`services/yxp.py` 已从豁免列表移除。
+- **test_leaf_package_reexports_carry_exception_note**：门面 docstring 带有例外说明。
+- **R12**：新模块使用 `log = tracing.get_logger(__name__)`。
